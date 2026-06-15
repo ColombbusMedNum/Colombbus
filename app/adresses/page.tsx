@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { db } from "../../lib/firebase";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
-import { MapPinIcon, ArrowLeftIcon, ClockIcon, CalendarDaysIcon } from "@heroicons/react/24/outline";
+import { MapPinIcon, ArrowLeftIcon, ClockIcon, CalendarDaysIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 
 export default function ListeAdresses() {
@@ -112,19 +112,43 @@ export default function ListeAdresses() {
           <div className="grid gap-4">
             {lieuxSemaine.map((act) => {
               const hexColor = act.couleur || "#10b981";
+              const aUneAdresseValide = act.adresse && act.adresse !== "-";
+              
+              const googleMapsUrl = aUneAdresseValide
+                ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${act.lieu} ${act.adresse}`)}`
+                : null;
+
               return (
                 <div 
                   key={act.id} 
                   className="p-5 bg-slate-900 border border-slate-800 rounded-2xl flex items-start gap-4 shadow-xl hover:border-slate-700/80 transition-colors group"
                 >
-                  {/* ICON MAP-PIN (Taille agrandie à w-6 h-6 et couleur dynamique) */}
-                  <div 
-                    style={{ color: hexColor }}
-                    className="p-2.5 bg-slate-950 border border-slate-800/80 rounded-xl shrink-0 group-hover:shadow-[0_0_10px_rgba(255,255,255,0.05)] transition-all"
-                  >
-                    <MapPinIcon className="w-6 h-6 shrink-0" />
-                  </div>
+                  {/* ICON ÉPINGLE UNIQUE OU CLIQUABLE GOOGLE MAPS */}
+                  {googleMapsUrl ? (
+                    <a
+                      href={googleMapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: hexColor }}
+                      title="Ouvrir dans Google Maps"
+                      className="p-2.5 bg-slate-950 border border-slate-800/80 hover:border-white/20 rounded-xl shrink-0 transition-all active:scale-90 relative group/icon shadow-inner cursor-pointer"
+                    >
+                      <MapPinIcon className="w-6 h-6 shrink-0 group-hover/icon:scale-105 transition-transform" />
+                      {/* Petit badge d'indication au survol de l'icône */}
+                      <span className="absolute -top-1 -right-1 bg-slate-900 border border-slate-700 text-white p-0.5 rounded-md opacity-0 group-hover/icon:opacity-100 transition-opacity scale-75">
+                        <ArrowTopRightOnSquareIcon className="w-2.5 h-2.5" />
+                      </span>
+                    </a>
+                  ) : (
+                    <div 
+                      style={{ color: hexColor }}
+                      className="p-2.5 bg-slate-950 border border-slate-800/80 rounded-xl shrink-0 opacity-50"
+                    >
+                      <MapPinIcon className="w-6 h-6 shrink-0" />
+                    </div>
+                  )}
                   
+                  {/* TEXTES ET INFOS */}
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <h3 className="font-black text-base text-white uppercase italic tracking-tight group-hover:text-emerald-400 transition-colors truncate">
@@ -145,9 +169,10 @@ export default function ListeAdresses() {
                     </div>
                     
                     <p className="text-xs text-slate-400 font-medium mt-1.5 leading-relaxed selection:bg-emerald-500/20">
-                      {act.adresse && act.adresse !== "-" ? act.adresse : "Aucune adresse postale enregistrée pour ce modèle"}
+                      {aUneAdresseValide ? act.adresse : "Aucune adresse postale enregistrée pour ce modèle"}
                     </p>
                   </div>
+
                 </div>
               );
             })}
