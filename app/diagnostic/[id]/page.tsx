@@ -73,7 +73,7 @@ const QUESTIONS_BUREAUTIQUE = [
   {
     id: "q7",
     question: "Quelle icône dans une barre d'outils permet d'écrire du texte en gras ?",
-    options: ["L'icône 'I' (Italique)", "L'icône 'G' ou 'B' (Bold / Gras)", "L'icône 'S' (Souligné)", "L'icône du surligneur"],
+    options: ["L'icône 'I' ", "L'icône 'G' ou 'B' ", "L'icône 'S' ", "L'icône du surligneur"],
     correct: "L'icône 'G' ou 'B' (Bold / Gras)"
   },
   {
