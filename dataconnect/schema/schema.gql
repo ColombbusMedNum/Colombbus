@@ -1,0 +1,35 @@
+type User @table {
+  displayName: String!
+  email: String!
+  role: String!
+  phoneNumber: String
+  lastLoginAt: Timestamp
+}
+
+type Beneficiary @table {
+  firstName: String!
+  lastName: String!
+  dateOfBirth: Date!
+  status: String!
+  internalId: String
+  address: String
+  phoneNumber: String
+  email: String
+  notes: String
+}
+
+type Program @table {
+  name: String!
+  description: String!
+  startDate: Date
+  endDate: Date
+}
+
+type BeneficiaryProgram @table(key: ["beneficiary", "program"]) {
+  beneficiary: Beneficiary!
+  program: Program!
+  enrollmentDate: Date!
+  status: String!
+  completionDate: Date
+  notes: String
+}
