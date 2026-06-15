@@ -47,9 +47,9 @@ export default function GenerateurEmargementPagesIdentiques() {
   let alignementClasse = "justify-center gap-12"; 
   if (nbLogos >= 3) alignementClasse = "justify-around gap-6";
 
-  let tailleClasse = "h-12 max-w-[140px]";
-  if (nbLogos === 1) tailleClasse = "h-20 max-w-[240px]";
-  if (nbLogos === 2) tailleClasse = "h-16 max-w-[180px]";
+  let tailleClasse = "h-16 max-w-[240px]"; // S'il y a 3 logos ou plus
+if (nbLogos === 1) tailleClasse = "h-28 max-w-[320px]"; // S'il est tout seul
+if (nbLogos === 2) tailleClasse = "h-24 max-w-[240px]"; // S'ils sont deux
 
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8 font-sans antialiased">
