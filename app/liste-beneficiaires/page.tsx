@@ -11,7 +11,8 @@ import {
   HomeIcon, 
   ChartBarIcon,
   ArrowTopRightOnSquareIcon,
-  UserGroupIcon
+  UserGroupIcon,
+  CalendarDaysIcon
 } from "@heroicons/react/24/outline";
 
 export default function ListeBeneficiaires() {
@@ -150,6 +151,11 @@ export default function ListeBeneficiaires() {
           </div>
           
           <div className="flex flex-wrap gap-2">
+            <Link href="/suresnes" className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl hover:bg-slate-800 hover:text-white transition-all text-slate-400 hover:border-emerald-500/30 text-xs font-bold uppercase tracking-wider shadow-md">
+              <CalendarDaysIcon className="w-4 h-4 text-emerald-500" />
+              <span>Agenda Suresnes</span>
+            </Link>
+
             <Link href="/" className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl hover:bg-slate-800 hover:text-white transition-all text-slate-400 text-xs font-bold uppercase tracking-wider shadow-md">
               <HomeIcon className="w-4 h-4" />
               <span>Accueil</span>

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { db } from "@/lib/firebase"; 
+import { db } from "../../lib/firebase"; 
 import { doc, getDoc, collection, addDoc } from "firebase/firestore";
 import Link from "next/link";
 import { 
@@ -16,7 +16,7 @@ import {
   WrenchScrewdriverIcon
 } from "@heroicons/react/24/outline";
 
-// --- RÉFÉRENTIEL DES QUESTIONS DU QCM (BUREAUTIQUE STANDARD) ---
+// --- RÉFÉRENTIEL DES QUESTIONS DU QCM ---
 const QUESTIONS_BUREAUTIQUE = [
   { id: "q1", question: "Laquelle de ces propositions n'est pas une suite bureautique ?", options: ["Microsoft Office", "LibreOffice", "Google Workspace", "Adobe Creative Cloud"], correct: "Adobe Creative Cloud" },
   { id: "q2", question: "Laquelle de ces propositions n'est pas un logiciel de traitement de texte ?", options: ["Microsoft Word", "Google Sheets", "LibreOffice Writer", "Pages"], correct: "Google Sheets" },
@@ -30,12 +30,11 @@ const QUESTIONS_BUREAUTIQUE = [
   { id: "q10", question: "Pour quelle raison faut-il figer une ligne ou une colonne dans un tableur ?", options: ["Pour empêcher toute modification des données par un autre utilisateur", "Pour garder les entêtes visibles lorsque l'on fait défiler un grand tableau", "Pour changer la couleur de la police automatiquement", "Pour supprimer les lignes vides"], correct: "Pour garder les entêtes visibles lorsque l'on fait défiler un grand tableau" }
 ];
 
-// --- RÉFÉRENTIEL DES 23 QUESTIONS DIAGNOSTIC COLLECTE TECH ---
+// --- RÉFÉRENTIEL DES 22 QUESTIONS DIAGNOSTIC COLLECTE TECH ---
 interface OptionCollecte { text: string; points: number; }
 interface QuestionCollecte { id: string; question: string; options: OptionCollecte[]; }
 
 const QUESTIONS_COLLECTE_TECH: QuestionCollecte[] = [
-  { id: "ct1", question: "Site de réalisation du diagnostic *", options: [{ text: "BUISSON", points: 0 }, { text: "PICPUS", points: 0 }, { text: "SURESNES", points: 0 }] },
   { id: "ct2", question: "Est-il obligatoire de posséder une souris pour utiliser l'ordinateur ?", options: [{ text: "Oui, sans souris l'ordinateur ne peut pas fonctionner.", points: 0 }, { text: "Non, on peut utiliser un pavé tactile, un écran tactile ou des raccourcis clavier.", points: 2 }, { text: "Je ne sais pas.", points: 0 }] },
   { id: "ct3", question: "Pouvez-vous décrire ce qu'est Internet de manière simple ?", options: [{ text: "C'est un logiciel installé sur mon ordinateur pour tapez des textes.", points: 0 }, { text: "C'est un immense réseau mondial qui connecte les ordinateurs entre eux pour s'échanger des informations.", points: 2 }, { text: "C'est juste une boîte pour recevoir des e-mails.", points: 0 }] },
   { id: "ct4", question: "Savez-vous de combien de caractères au minimum doit être composé un mot de passe sécurisé aujourd'hui ? *", options: [{ text: "4 à 6 caractères simples.", points: 0 }, { text: "Au moins 12 caractères (mélangeant majuscules, minuscules, chiffres et symboles).", points: 2 }, { text: "Le nombre de caractères n'a aucune importance.", points: 0 }] },
@@ -71,6 +70,7 @@ export default function FormulaireDiagnostic() {
   const [loading, setLoading] = useState<boolean>(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
 
+  // États distincts pour stocker les réponses
   const [reponsesQCM, setReponsesQCM] = useState<{ [key: string]: string }>({});
   const [reponsesCollecte, setReponsesCollecte] = useState<{ [key: string]: number }>({});
   
@@ -103,7 +103,7 @@ export default function FormulaireDiagnostic() {
   const isModeQCMClassic = typeQuestionnaire === "Initial" || typeQuestionnaire === "Final";
   const isModeCollecteTech = typeQuestionnaire === "CollecteTech";
 
-  // Calcul ultra-sécurisé du nombre total de questions selon le mode choisi
+  // Calcul dynamique mais ultra-verrouillé du nombre total de questions
   let totalQuestions = 0;
   if (isModeQCMClassic) totalQuestions = QUESTIONS_BUREAUTIQUE.length;
   if (isModeCollecteTech) totalQuestions = QUESTIONS_COLLECTE_TECH.length;
@@ -112,17 +112,15 @@ export default function FormulaireDiagnostic() {
     ? ((currentQuestionIndex + 1) / totalQuestions) * 100 
     : 100;
 
+  // Vérifier si la question en cours a reçu une réponse pour débloquer le bouton "Suivant"
   const questionEnCoursA_Reponse = isModeQCMClassic
     ? !!reponsesQCM[QUESTIONS_BUREAUTIQUE[currentQuestionIndex]?.id]
     : isModeCollecteTech
       ? reponsesCollecte[QUESTIONS_COLLECTE_TECH[currentQuestionIndex]?.id] !== undefined
       : false;
 
-  // Fonction de démarrage pour réinitialiser les index proprement
   const handleDemarrer = () => {
     setCurrentQuestionIndex(0);
-    if (isModeCollecteTech) setReponsesCollecte({});
-    if (isModeQCMClassic) setReponsesQCM({});
     setCommentairesPerso("");
     setEtape(2);
   };
@@ -256,7 +254,7 @@ export default function FormulaireDiagnostic() {
         {/* FORMULAIRE ÉTAPE PAR ÉTAPE */}
         <form onSubmit={handleSubmit} className="space-y-4">
           
-          {/* ÉTAPE 1 : SÉLECTION DU QUESTIONNAIRE */}
+          {/* ÉTAPE 1 : CHOIX DU TYPE */}
           {etape === 1 && (
             <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -267,7 +265,7 @@ export default function FormulaireDiagnostic() {
                   { id: "Initial", label: "Auto-diagnostic initial (Début)", desc: "Évaluer le niveau initial de l'usager.", icon: AcademicCapIcon },
                   { id: "Final", label: "Auto-diagnostic final (Fin)", desc: "Mesurer les compétences acquises.", icon: ClipboardDocumentCheckIcon },
                   { id: "Satisfaction", label: "Questionnaire de satisfaction", desc: "Recueillir le ressenti de l'usager.", icon: FaceSmileIcon },
-                  { id: "CollecteTech", label: "Collecte Tech", desc: "Diagnostic d'inclusion numérique Collect.Tech (23 Questions - 44 Pts).", icon: WrenchScrewdriverIcon }
+                  { id: "CollecteTech", label: "Collecte Tech", desc: "Diagnostic d'inclusion numérique Collect.Tech (22 Questions - 44 Pts).", icon: WrenchScrewdriverIcon }
                 ].map((t) => (
                   <button
                     key={t.id}
@@ -301,7 +299,7 @@ export default function FormulaireDiagnostic() {
             </div>
           )}
 
-          {/* ÉTAPE 2 : QUESTIONNAIRE EN COURS */}
+          {/* ÉTAPE 2 : QUESTIONNAIRE EN ACTION */}
           {etape === 2 && (
             <div className="space-y-4">
               
@@ -314,7 +312,7 @@ export default function FormulaireDiagnostic() {
                 </div>
               )}
 
-              {/* QCM BUREAUTIQUE STANDARD */}
+              {/* QCM BUREAUTIQUE */}
               {isModeQCMClassic && (
                 <div className="space-y-4">
                   {QUESTIONS_BUREAUTIQUE.map((q, qIndex) => {
@@ -357,7 +355,7 @@ export default function FormulaireDiagnostic() {
                 </div>
               )}
 
-              {/* EVALUATION COMPLÈTE COLLECTE TECH (23 QUESTIONS) */}
+              {/* COLLECTE TECH */}
               {isModeCollecteTech && (
                 <div className="space-y-4">
                   {QUESTIONS_COLLECTE_TECH.map((q, qIndex) => {
@@ -400,7 +398,7 @@ export default function FormulaireDiagnostic() {
                 </div>
               )}
 
-              {/* TEXTAREA DES OBSERVATIONS : CONDITION SÉCURISÉE AU MAXIMUM */}
+              {/* OBSERVATIONS DE FIN DE PARCOURS */}
               {(isModeQCMClassic || isModeCollecteTech) && totalQuestions > 0 && currentQuestionIndex === (totalQuestions - 1) && (
                 <div className="w-full bg-slate-900/40 border border-slate-800 rounded-xl p-4 mt-2 space-y-3">
                   <label className="text-xs font-bold text-slate-300 block">
@@ -416,7 +414,7 @@ export default function FormulaireDiagnostic() {
                 </div>
               )}
 
-              {/* BARRE DE NAVIGATION PRÉCÉDENT / SUIVANT */}
+              {/* CONTROLES DE NAVIGATION */}
               {(isModeQCMClassic || isModeCollecteTech) && totalQuestions > 0 && (
                 <div className="flex justify-between items-center pt-2">
                   <button
@@ -443,59 +441,33 @@ export default function FormulaireDiagnostic() {
                 </div>
               )}
 
-              {/* BLOCK ENQUÊTE DE SATISFACTION */}
+              {/* SATISFACTION */}
               {typeQuestionnaire === "Satisfaction" && (
                 <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4 shadow-xl">
                   <div>
                     <label className="text-xs font-bold text-slate-200 block">Appréciation globale des ateliers</label>
                     <div className="flex gap-1.5 pt-2 justify-center">
                       {[1, 2, 3, 4, 5].map((num) => (
-                        <button
-                          key={num}
-                          type="button"
-                          onClick={() => setSatisfactionGlobale(num)}
-                          className={`w-9 h-9 rounded-xl border text-xs font-black transition-all ${
-                            satisfactionGlobale === num ? "bg-purple-600 border-purple-500 text-white" : "bg-slate-950 border-slate-850 text-slate-400"
-                          }`}
-                        >
-                          {num}
-                        </button>
+                        <button key={num} type="button" onClick={() => setSatisfactionGlobale(num)} className={`w-9 h-9 rounded-xl border text-xs font-black transition-all ${satisfactionGlobale === num ? "bg-purple-600 border-purple-500 text-white" : "bg-slate-950 border-slate-850 text-slate-400"}`}>{num}</button>
                       ))}
                     </div>
                   </div>
-
                   <div>
                     <label className="text-xs font-bold text-slate-200 block">Clarté des supports mémo</label>
                     <div className="flex gap-1.5 pt-2 justify-center">
                       {[1, 2, 3, 4, 5].map((num) => (
-                        <button
-                          key={num}
-                          type="button"
-                          onClick={() => setSatisfactionSupports(num)}
-                          className={`w-9 h-9 rounded-xl border text-xs font-black transition-all ${
-                            satisfactionSupports === num ? "bg-purple-600 border-purple-500 text-white" : "bg-slate-950 border-slate-850 text-slate-400"
-                          }`}
-                        >
-                          {num}
-                        </button>
+                        <button key={num} type="button" onClick={() => setSatisfactionSupports(num)} className={`w-9 h-9 rounded-xl border text-xs font-black transition-all ${satisfactionSupports === num ? "bg-purple-600 border-purple-500 text-white" : "bg-slate-950 border-slate-850 text-slate-400"}`}>{num}</button>
                       ))}
                     </div>
                   </div>
-
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-200 block">Des suggestions ?</label>
-                    <textarea
-                      value={suggestions}
-                      onChange={(e) => setSuggestions(e.target.value)}
-                      placeholder="Vos suggestions..."
-                      rows={2}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-slate-700 transition-colors resize-none"
-                    />
+                    <textarea value={suggestions} onChange={(e) => setSuggestions(e.target.value)} placeholder="Vos suggestions..." rows={2} className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-slate-700 transition-colors resize-none" />
                   </div>
                 </div>
               )}
 
-              {/* BOUTON D'ENREGISTREMENT FINAL : ENTIÈREMENT SÉCURISÉ */}
+              {/* BOUTON D'ENREGISTREMENT FINAL */}
               {(typeQuestionnaire === "Satisfaction" || (totalQuestions > 0 && currentQuestionIndex === (totalQuestions - 1))) && (
                 <div className="pt-4 border-t border-slate-900 flex justify-between items-center">
                   <button

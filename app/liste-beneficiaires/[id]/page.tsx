@@ -11,7 +11,8 @@ import {
   serverTimestamp, 
   updateDoc, 
   onSnapshot,
-  addDoc
+  addDoc,
+  deleteDoc
 } from "firebase/firestore";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -30,10 +31,9 @@ import {
   UserGroupIcon,
   CalendarDaysIcon,
   AcademicCapIcon,
-  DocumentCheckIcon,
   ClipboardDocumentCheckIcon,
-  StarIcon,
-  ChatBubbleLeftRightIcon
+  ExclamationTriangleIcon,
+  TrashIcon
 } from "@heroicons/react/24/outline";
 
 // --- TYPES & INTERFACES ---
@@ -61,7 +61,7 @@ interface Visite {
   thematique: string;
   lieu: string;
   details: string;
-  satisfaction: any; // Ajusté pour tolérer le format nombre ou objet
+  satisfaction: any; 
   date: string;
   moment: string;
   statut: "Présent" | "Absent";
@@ -135,15 +135,24 @@ export default function FicheBeneficiaire() {
     totalPresents: 0, tauxAssiduite: 100, satisfactionMoyenne: 0, thematiquePhare: "—"
   });
 
+  // Liste des thématiques nécessitant une évaluation (>= 5 rendez-vous présents)
+  const [thematiquesAAlerter, setThematiquesAAlerter] = useState<string[]>([]);
+
   const isProfilIncomplet = user ? (!user.Téléphone || !user.email || !user.Situation_Socio_Pro) : false;
 
   const calculerAgeEnDirect = (dateNaissanceStr: string): string => {
     if (!dateNaissanceStr) return "—";
-    const aujourdhui = new Date();
+    
+    const aujourdhui = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Paris" }));
     const naissance = new Date(dateNaissanceStr);
+    
     let ageCalcul = aujourdhui.getFullYear() - naissance.getFullYear();
     const moisDiff = aujourdhui.getMonth() - naissance.getMonth();
-    if (moisDiff < 0 || (moisDiff === 0 && aujourdhui.getDate() < naissance.getDate())) { ageCalcul--; }
+    
+    if (moisDiff < 0 || (moisDiff === 0 && aujourdhui.getDate() < naissance.getDate())) { 
+      ageCalcul--; 
+    }
+    
     return isNaN(ageCalcul) || ageCalcul < 0 ? "—" : `${ageCalcul} ans`;
   };
 
@@ -218,22 +227,22 @@ export default function FicheBeneficiaire() {
     ...lieuxGlobaux.map(l => l.nom)
   ];
 
-  // Trouver l'id Firebase du lieu actuellement sélectionné dans la liste déroulante (si applicable)
+  // Trouver l'id Firebase du lieu actuellement sélectionné
   const lieuSelectionneFirebase = lieuxGlobaux.find(l => l.nom === formData.lieu);
 
-  // Calcul stats
+  // Calcul stats et alertes thématiques (>= 5 RDV)
   useEffect(() => {
     if (rdvs.length === 0) {
       setStats({ totalPresents: 0, tauxAssiduite: 100, satisfactionMoyenne: 0, thematiquePhare: "—" });
+      setThematiquesAAlerter([]);
       return;
     }
-    const presents = rdvs.filter(r => r.statut === "Présent" && r.moment !== "Diagnostic Initial" && r.moment !== "Diagnostic Final" && r.moment !== "Questionnaire de satisfaction");
+    const presents = rdvs.filter(r => r.statut === "Présent" && r.moment !== "Diagnostic Initial" && r.moment !== "Diagnostic Final" && r.moment !== "Questionnaire de satisfaction" && r.moment !== "Collecte Tech");
     const totalPresentsCount = presents.length;
-    const totalActionsStandard = rdvs.filter(r => r.moment !== "Diagnostic Initial" && r.moment !== "Diagnostic Final" && r.moment !== "Questionnaire de satisfaction").length;
+    const totalActionsStandard = rdvs.filter(r => r.moment !== "Diagnostic Initial" && r.moment !== "Diagnostic Final" && r.moment !== "Questionnaire de satisfaction" && r.moment !== "Collecte Tech").length;
     
     const taux = totalActionsStandard > 0 ? Math.round((totalPresentsCount / totalActionsStandard) * 100) : 100;
     
-    // Calcul de satisfaction en vérifiant si c'est un format numérique direct ou un sous-objet complexe
     const sommeSatisfaction = presents.reduce((acc, curr) => {
       let scoreSat = 0;
       if (curr.satisfaction && typeof curr.satisfaction === "object") {
@@ -246,13 +255,21 @@ export default function FicheBeneficiaire() {
     
     const moyenneSat = totalPresentsCount > 0 ? parseFloat((sommeSatisfaction / totalPresentsCount).toFixed(1)) : 0;
 
-    const topThematique = (() => {
-      const compteurs: Record<string, number> = {};
-      rdvs.forEach(r => { if (r.thematique) compteurs[r.thematique] = (compteurs[r.thematique] || 0) + 1; });
-      const keys = Object.keys(compteurs);
-      if (keys.length === 0) return "—";
-      return keys.reduce((a, b) => compteurs[a] > compteurs[b] ? a : b);
-    })();
+    // Compteur de rendez-vous présents par thématique
+    const compteurs: Record<string, number> = {};
+    presents.forEach(r => { 
+      if (r.thematique && r.thematique.trim() !== "") { 
+        compteurs[r.thematique] = (compteurs[r.thematique] || 0) + 1; 
+      } 
+    });
+
+    // Déterminer la thématique phare
+    const keys = Object.keys(compteurs);
+    const topThematique = keys.length === 0 ? "—" : keys.reduce((a, b) => compteurs[a] > compteurs[b] ? a : b);
+
+    // Détecter les thématiques avec >= 5 rendez-vous
+    const alertes = keys.filter(thematique => compteurs[thematique] >= 5);
+    setThematiquesAAlerter(alertes);
 
     setStats({ totalPresents: totalPresentsCount, tauxAssiduite: taux, satisfactionMoyenne: moyenneSat, thematiquePhare: topThematique });
   }, [rdvs]);
@@ -305,7 +322,7 @@ export default function FicheBeneficiaire() {
 
       await addDoc(collection(db, "utilisateurs", userId, "visites"), {
         mediateur: formData.mediateur,
-        thematique: formData.thematique,
+        thematique: formData.statut === "Absent" ? "" : formData.thematique,
         lieu: lieuFinal,
         details: formData.statut === "Absent" ? "" : formData.details.trim(),
         statut: formData.statut,
@@ -332,6 +349,7 @@ export default function FicheBeneficiaire() {
     try {
       await updateDoc(doc(db, "utilisateurs", userId, "visites", rdvId), { 
         ...editFormData, 
+        thematique: editFormData.statut === "Absent" ? "" : editFormData.thematique,
         details: editFormData.statut === "Absent" ? "" : editFormData.details,
         satisfaction: editFormData.statut === "Absent" ? 0 : Number(editFormData.satisfaction)
       });
@@ -339,17 +357,54 @@ export default function FicheBeneficiaire() {
     } catch (error) { console.error(error); }
   };
 
+  // Suppression d'un rendez-vous avec confirmation
+  const handleDeleteRDV = async (rdvId: string) => {
+    if (window.confirm("Êtes-vous sûr de vouloir supprimer définitivement ce rendez-vous ?")) {
+      try {
+        await deleteDoc(doc(db, "utilisateurs", userId, "visites", rdvId));
+      } catch (error) {
+        console.error("Erreur lors de la suppression :", error);
+        alert("Une erreur est survenue lors de la suppression.");
+      }
+    }
+  };
+
   const startEditing = (rdv: Visite) => {
     setEditingId(rdv.id);
     setEditFormData({ ...rdv });
   };
 
-  const rencontresStandards = rdvs.filter(r => r.moment !== "Diagnostic Initial" && r.moment !== "Diagnostic Final" && r.moment !== "Questionnaire de satisfaction");
-  const evaluationsDiagnostics = rdvs.filter(r => r.moment === "Diagnostic Initial" || r.moment === "Diagnostic Final" || r.moment === "Questionnaire de satisfaction");
+  const rencontresStandards = rdvs.filter(r => r.moment !== "Diagnostic Initial" && r.moment !== "Diagnostic Final" && r.moment !== "Questionnaire de satisfaction" && r.moment !== "Collecte Tech");
+  const evaluationsDiagnostics = rdvs.filter(r => r.moment === "Diagnostic Initial" || r.moment === "Diagnostic Final" || r.moment === "Questionnaire de satisfaction" || r.moment === "Collecte Tech");
 
   const inputClass = "w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white placeholder-slate-600 focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/60 outline-none transition-all";
 
   if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-emerald-500 font-bold animate-pulse">Chargement...</div>;
+
+  const verifierRenouvellementAdhesion = (dateAdhesionStr?: string) => {
+    if (!dateAdhesionStr) return { estAdherent: false, aRenouveler: false };
+    
+    const aujourdhui = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Paris" }));
+    const adhesion = new Date(dateAdhesionStr);
+    
+    const dateExpiration = new Date(adhesion);
+    dateExpiration.setFullYear(dateExpiration.getFullYear() + 1);
+    
+    const dateAlerteDebut = new Date(dateExpiration);
+    dateAlerteDebut.setDate(dateAlerteDebut.getDate() - 14);
+    
+    if (aujourdhui > dateExpiration) {
+      return { estAdherent: false, aRenouveler: false };
+    }
+    
+    if (aujourdhui >= dateAlerteDebut && aujourdhui <= dateExpiration) {
+      return { estAdherent: true, aRenouveler: true };
+    }
+    
+    return { estAdherent: true, aRenouveler: false };
+  };
+
+  const statutAdhesion = verifierRenouvellementAdhesion(user?.Date_Adhesion);
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans antialiased relative">
@@ -382,14 +437,20 @@ export default function FicheBeneficiaire() {
               <div className="flex flex-wrap items-center gap-3">
                 <div className="h-10 w-1.5 bg-emerald-500 rounded-full"></div>
                 <h1 className="text-3xl font-black tracking-tight text-white uppercase italic">
-                  {user?.Civilité}  {user?.Nom}  <span className="text-emerald-500 not-italic">{user?.Prénom}</span>
+                  {user?.Civilité}  {user?.Nom}  <span className="text-emerald-500 not-italic">&nbsp;{user?.Prénom}</span>
                   {user?.Date_Naissance && <span className="text-sm font-mono text-slate-500 font-normal normal-case not-italic ml-3">({calculerAgeEnDirect(user.Date_Naissance)})</span>}
                 </h1>
                 <div className="ml-2 flex gap-2">
-                  {user?.Date_Adhesion ? (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-                      ✅ Adhérent
-                    </span>
+                  {statutAdhesion.estAdherent ? (
+                    statutAdhesion.aRenouveler ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 border border-amber-500/40 text-amber-500 animate-pulse">
+                        ⚠️ Adhésion à renouveler
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                        ✅ Adhérent
+                      </span>
+                    )
                   ) : (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 border border-amber-500/20 text-amber-500">
                       ⚠️ Non adhérent
@@ -415,6 +476,20 @@ export default function FicheBeneficiaire() {
             </div>
           </div>
         </header>
+
+        {/* BANNIÈRE D'ALERTE : ÉVALUATION DES PROGRÈS */}
+        {thematiquesAAlerter.length > 0 && (
+          <div className="mb-6 p-4 bg-red-500/10 border-2 border-red-500/40 rounded-2xl flex items-start gap-3 animate-pulse shadow-xl">
+            <ExclamationTriangleIcon className="w-6 h-6 text-red-400 shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-black text-red-400 uppercase tracking-wide">Évaluation des progrès requise !</h3>
+              <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                Ce bénéficiaire a atteint ou dépassé <span className="font-bold text-white">5 rendez-vous</span> sur les thématiques suivantes :{" "}
+                <span className="text-red-400 font-bold">{thematiquesAAlerter.join(", ")}</span>. Il est fortement conseillé de réaliser une évaluation ou un questionnaire de suivi.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* BLOC DES STATISTIQUES */}
         <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -449,7 +524,7 @@ export default function FicheBeneficiaire() {
                 </div>
               </div>
               <Link 
-                href={`/diagnostic/${userId}`}
+                href={`/diagnosticform?id=${userId}`}
                 className="mt-4 w-full inline-flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md shadow-purple-950/50"
               >
                 <PlusCircleIcon className="w-4 h-4" />
@@ -478,6 +553,8 @@ export default function FicheBeneficiaire() {
                     <option value="Accès aux droits">Accès aux droits</option>
                     <option value="Insertion Pro">Insertion Professionnelle</option>
                     <option value="Numérique">Atelier Numérique</option>
+                    <option value="Ordinateur">💻 Ordinateur</option>
+                    <option value="Smartphone">📱 Smartphone</option>
                     <option value="Logement">Logement</option>
                     <option value="Santé">Accompagnement Santé</option>
                   </select>
@@ -563,75 +640,10 @@ export default function FicheBeneficiaire() {
             </section>
           </div>
 
-          {/* COLONNE DE DROITE : DEUX HISTORIQUES SÉPARÉS */}
+          {/* COLONNE DE DROITE */}
           <div className="lg:col-span-2 space-y-6">
             
-            {/* SECTION 1 : DIAGNOSTICS & EVALUATIONS MODIFIÉE ET SÉCURISÉE */}
-            <section className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-              <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-800">
-                <ClipboardDocumentCheckIcon className="w-5 h-5 text-purple-400" />
-                <h2 className="text-sm font-black uppercase tracking-wider text-white">Diagnostics & Auto-évaluations ({evaluationsDiagnostics.length})</h2>
-              </div>
-
-              {evaluationsDiagnostics.length === 0 ? (
-                <div className="text-center py-6 border-2 border-dashed border-slate-800 rounded-xl text-slate-600 font-mono text-xs">Aucun questionnaire ou diagnostic passé.</div>
-              ) : (
-                <div className="space-y-3">
-                  {evaluationsDiagnostics.map((diag) => {
-                    // Extraction sécurisée pour la satisfaction pour éviter l'erreur d'objet direct
-                    const exactSatisfactionNode = diag.satisfaction && typeof diag.satisfaction === "object"
-                      ? diag.satisfaction.evaluationGlobale
-                      : diag.satisfaction;
-
-                    return (
-                      <div key={diag.id} className="bg-slate-950/40 border border-slate-800 rounded-xl p-4 flex flex-col gap-3">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                                diag.moment === "Diagnostic Initial" ? "bg-amber-950/40 border border-amber-900 text-amber-400" :
-                                diag.moment === "Diagnostic Final" ? "bg-emerald-950/40 border border-emerald-900 text-emerald-400" :
-                                "bg-sky-950/40 border border-sky-900 text-sky-400"
-                              }`}>
-                                {diag.moment}
-                              </span>
-                              <span className="text-xs font-mono font-bold text-slate-400">
-                                {new Date(diag.date).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'})}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-slate-500 mt-1">Axe évalué : <span className="text-slate-300 font-medium">{diag.thematique}</span></p>
-                          </div>
-
-                          <div className="w-full sm:w-auto text-left sm:text-right">
-                            {diag.score ? (
-                              <div className="bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg inline-block">
-                                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Score Réussi</span>
-                                <span className="text-sm font-black text-purple-400 font-mono">{diag.score}</span>
-                              </div>
-                            ) : exactSatisfactionNode ? (
-                              <div className="text-xs font-bold text-amber-400 bg-amber-950/20 border border-amber-900/50 px-2.5 py-1 rounded-lg inline-block">
-                                Note globale : ⭐ {exactSatisfactionNode}/5
-                              </div>
-                            ) : (
-                              <span className="text-xs text-slate-500">—</span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Bloc tiroir d'affichage du bilan automatisé ou des notes associées */}
-                        {diag.details && (
-                          <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-850 text-[11px] text-slate-400 font-mono whitespace-pre-wrap leading-relaxed">
-                            {diag.details}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-
-            {/* SECTION 2 : TABLEAU HISTORIQUE DES ACTIONS STANDARDS */}
+            {/* INVERSION : PAVÉ SUIVI DES RENDEZ-VOUS EN PREMIER */}
             <section className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
               <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-800">
                 <ClockIcon className="w-5 h-5 text-indigo-400" />
@@ -656,7 +668,6 @@ export default function FicheBeneficiaire() {
                       {rencontresStandards.map((rdv) => {
                         const isEditing = editingId === rdv.id;
 
-                        // Sécurisation de l'avis standard
                         const rdvSatisfactionNode = rdv.satisfaction && typeof rdv.satisfaction === "object"
                           ? rdv.satisfaction.evaluationGlobale
                           : rdv.satisfaction;
@@ -690,6 +701,8 @@ export default function FicheBeneficiaire() {
                                     <option value="Accès aux droits">Accès aux droits</option>
                                     <option value="Insertion Pro">Insertion Pro</option>
                                     <option value="Numérique">Numérique</option>
+                                    <option value="Ordinateur">💻 Ordinateur</option>
+                                    <option value="Smartphone">📱 Smartphone</option>
                                     <option value="Logement">Logement</option>
                                     <option value="Santé">Santé</option>
                                   </select>
@@ -697,7 +710,9 @@ export default function FicheBeneficiaire() {
                               ) : (
                                 <div>
                                   <p className="text-slate-300 font-medium">{rdv.mediateur}</p>
-                                  <p className="text-[10px] font-bold text-indigo-400 tracking-wide">{rdv.thematique}</p>
+                                  <p className="text-[10px] font-bold text-indigo-400 tracking-wide">
+                                    {rdv.statut === "Absent" ? "—" : rdv.thematique}
+                                  </p>
                                 </div>
                               )}
                             </td>
@@ -756,9 +771,14 @@ export default function FicheBeneficiaire() {
                                   </button>
                                 </div>
                               ) : (
-                                <button onClick={() => startEditing(rdv)} className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700/50 transition-colors">
-                                  <PencilSquareIcon className="w-4 h-4" />
-                                </button>
+                                <div className="flex justify-end gap-2">
+                                  <button onClick={() => startEditing(rdv)} className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700/50 transition-colors">
+                                    <PencilSquareIcon className="w-4 h-4" />
+                                  </button>
+                                  <button onClick={() => handleDeleteRDV(rdv.id)} className="p-1.5 bg-red-950/40 hover:bg-red-900 border border-red-900/40 text-red-400 rounded-lg transition-colors">
+                                    <TrashIcon className="w-4 h-4" />
+                                  </button>
+                                </div>
                               )}
                             </td>
                           </tr>
@@ -766,6 +786,72 @@ export default function FicheBeneficiaire() {
                       })}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </section>
+
+            {/* SECTION DIAGNOSTICS & EVALUATIONS EN DEUXIÈME POSITION */}
+            <section className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+              <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-800">
+                <ClipboardDocumentCheckIcon className="w-5 h-5 text-purple-400" />
+                <h2 className="text-sm font-black uppercase tracking-wider text-white">Diagnostics & Auto-évaluations ({evaluationsDiagnostics.length})</h2>
+              </div>
+
+              {evaluationsDiagnostics.length === 0 ? (
+                <div className="text-center py-6 border-2 border-dashed border-slate-800 rounded-xl text-slate-600 font-mono text-xs">Aucun questionnaire ou diagnostic passé.</div>
+              ) : (
+                <div className="space-y-3">
+                  {evaluationsDiagnostics.map((diag) => {
+                    const exactSatisfactionNode = diag.satisfaction && typeof diag.satisfaction === "object"
+                      ? diag.satisfaction.evaluationGlobale
+                      : diag.satisfaction;
+
+                    return (
+                      <div key={diag.id} className="bg-slate-950/40 border border-slate-800 rounded-xl p-4 flex flex-col gap-3">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
+                                diag.moment === "Diagnostic Initial" ? "bg-amber-950/40 border border-amber-900 text-amber-400" :
+                                diag.moment === "Diagnostic Final" ? "bg-emerald-950/40 border border-emerald-900 text-emerald-400" :
+                                diag.moment === "Collecte Tech" ? "bg-purple-950/40 border border-purple-900 text-purple-400" :
+                                "bg-sky-950/40 border border-sky-900 text-sky-400"
+                              }`}>
+                                {diag.moment}
+                              </span>
+                              <span className="text-xs font-mono font-bold text-slate-400">
+                                {new Date(diag.date).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'})}
+                              </span>
+                            </div>
+                            {diag.thematique && (
+                              <p className="text-[11px] text-slate-500 mt-1">Axe évalué : <span className="text-slate-300 font-medium">{diag.thematique}</span></p>
+                            )}
+                          </div>
+
+                          <div className="w-full sm:w-auto text-left sm:text-right">
+                            {diag.score ? (
+                              <div className="bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg inline-block">
+                                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Score / Résultat</span>
+                                <span className="text-sm font-black text-purple-400 font-mono">{diag.score}</span>
+                              </div>
+                            ) : exactSatisfactionNode ? (
+                              <div className="text-xs font-bold text-amber-400 bg-amber-950/20 border border-amber-900/50 px-2.5 py-1 rounded-lg inline-block">
+                                Note globale : ⭐ {exactSatisfactionNode}/5
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-500">—</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {diag.details && (
+                          <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-850 text-[11px] text-slate-400 font-mono whitespace-pre-wrap leading-relaxed">
+                            {diag.details}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </section>
