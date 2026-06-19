@@ -49,7 +49,9 @@ export default function PlanningExpertMix() {
     adresse: "",
     territoire: "",
     couleur: "#6366f1",
-    codeAnalytique: "" 
+    codeAnalytique: "",
+    dateDebut: "",
+    dateFin: ""
   });
 
   // Fonction pour définir le poids du tri des statuts
@@ -86,12 +88,12 @@ export default function PlanningExpertMix() {
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       if (docs.length === 0 && snap.metadata.fromCache === false) {
         const initiales = [
-          { lieu: "RN Suresnes", debut: "10:00", fin: "17:00", adresse: "Hôtel de Ville, Suresnes", territoire: "92", couleur: "#6366f1", codeAnalytique: "" },
-          { lieu: "RND Suresnes", debut: "10:00", fin: "17:00", adresse: "Hôtel de Ville, Suresnes", territoire: "92", couleur: "#475569", codeAnalytique: "" },
-          { lieu: "Bureau", debut: "09:00", fin: "17:00", adresse: "Siège social", territoire: "", couleur: "#94a3b8", codeAnalytique: "" },
-          { lieu: "Réunion", debut: "14:00", fin: "16:00", adresse: "Salle Polyvalente", territoire: "", couleur: "#f59e0b", codeAnalytique: "" },
-          { lieu: "Déplacement", debut: "09:00", fin: "18:00", adresse: "Extérieur", territoire: "", couleur: "#0ea5e9", codeAnalytique: "" },
-          { lieu: "Congés", debut: "00:00", fin: "23:59", adresse: "-", territoire: "", couleur: "#f43f5e", codeAnalytique: "" }
+          { lieu: "RN Suresnes", debut: "10:00", fin: "17:00", adresse: "Hôtel de Ville, Suresnes", territoire: "92", couleur: "#6366f1", codeAnalytique: "", dateDebut: "", dateFin: "" },
+          { lieu: "RND Suresnes", debut: "10:00", fin: "17:00", adresse: "Hôtel de Ville, Suresnes", territoire: "92", couleur: "#475569", codeAnalytique: "", dateDebut: "", dateFin: "" },
+          { lieu: "Bureau", debut: "09:00", fin: "17:00", adresse: "Siège social", territoire: "", couleur: "#94a3b8", codeAnalytique: "", dateDebut: "", dateFin: "" },
+          { lieu: "Réunion", debut: "14:00", fin: "16:00", adresse: "Salle Polyvalente", territoire: "", couleur: "#f59e0b", codeAnalytique: "", dateDebut: "", dateFin: "" },
+          { lieu: "Déplacement", debut: "09:00", fin: "18:00", adresse: "Extérieur", territoire: "", couleur: "#0ea5e9", codeAnalytique: "", dateDebut: "", dateFin: "" },
+          { lieu: "Congés", debut: "00:00", fin: "23:59", adresse: "-", territoire: "", couleur: "#f43f5e", codeAnalytique: "", dateDebut: "", dateFin: "" }
         ];
         initiales.forEach(act => addDoc(collection(db, "activites_types"), act));
       } else {
@@ -124,7 +126,9 @@ export default function PlanningExpertMix() {
         adresse: newActivite.adresse.trim(),
         territoire: newActivite.territoire,
         couleur: newActivite.couleur,
-        codeAnalytique: newActivite.codeAnalytique.trim() 
+        codeAnalytique: newActivite.codeAnalytique.trim(),
+        dateDebut: newActivite.dateDebut,
+        dateFin: newActivite.dateFin
       };
 
       if (editingActivite) {
@@ -136,7 +140,7 @@ export default function PlanningExpertMix() {
         await addDoc(collection(db, "activites_types"), dataPayload);
       }
       
-      setNewActivite({ lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "", couleur: "#6366f1", codeAnalytique: "" });
+      setNewActivite({ lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "", couleur: "#6366f1", codeAnalytique: "", dateDebut: "", dateFin: "" });
       setEditingActivite(null);
       setIsActiviteModalOpen(false);
     } catch (error) {
@@ -154,7 +158,9 @@ export default function PlanningExpertMix() {
       adresse: type.adresse || "",
       territoire: type.territoire || "",
       couleur: type.couleur || "#6366f1",
-      codeAnalytique: type.codeAnalytique || "" 
+      codeAnalytique: type.codeAnalytique || "",
+      dateDebut: type.dateDebut || "",
+      dateFin: type.dateFin || ""
     });
     setIsActiviteModalOpen(true);
   };
@@ -295,6 +301,9 @@ export default function PlanningExpertMix() {
     return "bg-amber-500/10 text-amber-500 border-amber-500/20";
   };
 
+  // Date du jour au format YYYY-MM-DD pour filtrer les modèles
+  const todayStr = new Date().toLocaleDateString('en-CA');
+
   return (
     <main className="min-h-screen bg-slate-950 text-white pl-4 pt-[55px]">
       
@@ -326,7 +335,7 @@ export default function PlanningExpertMix() {
           {selectedModel && (
             <div className="bg-slate-900 border border-slate-800 text-slate-300 px-2.5 py-1 rounded-md text-[11px] flex items-center gap-2 animate-pulse">
               <span className="font-medium">Injection : {selectedModel.lieu}</span>
-              <button onClick={() => setSelectedModel(null)} className="text-slate-400 hover:text-white transition-colors p-0.5 bg-slate-800 rounded">
+              <button onClick={() => { setSelectedModel(null); }} className="text-slate-400 hover:text-white transition-colors p-0.5 bg-slate-800 rounded">
                 <XMarkIcon className="w-3 h-3 stroke-[3]"/>
               </button>
             </div>
@@ -378,7 +387,7 @@ export default function PlanningExpertMix() {
               <DocumentDuplicateIcon className="w-3.5 h-3.5 text-slate-500" /> Modèles
             </div>
             <button 
-              onClick={() => { setEditingActivite(null); setNewActivite({ lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "", couleur: "#6366f1", codeAnalytique: "" }); setIsActiviteModalOpen(true); }} 
+              onClick={() => { setEditingActivite(null); setNewActivite({ lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "", couleur: "#6366f1", codeAnalytique: "", dateDebut: "", dateFin: "" }); setIsActiviteModalOpen(true); }} 
               className="p-1 bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-md text-slate-400 hover:text-white transition-colors cursor-pointer"
             >
               <PlusIcon className="w-3 h-3" />
@@ -386,42 +395,50 @@ export default function PlanningExpertMix() {
           </div>
 
           <div className="space-y-1.5 pt-1.5 border-t border-slate-800/60">
-            {activitesTypes.map(type => {
-              const hexColor = type.couleur || "#6366f1";
-              const isSelected = selectedModel?.id === type.id;
+            {activitesTypes
+              .filter(type => {
+                // Si une date de début est configurée et qu'elle n'est pas encore arrivée, on masque
+                if (type.dateDebut && todayStr < type.dateDebut) return false;
+                // Si une date de fin est configurée et qu'elle est dépassée, on masque
+                if (type.dateFin && todayStr > type.dateFin) return false;
+                return true;
+              })
+              .map(type => {
+                const hexColor = type.couleur || "#6366f1";
+                const isSelected = selectedModel?.id === type.id;
 
-              const customStyle = {
-                backgroundColor: hexToRgba(hexColor, isSelected ? 0.25 : 0.12),
-                borderColor: isSelected ? hexColor : hexToRgba(hexColor, 0.4),
-                color: hexColor,
-                boxShadow: isSelected ? `0 0 8px ${hexToRgba(hexColor, 0.4)}` : "none"
-              };
+                const customStyle = {
+                  backgroundColor: hexToRgba(hexColor, isSelected ? 0.25 : 0.12),
+                  borderColor: isSelected ? hexColor : hexToRgba(hexColor, 0.4),
+                  color: hexColor,
+                  boxShadow: isSelected ? `0 0 8px ${hexToRgba(hexColor, 0.4)}` : "none"
+                };
 
-              return (
-                <div 
-                  key={type.id}
-                  onClick={() => setSelectedModel(type)}
-                  style={customStyle}
-                  className={`group/item w-full flex flex-col p-2 rounded-lg text-xs transition-all cursor-pointer border ${isSelected ? 'ring-1 ring-white/20' : 'hover:brightness-125'}`}
-                >
-                  <div className="w-full flex items-center justify-between">
-                    <span className="truncate font-medium flex items-center gap-1.5 text-slate-200">
-                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: hexColor }}></span>
-                      <span className="truncate">{type.lieu}</span> 
-                      {type.territoire && <span className="text-[10px] opacity-60 bg-slate-950 px-1 rounded text-slate-300">{type.territoire}</span>}
-                    </span>
-                    <div className="flex items-center gap-0.5 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                      <button onClick={(e) => handleOpenEditActivite(type, e)} className="text-slate-400 hover:text-white p-0.5">
-                        <PencilSquareIcon className="w-3 h-3" />
-                      </button>
-                      <button onClick={(e) => handleDeleteActiviteType(type.id, e)} className="text-slate-500 hover:text-red-400 p-0.5">
-                        <XMarkIcon className="w-3.5 h-3.5" />
-                      </button>
+                return (
+                  <div 
+                    key={type.id}
+                    onClick={() => setSelectedModel(type)}
+                    style={customStyle}
+                    className={`group/item w-full flex flex-col p-2 rounded-lg text-xs transition-all cursor-pointer border ${isSelected ? 'ring-1 ring-white/20' : 'hover:brightness-125'}`}
+                  >
+                    <div className="w-full flex items-center justify-between">
+                      <span className="truncate font-medium flex items-center gap-1.5 text-slate-200">
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: hexColor }}></span>
+                        <span className="truncate">{type.lieu}</span> 
+                        {type.territoire && <span className="text-[10px] opacity-60 bg-slate-950 px-1 rounded text-slate-300">{type.territoire}</span>}
+                      </span>
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                        <button onClick={(e) => handleOpenEditActivite(type, e)} className="text-slate-400 hover:text-white p-0.5">
+                          <PencilSquareIcon className="w-3 h-3" />
+                        </button>
+                        <button onClick={(e) => handleDeleteActiviteType(type.id, e)} className="text-slate-500 hover:text-red-400 p-0.5">
+                          <XMarkIcon className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
+                    {type.debut && <div className="text-[9px] text-slate-500 font-mono mt-0.5 pl-3">{type.debut} - {type.fin}</div>}
                   </div>
-                  {type.debut && <div className="text-[9px] text-slate-500 font-mono mt-0.5 pl-3">{type.debut} - {type.fin}</div>}
-                </div>
-              );
+                );
             })}
           </div>
         </aside>
@@ -527,10 +544,18 @@ export default function PlanningExpertMix() {
           <form onSubmit={handleSaveActiviteType} className="bg-slate-900 border border-slate-800 p-5 rounded-xl w-full max-w-xs space-y-3">
             <h3 className="font-semibold text-sm">{editingActivite ? "Modifier le Modèle" : "Nouveau Modèle"}</h3>
             <input placeholder="Nom de l'activité" value={newActivite.lieu} className="field-dark" required onChange={e => setNewActivite({...newActivite, lieu: e.target.value})} />
+            
             <div className="grid grid-cols-2 gap-2">
-              <input type="time" className="field-dark" value={newActivite.debut} onChange={e => setNewActivite({...newActivite, debut: e.target.value})} />
-              <input type="time" className="field-dark" value={newActivite.fin} onChange={e => setNewActivite({...newActivite, fin: e.target.value})} />
+              <div className="flex flex-col gap-0.5">
+                <label className="text-[9px] text-slate-500 font-medium uppercase">Heure début</label>
+                <input type="time" className="field-dark" value={newActivite.debut} onChange={e => setNewActivite({...newActivite, debut: e.target.value})} />
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <label className="text-[9px] text-slate-500 font-medium uppercase">Heure fin</label>
+                <input type="time" className="field-dark" value={newActivite.fin} onChange={e => setNewActivite({...newActivite, fin: e.target.value})} />
+              </div>
             </div>
+
             <input placeholder="Adresse (Optionnel)" value={newActivite.adresse} className="field-dark" onChange={e => setNewActivite({...newActivite, adresse: e.target.value})} />
             
             <div className="flex flex-col gap-1">
@@ -551,6 +576,28 @@ export default function PlanningExpertMix() {
                 className="field-dark" 
                 onChange={e => setNewActivite({...newActivite, codeAnalytique: e.target.value})} 
               />
+            </div>
+
+            {/* PÉRIODE DE VALIDITÉ (DATES DÉBUT ET FIN) */}
+            <div className="grid grid-cols-2 gap-2 border-t border-slate-800/60 pt-2">
+              <div className="flex flex-col gap-0.5">
+                <label className="text-[9px] text-slate-400 font-medium uppercase">Date de début</label>
+                <input 
+                  type="date" 
+                  className="field-dark" 
+                  value={newActivite.dateDebut} 
+                  onChange={e => setNewActivite({...newActivite, dateDebut: e.target.value})} 
+                />
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <label className="text-[9px] text-slate-400 font-medium uppercase">Date de fin</label>
+                <input 
+                  type="date" 
+                  className="field-dark" 
+                  value={newActivite.dateFin} 
+                  onChange={e => setNewActivite({...newActivite, dateFin: e.target.value})} 
+                />
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5 pt-1">
