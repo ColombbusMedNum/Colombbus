@@ -142,6 +142,19 @@ export default function HomePage() {
                   </p>
                 </Link>
 
+                {/* SUIVI DES COLLECTES TECH (Nouvel élément inséré) */}
+                <Link href="/suivi-collecte" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-purple-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95 bg-gradient-to-b from-slate-950 to-purple-950/10">
+                  <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-purple-600 transition-all">
+                    <CpuChipIcon className="w-4 h-4 text-purple-400 group-hover:text-white" />
+                  </div>
+                  <h2 className="text-[11px] font-black uppercase tracking-wide text-white group-hover:text-purple-400 transition-colors">
+                    Suivi Collectes Tech
+                  </h2>
+                  <p className="text-[9px] text-slate-400 font-medium mt-1_5 leading-relaxed">
+                    Tableau d'activité synchrone type Excel / IdF
+                  </p>
+                </Link>
+
                 {/* AGENDA SURESNES */}
                 <Link href="/suresnes" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-teal-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                   <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-teal-600 transition-all">
