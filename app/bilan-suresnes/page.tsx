@@ -6,7 +6,7 @@ import { collection, getDocs } from "firebase/firestore";
 import Link from "next/link";
 import { 
   HomeIcon,
-  ArrowLeftIcon, // Réintégration de ArrowLeftIcon
+  ArrowLeftIcon,
   BuildingOfficeIcon, 
   UserGroupIcon, 
   CalendarDaysIcon 
@@ -41,14 +41,78 @@ export default function BilanSuresnesPage() {
   useEffect(() => {
     const calcCohorteUnique = async () => {
       try {
-        // 1. Récupérer et filtrer les usagers de Suresnes
+        // 1. Récupérer l'intégralité des créneaux de l'agenda de Suresnes
+        const agendaSnap = await getDocs(collection(db, "planning_suresnes"));
+        
+        // 2. Récupérer tous les profils usagers avec une extraction ultra-large
         const usersSnap = await getDocs(collection(db, "utilisateurs"));
-        const suresnesUsers = usersSnap.docs
-          .map(d => ({ id: d.id, ...d.data() } as any))
-          .filter(u => u.Ville?.trim().toLowerCase() === "suresnes");
+        const listeUsagers = usersSnap.docs.map(d => {
+          const data = d.data();
+          
+          // Récupère TOUTES les variantes possibles de clés utilisées pour le genre
+          const genreExtrait = data.Genre || data.genre || data.Sexe || data.sexe || data.civility || data.civilite || "";
+          
+          return {
+            id: d.id,
+            nom: (data.Nom || data.nom || "").trim().toLowerCase().replace(/\s+/g, " "),
+            prenom: (data.Prénom || data.prenom || "").trim().toLowerCase().replace(/\s+/g, " "),
+            genreBrut: genreExtrait.toString().toLowerCase().trim()
+          };
+        });
 
-        setTotalSuresnes(suresnesUsers.length);
+        // DEBUG LOG : Permet de voir instantanément dans la console F12 comment sont écrits vos genres dans Firestore
+        if (listeUsagers.length > 0) {
+          console.log("Exemple de genres détectés dans Firestore :", listeUsagers.slice(0, 5).map(u => ({ nom: u.nom, genreBrut: u.genreBrut })));
+        }
 
+        // Dictionnaire pour isoler la date la plus ancienne de chaque bénéficiaire unique
+        const cohorteUniques: Record<string, { date: Date; genre: string }> = {};
+
+        // 3. Analyser le planning global de Suresnes
+        agendaSnap.docs.forEach(docRdv => {
+          const rdvData = docRdv.data();
+          const nomUsagerAgenda = (rdvData.usager || "").trim().toLowerCase().replace(/\s+/g, " ");
+
+          // On ignore les créneaux vides sans usager
+          if (!nomUsagerAgenda) return;
+
+          // Recherche de la correspondance avec double vérification (Prénom + Nom OU Nom + Prénom)
+          const ficheUsager = listeUsagers.find(u => {
+            const combinPrenomNom = `${u.prenom} ${u.nom}`;
+            const combinNomPrenom = `${u.nom} ${u.prenom}`;
+            return nomUsagerAgenda === combinPrenomNom || nomUsagerAgenda === combinNomPrenom;
+          });
+
+          // Extraction et sécurité sur la date du créneau (ex: "2026-06-15")
+          if (!rdvData.date) return;
+          const rdvDate = new Date(rdvData.date);
+
+          // Normalisation à spectre très large pour attraper toutes les écritures de genre possibles
+          let genreFinal = "non_specifie";
+          if (ficheUsager && ficheUsager.genreBrut) {
+            const g = ficheUsager.genreBrut;
+            
+            // Tests pour HOMME (gère: "homme", "h", "monsieur", "mr", "m.", "1")
+            if (g.startsWith("h") || g.includes("monsieur") || g === "m" || g.startsWith("mr") || g === "1") {
+              genreFinal = "homme";
+            } 
+            // Tests pour FEMME (gère: "femme", "f", "madame", "mme", "2")
+            else if (g.startsWith("f") || g.includes("madame") || g.startsWith("mme") || g === "2") {
+              genreFinal = "femme";
+            }
+          }
+
+          // La clé unique reste le nom nettoyé de l'usager pour éliminer les doublons de rendez-vous
+          const cleUnique = nomUsagerAgenda;
+
+          if (!cohorteUniques[cleUnique]) {
+            cohorteUniques[cleUnique] = { date: rdvDate, genre: genreFinal };
+          } else if (rdvDate.getTime() < cohorteUniques[cleUnique].date.getTime()) {
+            cohorteUniques[cleUnique].date = rdvDate;
+          }
+        });
+
+        // 4. Initialisation des structures de compteurs d'impact
         const structureTrimestres = {
           T1: { hommes: 0, femmes: 0, total: 0 },
           T2: { hommes: 0, femmes: 0, total: 0 },
@@ -57,48 +121,30 @@ export default function BilanSuresnesPage() {
         };
 
         const structureMois = Array(12).fill(null).map(() => ({ hommes: 0, femmes: 0, total: 0 }));
+        let totalCompteur = 0;
 
-        // 2. Parcourir chaque usager pour trouver sa TOUTE PREMIÈRE VENUE
-        for (const user of suresnesUsers) {
-          const rdvSnap = await getDocs(collection(db, "utilisateurs", user.id, "rendezvous"));
-          let dates: Date[] = [];
-          
-          rdvSnap.docs.forEach(docRdv => {
-            const rdvData = docRdv.data();
-            if (rdvData.date) dates.push(new Date(rdvData.date));
-            else if (rdvData.createdAt) dates.push(new Date(rdvData.createdAt));
-          });
+        // 5. Ventilation finale sans doublon
+        Object.values(cohorteUniques).forEach(({ date, genre }) => {
+          totalCompteur++;
+          const mois = date.getMonth(); // 0 = Janvier, 5 = Juin, etc.
 
-          // Sécurité s'il n'a pas encore de rendez-vous enregistré
-          if (dates.length === 0 && user.createdAt) {
-            dates.push(new Date(user.createdAt));
-          }
+          // Remplissage de la grille mensuelle globale
+          structureMois[mois].total += 1;
+          if (genre === "homme") structureMois[mois].hommes += 1;
+          if (genre === "femme") structureMois[mois].femmes += 1;
 
-          if (dates.length > 0) {
-            // RÈGLE D'OR : On extrait uniquement la date minimale (la plus ancienne)
-            const premiereVenue = new Date(Math.min(...dates.map(d => d.getTime())));
-            const mois = premiereVenue.getMonth(); 
-            
-            const genre = user.Genre || "Non spécifié";
-            const isHomme = genre.toLowerCase().startsWith("h") || genre.toLowerCase() === "monsieur";
-            const isFemme = genre.toLowerCase().startsWith("f") || genre.toLowerCase() === "madame";
+          // Calcul du trimestre correspondant
+          let triKey = "T1";
+          if (mois >= 3 && mois <= 5) triKey = "T2";
+          else if (mois >= 6 && mois <= 8) triKey = "T3";
+          else if (mois >= 9 && mois <= 11) triKey = "T4";
 
-            // Enregistrement sur le mois unique
-            structureMois[mois].total += 1;
-            if (isHomme) structureMois[mois].hommes += 1;
-            if (isFemme) structureMois[mois].femmes += 1;
+          structureTrimestres[triKey as keyof typeof structureTrimestres].total += 1;
+          if (genre === "homme") structureTrimestres[triKey as keyof typeof structureTrimestres].hommes += 1;
+          if (genre === "femme") structureTrimestres[triKey as keyof typeof structureTrimestres].femmes += 1;
+        });
 
-            // Enregistrement sur le trimestre unique
-            let triKey = "T1";
-            if (mois >= 3 && mois <= 5) triKey = "T2";
-            else if (mois >= 6 && mois <= 8) triKey = "T3";
-            else if (mois >= 9 && mois <= 11) triKey = "T4";
-
-            structureTrimestres[triKey as keyof typeof structureTrimestres].total += 1;
-            if (isHomme) structureTrimestres[triKey as keyof typeof structureTrimestres].hommes += 1;
-            if (isFemme) structureTrimestres[triKey as keyof typeof structureTrimestres].femmes += 1;
-          }
-        }
+        setTotalSuresnes(totalCompteur);
 
         const nomsMois = [
           "Janvier", "Février", "Mars", "Avril", "Mai", "Juin", 
@@ -116,7 +162,7 @@ export default function BilanSuresnesPage() {
         setMoisDetail(detailFormate);
 
       } catch (error) {
-        console.error("Erreur calcul indicateurs Suresnes:", error);
+        console.error("Erreur de calcul des indicateurs de l'agenda de Suresnes :", error);
       } finally {
         setLoading(false);
       }
@@ -128,7 +174,7 @@ export default function BilanSuresnesPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center text-emerald-500 font-bold animate-pulse tracking-widest text-xs uppercase">
-        Génération du bilan d'impact Suresnes (Unique)...
+        Génération du bilan d'impact Suresnes (Agenda Global)...
       </div>
     );
   }
@@ -146,14 +192,12 @@ export default function BilanSuresnesPage() {
                 Bilan Territorial <span className="text-emerald-400 not-italic font-light">Suresnes</span>
               </h1>
               <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mt-0.5">
-                Cohorte Unique basée sur le mois de première venue — Sans Doublons
+                Cohorte Unique basée sur le planning global — Sans Doublons
               </p>
             </div>
           </div>
           
-          {/* ZONE DES BOUTONS DE NAVIGATION */}
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
-            {/* BOUTON RETOUR ACCUEIL */}
             <Link 
               href="/" 
               className="inline-flex items-center gap-2 bg-slate-900 border border-slate-800 hover:border-slate-700 px-4 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all text-xs font-bold uppercase tracking-wider shadow-md active:scale-95"
@@ -162,7 +206,6 @@ export default function BilanSuresnesPage() {
               <span>Accueil</span>
             </Link>
 
-            {/* BOUTON RETOUR PLANNING */}
             <Link 
               href="/suresnes" 
               className="inline-flex items-center gap-2 bg-slate-900 border border-slate-800 hover:border-slate-700 px-4 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all text-xs font-bold uppercase tracking-wider shadow-md active:scale-95"
@@ -180,8 +223,8 @@ export default function BilanSuresnesPage() {
               <BuildingOfficeIcon className="w-6 h-6" />
             </div>
             <div>
-              <span className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Bénéficiaires Actifs Uniques</span>
-              <span className="text-xs text-slate-400 mt-0.5 block">Chaque habitant n'est compté qu'une seule fois dans l'année</span>
+              <span className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Bénéficiaires Distincts de l'Agenda</span>
+              <span className="text-xs text-slate-400 mt-0.5 block">Chaque personne inscrite dans le planning n'est comptée qu'une fois</span>
             </div>
           </div>
           <span className="text-4xl font-mono font-black text-white">{totalSuresnes}</span>
@@ -190,7 +233,7 @@ export default function BilanSuresnesPage() {
         {/* VUE TRIMESTRIELLE */}
         <h2 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2 px-1">
           <UserGroupIcon className="w-4 h-4 text-emerald-400" />
-          Synthèse par Trimestre de première venue
+          Synthèse par Trimestre de premier rendez-vous
         </h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {Object.entries(trimestres).map(([tri, data]) => (
@@ -210,12 +253,12 @@ export default function BilanSuresnesPage() {
         {/* VUE MENSUELLE */}
         <h2 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2 px-1">
           <CalendarDaysIcon className="w-4 h-4 text-emerald-400" />
-          Ventilation Mensuelle
+          Ventilation Mensuelle Réelle
         </h2>
         
         <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
           <div className="grid grid-cols-4 bg-slate-950/80 border-b border-slate-800 p-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">
-            <div className="text-left pl-4">Mois d'entrée</div>
+            <div className="text-left pl-4">Mois de visite</div>
             <div>Hommes</div>
             <div>Femmes</div>
             <div className="text-emerald-400">Total Unique</div>
