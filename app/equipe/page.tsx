@@ -342,7 +342,7 @@ export default function GestionEquipe() {
                 <div className="flex items-center gap-2.5">
                   <ClockIcon className="w-4 h-4 text-orange-400" />
                   <h3 className="text-xs font-black uppercase tracking-wider text-slate-200">
-                    Grille Réglementaire ACI — {site}
+                    Grille Horaires ACI — {site}
                   </h3>
                 </div>
                 <ChevronDownIcon className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isOpen ? "rotate-180 text-orange-400" : ""}`} />
