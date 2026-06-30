@@ -37,7 +37,6 @@ const HORAIRES_PAR_DEFAUT = {
   vendredi: { debut: "09:30", fin: "17:00" }
 };
 
-// Fonction pour attribuer une couleur unique et lisible par territoire
 const getTerritoryColor = (territory: string) => {
   const t = territory.toLowerCase().trim();
   if (t === "paris") return "bg-blue-950/40 border-blue-800/60 text-blue-400";
@@ -191,11 +190,17 @@ export default function GestionEquipe() {
     e.preventDefault();
     if (!formData.prenom || !formData.nom) return;
 
+    // Protection pour s'assurer que le taux transmis est un nombre valide
+    const netPayload = {
+      ...formData,
+      taux: Number(formData.taux) || 0
+    };
+
     try {
       if (editingMed) {
-        await updateDoc(doc(db, "liste_mediateurs", editingMed.id), formData);
+        await updateDoc(doc(db, "liste_mediateurs", editingMed.id), netPayload);
       } else {
-        await addDoc(collection(db, "liste_mediateurs"), formData);
+        await addDoc(collection(db, "liste_mediateurs"), netPayload);
       }
       closeModal();
     } catch (err) {
@@ -224,7 +229,7 @@ export default function GestionEquipe() {
         statut: med.statut || "Permanent",
         sites: med.sites ? med.sites : (med.sitePrincipal ? [med.sitePrincipal] : []),
         rattachementHoraireACI: med.rattachementHoraireACI || "Paris",
-        taux: med.taux || 0,
+        taux: med.taux !== undefined ? Number(med.taux) : 0,
         actif: med.actif !== undefined ? med.actif : true
       });
     } else {
@@ -258,7 +263,7 @@ export default function GestionEquipe() {
   return (
     <div className="min-h-screen bg-black text-slate-100 p-4 md:p-8 font-sans selection:bg-emerald-500/30">
       
-      {/* HEADER AVEC LES DEUX GRANDS BOUTONS D'ACTION À DROITE */}
+      {/* HEADER */}
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8 border-b border-slate-900 pb-6">
         <div className="flex items-center gap-3">
           <Link 
@@ -276,7 +281,6 @@ export default function GestionEquipe() {
           </div>
         </div>
 
-        {/* CONTENEUR DES BOUTONS DE DROITE */}
         <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
           <Link 
             href="/activites_types" 
@@ -329,7 +333,7 @@ export default function GestionEquipe() {
         </form>
       </div>
 
-      {/* GRILLES HORAIRES REGLEMENTAIRES ACI */}
+      {/* GRILLES HORAIRES Fixed */}
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
         {(["Paris", "Massy"] as const).map(site => {
           const isOpen = accordionOpen[site];
@@ -377,7 +381,7 @@ export default function GestionEquipe() {
         })}
       </div>
 
-      {/* FILTRES COMPOSANT EQUIPE */}
+      {/* FILTRES */}
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 mb-6 bg-slate-950/40 p-1.5 rounded-xl border border-slate-900/60">
         <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-900">
           <button onClick={() => setCurrentTab("actifs")} className={`px-4 py-2 rounded-md font-bold text-xs uppercase tracking-wider transition-all cursor-pointer ${currentTab === "actifs" ? "bg-slate-900 text-emerald-400" : "text-slate-500"}`}>
@@ -455,7 +459,7 @@ export default function GestionEquipe() {
             })}
           </div>
         ) : (
-          /* VERSION TABLEAU COMPACT */
+          /* VERSION TABLEAU */
           <div className="w-full bg-slate-950/40 border-2 border-slate-700 rounded-2xl overflow-hidden shadow-xl">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -497,7 +501,7 @@ export default function GestionEquipe() {
         )}
       </div>
 
-      {/* MODALE DE RECRUTEMENT / EDITION */}
+      {/* MODALE RECRUTEMENT / EDITION CORRIGÉE */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-slate-950 border-2 border-slate-700 w-full max-w-lg rounded-2xl p-6 shadow-2xl">
@@ -544,7 +548,14 @@ export default function GestionEquipe() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Coût Horaire (€)</label>
-                  <input type="number" className="w-full p-3 bg-slate-900/50 border border-slate-800 text-white rounded-lg text-center" value={formData.taux} onChange={e => setFormData({...formData, taux: Number(e.target.value)})} />
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    className="w-full p-3 bg-slate-900/50 border border-slate-800 text-white rounded-lg text-center font-bold" 
+                    value={formData.taux || ""} 
+                    placeholder="0"
+                    onChange={e => setFormData({...formData, taux: e.target.value === "" ? 0 : Number(e.target.value)})} 
+                  />
                 </div>
               </div>
 
