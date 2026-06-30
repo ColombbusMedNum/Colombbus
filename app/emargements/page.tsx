@@ -91,7 +91,7 @@ export default function EmargementsPage() {
               <div className="h-8 w-1 bg-cyan-500 rounded-full shadow-[0_0_15px_rgba(6,182,212,0.5)]"></div>
               <div>
                 <h1 className="text-2xl font-black text-white uppercase italic tracking-tight">
-                  Feuilles <span className="text-cyan-400 not-italic font-light">d'émargement</span>
+                  Emargements <span className="text-cyan-400 not-italic font-light">et autres documents</span>
                 </h1>
                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
                   Accès direct aux registres Google Docs par structure
@@ -105,7 +105,7 @@ export default function EmargementsPage() {
             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-800 hover:border-cyan-500/50 text-slate-300 hover:text-cyan-400 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md self-start sm:self-auto"
           >
             <PlusIcon className="w-4 h-4" />
-            <span>{showForm ? "Fermer" : "Ajouter un lieu"}</span>
+            <span>{showForm ? "Fermer" : "Ajouter un document"}</span>
           </button>
         </div>
 
@@ -133,7 +133,7 @@ export default function EmargementsPage() {
             <div className="flex items-center justify-between pt-2">
               <span className="text-[10px] text-slate-500 font-bold uppercase">{status}</span>
               <button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer">
-                Enregistrer le lieu
+                Enregistrer le document
               </button>
             </div>
           </form>
@@ -166,7 +166,7 @@ export default function EmargementsPage() {
                 <button 
                   onClick={() => handleDeleteSite(site.id)}
                   className="p-2 bg-slate-950 border border-slate-800 text-slate-600 hover:text-red-400 hover:border-red-950 rounded-xl transition-colors cursor-pointer"
-                  title="Supprimer ce lieu"
+                  title="Supprimer ce document"
                 >
                   <TrashIcon className="w-4 h-4" />
                 </button>
@@ -187,7 +187,7 @@ export default function EmargementsPage() {
           {/* MESSAGE SI LISTE VIDE */}
           {sites.length === 0 && !status.includes("Ajout") && (
             <div className="text-center py-16 border border-dashed border-slate-800 rounded-2xl text-xs font-bold uppercase tracking-widest text-slate-600">
-              🔍 Aucun lieu configuré. Cliquez sur "Ajouter un lieu" ci-dessus.
+              🔍 Aucun document configuré. Cliquez sur "Ajouter un document" ci-dessus.
             </div>
           )}
         </div>
