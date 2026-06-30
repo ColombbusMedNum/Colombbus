@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { db } from "../../lib/firebase";
-import { collection, getDocs, query, orderBy, where } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, where, limit } from "firebase/firestore";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
   MagnifyingGlassIcon, 
   UserPlusIcon, 
   HomeIcon, 
-  ChartBarIcon,
   ArrowTopRightOnSquareIcon,
   UserGroupIcon,
   CalendarDaysIcon
@@ -54,11 +53,54 @@ export default function ListeBeneficiaires() {
         // 4. Récupération globale de tous les bénéficiaires
         const qBenef = query(collection(db, "utilisateurs"), orderBy("Nom", "asc"));
         const querySnapshot = await getDocs(qBenef);
-        const docs = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setBeneficiaires(docs);
+        
+        // 5. Pour chaque bénéficiaire, on va chercher ses rendez-vous (visites)
+        const docsAvecVisitesEtPremierRDV = await Promise.all(
+          querySnapshot.docs.map(async (docSnap) => {
+            const userData = docSnap.data();
+            let datePremierRDV = "—";
+            let nbVisitesPresent = 0;
+
+            try {
+              // Requête globale sur la sous-collection "visites" pour calculer le total et le premier rdv
+              const qVisites = query(
+                collection(db, "utilisateurs", docSnap.id, "visites"),
+                orderBy("date", "asc")
+              );
+              const visitesSnapshot = await getDocs(qVisites);
+              
+              if (!visitesSnapshot.empty) {
+                // Nombre de visites où l'usager était présent (présence true, "Oui", ou par défaut s'il n'y a pas d'annulation)
+                nbVisitesPresent = visitesSnapshot.docs.filter(doc => {
+                  const data = doc.data();
+                  // S'adapte si vous utilisez "present", "statut", ou si l'existence du rdv vaut présence
+                  return data.statut !== "Absent" && data.statut !== "Annulé" && data.presence !== "Absent" && data.presence !== false;
+                }).length;
+
+                // Extraction de la date la plus ancienne pour le premier RDV
+                const rdvDateRaw = visitesSnapshot.docs[0].data().date;
+                if (rdvDateRaw) {
+                  datePremierRDV = new Date(rdvDateRaw).toLocaleDateString('fr-FR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                  });
+                }
+              }
+            } catch (err) {
+              console.error(`Erreur récupération visites pour ${docSnap.id}:`, err);
+            }
+
+            return {
+              id: docSnap.id,
+              ...userData,
+              premierRDV: datePremierRDV,
+              totalVisites: nbVisitesPresent // Injection de la propriété dynamique
+            };
+          })
+        );
+
+        setBeneficiaires(docsAvecVisitesEtPremierRDV);
 
       } catch (error) {
         console.error("Erreur lors de la récupération des données:", error);
@@ -91,7 +133,6 @@ export default function ListeBeneficiaires() {
       const statut = (b.Statut || "").toLowerCase();
 
       if (filtreActif === "Aujourd'hui") {
-        // Vérifie si le nom complet reconstruit correspond à un usager dans le planning du jour
         matchesBadge = usagersDuJour.includes(nomComplet);
       } else if (filtreActif === "Suresnes") {
         matchesBadge = b.Ville?.toLowerCase() === "suresnes";
@@ -226,7 +267,6 @@ export default function ListeBeneficiaires() {
             Filtrer par :
           </span>
 
-          {/* FILTRE DU JOUR PAR DÉFAUT */}
           <button
             onClick={() => setFiltreActif("Aujourd'hui")}
             className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
@@ -281,28 +321,28 @@ export default function ListeBeneficiaires() {
                   <th className="px-6 py-4">Identité</th>
                   <th className="px-6 py-4 hidden md:table-cell">Contact / Coordonnées</th>
                   <th className="px-6 py-4 hidden lg:table-cell">Localisation</th>
+                  <th className="px-6 py-4 text-center hidden sm:table-cell">Visites</th>
+                  <th className="px-6 py-4 hidden sm:table-cell">1er RDV</th>
                   <th className="px-6 py-4 text-right">Dossier</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {filteredBeneficiaires.length > 0 ? (
                   filteredBeneficiaires.map((b) => {
-                    // CORRECTION ICI : On regarde si Date_Adhesion existe et n'est pas vide
                     const estAdherent = b.Date_Adhesion && b.Date_Adhesion.trim() !== "";
+                    const civilite = b.Civilité ? `${b.Civilité} ` : "";
 
                     return (
                       <tr key={b.id} className="hover:bg-slate-950/40 transition-colors group">
                         <td className="px-6 py-4.5">
                           <div className="font-black text-white text-base tracking-tight uppercase italic group-hover:text-emerald-400 transition-colors">
+                            <span className="text-slate-400 font-medium normal-case not-italic text-sm mr-1">{civilite}</span>
                             {b.Nom || "SANS NOM"}
                           </div>
-                          
-                          {/* Prénom & Pastille d'adhésion sur la même ligne */}
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-xs text-slate-400 font-medium not-italic">
                               {b.Prénom || "Sans prénom"}
                             </span>
-                            
                             {estAdherent ? (
                               <span className="inline-flex items-center text-[9px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-950/50 px-1.5 py-0.5 rounded border border-emerald-900/30">
                                 ✅ Adhérent
@@ -334,6 +374,23 @@ export default function ListeBeneficiaires() {
                             </span>
                           </div>
                         </td>
+
+                        {/* NOUVELLE COLONNE : Nombre de visites honorées */}
+                        <td className="px-6 py-4.5 text-center hidden sm:table-cell">
+                          <span className={`inline-flex items-center justify-center font-mono text-xs font-black px-2.5 py-1 rounded-xl border ${
+                            b.totalVisites > 0 
+                              ? "bg-emerald-950/40 text-emerald-400 border-emerald-900/40" 
+                              : "bg-slate-950 text-slate-600 border-slate-850"
+                          }`}>
+                            {b.totalVisites}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4.5 hidden sm:table-cell">
+                          <div className="text-xs font-mono font-bold text-slate-300">
+                            {b.premierRDV}
+                          </div>
+                        </td>
                         
                         <td className="px-6 py-4.5 text-right">
                           <Link
@@ -349,7 +406,7 @@ export default function ListeBeneficiaires() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={4} className="px-6 py-20 text-center">
+                    <td colSpan={6} className="px-6 py-20 text-center">
                       <div className="text-slate-600 text-base font-medium">
                         🔍 Aucun résultat pour ce filtre ou cette recherche.
                       </div>

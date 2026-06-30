@@ -4,13 +4,14 @@ import React, { useState, useEffect } from "react";
 import { db } from "../../lib/firebase";
 import { 
   collection, onSnapshot, query, orderBy, addDoc, 
-  deleteDoc, doc, getDocs, where, updateDoc 
+  deleteDoc, doc, getDocs, where, updateDoc, setDoc, writeBatch
 } from "firebase/firestore";
 import { 
   PlusIcon, TrashIcon, XMarkIcon, 
   DocumentDuplicateIcon, PencilSquareIcon, 
   UsersIcon, MapPinIcon, EyeIcon, EyeSlashIcon,
-  CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon
+  CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon,
+  CheckCircleIcon, LockClosedIcon, BellIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 
@@ -22,10 +23,22 @@ function hexToRgba(hex: string, alpha: number) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+// Fonction utilitaire pour obtenir le numéro de semaine ISO (ex: "2026-W27")
+function getWeekIdentifier(date: Date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${weekNo}`;
+}
+
 export default function PlanningExpertMix() {
   const [actions, setActions] = useState<any[]>([]);
   const [mediateurs, setMediateurs] = useState<any[]>([]);
   const [activitesTypes, setActivitesTypes] = useState<any[]>([]);
+  const [semainesValidees, setSemainesValidees] = useState<Record<string, boolean>>({});
+  const [notifications, setNotifications] = useState<any[]>([]);
   
   // États UI
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -35,6 +48,7 @@ export default function PlanningExpertMix() {
   const [voirMasques, setVoirMasques] = useState(false); 
   const [voirSamedi, setVoirSamedi] = useState(false); 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
   
   // Formulaires Médiateurs
   const [newMed, setNewMed] = useState({ prenom: "", nom: "", poste: "", statut: "Permanent", debutACI: "09:00", finACI: "17:00", masque: false });
@@ -54,6 +68,10 @@ export default function PlanningExpertMix() {
     dateFin: ""
   });
 
+  const currentWeekId = getWeekIdentifier(currentDate);
+  const estSemaineValidee = !!semainesValidees[currentWeekId];
+  const nonLuesCount = notifications.filter(n => !n.lue).length;
+
   // Fonction pour définir le poids du tri des statuts
   const getStatusPriority = (statut: string) => {
     if (statut === "Cadre") return 1;
@@ -65,6 +83,20 @@ export default function PlanningExpertMix() {
   useEffect(() => {
     const unsubActions = onSnapshot(collection(db, "planning_mediateurs"), (snap) => {
       setActions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    const unsubSemaines = onSnapshot(collection(db, "semaines_validees"), (snap) => {
+      const vMap: Record<string, boolean> = {};
+      snap.docs.forEach(doc => {
+        vMap[doc.id] = doc.data().validee || false;
+      });
+      setSemainesValidees(vMap);
+    });
+
+    // Écoute des notifications en temps réel
+    const unsubNotifs = onSnapshot(collection(db, "notifications"), (snap) => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setNotifications(list.sort((a: any, b: any) => b.createdAt - a.createdAt));
     });
 
     const unsubMed = onSnapshot(collection(db, "liste_mediateurs"), (snap) => {
@@ -101,8 +133,48 @@ export default function PlanningExpertMix() {
       }
     });
 
-    return () => { unsubActions(); unsubMed(); unsubActs(); };
+    return () => { unsubActions(); unsubMed(); unsubActs(); unsubSemaines(); unsubNotifs(); };
   }, []);
+
+  const toggleValidationSemaine = async () => {
+    try {
+      const nouvelEtat = !estSemaineValidee;
+      await setDoc(doc(db, "semaines_validees", currentWeekId), {
+        validee: nouvelEtat
+      });
+
+      // Si la semaine vient d'être validée, on ajoute un message d'alerte dans la cloche
+      if (nouvelEtat === true) {
+        await addDoc(collection(db, "notifications"), {
+          message: `📅 Le planning de la semaine du ${monday.toLocaleDateString('fr-FR', {day:'numeric', month:'short'})} a été validé et verrouillé.`,
+          createdAt: Date.now(),
+          lue: false
+        });
+      }
+    } catch (error) {
+      console.error("Erreur lors du changement de validation de la semaine :", error);
+    }
+  };
+
+  const marquerToutCommeLu = async () => {
+    const batch = writeBatch(db);
+    notifications.forEach(n => {
+      if (!n.lue) {
+        batch.update(doc(db, "notifications", n.id), { lue: true });
+      }
+    });
+    await batch.commit();
+  };
+
+  const effacerNotifications = async () => {
+    if (!confirm("Effacer tout l'historique des notifications ?")) return;
+    const batch = writeBatch(db);
+    notifications.forEach(n => {
+      batch.delete(doc(db, "notifications", n.id));
+    });
+    await batch.commit();
+    setIsNotifOpen(false);
+  };
 
   const toggleMasqueMed = async (m: any) => {
     try {
@@ -133,6 +205,27 @@ export default function PlanningExpertMix() {
 
       if (editingActivite) {
         await updateDoc(doc(db, "activites_types", editingActivite.id), dataPayload);
+        
+        // Mise à jour rétroactive des actions existantes dans le planning
+        const qActions = query(
+          collection(db, "planning_mediateurs"),
+          where("lieu", "==", editingActivite.lieu)
+        );
+        const snapActions = await getDocs(qActions);
+        
+        const updates = snapActions.docs.map(actionDoc => 
+          updateDoc(doc(db, "planning_mediateurs", actionDoc.id), {
+            codeAnalytique: newActivite.codeAnalytique.trim(),
+            couleur: newActivite.couleur,
+            lieu: newActivite.lieu.trim(),
+            debut: newActivite.debut,
+            fin: newActivite.fin,
+            adresse: newActivite.adresse.trim(),
+            territoire: newActivite.territoire
+          })
+        );
+        await Promise.all(updates);
+
         if (selectedModel?.id === editingActivite.id) {
           setSelectedModel({ id: editingActivite.id, ...dataPayload });
         }
@@ -144,7 +237,7 @@ export default function PlanningExpertMix() {
       setEditingActivite(null);
       setIsActiviteModalOpen(false);
     } catch (error) {
-      console.error("Erreur lors du sauvegarde du modèle :", error);
+      console.error("Erreur lors de la sauvegarde du modèle :", error);
     }
   };
 
@@ -190,13 +283,16 @@ export default function PlanningExpertMix() {
   });
 
   const handleCaseClick = async (mediatId: string, prenom: string, nom: string, moment: string, dateStr: string) => {
+    if (estSemaineValidee) {
+      alert("🔒 Impossible d'ajouter une activité : Cette semaine a été validée et verrouillée.");
+      return;
+    }
+
     let lieu = selectedModel ? selectedModel.lieu : prompt(`Nouvelle action pour ${prenom} ${nom} (${moment}) :`);
     if (!lieu) return;
 
     const upperLieu = lieu.toUpperCase();
     const isSuresnesAction = upperLieu.includes("RN") || upperLieu.includes("RND");
-    
-    // On recrée l'identifiant textuel complet pour l'agenda Suresnes
     const nomCompletLiaison = `${prenom} ${nom}`.trim();
 
     const qSuresnes = query(
@@ -263,6 +359,11 @@ export default function PlanningExpertMix() {
   };
 
   const deleteAction = async (id: string) => {
+    if (estSemaineValidee) {
+      alert("🔒 Impossible de supprimer une activité : Cette semaine a été validée et verrouillée.");
+      return;
+    }
+
     if (!confirm("Supprimer cette action ?")) return;
 
     const actionDoc = actions.find(a => a.id === id);
@@ -301,19 +402,17 @@ export default function PlanningExpertMix() {
     return "bg-amber-500/10 text-amber-500 border-amber-500/20";
   };
 
-  // Date du jour au format YYYY-MM-DD pour filtrer les modèles
   const todayStr = new Date().toLocaleDateString('en-CA');
 
   return (
     <main className="min-h-screen bg-slate-950 text-white pl-4 pt-[55px]">
       
-      {/* HEADER */}
+      {/* HEADER AVEC LA CLOCHE CORRIGÉE ET ALIGNÉE */}
       <header className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-5 py-2.5 border-b border-slate-800 bg-slate-950">
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className="p-1 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-md text-slate-400 hover:text-white transition-all cursor-pointer mr-1"
-            title={isSidebarOpen ? "Masquer les modèles" : "Afficher les modèles"}
           >
             {isSidebarOpen ? <ChevronLeftIcon className="w-4 h-4"/> : <ChevronRightIcon className="w-4 h-4"/>}
           </button>
@@ -322,18 +421,81 @@ export default function PlanningExpertMix() {
             Accueil
           </Link>
           <span className="text-slate-600">/</span>
-            Agenda des médiateurs
+          <span className="text-slate-300 mr-2">Agenda des médiateurs</span>
+
+          {/* BOUTON DE VALIDATION DE LA SEMAINE */}
+          <button
+            onClick={toggleValidationSemaine}
+            className={`px-3 py-1 rounded-md text-xs transition-all border flex items-center gap-1.5 cursor-pointer font-semibold ${
+              estSemaineValidee 
+                ? "bg-emerald-950/50 border-emerald-500/30 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]" 
+                : "bg-amber-950/30 border-amber-500/20 text-amber-500 hover:border-amber-500/40"
+            }`}
+          >
+            {estSemaineValidee ? (
+              <><LockClosedIcon className="w-3.5 h-3.5 text-emerald-400"/> Semaine Validée</>
+            ) : (
+              <><CheckCircleIcon className="w-3.5 h-3.5 text-amber-500 animate-pulse"/> En cours de validation</>
+            )}
+          </button>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-lg px-2 py-0.5">
-            <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate()-7); setCurrentDate(d); }} className="text-slate-400 hover:text-white transition-colors cursor-pointer text-[11px] px-1">←</button>
+        {/* BLOC DE DROITE ALIGNÉ AVEC LA CLOCHE */}
+        <div className="flex items-center gap-4">
+          
+          {/* COMPOSANT CLOCHE NOTIFICATIONS */}
+          <div className="relative">
+            <button 
+              onClick={() => setIsNotifOpen(!isNotifOpen)} 
+              className="p-2 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-lg text-slate-300 hover:text-white relative cursor-pointer flex items-center justify-center min-w-[36px] h-9"
+              title="Notifications"
+            >
+              <BellIcon className="w-5 h-5" />
+              {nonLuesCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 bg-red-500 text-[10px] font-black text-white rounded-full flex items-center justify-center px-1 animate-bounce border border-slate-950">
+                  {nonLuesCount}
+                </span>
+              )}
+            </button>
+
+            {/* VUE DÉROULANTE NOTIFICATIONS */}
+            {isNotifOpen && (
+              <div className="absolute right-0 mt-2 w-80 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-50 p-3 space-y-2">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                  <span className="text-xs font-bold text-slate-300">Alertes ({notifications.length})</span>
+                  <div className="flex gap-2.5">
+                    {nonLuesCount > 0 && (
+                      <button onClick={marquerToutCommeLu} className="text-[10px] text-blue-400 hover:text-blue-300 font-medium">Tout lire</button>
+                    )}
+                    {notifications.length > 0 && (
+                      <button onClick={effacerNotifications} className="text-[10px] text-rose-400 hover:text-rose-300 font-medium">Effacer</button>
+                    )}
+                  </div>
+                </div>
+                <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5">
+                  {notifications.length === 0 ? (
+                    <div className="text-center py-5 text-slate-500 text-[11px]">Aucune notification pour le moment</div>
+                  ) : (
+                    notifications.map(n => (
+                      <div key={n.id} className={`p-2.5 rounded-lg text-[11px] leading-tight border ${n.lue ? 'bg-slate-950/40 border-slate-900/60 text-slate-400' : 'bg-slate-950 border-blue-500/20 text-slate-200 font-medium'}`}>
+                        {n.message}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* DATE NAVIGATION */}
+          <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-lg px-2 h-9">
+            <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate()-7); setCurrentDate(d); }} className="text-slate-400 hover:text-white transition-colors cursor-pointer text-[11px] px-1 font-bold">←</button>
             <span className="text-[11px] font-medium text-slate-300 min-w-28 text-center">Sem. du {monday.toLocaleDateString('fr-FR', {day:'numeric', month:'short'})}</span>
-            <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate()+7); setCurrentDate(d); }} className="text-slate-400 hover:text-white transition-colors pointer-events-auto cursor-pointer text-[11px] px-1">→</button>
+            <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate()+7); setCurrentDate(d); }} className="text-slate-400 hover:text-white transition-colors cursor-pointer text-[11px] px-1 font-bold">→</button>
           </div>
 
           {selectedModel && (
-            <div className="bg-slate-900 border border-slate-800 text-slate-300 px-2.5 py-1 rounded-md text-[11px] flex items-center gap-2 animate-pulse">
+            <div className="bg-slate-900 border border-slate-800 text-slate-300 px-2.5 py-1 rounded-md text-[11px] flex items-center gap-2 animate-pulse h-9">
               <span className="font-medium">Injection : {selectedModel.lieu}</span>
               <button onClick={() => { setSelectedModel(null); }} className="text-slate-400 hover:text-white transition-colors p-0.5 bg-slate-800 rounded">
                 <XMarkIcon className="w-3 h-3 stroke-[3]"/>
@@ -343,41 +505,41 @@ export default function PlanningExpertMix() {
 
           <button
             onClick={() => setVoirSamedi(!voirSamedi)}
-            className={`px-3 py-1 rounded-md text-xs transition-colors border flex items-center gap-1.5 cursor-pointer font-medium ${
-              voirSamedi ? "bg-amber-950/40 border-amber-900/40 text-amber-400" : "bg-slate-900 border-slate-800 text-slate-400"
+            className={`px-3 h-9 rounded-md text-xs transition-colors border flex items-center gap-1.5 cursor-pointer font-medium ${
+              voirSamedi ? "bg-amber-950/40 border-amber-900/40 text-amber-400" : "bg-slate-900 border-slate-800 text-slate-400 hover:text-white"
             }`}
           >
             <CalendarDaysIcon className="w-3.5 h-3.5"/>
-            {voirSamedi ? "Masquer le Samedi" : "Afficher le Samedi"}
+            {voirSamedi ? "Masquer Samedi" : "Afficher Samedi"}
           </button>
 
           <button
             onClick={() => setVoirMasques(!voirMasques)}
-            className={`px-3 py-1 rounded-md text-xs transition-colors border flex items-center gap-1.5 cursor-pointer font-medium ${
-              voirMasques ? "bg-rose-950/40 border-rose-900/40 text-rose-400" : "bg-slate-900 border-slate-800 text-slate-400"
+            className={`px-3 h-9 rounded-md text-xs transition-colors border flex items-center gap-1.5 cursor-pointer font-medium ${
+              voirMasques ? "bg-rose-950/40 border-rose-900/40 text-rose-400" : "bg-slate-900 border-slate-800 text-slate-400 hover:text-white"
             }`}
           >
             {voirMasques ? <><EyeIcon className="w-3.5 h-3.5"/> Agenda épuré</> : <><EyeSlashIcon className="w-3.5 h-3.5"/> Lignes masquées</>}
           </button>
 
-          <Link href="/adresses" className="bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 px-3 py-1 rounded-md text-xs flex items-center gap-1.5">
+          <Link href="/adresses" className="bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 px-3 h-9 rounded-md text-xs flex items-center gap-1.5">
             <MapPinIcon className="w-3.5 h-3.5 text-slate-400"/> Adresses
           </Link>
 
-          <Link href="/equipe" className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1 rounded-md text-xs flex items-center gap-1.5 font-medium">
+          <Link href="/equipe" className="bg-slate-800 hover:bg-slate-700 text-white px-3 h-9 rounded-md text-xs flex items-center gap-1.5 font-medium">
             <UsersIcon className="w-3.5 h-3.5 text-slate-400"/> Staff
           </Link>
 
           <Link 
             href="/suresnes" 
-            className="bg-blue-900 hover:bg-blue-800 text-blue-100 border border-blue-800 px-3 py-1 rounded-md text-xs transition-colors flex items-center gap-1.5 font-medium"
+            className="bg-blue-900 hover:bg-blue-800 text-blue-100 border border-blue-800 px-3 h-9 rounded-md text-xs transition-colors flex items-center gap-1.5 font-medium"
           >
             <CalendarDaysIcon className="w-3.5 h-3.5 text-blue-300"/> Agenda Suresnes
           </Link>
         </div>
       </header>
 
-      {/* BOX PRINCIPALE */}
+      {/* DISPOSITION EN GRILLE COLLATÉRALE */}
       <div className="max-w-8xl mx-auto py-6 pr-4 flex gap-4 transition-all duration-300">
         
         {/* SIDEBAR MODÈLES */}
@@ -397,9 +559,7 @@ export default function PlanningExpertMix() {
           <div className="space-y-1.5 pt-1.5 border-t border-slate-800/60">
             {activitesTypes
               .filter(type => {
-                // Si une date de début est configurée et qu'elle n'est pas encore arrivée, on masque
                 if (type.dateDebut && todayStr < type.dateDebut) return false;
-                // Si une date de fin est configurée et qu'elle est dépassée, on masque
                 if (type.dateFin && todayStr > type.dateFin) return false;
                 return true;
               })
@@ -407,19 +567,17 @@ export default function PlanningExpertMix() {
                 const hexColor = type.couleur || "#6366f1";
                 const isSelected = selectedModel?.id === type.id;
 
-                const customStyle = {
-                  backgroundColor: hexToRgba(hexColor, isSelected ? 0.25 : 0.12),
-                  borderColor: isSelected ? hexColor : hexToRgba(hexColor, 0.4),
-                  color: hexColor,
-                  boxShadow: isSelected ? `0 0 8px ${hexToRgba(hexColor, 0.4)}` : "none"
-                };
-
                 return (
                   <div 
                     key={type.id}
-                    onClick={() => setSelectedModel(type)}
-                    style={customStyle}
-                    className={`group/item w-full flex flex-col p-2 rounded-lg text-xs transition-all cursor-pointer border ${isSelected ? 'ring-1 ring-white/20' : 'hover:brightness-125'}`}
+                    onClick={() => !estSemaineValidee && setSelectedModel(type)}
+                    style={{
+                      backgroundColor: hexToRgba(hexColor, isSelected ? 0.25 : 0.12),
+                      borderColor: isSelected ? hexColor : hexToRgba(hexColor, 0.4),
+                      color: hexColor,
+                      boxShadow: isSelected ? `0 0 8px ${hexToRgba(hexColor, 0.4)}` : "none"
+                    }}
+                    className={`group/item w-full flex flex-col p-2 rounded-lg text-xs transition-all border ${estSemaineValidee ? 'opacity-50 cursor-not-allowed' : isSelected ? 'ring-1 ring-white/20' : 'hover:brightness-125 cursor-pointer'}`}
                   >
                     <div className="w-full flex items-center justify-between">
                       <span className="truncate font-medium flex items-center gap-1.5 text-slate-200">
@@ -443,7 +601,7 @@ export default function PlanningExpertMix() {
           </div>
         </aside>
 
-        {/* GRILLE PLANNING */}
+        {/* GRILLE DU TABLEAU DU PLANNING */}
         <div className="flex-1 bg-slate-900 border border-slate-800 rounded-xl p-4 overflow-x-auto transition-all duration-300">
           <table className="border-collapse text-xs w-full table-fixed">
             <thead>
@@ -497,8 +655,8 @@ export default function PlanningExpertMix() {
                         return (
                           <td key={dateStr} className="p-1 border-l border-slate-800/30 align-middle">
                             <div className="grid grid-cols-2 gap-1 min-h-[38px]">
-                              <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={deleteAction} />
-                              <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={deleteAction} />
+                              <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={deleteAction} estSemaineValidee={estSemaineValidee} />
+                              <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={deleteAction} estSemaineValidee={estSemaineValidee} />
                             </div>
                           </td>
                         );
@@ -511,12 +669,30 @@ export default function PlanningExpertMix() {
         </div>
       </div>
 
-      {/* MODALE STAFF */}
+      {/* MODALE CRÉATION/ÉDITION STAFF */}
       {isUserModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
           <form onSubmit={async (e) => {
             e.preventDefault();
-            editingMed ? await updateDoc(doc(db, "liste_mediateurs", editingMed.id), newMed) : await addDoc(collection(db, "liste_mediateurs"), newMed);
+            const payload = {
+              prenom: newMed.prenom.trim(),
+              nom: newMed.nom.trim(),
+              poste: newMed.poste.trim() || "Médiateur",
+              statut: newMed.statut,
+              debutACI: newMed.debutACI,
+              finACI: newMed.finACI,
+              masque: newMed.masque,
+              actif: true
+            };
+
+            if (editingMed) {
+              await updateDoc(doc(db, "liste_mediateurs", editingMed.id), payload);
+            } else {
+              await addDoc(collection(db, "liste_mediateurs"), payload);
+            }
+
+            setNewMed({ prenom: "", nom: "", poste: "", statut: "Permanent", debutACI: "09:00", finACI: "17:00", masque: false });
+            setEditingMed(null);
             setIsUserModalOpen(false);
           }} className="bg-slate-900 border border-slate-800 p-5 rounded-xl w-full max-w-xs space-y-3">
             <h3 className="font-semibold text-sm">{editingMed ? "Modifier le staff" : "Nouveau staff"}</h3>
@@ -538,7 +714,7 @@ export default function PlanningExpertMix() {
         </div>
       )}
 
-      {/* MODALE ACTIVITE */}
+      {/* MODALE DES ACTIVITÉS TYPES */}
       {isActiviteModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
           <form onSubmit={handleSaveActiviteType} className="bg-slate-900 border border-slate-800 p-5 rounded-xl w-full max-w-xs space-y-3">
@@ -560,7 +736,7 @@ export default function PlanningExpertMix() {
             
             <div className="flex flex-col gap-1">
               <label className="text-[10px] text-slate-400 font-medium font-mono">Territoire</label>
-              <select className="field-dark" value={newActivite.territoire} onChange={e => setNewActivite({...newActivite, territoire: e.target.value})}>
+              <select className="field-dark" value={newActivite.territoire} onChange={e => setNewActivite({...newActivite, territorio: e.target.value})}>
                 <option value="">Aucun</option>
                 <option value="75">75 (Paris)</option>
                 <option value="91">91 (Essonne)</option>
@@ -578,25 +754,14 @@ export default function PlanningExpertMix() {
               />
             </div>
 
-            {/* PÉRIODE DE VALIDITÉ (DATES DÉBUT ET FIN) */}
             <div className="grid grid-cols-2 gap-2 border-t border-slate-800/60 pt-2">
               <div className="flex flex-col gap-0.5">
                 <label className="text-[9px] text-slate-400 font-medium uppercase">Date de début</label>
-                <input 
-                  type="date" 
-                  className="field-dark" 
-                  value={newActivite.dateDebut} 
-                  onChange={e => setNewActivite({...newActivite, dateDebut: e.target.value})} 
-                />
+                <input type="date" className="field-dark" value={newActivite.dateDebut} onChange={e => setNewActivite({...newActivite, dateDebut: e.target.value})} />
               </div>
               <div className="flex flex-col gap-0.5">
                 <label className="text-[9px] text-slate-400 font-medium uppercase">Date de fin</label>
-                <input 
-                  type="date" 
-                  className="field-dark" 
-                  value={newActivite.dateFin} 
-                  onChange={e => setNewActivite({...newActivite, dateFin: e.target.value})} 
-                />
+                <input type="date" className="field-dark" value={newActivite.dateFin} onChange={e => setNewActivite({...newActivite, dateFin: e.target.value})} />
               </div>
             </div>
 
@@ -611,7 +776,6 @@ export default function PlanningExpertMix() {
                 />
                 <div className="flex flex-col">
                   <span className="text-xs font-mono font-semibold text-slate-300 uppercase">{newActivite.couleur}</span>
-                  <span className="text-[10px] text-slate-500">Cliquez pour ajuster</span>
                 </div>
               </div>
             </div>
@@ -620,9 +784,7 @@ export default function PlanningExpertMix() {
               <button type="submit" className="flex-1 bg-blue-600 py-1.5 rounded-md text-xs font-medium">
                 {editingActivite ? "Enregistrer" : "Ajouter"}
               </button>
-              <button type="button" onClick={() => { setIsActiviteModalOpen(false); setEditingActivite(null); }} className="text-slate-400 text-xs px-2">
-                Annuler
-              </button>
+              <button type="button" onClick={() => { setIsActiviteModalOpen(false); setEditingActivite(null); }} className="text-slate-400 text-xs px-2">Annuler</button>
             </div>
           </form>
         </div>
@@ -637,40 +799,34 @@ export default function PlanningExpertMix() {
   );
 }
 
-// Composant de cellule pour chaque moment de la journée
-function DayCell({ actions, m, moment, date, onAdd, onDelete }: any) {
+// COMPOSANT CELLULE DE RECEPTION DES INTERACTIONS DU PLANNING
+function DayCell({ actions, m, moment, date, onAdd, onDelete, estSemaineValidee }: any) {
   const mNomComplet = `${m.prenom || ""} ${m.nom || ""}`.trim();
   const filtered = actions.filter((a: any) => 
-    (a.mediateurId === m.id || a.mediateur === mNomComplet || a.mediateurNom === mNomComplet) && 
-    a.date === date && 
-    a.moment === moment
+    (a.mediateurId === m.id || a.mediateurNom === mNomComplet) && a.date === date && a.moment === moment
   );
   
   return (
     <div className="flex flex-col relative group/cell h-full justify-start gap-1 min-h-[36px] bg-slate-950/20 p-0.5 rounded border border-transparent hover:border-slate-800/40 transition-colors">
       
       {filtered.map((a: any) => {
-        const territoire = a.territoire || "";
+        const territorio = a.territoire || "";
         const hexColor = a.couleur || "#6366f1";
-
-        const cellStyle = {
-          backgroundColor: hexToRgba(hexColor, 0.15),
-          borderColor: hexToRgba(hexColor, 0.4),
-          color: hexColor
-        };
 
         return (
           <div 
             key={a.id} 
-            style={cellStyle}
+            style={{ backgroundColor: hexToRgba(hexColor, 0.15), borderColor: hexToRgba(hexColor, 0.4), color: hexColor }}
             className="px-1.5 py-0.5 rounded border text-[9px] font-medium flex items-center justify-between w-full min-h-[22px] hover:brightness-125 transition-all"
           >
             <span className="truncate pr-0.5 text-slate-200" title={`${moment} : ${a.lieu}`}>
-              {a.lieu} {territoire && <span className="text-[8px] opacity-50">[{territoire}]</span>}
+              {a.lieu} {territorio && <span className="text-[8px] opacity-50">[{territorio}]</span>}
             </span>
-            <button onClick={(e) => { e.stopPropagation(); onDelete(a.id); }} className="text-slate-500 hover:text-red-400 p-0.5 shrink-0">
-              <TrashIcon className="w-2.5 h-2.5"/>
-            </button>
+            {!estSemaineValidee && (
+              <button onClick={(e) => { e.stopPropagation(); onDelete(a.id); }} className="text-slate-500 hover:text-red-400 p-0.5 shrink-0">
+                <TrashIcon className="w-2.5 h-2.5"/>
+              </button>
+            )}
           </div>
         );
       })}
@@ -678,20 +834,25 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete }: any) {
       {filtered.length === 0 ? (
         <button 
           onClick={onAdd} 
-          className="w-full h-full min-h-[26px] border border-dashed border-slate-800/40 hover:border-slate-700/80 rounded flex items-center justify-center text-slate-600 hover:text-slate-400 transition-all text-[10px] cursor-pointer"
+          disabled={estSemaineValidee}
+          className={`w-full h-full min-h-[26px] border border-dashed rounded flex items-center justify-center text-[10px] transition-all ${
+            estSemaineValidee 
+              ? "border-slate-900 text-slate-800/40 cursor-not-allowed" 
+              : "border-slate-800/40 hover:border-slate-700/80 text-slate-600 hover:text-slate-400 cursor-pointer"
+          }`}
         >
-          <span className="text-slate-700 text-[9px] group-hover/cell:text-slate-500">
+          <span className={`${estSemaineValidee ? "text-slate-800" : "text-slate-700 group-hover/cell:text-slate-500"}`}>
             {moment === "Matin" ? "AM" : "PM"}
           </span>
         </button>
-      ) : (
+      ) : !estSemaineValidee ? (
         <button
           onClick={onAdd}
           className="opacity-0 group-hover/cell:opacity-100 transition-opacity w-full py-0.5 bg-slate-900/80 border border-dashed border-slate-700 hover:border-slate-500 rounded flex items-center justify-center text-slate-400 hover:text-white text-[8px] font-medium cursor-pointer"
         >
           + Autre
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

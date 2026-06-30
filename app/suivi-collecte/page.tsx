@@ -2,18 +2,17 @@
 
 import React, { useEffect, useState } from "react";
 import { db } from "../../lib/firebase";
-import { collection, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, updateDoc, getDocs } from "firebase/firestore";
 import { ChevronLeftIcon, ArrowDownTrayIcon, UserGroupIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 
 interface BeneficiaireCollecte {
   id: string;
-  annee: string; // Nouvelle propriété pour l'année
+  annee: string;
   nom: string;
   prenom: string;
   telephone: string;
   email: string;
-  // Les étapes de suivi (cases à cocher)
   creationDossier: boolean;
   testEntreeForm: boolean;
   testSortiePix: boolean;
@@ -32,87 +31,112 @@ export default function SuiviCollecteTech() {
   const [commentValue, setCommentValue] = useState("");
 
   useEffect(() => {
-    // Lecture en temps réel de la collection principale des bénéficiaires
-    const unsub = onSnapshot(collection(db, "utilisateurs"), (snapshot) => {
-      const liste: BeneficiaireCollecte[] = [];
-      
-      snapshot.docs.forEach((d) => {
-        const data = d.data();
-        
-        // Extraction de l'année (basée sur Date_Adhesion, ou un champ custom, ou fallback 2026)
-        let anneeExtraite = "2026";
-        if (data.anneeCollecte) {
-          anneeExtraite = data.anneeCollecte;
-        } else if (data.Date_Adhesion) {
-          // Si Date_Adhesion est une chaîne du type "YYYY-MM-DD" ou contient une année
-          const match = data.Date_Adhesion.match(/\d{4}/);
-          if (match) anneeExtraite = match[0];
-        }
-        
-        liste.push({
-          id: d.id,
-          annee: anneeExtraite,
-          nom: data.Nom || "—",
-          prenom: data.Prénom || "—",
-          telephone: data.Téléphone || data.telephone || "—",
-          email: data.email || data.Email || "—",
-          
-          creationDossier: !!data.creationDossier,
-          testEntreeForm: !!data.testEntreeForm,
-          testSortiePix: !!data.testSortiePix,
-          remiseAttestation: !!data.remiseAttestation,
-          devis: !!data.devis,
-          facture: !!data.facture,
-          dechargeMateriel: !!data.dechargeMateriel,
-          scanArchivage: !!data.scanArchivage,
-          commentaires: data.commentairesCollecte || ""
-        });
-      });
+    setLoading(true);
 
-      // Tri par Nom de famille
-      liste.sort((a, b) => a.nom.localeCompare(b.nom));
-      setBeneficiaires(liste);
+    // Écoute en temps réel de la liste globale des usagers
+    const unsubUsers = onSnapshot(collection(db, "utilisateurs"), async (snapshot) => {
+      try {
+        const listeTemporaire: BeneficiaireCollecte[] = [];
+
+        // Traitement séquentiel ou parallèle sécurisé pour chaque usager
+        const promises = snapshot.docs.map(async (userDoc) => {
+          const userData = userDoc.data();
+          let associeACollecte = false;
+
+          // 1. Vérification dans la sous-collection générique d'historique (actions / rendezvous / visites)
+          const sousCollectionsPossibles = ["actions", "rendezvous", "visites"];
+          
+          for (const nomColl of sousCollectionsPossibles) {
+            if (associeACollecte) break;
+            try {
+              const subSnap = await getDocs(collection(db, "utilisateurs", userDoc.id, nomColl));
+              
+              // On parcourt les actions enregistrées pour voir si l'une d'elles correspond au lieu recherché
+              subSnap.docs.forEach((subDoc) => {
+                const subData = subDoc.data();
+                const lieu = subData.Lieu_RDV || subData.lieuRDV || subData.lieu || subData.lieu_rencontre || "";
+                if (lieu.trim() === "92 - Collecte Tech") {
+                  associeACollecte = true;
+                }
+              });
+            } catch (err) {
+              // Ignore les sous-collections inexistantes pour cet usager
+            }
+          }
+
+          // 2. Si l'utilisateur possède une action liée, on construit sa ligne Excel
+          if (associeACollecte) {
+            let anneeExtraite = "2026";
+            if (userData.anneeCollecte) {
+              anneeExtraite = userData.anneeCollecte;
+            } else if (userData.Date_Adhesion) {
+              const match = userData.Date_Adhesion.match(/\d{4}/);
+              if (match) anneeExtraite = match[0];
+            }
+
+            listeTemporaire.push({
+              id: userDoc.id,
+              annee: anneeExtraite,
+              nom: userData.Nom || "—",
+              prenom: userData.Prénom || "—",
+              telephone: userData.Téléphone || userData.telephone || "—",
+              email: userData.email || userData.Email || "—",
+              creationDossier: !!userData.creationDossier,
+              testEntreeForm: !!userData.testEntreeForm,
+              testSortiePix: !!userData.testSortiePix,
+              remiseAttestation: !!userData.remiseAttestation,
+              devis: !!userData.devis,
+              facture: !!userData.facture,
+              dechargeMateriel: !!userData.dechargeMateriel,
+              scanArchivage: !!userData.scanArchivage,
+              commentaires: userData.commentairesCollecte || ""
+            });
+          }
+        });
+
+        await Promise.all(promises);
+
+        // Tri final par ordre alphabétique
+        listeTemporaire.sort((a, b) => a.nom.localeCompare(b.nom));
+        setBeneficiaires(listeTemporaire);
+      } catch (error) {
+        console.error("Erreur lors du traitement des actions :", error);
+      } finally {
+        setLoading(false);
+      }
+    }, (error) => {
+      console.error("Erreur d'écoute utilisateurs :", error);
       setLoading(false);
     });
 
-    return () => unsub();
+    return () => unsubUsers();
   }, []);
 
-  // Changer l'année manuellement et enregistrer dans Firestore
   const handleAnneeChange = async (id: string, nouvelleAnnee: string) => {
     try {
-      await updateDoc(doc(db, "utilisateurs", id), {
-        anneeCollecte: nouvelleAnnee
-      });
+      await updateDoc(doc(db, "utilisateurs", id), { anneeCollecte: nouvelleAnnee });
     } catch (err) {
-      console.error("Erreur mise à jour de l'année:", err);
+      console.error(err);
     }
   };
 
-  // Inverser l'état d'une case à cocher et sauvegarder dans Firestore
   const handleToggleStep = async (id: string, field: keyof BeneficiaireCollecte, currentVal: boolean) => {
     try {
-      await updateDoc(doc(db, "utilisateurs", id), {
-        [field]: !currentVal
-      });
+      await updateDoc(doc(db, "utilisateurs", id), { [field]: !currentVal });
     } catch (err) {
-      console.error("Erreur mise à jour étape:", err);
+      console.error(err);
     }
   };
 
-  // Sauvegarder le commentaire à la perte de focus ou Entrée
   const handleSaveComment = async (id: string) => {
     try {
-      await updateDoc(doc(db, "utilisateurs", id), {
-        commentairesCollecte: commentValue
-      });
+      await updateDoc(doc(db, "utilisateurs", id), { commentairesCollecte: commentValue });
       setEditingCommentId(null);
     } catch (err) {
-      console.error("Erreur enregistrement commentaire:", err);
+      console.error(err);
     }
   };
 
-  // Export CSV identique aux colonnes de l'Excel avec l'Année
   const exportToCSV = () => {
     if (beneficiaires.length === 0) return;
     const headers = ["Année;Nom;Prénom;Numéro de téléphone personnel;Mail contact;Création Dossier DRIVE;Test entrée Google Form;Test sortie PIX (ABC PIX);Remise de l'attestation compétences;Devis;Facture;Décharge matériel;Scan et archivage;Commentaires\n"];
@@ -138,9 +162,9 @@ export default function SuiviCollecteTech() {
               <ChevronLeftIcon className="w-3.5 h-3.5" /> Tableau de bord
             </Link>
             <h1 className="text-lg md:text-xl font-black uppercase text-white tracking-tight">
-              Suivi <span className="bg-gradient-to-r from-teal-400 to-emerald-500 bg-clip-text text-transparent">IdF — Suresnes / Paris</span>
+              Suivi <span className="bg-gradient-to-r from-teal-400 to-emerald-500 bg-clip-text text-transparent">IdF — 92 Collecte Tech</span>
             </h1>
-            <p className="text-[11px] text-slate-500 font-medium">Tableau opérationnel calqué sur le modèle de suivi d'activité</p>
+            <p className="text-[11px] text-slate-500 font-medium">Tableau opérationnel filtré exclusivement sur la Collecte Tech (92)</p>
           </div>
 
           <button 
@@ -153,13 +177,13 @@ export default function SuiviCollecteTech() {
           </button>
         </div>
 
-        {/* AFFICHAGE DE LA GRILLE TYPE EXCEL */}
+        {/* AFFICHAGE DE LA GRILLE */}
         {loading ? (
-          <div className="text-center py-24 text-emerald-400 font-bold tracking-widest animate-pulse uppercase text-xs">Chargement de la base...</div>
+          <div className="text-center py-24 text-emerald-400 font-bold tracking-widest animate-pulse uppercase text-xs">Analyse des actions en cours...</div>
         ) : beneficiaires.length === 0 ? (
           <div className="text-center py-16 border-2 border-dashed border-slate-900 rounded-2xl bg-slate-950/20 max-w-4xl mx-auto">
             <UserGroupIcon className="w-8 h-8 text-slate-700 mx-auto mb-3" />
-            <p className="text-slate-500 text-xs font-mono">Aucun bénéficiaire répertorié pour le moment.</p>
+            <p className="text-slate-500 text-xs font-mono">Aucun bénéficiaire avec une action enregistrée à "92 - Collecte Tech".</p>
           </div>
         ) : (
           <div className="w-full bg-slate-950/40 border border-slate-900 rounded-2xl overflow-hidden shadow-2xl">
@@ -167,7 +191,6 @@ export default function SuiviCollecteTech() {
               <table className="w-full text-left border-collapse table-fixed min-w-[1500px]">
                 <thead>
                   <tr className="bg-slate-900/60 text-[10px] font-black uppercase text-slate-400 border-b border-slate-800 tracking-wider">
-                    {/* NOUVELLE COLONNE DATE (ANNÉE UNIQUE) */}
                     <th className="p-3 w-24 pl-5">Année</th>
                     <th className="p-3 w-40">Nom</th>
                     <th className="p-3 w-40">Prénom</th>
@@ -189,8 +212,6 @@ export default function SuiviCollecteTech() {
                 <tbody className="divide-y divide-slate-900 text-[12px] text-slate-300 font-medium">
                   {beneficiaires.map((b) => (
                     <tr key={b.id} className="hover:bg-slate-900/30 transition-colors group">
-                      
-                      {/* CELLULE ANNÉE (Modifiable via un sélecteur discret pour rester propre) */}
                       <td className="p-3 pl-5 font-mono text-xs text-slate-400">
                         <select
                           value={b.annee}
@@ -260,10 +281,9 @@ export default function SuiviCollecteTech() {
                               }
                             }}
                             className="w-full bg-black border border-slate-700 text-white rounded p-2 text-[11px] outline-none min-h-[80px] font-mono focus:border-teal-500 resize-y"
-                            placeholder="Ex: 23/02/2026 : Test pix fait..."
                           />
                         ) : (
-                          <div className="w-full h-full min-h-[32px] cursor-pointer text-slate-400 font-sans whitespace-pre-wrap break-words hover:text-white transition-colors p-1" title="Cliquez pour modifier ou ajouter une ligne">
+                          <div className="w-full h-full min-h-[32px] cursor-pointer text-slate-400 font-sans whitespace-pre-wrap break-words hover:text-white transition-colors p-1">
                             {b.commentaires || <span className="text-slate-700 font-light italic">Ajouter une note...</span>}
                           </div>
                         )}
@@ -273,12 +293,8 @@ export default function SuiviCollecteTech() {
                 </tbody>
               </table>
             </div>
-            <div className="p-3 bg-slate-900/40 border-t border-slate-900 flex justify-end text-[10px] uppercase font-black text-slate-500 tracking-wider">
-              Bénéficiaires suivis dans la liste : <span className="text-teal-400 ml-1.5 font-mono text-xs">{beneficiaires.length}</span>
-            </div>
           </div>
         )}
-
       </div>
     </div>
   );

@@ -53,6 +53,8 @@ interface Beneficiaire {
   Situation_Handicap?: string;
   RQTH?: string;
   QPV?: string;
+  Lieu_RDV?: string;
+  lieuRDV?: string;
 }
 
 interface Visite {
@@ -72,7 +74,7 @@ interface Visite {
 
 interface Mediateur {
   id: string;
-  nom: string; // Stockera "Prénom Nom" mis à jour depuis la page équipe
+  nom: string;
 }
 
 interface LieuGlobal {
@@ -107,7 +109,7 @@ export default function FicheBeneficiaire() {
     Civilité: "M.", Nom: "", Prénom: "", Age: "", Date_Naissance: "", Date_Adhesion: "",
     Téléphone: "", email: "", Adresse_Rue: "", Ville: "", Code_Postal: "",
     Situation_Socio_Pro: "", Situation_Handicap: "Non", RQTH: "Non",
-    QPV: "Non"
+    QPV: "Non", Lieu_RDV: "", lieuRDV: ""
   });
 
   // Édition en ligne d'une visite
@@ -156,21 +158,19 @@ export default function FicheBeneficiaire() {
     return isNaN(ageCalcul) || ageCalcul < 0 ? "—" : `${ageCalcul} ans`;
   };
 
-  // ÉCOUTE DES MÉDIATEURS (Synchronisé sur la collection "liste_mediateurs" de page_3.tsx)
+  // ÉCOUTE DES MÉDIATEURS
   useEffect(() => {
     const unsubEquipe = onSnapshot(collection(db, "liste_mediateurs"), (snap) => {
       const equipe = snap.docs
-        .filter(d => d.id !== "parametres_configuration" && d.id !== "parametres_horaires") // On exclut les configs techniques
+        .filter(d => d.id !== "parametres_configuration" && d.id !== "parametres_horaires")
         .map(d => {
           const data = d.data();
-          // Concaténation "Prénom Nom" basée sur les vrais champs de la page équipe
           const nomComplet = `${data.prenom || ""} ${data.nom || ""}`.trim() || "Sans nom"; 
           return { id: d.id, nom: nomComplet } as Mediateur;
         });
       
       setListeMediateurs(equipe);
       
-      // Initialise le formulaire avec le premier médiateur trouvé si aucun n'est sélectionné
       if (equipe.length > 0) {
         setFormData(prev => {
           const mediateurExiste = equipe.some(m => m.nom === prev.mediateur);
@@ -200,7 +200,8 @@ export default function FicheBeneficiaire() {
           Téléphone: data.Téléphone || "", email: data.email || "", Adresse_Rue: data.Adresse_Rue || "",
           Ville: data.Ville || "", Code_Postal: data.Code_Postal || "", Situation_Socio_Pro: data.Situation_Socio_Pro || "",
           Situation_Handicap: data.Situation_Handicap || "Non", RQTH: data.RQTH || "Non",
-          QPV: data.QPV || "Non"
+          QPV: data.QPV || "Non", 
+          Lieu_RDV: data.Lieu_RDV || "", lieuRDV: data.lieuRDV || ""
         });
         setUserExists(true);
         setLoading(false);
@@ -239,6 +240,7 @@ export default function FicheBeneficiaire() {
     "Structure Principale", 
     "À distance", 
     "À domicile", 
+    "92 - Collecte Tech",
     ...lieuxGlobaux.map(l => l.nom)
   ];
 
@@ -319,7 +321,12 @@ export default function FicheBeneficiaire() {
     e.preventDefault();
     if (!userExists) return alert("Créez d'abord le profil.");
     
-    const lieuFinal = isNouveauLieu ? formData.nouveauLieuStructure.trim() : formData.lieu;
+    // Si l'action est enregistrée sous le type de session "Collecte Tech", on force le lieu
+    let lieuFinal = isNouveauLieu ? formData.nouveauLieuStructure.trim() : formData.lieu;
+    if (formData.momentChoisi === "Collecte Tech") {
+      lieuFinal = "92 - Collecte Tech";
+    }
+
     if (!lieuFinal || !formData.mediateur) return alert("Champs obligatoires manquants.");
 
     try {
@@ -330,6 +337,7 @@ export default function FicheBeneficiaire() {
         });
       }
 
+      // 1. Enregistrement de la visite
       await addDoc(collection(db, "utilisateurs", userId, "visites"), {
         mediateur: formData.mediateur,
         thematique: formData.statut === "Absent" ? "" : formData.thematique,
@@ -342,13 +350,21 @@ export default function FicheBeneficiaire() {
         createdAt: serverTimestamp()
       });
 
+      // 2. Si le moment choisi est "Collecte Tech", on met à jour également le profil principal du bénéficiaire
+      if (formData.momentChoisi === "Collecte Tech") {
+        await updateDoc(doc(db, "utilisateurs", userId), {
+          Lieu_RDV: "92 - Collecte Tech",
+          lieuRDV: "92 - Collecte Tech"
+        });
+      }
+
       setFormData(prev => ({ 
         ...prev, 
         details: "", 
         satisfaction: "5", 
         statut: "Présent", 
         nouveauLieuStructure: "",
-        lieu: lieuFinal
+        lieu: formData.momentChoisi === "Collecte Tech" ? "92 - Collecte Tech" : lieuFinal
       }));
       setIsNouveauLieu(false);
     } catch (error) { console.error(error); }
@@ -357,12 +373,26 @@ export default function FicheBeneficiaire() {
   const handleUpdateRDV = async (rdvId: string) => {
     if (!editFormData) return;
     try {
+      let lieuFinal = editFormData.lieu;
+      if (editFormData.moment === "Collecte Tech") {
+        lieuFinal = "92 - Collecte Tech";
+      }
+
       await updateDoc(doc(db, "utilisateurs", userId, "visites", rdvId), { 
         ...editFormData, 
+        lieu: lieuFinal,
         thematique: editFormData.statut === "Absent" ? "" : editFormData.thematique,
         details: editFormData.statut === "Absent" ? "" : editFormData.details,
         satisfaction: editFormData.statut === "Absent" ? 0 : Number(editFormData.satisfaction)
       });
+
+      if (editFormData.moment === "Collecte Tech") {
+        await updateDoc(doc(db, "utilisateurs", userId), {
+          Lieu_RDV: "92 - Collecte Tech",
+          lieuRDV: "92 - Collecte Tech"
+        });
+      }
+
       setEditingId(null); setEditFormData(null);
     } catch (error) { console.error(error); }
   };
@@ -457,6 +487,11 @@ export default function FicheBeneficiaire() {
                   {user?.QPV === "Oui" && (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/10 border border-indigo-500/30 text-indigo-400">
                       📍 QPV
+                    </span>
+                  )}
+                  {(user?.Lieu_RDV === "92 - Collecte Tech" || user?.lieuRDV === "92 - Collecte Tech") && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-teal-500/10 border border-teal-500/30 text-teal-400">
+                      🔧 Collecte Tech
                     </span>
                   )}
                 </div>
@@ -583,7 +618,12 @@ export default function FicheBeneficiaire() {
                       <button type="button" onClick={() => setIsEditingLieu(false)} className="p-2 bg-slate-800 text-slate-400 rounded-xl"><XMarkIcon className="w-4 h-4" /></button>
                     </div>
                   ) : (
-                    <select value={formData.lieu} onChange={e => setFormData({...formData, lieu: e.target.value})} className={inputClass}>
+                    <select 
+                      value={formData.momentChoisi === "Collecte Tech" ? "92 - Collecte Tech" : formData.lieu} 
+                      disabled={formData.momentChoisi === "Collecte Tech"}
+                      onChange={e => setFormData({...formData, lieu: e.target.value})} 
+                      className={`${inputClass} disabled:opacity-60 disabled:cursor-not-allowed`}
+                    >
                       {tousLesLieuxVisibles.map((l, idx) => <option key={idx} value={l}>{l}</option>)}
                     </select>
                   )}
@@ -599,6 +639,7 @@ export default function FicheBeneficiaire() {
                     <select value={formData.momentChoisi} onChange={e => setFormData({...formData, momentChoisi: e.target.value})} className={inputClass}>
                       <option value="Matin">Matin</option>
                       <option value="Après-midi">Après-midi</option>
+                      <option value="Collecte Tech">🔧 Collecte Tech</option>
                     </select>
                   </div>
                 </div>
@@ -673,6 +714,7 @@ export default function FicheBeneficiaire() {
                                   <select value={editFormData.moment} onChange={e => setEditFormData({...editFormData, moment: e.target.value})} className="bg-slate-950 border border-slate-700 text-[11px] p-1 rounded text-white outline-none w-full">
                                     <option value="Matin">Matin</option>
                                     <option value="Après-midi">Après-midi</option>
+                                    <option value="Collecte Tech">Collecte Tech</option>
                                   </select>
                                 </div>
                               ) : (
@@ -710,7 +752,13 @@ export default function FicheBeneficiaire() {
                             <td className="py-3 px-2 max-w-[200px]">
                               {isEditing && editFormData ? (
                                 <div className="space-y-1">
-                                  <input type="text" value={editFormData.lieu} onChange={e => setEditFormData({...editFormData, lieu: e.target.value})} className="bg-slate-950 border border-slate-700 text-[11px] p-1 rounded text-white outline-none w-full" />
+                                  <input 
+                                    type="text" 
+                                    value={editFormData.moment === "Collecte Tech" ? "92 - Collecte Tech" : editFormData.lieu} 
+                                    disabled={editFormData.moment === "Collecte Tech"}
+                                    onChange={e => setEditFormData({...editFormData, lieu: e.target.value})} 
+                                    className="bg-slate-950 border border-slate-700 text-[11px] p-1 rounded text-white outline-none w-full disabled:opacity-60" 
+                                  />
                                   {editFormData.statut === "Présent" && (
                                     <textarea value={editFormData.details} onChange={e => setEditFormData({...editFormData, details: e.target.value})} rows={2} className="bg-slate-950 border border-slate-700 text-[11px] p-1 rounded text-white outline-none w-full resize-none" />
                                   )}
@@ -956,11 +1004,24 @@ export default function FicheBeneficiaire() {
                   </div>
                 </div>
 
+                {/* AJOUT SÉLECTION DU LIEU EXCLUSIF COLLECTE TECH DANS LE PROFIL GLOBALE SI BESOIN */}
+                <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Rattachement Événementnel principal</label>
+                  <select 
+                    value={profilFormData.Lieu_RDV} 
+                    onChange={e => setProfilFormData({...profilFormData, Lieu_RDV: e.target.value, lieuRDV: e.target.value})} 
+                    className="bg-slate-900 border border-slate-800 text-xs text-white rounded p-1 w-full outline-none"
+                  >
+                    <option value="">-- Aucun ou Standard --</option>
+                    <option value="92 - Collecte Tech">92 - Collecte Tech</option>
+                  </select>
+                </div>
+
                 <div className="pt-4 space-y-3">
                   {modalStatus && <div className="p-3 rounded-xl text-xs font-bold text-center border bg-slate-950 text-emerald-400 border-slate-800">{modalStatus}</div>}
                   <div className="flex justify-end gap-3 border-t border-slate-800/60 pt-4">
                     {userExists && (
-                      <button type="button" onClick={() => setIsModalProfilOpen(false)} className="px-4 py-2 rounded-xl text-xs font-bold uppercase bg-slate-950 border border-slate-800 text-slate-400">Annuler</button>
+                      <button type="button" onClick={() => { setIsModalProfilOpen(false); setModalStatus(""); }} className="px-4 py-2 rounded-xl text-xs font-bold uppercase bg-slate-950 border border-slate-800 text-slate-400">Annuler</button>
                     )}
                     <button type="submit" className="px-5 py-2 rounded-xl text-xs font-black uppercase bg-emerald-500 text-slate-950 shadow-lg">Enregistrer</button>
                   </div>
