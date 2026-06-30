@@ -33,6 +33,24 @@ interface CodeAnalytiqueData {
   mediateurs: Record<string, number>;
 }
 
+// Fonction utilitaire pour calculer la durée en heures entre deux chaînes au format "HH:MM"
+function calculerDureeEnHeures(debutStr?: string, finStr?: string): number {
+  if (!debutStr || !finStr) return 1; // Valeur par défaut si les horaires manquent
+  
+  const [hDebut, mDebut] = debutStr.split(":").map(Number);
+  const [hFin, mFin] = finStr.split(":").map(Number);
+  
+  if (isNaN(hDebut) || isNaN(hFin)) return 1;
+
+  const minutesDebut = hDebut * 60 + (mDebut || 0);
+  const minutesFin = hFin * 60 + (mFin || 0);
+  
+  const differenceMinutes = minutesFin - minutesDebut;
+  
+  // Si la différence est positive, on retourne les heures, sinon valeur par défaut 1
+  return differenceMinutes > 0 ? differenceMinutes / 60 : 1;
+}
+
 export default function Statistiques() {
   const [stats, setStats] = useState({
     totalInscrits: 0,
@@ -73,7 +91,7 @@ export default function Statistiques() {
           if (u.Situation_Handicap === "Oui") handicapOui++;
         });
 
-        // 3. PARCOURS DES SOUS-COLLECTIONS "VISITES" POUR COMPTER LES RENDEZ-VOUS INDIVIDUELS EFFECTIFS
+        // 3. Parcours des rendez-vous individuels effectifs
         let totalRdvCompte = 0;
         const thematiqueMap: Record<string, number> = {};
 
@@ -85,16 +103,14 @@ export default function Statistiques() {
               visitesSnap.docs.forEach(visiteDoc => {
                 const rdvData = visiteDoc.data();
                 
-                // Filtre de présence identique à celui de la liste des bénéficiaires
                 if (
                   rdvData.statut !== "Absent" && 
                   rdvData.statut !== "Annulé" && 
                   rdvData.presence !== "Absent" && 
                   rdvData.presence !== false
                 ) {
-                  totalRdvCompte++; // Incrémentation du compteur global
+                  totalRdvCompte++;
 
-                  // Traitement des thématiques associées
                   const bruteThematique = rdvData.thematique || rdvData.thématique || rdvData.Thematique || "Non spécifié";
                   let cleanThematique = bruteThematique.trim();
                   if (cleanThematique.toLowerCase().includes("droit")) cleanThematique = "Accès aux droits";
@@ -112,7 +128,7 @@ export default function Statistiques() {
           })
         );
 
-        // 4. TRAITEMENT DES ACTIONS COLLECTIVES
+        // 4. Traitement des actions collectives
         const structureCollectives: Record<string, LieuStats> = {};
         let cumulCollectif = 0;
 
@@ -150,13 +166,19 @@ export default function Statistiques() {
           structureCollectives[lieu].trimestres[trimestre].total += totalAction;
         });
 
-        // 5. CALCULS DES HEURES PAR CODES ANALYTIQUES & TERRITOIRES (Depuis le planning)
+        // 5. Calcul des heures par codes analytiques & territoires (Depuis le planning)
         const analytiqueMap: Record<string, CodeAnalytiqueData> = {};
         const territorioMap: Record<string, number> = { "75": 0, "91": 0, "92": 0, "Non spécifié": 0 };
         
         planningSnap.docs.forEach(docSnap => {
           const planData = docSnap.data();
-          const heures = Number(planData.duree || planData.heures || planData.duration || 1);
+          
+          let heures = 1;
+          if (planData.duree || planData.heures || planData.duration) {
+            heures = Number(planData.duree || planData.heures || planData.duration);
+          } else if (planData.debut && planData.fin) {
+            heures = calculerDureeEnHeures(planData.debut, planData.fin);
+          }
 
           // Code Analytique
           const code = planData.codeAnalytique?.trim() || "Sans code spécifié";
@@ -169,7 +191,7 @@ export default function Statistiques() {
           analytiqueMap[code].totalHeures += heures;
           analytiqueMap[code].mediateurs[mediateur] = (analytiqueMap[code].mediateurs[mediateur] || 0) + heures;
 
-          // Récupération et tri des Territoires
+          // Territoires
           const terrBrut = planData.territoire?.trim();
           if (terrBrut === "75" || terrBrut === "91" || terrBrut === "92") {
             territorioMap[terrBrut] += heures;
@@ -178,9 +200,20 @@ export default function Statistiques() {
           }
         });
 
+        // Arrondis propres pour éviter les bugs javascript de virgules flottantes
+        Object.keys(analytiqueMap).forEach(code => {
+          analytiqueMap[code].totalHeures = Math.round(analytiqueMap[code].totalHeures * 10) / 10;
+          Object.keys(analytiqueMap[code].mediateurs).forEach(m => {
+            analytiqueMap[code].mediateurs[m] = Math.round(analytiqueMap[code].mediateurs[m] * 10) / 10;
+          });
+        });
+        Object.keys(territorioMap).forEach(t => {
+          territorioMap[t] = Math.round(territorioMap[t] * 10) / 10;
+        });
+
         setStats({
           totalInscrits: users.length,
-          totalInterventions: totalRdvCompte, // Utilise la somme cumulée des visites filtrées
+          totalInterventions: totalRdvCompte, 
           repartitionPro: proMap,
           repartitionHandicap: { Oui: handicapOui, Non: users.length - handicapOui },
           villes: villeMap,
@@ -246,7 +279,7 @@ export default function Statistiques() {
           </div>
         </div>
 
-        {/* SECTION DES CHIFFRES CLÉS */}
+        {/* CHIFFRES CLÉS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
           <StatCard title="Profils Uniques (Indiv)" value={stats.totalInscrits} color="emerald" icon={<UserPlusIcon className="w-5 h-5" />} />
           <StatCard title="Rendez-vous Présents (Indiv)" value={stats.totalInterventions} color="indigo" icon={<CalendarDaysIcon className="w-5 h-5" />} />
@@ -254,7 +287,7 @@ export default function Statistiques() {
           <StatCard title="Impact Global Total" value={stats.totalInscrits + totalParticipantsCollectifs} color="amber" icon={<SparklesIcon className="w-5 h-5" />} />
         </div>
 
-        {/* SECTION CODES ANALYTIQUES & TERRITOIRES DU PLANNING */}
+        {/* GRAPHES CODES ANALYTIQUES & TERRITOIRES */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
           
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl lg:col-span-2">
@@ -345,13 +378,13 @@ export default function Statistiques() {
               </div>
             </div>
             <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider text-center mt-4 pt-3 border-t border-slate-800/40">
-              Total indexé : {totalHeuresPlanning} heures
+              Total indexé : {Math.round(totalHeuresPlanning * 10) / 10} heures
             </div>
           </div>
 
         </div>
 
-        {/* SUIVI THÉMATIQUE GLOBAL */}
+        {/* SUIVI THÉMATIQUE */}
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl mb-10">
           <h2 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-6 pb-3 border-b border-slate-800 flex items-center gap-2">
             <BookmarkSquareIcon className="w-4 h-4 text-emerald-400" />
@@ -387,7 +420,7 @@ export default function Statistiques() {
           )}
         </div>
 
-        {/* SUIVI TERRITORIAL DES ACTIONS COLLECTIVES */}
+        {/* ACTIONS COLLECTIVES */}
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl mb-10">
           <h2 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-6 pb-3 border-b border-slate-800 flex items-center gap-2">
             <BuildingOfficeIcon className="w-4 h-4 text-purple-400" />
