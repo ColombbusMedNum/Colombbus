@@ -47,15 +47,9 @@ export default function VolumeHoraireComplet() {
     }
 
     // Règle 2 : Déterminer le jour de la semaine pour la règle du Mercredi
-    // action.date est au format "YYYY-MM-DD"
-    let estMercredi = false;
     if (action.date) {
       const dateObj = new Date(action.date);
-      if (dateObj.getDay() === 3) estMercredi = true; // 3 = Mercredi
-    }
-
-    if (estMercredi) {
-      return { total: dureeTotale, comp: dureeTotale };
+      if (dateObj.getDay() === 3) return { total: dureeTotale, comp: dureeTotale }; // 3 = Mercredi
     }
 
     // Règle 3 : Calcul des débordements basé sur les horaires ACI personnalisés du staff
@@ -87,7 +81,10 @@ export default function VolumeHoraireComplet() {
     const unsub = onSnapshot(collection(db, "liste_mediateurs"), (snap) => {
       const meds = snap.docs.reduce((acc: any, d) => {
         const data = d.data();
-        acc[data.nom] = data; // Indexation par nom pour un croisement O(1)
+        // Indexation par ID et par Nom Complet pour sécuriser le croisement
+        const nomComplet = `${data.prenom || ""} ${data.nom || ""}`.trim();
+        acc[d.id] = data;
+        if (nomComplet) acc[nomComplet] = data;
         return acc;
       }, {});
       setMediateursRaw(meds);
@@ -114,32 +111,33 @@ export default function VolumeHoraireComplet() {
     let grandTotal = 0;
 
     planningRaw.forEach((action: any) => {
-      if (!action.mediateur) return;
+      // Recherche du médiateur par son ID ou à défaut par son Nom complet écrit dans l'action
+      const identifiantMed = action.mediateurId || action.mediateurNom || action.mediateur;
+      if (!identifiantMed) return;
 
-      // Récupération du profil ou application d'un fallback sécurisé
-      const medInfo = mediateursRaw[action.mediateur] || { statut: "Permanent", poste: "Non renseigné", taux: 0 };
+      const medInfo = mediateursRaw[identifiantMed] || { statut: "Permanent", poste: "Médiateur", taux: 0 };
+      const nomAffichage = action.mediateurNom || identifiantMed;
       
       const { total, comp } = calculerAnalyseAction(action, medInfo);
-      // Fallback si aucun taux n'est défini dans la fiche du personnel
       const tauxHoraire = Number(medInfo.taux) || (medInfo.statut === "ACI" ? 13.5 : 22.0); 
       const cout = total * tauxHoraire;
 
       grandTotal += total;
 
       // Aggregations par Médiateur
-      if (!mStats[action.mediateur]) {
-        mStats[action.mediateur] = { 
-          nom: action.mediateur, 
-          poste: medInfo.poste,
-          statut: medInfo.statut,
+      if (!mStats[nomAffichage]) {
+        mStats[nomAffichage] = { 
+          nom: nomAffichage, 
+          poste: medInfo.poste || "Médiateur",
+          statut: medInfo.statut || "Permanent",
           h: 0, 
           comp: 0, 
           cout: 0 
         };
       }
-      mStats[action.mediateur].h += total;
-      mStats[action.mediateur].comp += comp;
-      mStats[action.mediateur].cout += cout;
+      mStats[nomAffichage].h += total;
+      mStats[nomAffichage].comp += comp;
+      mStats[nomAffichage].cout += cout;
 
       // Aggregations par type de Lieu / Activité
       const titre = action.lieu || "Activité non spécifiée";
@@ -149,10 +147,10 @@ export default function VolumeHoraireComplet() {
       aStats[titre].h += total;
       aStats[titre].cout += cout;
       
-      if (!aStats[titre].details[action.mediateur]) {
-        aStats[titre].details[action.mediateur] = { h: 0 };
+      if (!aStats[titre].details[nomAffichage]) {
+        aStats[titre].details[nomAffichage] = { h: 0 };
       }
-      aStats[titre].details[action.mediateur].h += total;
+      aStats[titre].details[nomAffichage].h += total;
     });
 
     setTotalGeneral(grandTotal);
@@ -174,11 +172,11 @@ export default function VolumeHoraireComplet() {
         
         {/* BOUTON RETOUR DESIGN COHÉRENT */}
         <Link 
-          href="/activites_types" 
+          href="/" 
           className="inline-flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all text-xs font-bold uppercase tracking-wider shadow-md mb-8"
         >
           <ChevronLeftIcon className="w-4 h-4" /> 
-          <span>Retour à la Grille</span>
+          <span>Retour à l'Agenda</span>
         </Link>
 
         {/* COMPOSANT EN-TÊTE ET CHIFFRES MASSIFS */}
