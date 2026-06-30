@@ -143,7 +143,6 @@ export default function PlanningExpertMix() {
         validee: nouvelEtat
       });
 
-      // Si la semaine vient d'être validée, on ajoute un message d'alerte dans la cloche
       if (nouvelEtat === true) {
         await addDoc(collection(db, "notifications"), {
           message: `📅 Le planning de la semaine du ${monday.toLocaleDateString('fr-FR', {day:'numeric', month:'short'})} a été validé et verrouillé.`,
@@ -206,7 +205,6 @@ export default function PlanningExpertMix() {
       if (editingActivite) {
         await updateDoc(doc(db, "activites_types", editingActivite.id), dataPayload);
         
-        // Mise à jour rétroactive des actions existantes dans le planning
         const qActions = query(
           collection(db, "planning_mediateurs"),
           where("lieu", "==", editingActivite.lieu)
@@ -402,12 +400,14 @@ export default function PlanningExpertMix() {
     return "bg-amber-500/10 text-amber-500 border-amber-500/20";
   };
 
-  const todayStr = new Date().toLocaleDateString('en-CA');
+  // Récupération des limites de la semaine affichée à l'écran pour le filtrage intelligent
+  const startOfWeekStr = weekDays[0].toLocaleDateString('en-CA');
+  const endOfWeekStr = weekDays[weekDays.length - 1].toLocaleDateString('en-CA');
 
   return (
     <main className="min-h-screen bg-slate-950 text-white pl-4 pt-[55px]">
       
-      {/* HEADER AVEC LA CLOCHE CORRIGÉE ET ALIGNÉE */}
+      {/* HEADER */}
       <header className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-5 py-2.5 border-b border-slate-800 bg-slate-950">
         <div className="flex items-center gap-3">
           <button 
@@ -423,7 +423,6 @@ export default function PlanningExpertMix() {
           <span className="text-slate-600">/</span>
           <span className="text-slate-300 mr-2">Agenda des médiateurs</span>
 
-          {/* BOUTON DE VALIDATION DE LA SEMAINE */}
           <button
             onClick={toggleValidationSemaine}
             className={`px-3 py-1 rounded-md text-xs transition-all border flex items-center gap-1.5 cursor-pointer font-semibold ${
@@ -440,10 +439,7 @@ export default function PlanningExpertMix() {
           </button>
         </div>
 
-        {/* BLOC DE DROITE ALIGNÉ AVEC LA CLOCHE */}
         <div className="flex items-center gap-4">
-          
-          {/* COMPOSANT CLOCHE NOTIFICATIONS */}
           <div className="relative">
             <button 
               onClick={() => setIsNotifOpen(!isNotifOpen)} 
@@ -458,7 +454,6 @@ export default function PlanningExpertMix() {
               )}
             </button>
 
-            {/* VUE DÉROULANTE NOTIFICATIONS */}
             {isNotifOpen && (
               <div className="absolute right-0 mt-2 w-80 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-50 p-3 space-y-2">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
@@ -487,7 +482,6 @@ export default function PlanningExpertMix() {
             )}
           </div>
 
-          {/* DATE NAVIGATION */}
           <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-lg px-2 h-9">
             <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate()-7); setCurrentDate(d); }} className="text-slate-400 hover:text-white transition-colors cursor-pointer text-[11px] px-1 font-bold">←</button>
             <span className="text-[11px] font-medium text-slate-300 min-w-28 text-center">Sem. du {monday.toLocaleDateString('fr-FR', {day:'numeric', month:'short'})}</span>
@@ -559,8 +553,9 @@ export default function PlanningExpertMix() {
           <div className="space-y-1.5 pt-1.5 border-t border-slate-800/60">
             {activitesTypes
               .filter(type => {
-                if (type.dateDebut && todayStr < type.dateDebut) return false;
-                if (type.dateFin && todayStr > type.dateFin) return false;
+                // Modification ici : On filtre par rapport à la semaine affichée à l'écran
+                if (type.dateDebut && endOfWeekStr < type.dateDebut) return false;
+                if (type.dateFin && startOfWeekStr > type.dateFin) return false;
                 return true;
               })
               .map(type => {
@@ -714,7 +709,7 @@ export default function PlanningExpertMix() {
         </div>
       )}
 
-      {/* MODALE DES ACTIVITÉS TYPES */}
+      {/* MODALE DES ACTIVITÉS TYPES CORRIGÉE */}
       {isActiviteModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
           <form onSubmit={handleSaveActiviteType} className="bg-slate-900 border border-slate-800 p-5 rounded-xl w-full max-w-xs space-y-3">
@@ -736,7 +731,8 @@ export default function PlanningExpertMix() {
             
             <div className="flex flex-col gap-1">
               <label className="text-[10px] text-slate-400 font-medium font-mono">Territoire</label>
-              <select className="field-dark" value={newActivite.territoire} onChange={e => setNewActivite({...newActivite, territorio: e.target.value})}>
+              {/* Correction de l'objet de mise à jour ci-dessous : territoire au lieu de territorio */}
+              <select className="field-dark" value={newActivite.territoire} onChange={e => setNewActivite({...newActivite, territoire: e.target.value})}>
                 <option value="">Aucun</option>
                 <option value="75">75 (Paris)</option>
                 <option value="91">91 (Essonne)</option>
@@ -799,7 +795,7 @@ export default function PlanningExpertMix() {
   );
 }
 
-// COMPOSANT CELLULE DE RECEPTION DES INTERACTIONS DU PLANNING
+// COMPOSANT CELLULE
 function DayCell({ actions, m, moment, date, onAdd, onDelete, estSemaineValidee }: any) {
   const mNomComplet = `${m.prenom || ""} ${m.nom || ""}`.trim();
   const filtered = actions.filter((a: any) => 
