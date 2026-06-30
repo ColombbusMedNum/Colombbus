@@ -64,7 +64,7 @@ export default function StatsMediateursAnalytique() {
     return totalMinutes / 60;
   };
 
-  // 2. Grouper et cumuler intelligemment pour éviter les doublons Matin/Après-midi
+  // 2. Grouper et cumuler intelligemment par code analytique
   const analyticsSummary = React.useMemo(() => {
     const summary: { [code: string]: { code: string; label: string; totalHeures: number; count: number } } = {};
     const dejaCompte = new Set<string>();
@@ -76,8 +76,10 @@ export default function StatsMediateursAnalytique() {
       const dateStr = action.date; 
       const debut = action.debut || "";
       const fin = action.fin || "";
+      const moment = action.moment || ""; // Récupération du moment (Matin/Après-midi)
       
-      const cleUniqueJournee = `${dateStr}_${code}_${debut}_${fin}`;
+      // CORRECTION : On rajoute le 'moment' dans la clé ou l'ID unique de l'action pour ne pas écraser
+      const cleUniqueJournee = `${dateStr}_${moment}_${code}_${debut}_${fin}`;
 
       if (!summary[code]) {
         summary[code] = { code, label, totalHeures: 0, count: 0 };
@@ -96,7 +98,13 @@ export default function StatsMediateursAnalytique() {
       }
     });
 
-    return Object.values(summary).sort((a, b) => b.totalHeures - a.totalHeures);
+    // Arrondis propres pour éviter les résidus de virgule flottante JavaScript (ex: 14.000000002h)
+    return Object.values(summary)
+      .map(item => ({
+        ...item,
+        totalHeures: Math.round(item.totalHeures * 10) / 10
+      }))
+      .sort((a, b) => b.totalHeures - a.totalHeures);
   }, [currentMedActions]);
 
   const totalHeuresGlobal = analyticsSummary.reduce((acc, curr) => acc + curr.totalHeures, 0);
