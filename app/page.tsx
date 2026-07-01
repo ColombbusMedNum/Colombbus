@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {   
   UsersIcon,   
@@ -14,18 +14,62 @@ import {
   CalendarIcon,
   DocumentPlusIcon,
   FolderIcon,
-  XMarkIcon
+  XMarkIcon,
+  ArrowLeftStartOnRectangleIcon
 } from "@heroicons/react/24/outline";
 
 export default function HomePage() {
-  // États pour gérer l'ouverture des dossiers smartphone
+  const [userRole, setUserRole] = useState<"admin" | "mediateur" | null>(null);
   const [activeFolder, setActiveFolder] = useState<"rencontres" | "stats" | null>(null);
+
+  // Vérifie les cookies au chargement pour s'aligner avec le middleware
+  useEffect(() => {
+    const getCookie = (name: string) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop()?.split(";").shift();
+      return null;
+    };
+
+    const role = getCookie("user_role")?.toLowerCase();
+    if (role === "admin" || role === "mediateur") {
+      setUserRole(role as "admin" | "mediateur");
+    } else {
+      const localRole = localStorage.getItem("user_role")?.toLowerCase();
+      if (localRole === "admin" || localRole === "mediateur") {
+        setUserRole(localRole as "admin" | "mediateur");
+      }
+    }
+  }, []);
+
+  // FONCTION DE DÉCONNEXION SYNCHRONE AVEC LE MIDDLEWARE
+  const handleLogout = () => {
+    // Élimine les verrous du middleware
+    document.cookie = "session_token=; path=/; max-age=0; SameSite=Lax; Secure";
+    document.cookie = "user_role=; path=/; max-age=0; SameSite=Lax; Secure";
+    localStorage.removeItem("user_role");
+    localStorage.removeItem("user_email");
+
+    // Redirection stricte
+    window.location.href = "/login";
+  };
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 md:p-8 font-sans antialiased relative overflow-hidden">
       
       {/* Background Glow Effect */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-emerald-500/5 blur-[120px] rounded-full pointer-events-none"></div>
+
+      {/* BOUTON DÉCONNEXION */}
+      <div className="absolute top-4 right-4 md:top-8 md:right-8 z-20">
+        <button 
+          onClick={handleLogout}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-900/50 rounded-xl text-red-400 text-xs font-black uppercase tracking-widest transition-all shadow-md active:scale-95 group cursor-pointer"
+        >
+          <ArrowLeftStartOnRectangleIcon className="w-4 h-4 text-red-500 group-hover:text-red-400 transition-colors" />
+          <span>Déconnexion</span>
+        </button>
+      </div>
 
       <div className="max-w-7xl w-full relative z-10 flex flex-col items-center justify-center min-h-[80vh]">
         
@@ -46,10 +90,10 @@ export default function HomePage() {
         <div className="w-full max-w-6xl transition-all duration-300">
           
           {!activeFolder ? (
-            /* ================= VUE FERMÉE : LES 3 BOUTONS PRINCIPAUX CÔTE À CÔTE ================= */
+            /* ================= VUE FERMÉE ================= */
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full items-stretch">
               
-              {/* 1ÈRE POSITION : AGENDA DES MÉDIATEURS (Accès direct) */}
+              {/* AGENDA DES MÉDIATEURS */}
               <Link href="/activites_types" className="group bg-slate-900 border border-slate-800 rounded-3xl p-6 hover:border-amber-500/50 shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px]">
                 <div className="bg-slate-950 border border-slate-800 w-16 h-16 rounded-2xl flex items-center justify-center mb-5 group-hover:bg-amber-600 group-hover:border-amber-500 group-hover:shadow-[0_0_20px_rgba(245,158,11,0.4)] transition-all duration-300">
                   <CalendarDaysIcon className="w-7 h-7 text-amber-400 group-hover:text-white" />
@@ -62,7 +106,7 @@ export default function HomePage() {
                 </p>
               </Link>
 
-              {/* 2ÈME POSITION : CARRE RENCONTRES NUMÉRIQUES */}
+              {/* RENCONTRES NUMÉRIQUES */}
               <button 
                 onClick={() => setActiveFolder("rencontres")}
                 className="group bg-slate-900 border border-slate-800 rounded-3xl p-6 hover:border-indigo-500/50 shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px]"
@@ -86,7 +130,7 @@ export default function HomePage() {
                 </div>
               </button>
 
-              {/* 3ÈME POSITION : STATISTIQUES & BILANS (En dernier) */}
+              {/* STATISTIQUES & BILANS */}
               <button 
                 onClick={() => setActiveFolder("stats")}
                 className="group bg-slate-900 border border-slate-800 rounded-3xl p-6 hover:border-purple-500/50 shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px]"
@@ -126,7 +170,6 @@ export default function HomePage() {
                 </button>
               </div>
 
-              {/* GRILLE INTERNE DU DOSSIER */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 
                 {/* LISTE DES BÉNÉFICIAIRES */}
@@ -142,7 +185,7 @@ export default function HomePage() {
                   </p>
                 </Link>
 
-                {/* SUIVI DES COLLECTES TECH (Nouvel élément inséré) */}
+                {/* SUIVI DES COLLECTES TECH */}
                 <Link href="/suivi-collecte" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-purple-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95 bg-gradient-to-b from-slate-950 to-purple-950/10">
                   <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-purple-600 transition-all">
                     <CpuChipIcon className="w-4 h-4 text-purple-400 group-hover:text-white" />
@@ -150,7 +193,7 @@ export default function HomePage() {
                   <h2 className="text-[11px] font-black uppercase tracking-wide text-white group-hover:text-purple-400 transition-colors">
                     Suivi Collectes Tech
                   </h2>
-                  <p className="text-[9px] text-slate-400 font-medium mt-1_5 leading-relaxed">
+                  <p className="text-[9px] text-slate-400 font-medium mt-1.5 leading-relaxed">
                     Tableau d'activité synchrone type Excel / IdF
                   </p>
                 </Link>

@@ -33,6 +33,7 @@ interface Beneficiaire {
   prenom: string;
   telephone: string;
   sexe?: string;
+  statutBlacklist?: string; // Ajout du champ pour suivre le statut banni
 }
 
 export default function PlanningSuresnes() {
@@ -73,7 +74,8 @@ export default function PlanningSuresnes() {
             nom: (data.Nom || "").trim(),
             prenom: (data.Prénom || data.prenom || "").trim(),
             telephone: phone,
-            sexe: data.Sexe || data.sexe || "Non renseigné"
+            sexe: data.Sexe || data.sexe || "Non renseigné",
+            statutBlacklist: data.Statut_Blacklist || "Non" // Récupération du statut blacklist
           };
         })
       );
@@ -141,7 +143,6 @@ export default function PlanningSuresnes() {
         etatsVisites[uniqueKey] = visiteTrouvee ? visiteTrouvee.statut : "Non suivi";
       }
     }
-    // Correction de la syntaxe ici : parenthèses au lieu de crochets
     setStatutsVisitesRealtime(etatsVisites);
   }, [creneaux, beneficiaires, rawVisites]);
 
@@ -160,7 +161,6 @@ export default function PlanningSuresnes() {
   const creneauxDuMoisRemplis = filteredCreneauxDuMois.filter(c => c.usager && c.usager.trim() !== "");
   const totalCreneauxRemplis = creneauxDuMoisRemplis.length;
 
-  // Ventilation des créneaux réservés (RN vs RND) & Compteur global Collecte Tech
   let totalRemplisRN = 0;
   let totalRemplisRND = 0;
   let totalCollecteTech = 0;
@@ -190,7 +190,6 @@ export default function PlanningSuresnes() {
   }).length;
   const tauxParticipation = totalCreneauxRemplis > 0 ? Math.round((creneauxPointes / totalCreneauxRemplis) * 100) : 0;
 
-  // Public Unique : Ventilation RN (H/F), RND (H/F) et Collecte Tech (H/F)
   const usagersDuMoisUniques = Array.from(new Set(
     filteredCreneauxDuMois
       .map(c => (c.usager || "").trim().toLowerCase())
@@ -207,7 +206,6 @@ export default function PlanningSuresnes() {
   usagersDuMoisUniques.forEach(usagerNom => {
     const prof = beneficiaires.find(b => `${b.prenom.trim()} ${b.nom.trim()}`.toLowerCase() === usagerNom);
     
-    // Déterminer les typologies de rendez-vous de cet usager ce mois-ci
     const aEuCollecteTech = filteredCreneauxDuMois.some(c => 
       (c.usager || "").trim().toLowerCase() === usagerNom && c.thematique === "Collecte Tech"
     );
@@ -347,11 +345,9 @@ export default function PlanningSuresnes() {
             </div>
           </div>
 
-          {/* PUBLIC UNIQUE : VENTILÉ RN (H/F), RND (H/F) ET COLLECTE TECH (H/F) */}
           <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl col-span-2 md:col-span-1 flex flex-col justify-between shadow-md bg-gradient-to-br from-slate-900 to-indigo-950/20">
             <span className="block text-[9px] uppercase font-black tracking-widest text-indigo-400">Public unique (Mois)</span>
             <div className="flex flex-col gap-1.5 mt-1">
-              {/* Ligne RN */}
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-emerald-400 font-bold uppercase text-[9px] tracking-wide">RN :</span>
                 <div className="flex gap-2 font-mono">
@@ -360,7 +356,6 @@ export default function PlanningSuresnes() {
                 </div>
               </div>
               <div className="h-px bg-slate-800/40"></div>
-              {/* Ligne RND */}
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-sky-400 font-bold uppercase text-[9px] tracking-wide">RND :</span>
                 <div className="flex gap-2 font-mono">
@@ -369,7 +364,6 @@ export default function PlanningSuresnes() {
                 </div>
               </div>
               <div className="h-px bg-slate-800/40"></div>
-              {/* Ligne Collecte Tech */}
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-amber-500 font-bold uppercase text-[9px] tracking-wide">Coll. Tech :</span>
                 <div className="flex gap-2 font-mono">
@@ -378,7 +372,6 @@ export default function PlanningSuresnes() {
                 </div>
               </div>
               <div className="h-px bg-slate-800/80"></div>
-              {/* Total Global */}
               <div className="text-right text-[10px] text-slate-400 font-medium">
                 Total : <span className="font-mono text-white font-black text-xs">{usagersDuMoisUniques.length}</span>
               </div>
@@ -444,7 +437,6 @@ export default function PlanningSuresnes() {
                             return (
                               <div key={c.id} className={`grid grid-cols-1 xl:grid-cols-12 items-center gap-4 p-3 rounded-xl border transition-all ${isOrphan ? 'bg-slate-900/60 border-amber-900/40 hover:border-amber-800/60' : 'bg-slate-950/50 border-slate-800/80 hover:border-slate-700'}`}>
                                 
-                                {/* MÉDIATEUR */}
                                 <div className="xl:col-span-2 flex items-center gap-3 min-w-0">
                                   <div className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 shrink-0">
                                     <UserIcon className="w-4 h-4" />
@@ -458,18 +450,15 @@ export default function PlanningSuresnes() {
                                   </div>
                                 </div>
                                 
-                                {/* HORAIRE */}
                                 <div className="xl:col-span-1 flex items-center gap-2 text-slate-400">
                                   <ClockIcon className="w-4 h-4 text-slate-500" />
                                   <span className="text-xs font-mono font-medium">{c.horaire}</span>
                                 </div>
                                 
-                                {/* USAGER */}
                                 <div className="xl:col-span-3 w-full">
                                   <UsagerInput docId={c.id} initialValue={c.usager} beneficiairesListe={beneficiaires} />
                                 </div>
 
-                                {/* THÉMATIQUE ENRICHIE AVEC "COLLECTE TECH" */}
                                 <div className="xl:col-span-2 w-full">
                                   <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 focus-within:border-slate-700 rounded-lg px-2 py-1 transition-all">
                                     <TagIcon className="w-3.5 h-3.5 text-slate-500 shrink-0" />
@@ -492,7 +481,6 @@ export default function PlanningSuresnes() {
                                   </div>
                                 </div>
 
-                                {/* DIAGNOSTIC LINK */}
                                 <div className="xl:col-span-1.5 flex items-center justify-start xl:justify-center">
                                   {trendBesoinDiagnostic ? (
                                     <Link href={`/liste-beneficiaires/${bTrouve.id}`} className="inline-flex items-center gap-1.5 bg-purple-950/40 border border-purple-800/50 hover:border-purple-600 px-2.5 py-1 rounded-lg text-[10px] font-bold text-purple-400 hover:text-purple-300 uppercase tracking-wider transition-all cursor-pointer shadow-sm group w-full justify-center">
@@ -508,7 +496,6 @@ export default function PlanningSuresnes() {
                                   )}
                                 </div>
 
-                                {/* TOTAL VISITES */}
                                 <div className="xl:col-span-1 flex items-center justify-start xl:justify-center gap-1.5 text-slate-400">
                                   {bTrouve ? (
                                     <div className="flex items-center gap-1 bg-slate-900/80 border border-slate-800/80 px-2 py-1 rounded-lg text-xs w-full justify-center" title="Total des visites">
@@ -520,7 +507,6 @@ export default function PlanningSuresnes() {
                                   )}
                                 </div>
 
-                                {/* DEMANDE SPÉCIFIQUE */}
                                 <div className="xl:col-span-2 w-full">
                                   <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 focus-within:border-slate-700 rounded-lg px-2 py-1 transition-all">
                                     <ChatBubbleBottomCenterTextIcon className="w-3.5 h-3.5 text-slate-500 shrink-0" />
@@ -535,7 +521,6 @@ export default function PlanningSuresnes() {
                                   </div>
                                 </div>
                                 
-                                {/* POINTAGE AUTOMATIQUE REFIXÉ */}
                                 <div className="xl:col-span-1 text-left xl:text-right shrink-0">
                                   {isOrphan ? (
                                     <button onClick={() => {
@@ -593,7 +578,7 @@ export default function PlanningSuresnes() {
   );
 }
 
-// --- COMPO INPUT RECHERCHE ---
+// --- COMPO INPUT RECHERCHE AVEC ALERTE DE BLACKLIST INTERNE ---
 function UsagerInput({ docId, initialValue, beneficiairesListe }: { docId: string; initialValue: string; beneficiairesListe: Beneficiaire[] }) {
   const [value, setValue] = useState(initialValue);
   const [suggestions, setSuggestions] = useState<Beneficiaire[]>([]);
@@ -633,7 +618,15 @@ function UsagerInput({ docId, initialValue, beneficiairesListe }: { docId: strin
     }
   };
 
+  // VÉRIFICATION DU STATUT LORS DE LA SÉLECTION
   const handleSelect = async (b: Beneficiaire) => {
+    if (b.statutBlacklist === "Oui") {
+      alert(`🚫 IMPOSSIBLE : Le bénéficiaire "${b.prenom} ${b.nom.toUpperCase()}" est actuellement BLACKLISTÉ.\nIl ne peut pas être ajouté au planning.`);
+      setValue("");
+      setShowDropdown(false);
+      return;
+    }
+
     const nomComplet = `${b.prenom.trim()} ${b.nom.trim().toUpperCase()}`;
     setValue(nomComplet);
     setShowDropdown(false);
@@ -689,16 +682,27 @@ function UsagerInput({ docId, initialValue, beneficiairesListe }: { docId: strin
         <ul className="absolute left-0 top-full mt-2 w-full bg-slate-900 border border-slate-800 rounded-lg shadow-2xl z-50 overflow-hidden divide-y divide-slate-800">
           {suggestions.map(b => {
             const isSugFemme = (b.sexe || "").toLowerCase().startsWith("f");
+            const isBanned = b.statutBlacklist === "Oui";
+
             return (
               <li key={b.id}>
-                <button type="button" onClick={() => handleSelect(b)} className="w-full px-3 py-2 text-left hover:bg-blue-600 flex items-center justify-between gap-2 cursor-pointer group text-slate-300 hover:text-white">
-                  <div>
+                <button 
+                  type="button" 
+                  onClick={() => handleSelect(b)} 
+                  className={`w-full px-3 py-2 text-left flex items-center justify-between gap-2 cursor-pointer group transition-colors ${
+                    isBanned ? "hover:bg-red-950/40 bg-red-950/10 text-red-400" : "hover:bg-blue-600 text-slate-300 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
                     <span className={`text-[9px] font-mono font-black px-1.5 py-0.5 rounded mr-1.5 ${
                       isSugFemme ? "bg-fuchsia-950 text-fuchsia-400 border border-fuchsia-900" : "bg-blue-950 text-blue-400 border border-blue-900"
                     }`}>
                       {isSugFemme ? "F" : "H"}
                     </span>
-                    {b.prenom} <span className="uppercase font-bold">{b.nom}</span>
+                    <span className={isBanned ? "line-through opacity-60" : ""}>
+                      {b.prenom} <span className="uppercase font-bold">{b.nom}</span>
+                    </span>
+                    {isBanned && <span className="ml-2 text-[9px] font-black uppercase bg-red-600 text-white px-1 rounded tracking-wide">🚫 Blacklisté</span>}
                   </div>
                   <div className="text-[10px] opacity-60 font-mono">{b.telephone}</div>
                 </button>
@@ -717,7 +721,8 @@ function UsagerInput({ docId, initialValue, beneficiairesListe }: { docId: strin
                 Nom: newNom.toUpperCase(), 
                 Prénom: newPrenom, 
                 Téléphone: newPhone || "Non renseigné",
-                Sexe: newSexe
+                Sexe: newSexe,
+                Statut_Blacklist: "Non"
               });
               const label = `${newPrenom} ${newNom.toUpperCase()}`;
               await updateDoc(doc(db, "planning_suresnes", docId), { usager: label });

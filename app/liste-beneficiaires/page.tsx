@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { db } from "../../lib/firebase";
-import { collection, getDocs, query, orderBy, where, limit } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, where, updateDoc, doc } from "firebase/firestore";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
@@ -11,7 +11,8 @@ import {
   HomeIcon, 
   ArrowTopRightOnSquareIcon,
   UserGroupIcon,
-  CalendarDaysIcon
+  CalendarDaysIcon,
+  NoSymbolIcon // Import de l'icône de blacklist
 } from "@heroicons/react/24/outline";
 
 export default function ListeBeneficiaires() {
@@ -25,92 +26,112 @@ export default function ListeBeneficiaires() {
 
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // 1. Récupération de la date du jour au format exact du planning (YYYY-MM-DD)
-        const aujourdhuiStr = new Date().toLocaleDateString('en-CA');
+  const fetchData = async () => {
+    try {
+      // 1. Récupération de la date du jour au format exact du planning (YYYY-MM-DD)
+      const aujourdhuiStr = new Date().toLocaleDateString('en-CA');
 
-        // 2. Récupération des créneaux de Suresnes pour aujourd'hui
-        const qPlanning = query(
-          collection(db, "planning_suresnes"), 
-          where("date", "==", aujourdhuiStr)
-        );
-        const planningSnapshot = await getDocs(qPlanning);
-        
-        const nomsDuJour = planningSnapshot.docs
-          .map(doc => doc.data().usager)
-          .filter(usager => usager && usager.trim() !== "") // Filtre les créneaux vides
-          .map(usager => usager.trim().toLowerCase());
-        
-        setUsagersDuJour(nomsDuJour);
+      // 2. Récupération des créneaux de Suresnes pour aujourd'hui
+      const qPlanning = query(
+        collection(db, "planning_suresnes"), 
+        where("date", "==", aujourdhuiStr)
+      );
+      const planningSnapshot = await getDocs(qPlanning);
+      
+      const nomsDuJour = planningSnapshot.docs
+        .map(doc => doc.data().usager)
+        .filter(usager => usager && usager.trim() !== "") // Filtre les créneaux vides
+        .map(usager => usager.trim().toLowerCase());
+      
+      setUsagersDuJour(nomsDuJour);
 
-        // 3. Si aucun usager n'est prévu aujourd'hui, on bascule par défaut sur "Tous"
-        if (nomsDuJour.length === 0) {
-          setFiltreActif("Tous");
-        }
-
-        // 4. Récupération globale de tous les bénéficiaires
-        const qBenef = query(collection(db, "utilisateurs"), orderBy("Nom", "asc"));
-        const querySnapshot = await getDocs(qBenef);
-        
-        // 5. Pour chaque bénéficiaire, on va chercher ses rendez-vous (visites)
-        const docsAvecVisitesEtPremierRDV = await Promise.all(
-          querySnapshot.docs.map(async (docSnap) => {
-            const userData = docSnap.data();
-            let datePremierRDV = "—";
-            let nbVisitesPresent = 0;
-
-            try {
-              // Requête globale sur la sous-collection "visites" pour calculer le total et le premier rdv
-              const qVisites = query(
-                collection(db, "utilisateurs", docSnap.id, "visites"),
-                orderBy("date", "asc")
-              );
-              const visitesSnapshot = await getDocs(qVisites);
-              
-              if (!visitesSnapshot.empty) {
-                // Nombre de visites où l'usager était présent (présence true, "Oui", ou par défaut s'il n'y a pas d'annulation)
-                nbVisitesPresent = visitesSnapshot.docs.filter(doc => {
-                  const data = doc.data();
-                  // S'adapte si vous utilisez "present", "statut", ou si l'existence du rdv vaut présence
-                  return data.statut !== "Absent" && data.statut !== "Annulé" && data.presence !== "Absent" && data.presence !== false;
-                }).length;
-
-                // Extraction de la date la plus ancienne pour le premier RDV
-                const rdvDateRaw = visitesSnapshot.docs[0].data().date;
-                if (rdvDateRaw) {
-                  datePremierRDV = new Date(rdvDateRaw).toLocaleDateString('fr-FR', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric'
-                  });
-                }
-              }
-            } catch (err) {
-              console.error(`Erreur récupération visites pour ${docSnap.id}:`, err);
-            }
-
-            return {
-              id: docSnap.id,
-              ...userData,
-              premierRDV: datePremierRDV,
-              totalVisites: nbVisitesPresent // Injection de la propriété dynamique
-            };
-          })
-        );
-
-        setBeneficiaires(docsAvecVisitesEtPremierRDV);
-
-      } catch (error) {
-        console.error("Erreur lors de la récupération des données:", error);
-      } finally {
-        setLoading(false);
+      // 3. Si aucun usager n'est prévu aujourd'hui, on bascule par défaut sur "Tous"
+      if (nomsDuJour.length === 0 && filtreActif === "Aujourd'hui") {
+        setFiltreActif("Tous");
       }
-    };
 
+      // 4. Récupération globale de tous les bénéficiaires
+      const qBenef = query(collection(db, "utilisateurs"), orderBy("Nom", "asc"));
+      const querySnapshot = await getDocs(qBenef);
+      
+      // 5. Pour chaque bénéficiaire, on va chercher ses rendez-vous (visites)
+      const docsAvecVisitesEtPremierRDV = await Promise.all(
+        querySnapshot.docs.map(async (docSnap) => {
+          const userData = docSnap.data();
+          let datePremierRDV = "—";
+          let nbVisitesPresent = 0;
+
+          try {
+            // Requête globale sur la sous-collection "visites" pour calculer le total et le premier rdv
+            const qVisites = query(
+              collection(db, "utilisateurs", docSnap.id, "visites"),
+              orderBy("date", "asc")
+            );
+            const visitesSnapshot = await getDocs(qVisites);
+            
+            if (!visitesSnapshot.empty) {
+              nbVisitesPresent = visitesSnapshot.docs.filter(doc => {
+                const data = doc.data();
+                return data.statut !== "Absent" && data.statut !== "Annulé" && data.presence !== "Absent" && data.presence !== false;
+              }).length;
+
+              const rdvDateRaw = visitesSnapshot.docs[0].data().date;
+              if (rdvDateRaw) {
+                datePremierRDV = new Date(rdvDateRaw).toLocaleDateString('fr-FR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric'
+                });
+              }
+            }
+          } catch (err) {
+            console.error(`Erreur récupération visites pour ${docSnap.id}:`, err);
+          }
+
+          return {
+            id: docSnap.id,
+            ...userData,
+            premierRDV: datePremierRDV,
+            totalVisites: nbVisitesPresent
+          };
+        })
+      );
+
+      setBeneficiaires(docsAvecVisitesEtPremierRDV);
+
+    } catch (error) {
+      console.error("Erreur lors de la récupération des données:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, []);
+
+  // --- FONCTION DE TOGGLE BLACKLIST DIRECTE ---
+  const handleToggleBlacklist = async (id: string, statutActuel: string) => {
+    const nouveauStatut = statutActuel === "Oui" ? "Non" : "Oui";
+    const message = nouveauStatut === "Oui" 
+      ? "Êtes-vous sûr de vouloir blacklister ce bénéficiaire ?" 
+      : "Réactiver ce bénéficiaire ?";
+      
+    if (window.confirm(message)) {
+      try {
+        const userRef = doc(db, "utilisateurs", id);
+        await updateDoc(userRef, {
+          Statut_Blacklist: nouveauStatut
+        });
+        
+        // Mettre à jour l'état local sans recharger toute la page
+        setBeneficiaires(prev => prev.map(b => b.id === id ? { ...b, Statut_Blacklist: nouveauStatut } : b));
+      } catch (error) {
+        console.error("Erreur lors de la modification de la blacklist :", error);
+        alert("Une erreur est survenue.");
+      }
+    }
+  };
 
   // --- REDIRECTION VERS LA PAGE DÉTAIL POUR CRÉATION VIA UN ID TEMPORAIRE ---
   const handleCreerNouveau = () => {
@@ -138,8 +159,10 @@ export default function ListeBeneficiaires() {
         matchesBadge = b.Ville?.toLowerCase() === "suresnes";
       } else if (filtreActif === "DE") {
         matchesBadge = situation.includes("emploi") || situation === "de";
+      } else if (filtreActif === "Blacklistes") {
+        matchesBadge = b.Statut_Blacklist === "Oui";
       } else if (filtreActif === "Actifs") {
-        matchesBadge = statut === "actif" || b.Statut === undefined; 
+        matchesBadge = (statut === "actif" || b.Statut === undefined) && b.Statut_Blacklist !== "Oui"; 
       }
 
       // 3. Filtre par première lettre du Nom
@@ -164,6 +187,7 @@ export default function ListeBeneficiaires() {
     const sit = (b.Situation_Socio_Pro || b.Situation || "").toLowerCase();
     return sit.includes("emploi") || sit === "de";
   }).length;
+  const countBlacklistes = beneficiaires.filter(b => b.Statut_Blacklist === "Oui").length;
 
   if (loading) {
     return (
@@ -310,6 +334,18 @@ export default function ListeBeneficiaires() {
           >
             💼 Public France Travail ({countDE})
           </button>
+
+          {/* NOUEAU FILTRE RAPIDE BLACKLIST */}
+          <button
+            onClick={() => setFiltreActif("Blacklistes")}
+            className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+              filtreActif === "Blacklistes"
+                ? "bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.25)]"
+                : "bg-slate-900 text-red-400/80 border border-slate-800 hover:border-red-900/50 hover:text-red-400"
+            }`}
+          >
+            🚫 Blacklistés ({countBlacklistes})
+          </button>
         </div>
 
         {/* TABLEAU DES RÉSULTATS */}
@@ -323,27 +359,32 @@ export default function ListeBeneficiaires() {
                   <th className="px-6 py-4 hidden lg:table-cell">Localisation</th>
                   <th className="px-6 py-4 text-center hidden sm:table-cell">Visites</th>
                   <th className="px-6 py-4 hidden sm:table-cell">1er RDV</th>
-                  <th className="px-6 py-4 text-right">Dossier</th>
+                  <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
                 {filteredBeneficiaires.length > 0 ? (
                   filteredBeneficiaires.map((b) => {
                     const estAdherent = b.Date_Adhesion && b.Date_Adhesion.trim() !== "";
+                    const isBlackliste = b.Statut_Blacklist === "Oui";
                     const civilite = b.Civilité ? `${b.Civilité} ` : "";
 
                     return (
-                      <tr key={b.id} className="hover:bg-slate-950/40 transition-colors group">
+                      <tr key={b.id} className={`hover:bg-slate-950/40 transition-colors group ${isBlackliste ? "bg-red-950/5/30" : ""}`}>
                         <td className="px-6 py-4.5">
-                          <div className="font-black text-white text-base tracking-tight uppercase italic group-hover:text-emerald-400 transition-colors">
+                          <div className={`font-black text-base tracking-tight uppercase italic transition-colors ${isBlackliste ? "text-red-400/80 line-through decoration-1" : "text-white group-hover:text-emerald-400"}`}>
                             <span className="text-slate-400 font-medium normal-case not-italic text-sm mr-1">{civilite}</span>
                             {b.Nom || "SANS NOM"}
                           </div>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
                             <span className="text-xs text-slate-400 font-medium not-italic">
                               {b.Prénom || "Sans prénom"}
                             </span>
-                            {estAdherent ? (
+                            {isBlackliste ? (
+                              <span className="inline-flex items-center text-[9px] font-black uppercase tracking-widest text-red-400 bg-red-950/50 px-1.5 py-0.5 rounded border border-red-900/40">
+                                🚫 Blacklisté
+                              </span>
+                            ) : estAdherent ? (
                               <span className="inline-flex items-center text-[9px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-950/50 px-1.5 py-0.5 rounded border border-emerald-900/30">
                                 ✅ Adhérent
                               </span>
@@ -375,7 +416,6 @@ export default function ListeBeneficiaires() {
                           </div>
                         </td>
 
-                        {/* NOUVELLE COLONNE : Nombre de visites honorées */}
                         <td className="px-6 py-4.5 text-center hidden sm:table-cell">
                           <span className={`inline-flex items-center justify-center font-mono text-xs font-black px-2.5 py-1 rounded-xl border ${
                             b.totalVisites > 0 
@@ -393,13 +433,28 @@ export default function ListeBeneficiaires() {
                         </td>
                         
                         <td className="px-6 py-4.5 text-right">
-                          <Link
-                            href={`/liste-beneficiaires/${b.id}`}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-950 hover:bg-emerald-600 text-slate-400 hover:text-white text-[11px] font-black uppercase tracking-wider rounded-xl border border-slate-800 hover:border-emerald-500 transition-all active:scale-95 shadow-sm cursor-pointer"
-                          >
-                            <span>Ouvrir</span>
-                            <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
-                          </Link>
+                          <div className="flex justify-end items-center gap-2">
+                            {/* BOUTON TOGGLE BLACKLIST DIRECT */}
+                            <button
+                              onClick={() => handleToggleBlacklist(b.id, b.Statut_Blacklist)}
+                              title={isBlackliste ? "Retirer de la blacklist" : "Ajouter à la blacklist"}
+                              className={`p-1.5 rounded-xl border transition-all active:scale-95 cursor-pointer ${
+                                isBlackliste 
+                                  ? "bg-red-950/60 text-red-400 border-red-900 hover:bg-slate-950 hover:text-slate-400 hover:border-slate-800" 
+                                  : "bg-slate-950 text-slate-500 border-slate-800 hover:border-red-900/60 hover:text-red-400"
+                              }`}
+                            >
+                              <NoSymbolIcon className="w-4 h-4" />
+                            </button>
+
+                            <Link
+                              href={`/liste-beneficiaires/${b.id}`}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-950 hover:bg-emerald-600 text-slate-400 hover:text-white text-[11px] font-black uppercase tracking-wider rounded-xl border border-slate-800 hover:border-emerald-500 transition-all active:scale-95 shadow-sm cursor-pointer"
+                            >
+                              <span>Ouvrir</span>
+                              <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     );

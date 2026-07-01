@@ -17,7 +17,8 @@ import {
   MapPinIcon,
   PlusIcon,
   ChevronDownIcon,
-  CalendarDaysIcon
+  CalendarDaysIcon,
+  ShieldCheckIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 
@@ -83,6 +84,7 @@ export default function GestionEquipe() {
     telephone: "",
     poste: "Médiateur Numérique",
     statut: "Permanent", 
+    role: "Mediateur", 
     sites: [] as string[], 
     rattachementHoraireACI: "Paris", 
     taux: 0,
@@ -188,11 +190,14 @@ export default function GestionEquipe() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.prenom || !formData.nom) return;
+    if (!formData.prenom || !formData.nom || !formData.email) {
+      alert("Le prénom, le nom et l'adresse email sont obligatoires.");
+      return;
+    }
 
-    // Protection pour s'assurer que le taux transmis est un nombre valide
     const netPayload = {
       ...formData,
+      email: formData.email.trim().toLowerCase(),
       taux: Number(formData.taux) || 0
     };
 
@@ -227,6 +232,7 @@ export default function GestionEquipe() {
         telephone: med.telephone || "",
         poste: med.poste || "Médiateur Numérique",
         statut: med.statut || "Permanent",
+        role: med.role || "Mediateur",
         sites: med.sites ? med.sites : (med.sitePrincipal ? [med.sitePrincipal] : []),
         rattachementHoraireACI: med.rattachementHoraireACI || "Paris",
         taux: med.taux !== undefined ? Number(med.taux) : 0,
@@ -242,6 +248,7 @@ export default function GestionEquipe() {
         telephone: "",
         poste: "Médiateur Numérique",
         statut: "Permanent",
+        role: "Mediateur",
         sites: [],
         rattachementHoraireACI: "Paris",
         taux: 0,
@@ -277,7 +284,7 @@ export default function GestionEquipe() {
             <h1 className="text-xl md:text-2xl font-black uppercase bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
               Gestion de l'Équipe & Territoires
             </h1>
-            <p className="text-xs text-slate-500 font-medium">Configurez vos territoires et ajustez les grilles horaires fixes de vos ACI</p>
+            <p className="text-xs text-slate-500 font-medium">Configurez vos territoires, rôles applicatifs et grilles horaires</p>
           </div>
         </div>
 
@@ -407,12 +414,14 @@ export default function GestionEquipe() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredMediateurs.map((m) => {
               const localSites = m.sites || [];
+              const userRole = m.role || "Mediateur";
               return (
                 <div key={m.id} className="group relative bg-slate-950/90 border-2 border-slate-700 hover:border-emerald-500/50 rounded-2xl p-5 shadow-2xl flex flex-col justify-between min-h-[190px] transition-all duration-200">
-                  <div className="absolute top-0 right-0 px-4 py-1.5 rounded-bl-xl rounded-tr-2xl text-[10px] font-black uppercase border-l-2 border-b-2 border-slate-700 bg-slate-900">
-                    {m.statut}
+                  <div className="absolute top-0 right-0 flex divide-x-2 divide-slate-700 rounded-bl-xl rounded-tr-2xl border-l-2 border-b-2 border-slate-700 bg-slate-900 text-[10px] font-black uppercase">
+                    <span className="px-3 py-1.5 text-slate-300">{m.statut}</span>
+                    <span className={`px-3 py-1.5 ${userRole === 'Admin' ? 'text-amber-400' : userRole === 'Lecteur' ? 'text-blue-400' : 'text-slate-400'}`}>{userRole}</span>
                   </div>
-                  <div>
+                  <div className="mt-4">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 font-black text-xs">
                         {m.trigramme || `${m.prenom?.[0] || ""}${m.nom?.[0] || ""}`}
@@ -445,7 +454,7 @@ export default function GestionEquipe() {
                       <span className="bg-slate-900 px-2 py-1 rounded border border-slate-800 text-slate-300">Taux : {m.taux || 0}€</span>
                       {m.statut === "ACI" && (
                         <span className="text-orange-400 bg-orange-950/20 border border-orange-900/30 px-2 py-1 rounded flex items-center gap-1">
-                          <ClockIcon className="w-3.5 h-3.5" /> Référence : {m.rattachementHoraireACI || "Paris"}
+                          <ClockIcon className="w-3.5 h-3.5" /> Réf : {m.rattachementHoraireACI || "Paris"}
                         </span>
                       )}
                     </div>
@@ -465,8 +474,8 @@ export default function GestionEquipe() {
               <thead>
                 <tr className="bg-slate-950 text-[10px] font-black uppercase text-slate-500 border-b-2 border-slate-700">
                   <th className="p-4 pl-6">Collaborateur</th>
-                  <th className="p-4">Poste</th>
-                  <th className="p-4">Statut</th>
+                  <th className="p-4">Email Login</th>
+                  <th className="p-4">Rôle Applicatif</th>
                   <th className="p-4">Territoire(s) affecté(s)</th>
                   <th className="p-4 pr-6 text-right">Actions</th>
                 </tr>
@@ -475,12 +484,11 @@ export default function GestionEquipe() {
                 {filteredMediateurs.map((m) => (
                   <tr key={m.id} className="hover:bg-slate-950/50">
                     <td className="p-4 pl-6 font-bold text-white">{m.prenom} <span className="uppercase text-slate-400 ml-0.5">{m.nom}</span></td>
-                    <td className="p-4 text-slate-400">{m.poste}</td>
+                    <td className="p-4 text-slate-400 font-mono text-[11px]">{m.email || "-"}</td>
                     <td className="p-4">
-                      <div className="flex items-center gap-1.5">
-                        <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase border border-slate-800 bg-slate-900">{m.statut}</span>
-                        {m.statut === "ACI" && <span className="text-[10px] text-orange-400">({m.rattachementHoraireACI})</span>}
-                      </div>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border border-slate-800 bg-slate-900 ${m.role === 'Admin' ? 'text-amber-400' : m.role === 'Lecteur' ? 'text-blue-400' : 'text-slate-400'}`}>
+                        {m.role || "Mediateur"}
+                      </span>
                     </td>
                     <td className="p-4">
                       <div className="flex flex-wrap gap-1">
@@ -501,7 +509,7 @@ export default function GestionEquipe() {
         )}
       </div>
 
-      {/* MODALE RECRUTEMENT / EDITION CORRIGÉE */}
+      {/* MODALE RECRUTEMENT / EDITION */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-slate-950 border-2 border-slate-700 w-full max-w-lg rounded-2xl p-6 shadow-2xl">
@@ -531,14 +539,21 @@ export default function GestionEquipe() {
                   <input type="text" maxLength={3} className="w-full p-3 bg-slate-900/50 border border-slate-800 text-white rounded-lg text-center uppercase" value={formData.trigramme} onChange={e => setFormData({...formData, trigramme: e.target.value})} />
                 </div>
                 <div className="col-span-2">
+                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Email (Sert d'identifiant de connexion) *</label>
+                  <input type="email" required placeholder="nom@colombbus.org" className="w-full p-3 bg-slate-900/50 border border-slate-800 text-white rounded-lg font-mono" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
                   <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Poste</label>
                   <input type="text" className="w-full p-3 bg-slate-900/50 border border-slate-800 text-white rounded-lg" value={formData.poste} onChange={e => setFormData({...formData, poste: e.target.value})} />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 border-t border-slate-900/60 pt-4">
+              <div className="grid grid-cols-3 gap-3 border-t border-slate-900/60 pt-4">
                 <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Statut contractuel</label>
+                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Type Contrat</label>
                   <select className="w-full p-3 bg-slate-900 border border-slate-800 text-white rounded-lg outline-none font-bold" value={formData.statut} onChange={e => setFormData({...formData, statut: e.target.value})}>
                     <option value="Permanent">Permanent</option>
                     <option value="Cadre">Cadre</option>
@@ -546,6 +561,18 @@ export default function GestionEquipe() {
                     <option value="ACI">ACI</option>
                   </select>
                 </div>
+
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-amber-500 mb-1.5 flex items-center gap-1">
+                    <ShieldCheckIcon className="w-3.5 h-3.5" /> Droits / Rôle
+                  </label>
+                  <select className="w-full p-3 bg-slate-900 border border-amber-900/30 text-amber-400 rounded-lg outline-none font-bold" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
+                    <option value="Mediateur">Médiateur</option>
+                    <option value="Admin">Admin</option>
+                    <option value="Lecteur">Lecteur</option>
+                  </select>
+                </div>
+
                 <div>
                   <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Coût Horaire (€)</label>
                   <input 

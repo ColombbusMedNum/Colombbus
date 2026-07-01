@@ -72,6 +72,7 @@ export default function FormulaireDiagnostic() {
 
   // États distincts pour stocker les réponses
   const [reponsesQCM, setReponsesQCM] = useState<{ [key: string]: string }>({});
+  // reponsesCollecte stocke désormais l'INDEX (number) de la réponse choisie
   const [reponsesCollecte, setReponsesCollecte] = useState<{ [key: string]: number }>({});
   
   const [satisfactionGlobale, setSatisfactionGlobale] = useState<number>(5);
@@ -103,7 +104,6 @@ export default function FormulaireDiagnostic() {
   const isModeQCMClassic = typeQuestionnaire === "Initial" || typeQuestionnaire === "Final";
   const isModeCollecteTech = typeQuestionnaire === "CollecteTech";
 
-  // Calcul dynamique mais ultra-verrouillé du nombre total de questions
   let totalQuestions = 0;
   if (isModeQCMClassic) totalQuestions = QUESTIONS_BUREAUTIQUE.length;
   if (isModeCollecteTech) totalQuestions = QUESTIONS_COLLECTE_TECH.length;
@@ -112,7 +112,6 @@ export default function FormulaireDiagnostic() {
     ? ((currentQuestionIndex + 1) / totalQuestions) * 100 
     : 100;
 
-  // Vérifier si la question en cours a reçu une réponse pour débloquer le bouton "Suivant"
   const questionEnCoursA_Reponse = isModeQCMClassic
     ? !!reponsesQCM[QUESTIONS_BUREAUTIQUE[currentQuestionIndex]?.id]
     : isModeCollecteTech
@@ -155,7 +154,14 @@ export default function FormulaireDiagnostic() {
 
       } else if (isModeCollecteTech) {
         let pointsTotal = 0;
-        Object.values(reponsesCollecte).forEach(pts => { pointsTotal += pts; });
+        
+        // Calcul des points basé sur l'index de la réponse sélectionnée
+        QUESTIONS_COLLECTE_TECH.forEach((q) => {
+          const indexSelectionne = reponsesCollecte[q.id];
+          if (indexSelectionne !== undefined && q.options[indexSelectionne]) {
+            pointsTotal += q.options[indexSelectionne].points;
+          }
+        });
 
         let profilLabel = "";
         let profilDesc = "";
@@ -370,7 +376,8 @@ export default function FormulaireDiagnostic() {
 
                         <div className="grid grid-cols-1 gap-2 pt-2">
                           {q.options.map((option, idx) => {
-                            const isSelected = reponsesCollecte[q.id] === option.points;
+                            // On vérifie par rapport à l'index sélectionné
+                            const isSelected = reponsesCollecte[q.id] === idx;
                             return (
                               <label 
                                 key={idx} 
@@ -384,7 +391,8 @@ export default function FormulaireDiagnostic() {
                                   type="radio" 
                                   name={q.id} 
                                   checked={isSelected}
-                                  onChange={() => setReponsesCollecte(prev => ({ ...prev, [q.id]: option.points }))}
+                                  // On stocke l'index de la réponse
+                                  onChange={() => setReponsesCollecte(prev => ({ ...prev, [q.id]: idx }))}
                                   className="text-purple-600 focus:ring-0 bg-slate-950 border-slate-800 w-4 h-4"
                                 />
                                 <span>{option.text}</span>

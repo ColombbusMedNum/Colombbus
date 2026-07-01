@@ -1,9 +1,8 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-// On n'importe Analytics que si on est côté client, car il ne marche pas côté serveur
 import { getAnalytics, isSupported } from "firebase/analytics";
-// 1. Ajout de l'import pour le Storage 👇
 import { getStorage } from "firebase/storage";
+import { getAuth } from "firebase/auth"; // <-- Bien présent
 
 const firebaseConfig = {
   apiKey: "AIzaSyBps0rKBEiJV0owdmDL0b6QsTqB0kGvDoE",
@@ -15,16 +14,14 @@ const firebaseConfig = {
   measurementId: "G-3VQHK39Z42"
 };
 
-// Initialisation sécurisée pour Next.js
+// Initialisation unique de l'instance Firebase
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-// Exportation de la base de données Firestore
+// Exportations stables des instances de services
 export const db = getFirestore(app);
-
-// 2. Initialisation et exportation du Storage 👇
 export const storage = getStorage(app);
+export const auth = getAuth(app); // <-- L'instance d'authentification liée à l'app
 
-// Exportation de Analytics (optionnel, avec vérification du support navigateur)
 export const initAnalytics = async () => {
   if (typeof window !== "undefined" && await isSupported()) {
     return getAnalytics(app);

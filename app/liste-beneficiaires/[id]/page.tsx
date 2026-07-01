@@ -33,7 +33,8 @@ import {
   AcademicCapIcon,
   ClipboardDocumentCheckIcon,
   ExclamationTriangleIcon,
-  TrashIcon
+  TrashIcon,
+  NoSymbolIcon // Ajout de l'icône pour la blacklist
 } from "@heroicons/react/24/outline";
 
 // --- TYPES & INTERFACES ---
@@ -55,6 +56,7 @@ interface Beneficiaire {
   QPV?: string;
   Lieu_RDV?: string;
   lieuRDV?: string;
+  Statut_Blacklist?: string; // "Oui" ou "Non"
 }
 
 interface Visite {
@@ -109,7 +111,7 @@ export default function FicheBeneficiaire() {
     Civilité: "M.", Nom: "", Prénom: "", Age: "", Date_Naissance: "", Date_Adhesion: "",
     Téléphone: "", email: "", Adresse_Rue: "", Ville: "", Code_Postal: "",
     Situation_Socio_Pro: "", Situation_Handicap: "Non", RQTH: "Non",
-    QPV: "Non", Lieu_RDV: "", lieuRDV: ""
+    QPV: "Non", Lieu_RDV: "", lieuRDV: "", Statut_Blacklist: "Non"
   });
 
   // Édition en ligne d'une visite
@@ -201,7 +203,8 @@ export default function FicheBeneficiaire() {
           Ville: data.Ville || "", Code_Postal: data.Code_Postal || "", Situation_Socio_Pro: data.Situation_Socio_Pro || "",
           Situation_Handicap: data.Situation_Handicap || "Non", RQTH: data.RQTH || "Non",
           QPV: data.QPV || "Non", 
-          Lieu_RDV: data.Lieu_RDV || "", lieuRDV: data.lieuRDV || ""
+          Lieu_RDV: data.Lieu_RDV || "", lieuRDV: data.lieuRDV || "",
+          Statut_Blacklist: data.Statut_Blacklist || "Non"
         });
         setUserExists(true);
         setLoading(false);
@@ -458,17 +461,33 @@ export default function FicheBeneficiaire() {
           </div>
         </div>
 
+        {/* ALERTE SÉCURITÉ BLACKLIST GLOBALE */}
+        {user?.Statut_Blacklist === "Oui" && (
+          <div className="mb-6 p-4 bg-red-600/20 border-2 border-red-600 rounded-2xl flex items-center gap-3 shadow-2xl">
+            <NoSymbolIcon className="w-6 h-6 text-red-500 shrink-0" />
+            <div>
+              <h3 className="text-sm font-black text-red-400 uppercase tracking-wide">⚠️ ACCÈS RESTREINT / BLACKLIST</h3>
+              <p className="text-xs text-slate-300 mt-0.5">Ce bénéficiaire est actuellement inscrit sur la liste noire de la structure.</p>
+            </div>
+          </div>
+        )}
+
         {/* HEADER PROFIL */}
         <header className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-6 shadow-2xl relative overflow-hidden">
           <div className="relative z-10">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="h-10 w-1.5 bg-emerald-500 rounded-full"></div>
+                <div className={`h-10 w-1.5 rounded-full ${user?.Statut_Blacklist === "Oui" ? "bg-red-600" : "bg-emerald-500"}`}></div>
                 <h1 className="text-3xl font-black tracking-tight text-white uppercase italic">
                   {user?.Civilité} {user?.Nom} <span className="text-emerald-500 not-italic">&nbsp;{user?.Prénom}</span>
                   {user?.Date_Naissance && <span className="text-sm font-mono text-slate-500 font-normal normal-case not-italic ml-3">({calculerAgeEnDirect(user.Date_Naissance)})</span>}
                 </h1>
-                <div className="ml-2 flex gap-2">
+                <div className="ml-2 flex gap-2 flex-wrap">
+                  {user?.Statut_Blacklist === "Oui" && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-600/20 border border-red-600 text-red-400">
+                      🚫 BLACKLISTÉ
+                    </span>
+                  )}
                   {statutAdhesion.estAdherent ? (
                     statutAdhesion.aRenouveler ? (
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 border border-amber-500/40 text-amber-500 animate-pulse">
@@ -903,13 +922,33 @@ export default function FicheBeneficiaire() {
                   <span>{userExists ? "Édition du Dossier" : "Création d'une nouvelle fiche"}</span>
                 </h2>
                 {userExists && (
-                  <button onClick={() => setIsModalProfilOpen(false)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors">
+                  <button onClick={() => { setIsModalProfilOpen(false); setModalStatus(""); }} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors">
                     <XMarkIcon className="w-5 h-5" />
                   </button>
                 )}
               </div>
 
               <form onSubmit={handleSaveProfil} className="space-y-4">
+                
+                {/* BLOC ZONE DE DANGER : BLACKLIST (Tout en haut de la modale pour attirer l'attention) */}
+                <div className="bg-red-950/20 border border-red-900/60 p-4 rounded-2xl flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2.5">
+                    <NoSymbolIcon className="w-5 h-5 text-red-500 shrink-0" />
+                    <div>
+                      <label className="block text-xs font-black text-red-400 uppercase tracking-wide">Mettre sur Liste Noire (Blacklist)</label>
+                      <span className="text-[11px] text-slate-400 block mt-0.5">Restreindre temporairement ou définitivement ce profil.</span>
+                    </div>
+                  </div>
+                  <select 
+                    value={profilFormData.Statut_Blacklist} 
+                    onChange={e => setProfilFormData({...profilFormData, Statut_Blacklist: e.target.value})} 
+                    className="bg-slate-950 border border-red-900/50 rounded-xl p-2 text-xs font-bold text-red-400 outline-none focus:ring-1 focus:ring-red-600 transition-all"
+                  >
+                    <option value="Non" className="text-slate-300">Non (Actif)</option>
+                    <option value="Oui" className="text-red-500">Oui (Blacklisté)</option>
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Civilité</label>

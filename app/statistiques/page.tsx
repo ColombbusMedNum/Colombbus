@@ -1,478 +1,277 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { db } from "@/lib/firebase"; 
-import { collection, getDocs } from "firebase/firestore";
+import React, { useState, useEffect } from "react";
+import { db } from "../../lib/firebase";
+import { collection, onSnapshot } from "firebase/firestore";
+import { UserIcon, ChartBarIcon, ClockIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
-import { 
-  ArrowLeftIcon, 
-  UserGroupIcon, 
-  CalendarDaysIcon, 
-  SparklesIcon, 
-  BuildingOfficeIcon,
-  UserPlusIcon,
-  BookmarkSquareIcon,
-  ChartBarIcon,
-  UserIcon,
-  MapPinIcon
-} from "@heroicons/react/24/outline";
 
-interface TrimestreStats {
-  hommes: number;
-  femmes: number;
-  total: number;
-}
-
-interface LieuStats {
-  totalGlobal: number;
-  trimestres: Record<string, TrimestreStats>;
-}
-
-interface CodeAnalytiqueData {
-  totalHeures: number;
-  mediateurs: Record<string, number>;
-}
-
-// Fonction utilitaire pour calculer la durée en heures entre deux chaînes au format "HH:MM"
-function calculerDureeEnHeures(debutStr?: string, finStr?: string): number {
-  if (!debutStr || !finStr) return 1; // Valeur par défaut si les horaires manquent
+export default function StatsMediateursAnalytique() {
+  const [actions, setActions] = useState<any[]>([]);
+  const [mediateurs, setMediateurs] = useState<any[]>([]);
+  const [selectedMedId, setSelectedMedId] = useState<string>("");
   
-  const [hDebut, mDebut] = debutStr.split(":").map(Number);
-  const [hFin, mFin] = finStr.split(":").map(Number);
-  
-  if (isNaN(hDebut) || isNaN(hFin)) return 1;
+  // États de session
+  const [userRole, setUserRole] = useState<string>("Mediateur");
+  const [userEmail, setUserEmail] = useState<string>("");
 
-  const minutesDebut = hDebut * 60 + (mDebut || 0);
-  const minutesFin = hFin * 60 + (mFin || 0);
-  
-  const differenceMinutes = minutesFin - minutesDebut;
-  
-  // Si la différence est positive, on retourne les heures, sinon valeur par défaut 1
-  return differenceMinutes > 0 ? differenceMinutes / 60 : 1;
-}
-
-export default function Statistiques() {
-  const [stats, setStats] = useState({
-    totalInscrits: 0,
-    totalInterventions: 0,
-    repartitionPro: {} as Record<string, number>,
-    repartitionHandicap: { Oui: 0, Non: 0 },
-    villes: {} as Record<string, number>,
-    repartitionThematiques: {} as Record<string, number> 
-  });
-
-  const [statsCollectives, setStatsCollectives] = useState<Record<string, LieuStats>>({});
-  const [totalParticipantsCollectifs, setTotalParticipantsCollectifs] = useState(0);
-  const [statsCodesAnalytiques, setStatsCodesAnalytiques] = useState<Record<string, CodeAnalytiqueData>>({});
-  const [statsTerritoires, setStatsTerritoires] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(true);
-
+  // 1. Récupération instantanée des rôles stockés au login
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        // 1. Récupération des utilisateurs
-        const usersSnap = await getDocs(collection(db, "utilisateurs"));
-        const users = usersSnap.docs;
-        
-        // 2. Récupération des autres collections globales
-        const collectivesSnap = await getDocs(collection(db, "actions_collectives"));
-        const planningSnap = await getDocs(collection(db, "planning_mediateurs"));
-        
-        const proMap: Record<string, number> = {};
-        const villeMap: Record<string, number> = {};
-        let handicapOui = 0;
-
-        users.forEach(docSnap => {
-          const u = docSnap.data();
-          const s = u.Situation_Socio_Pro || "Non renseigné";
-          proMap[s] = (proMap[s] || 0) + 1;
-          const v = u.Ville || "Inconnue";
-          villeMap[v] = (villeMap[v] || 0) + 1;
-          if (u.Situation_Handicap === "Oui") handicapOui++;
-        });
-
-        // 3. Parcours des rendez-vous individuels effectifs
-        let totalRdvCompte = 0;
-        const thematiqueMap: Record<string, number> = {};
-
-        await Promise.all(
-          users.map(async (userDoc) => {
-            try {
-              const visitesSnap = await getDocs(collection(db, "utilisateurs", userDoc.id, "visites"));
-              
-              visitesSnap.docs.forEach(visiteDoc => {
-                const rdvData = visiteDoc.data();
-                
-                if (
-                  rdvData.statut !== "Absent" && 
-                  rdvData.statut !== "Annulé" && 
-                  rdvData.presence !== "Absent" && 
-                  rdvData.presence !== false
-                ) {
-                  totalRdvCompte++;
-
-                  const bruteThematique = rdvData.thematique || rdvData.thématique || rdvData.Thematique || "Non spécifié";
-                  let cleanThematique = bruteThematique.trim();
-                  if (cleanThematique.toLowerCase().includes("droit")) cleanThematique = "Accès aux droits";
-                  if (cleanThematique.toLowerCase().includes("emploi") || cleanThematique.toLowerCase().includes("form")) cleanThematique = "Emploi / Formation";
-                  if (cleanThematique.toLowerCase().includes("sant")) cleanThematique = "Santé";
-                  if (cleanThematique.toLowerCase().includes("parent")) cleanThematique = "Parentalité";
-                  if (cleanThematique.toLowerCase().includes("numér") || cleanThematique.toLowerCase().includes("clavier")) cleanThematique = "Compétences Numériques";
-
-                  thematiqueMap[cleanThematique] = (thematiqueMap[cleanThematique] || 0) + 1;
-                }
-              });
-            } catch (err) {
-              console.error(`Erreur lors de la lecture des visites pour l'usager ${userDoc.id}:`, err);
-            }
-          })
-        );
-
-        // 4. Traitement des actions collectives
-        const structureCollectives: Record<string, LieuStats> = {};
-        let cumulCollectif = 0;
-
-        collectivesSnap.docs.forEach(docSnap => {
-          const data = docSnap.data();
-          const lieu = data.lieu || "Lieu non spécifié";
-          const h = data.nbHommes || 0;
-          const f = data.nbFemmes || 0;
-          const totalAction = h + f;
-          cumulCollectif += totalAction;
-
-          let trimestre = "T1"; 
-          if (data.createdAt) {
-            const mois = new Date(data.createdAt).getMonth();
-            if (mois >= 3 && mois <= 5) trimestre = "T2";
-            else if (mois >= 6 && mois <= 8) trimestre = "T3";
-            else if (mois >= 9 && mois <= 11) trimestre = "T4";
-          }
-
-          if (!structureCollectives[lieu]) {
-            structureCollectives[lieu] = {
-              totalGlobal: 0,
-              trimestres: {
-                "T1": { hommes: 0, femmes: 0, total: 0 },
-                "T2": { hommes: 0, femmes: 0, total: 0 },
-                "T3": { hommes: 0, femmes: 0, total: 0 },
-                "T4": { hommes: 0, femmes: 0, total: 0 },
-              }
-            };
-          }
-
-          structureCollectives[lieu].totalGlobal += totalAction;
-          structureCollectives[lieu].trimestres[trimestre].hommes += h;
-          structureCollectives[lieu].trimestres[trimestre].femmes += f;
-          structureCollectives[lieu].trimestres[trimestre].total += totalAction;
-        });
-
-        // 5. Calcul des heures par codes analytiques & territoires (Depuis le planning)
-        const analytiqueMap: Record<string, CodeAnalytiqueData> = {};
-        const territorioMap: Record<string, number> = { "75": 0, "91": 0, "92": 0, "Non spécifié": 0 };
-        
-        planningSnap.docs.forEach(docSnap => {
-          const planData = docSnap.data();
-          
-          let heures = 1;
-          if (planData.duree || planData.heures || planData.duration) {
-            heures = Number(planData.duree || planData.heures || planData.duration);
-          } else if (planData.debut && planData.fin) {
-            heures = calculerDureeEnHeures(planData.debut, planData.fin);
-          }
-
-          // Code Analytique
-          const code = planData.codeAnalytique?.trim() || "Sans code spécifié";
-          const nomBrut = planData.mediateur || planData.mediateurNom || planData.médiateur || planData.nom || planData.name || planData.intervenant || "Médiateur Inconnu";
-          const mediateur = typeof nomBrut === "string" ? nomBrut.trim() : String(nomBrut);
-
-          if (!analytiqueMap[code]) {
-            analytiqueMap[code] = { totalHeures: 0, mediateurs: {} };
-          }
-          analytiqueMap[code].totalHeures += heures;
-          analytiqueMap[code].mediateurs[mediateur] = (analytiqueMap[code].mediateurs[mediateur] || 0) + heures;
-
-          // Territoires
-          const terrBrut = planData.territoire?.trim();
-          if (terrBrut === "75" || terrBrut === "91" || terrBrut === "92") {
-            territorioMap[terrBrut] += heures;
-          } else {
-            territorioMap["Non spécifié"] += heures;
-          }
-        });
-
-        // Arrondis propres pour éviter les bugs javascript de virgules flottantes
-        Object.keys(analytiqueMap).forEach(code => {
-          analytiqueMap[code].totalHeures = Math.round(analytiqueMap[code].totalHeures * 10) / 10;
-          Object.keys(analytiqueMap[code].mediateurs).forEach(m => {
-            analytiqueMap[code].mediateurs[m] = Math.round(analytiqueMap[code].mediateurs[m] * 10) / 10;
-          });
-        });
-        Object.keys(territorioMap).forEach(t => {
-          territorioMap[t] = Math.round(territorioMap[t] * 10) / 10;
-        });
-
-        setStats({
-          totalInscrits: users.length,
-          totalInterventions: totalRdvCompte, 
-          repartitionPro: proMap,
-          repartitionHandicap: { Oui: handicapOui, Non: users.length - handicapOui },
-          villes: villeMap,
-          repartitionThematiques: thematiqueMap
-        });
-        
-        setStatsCollectives(structureCollectives);
-        setTotalParticipantsCollectifs(cumulCollectif);
-        setStatsCodesAnalytiques(analytiqueMap); 
-        setStatsTerritoires(territorioMap);
-
-      } catch (error) {
-        console.error("Erreur générale lors de la génération des statistiques :", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchStats();
+    if (typeof window !== "undefined") {
+      setUserRole(localStorage.getItem("user_role") || "Mediateur");
+      setUserEmail(localStorage.getItem("user_email") || "");
+    }
   }, []);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-purple-500 font-bold animate-pulse tracking-widest text-xs uppercase">
-        Génération des indicateurs de performance...
-      </div>
-    );
-  }
+  // 2. Écoute temps réel Firestore
+  useEffect(() => {
+    const unsubActions = onSnapshot(collection(db, "planning_mediateurs"), (snap) => {
+      setActions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
 
-  const totalHeuresCodees = Object.entries(statsCodesAnalytiques)
-    .filter(([code]) => code !== "Sans code spécifié")
-    .reduce((sum, [_, data]) => sum + data.totalHeures, 0);
+    const unsubMed = onSnapshot(collection(db, "liste_mediateurs"), (snap) => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      
+      // Sécurité : On filtre pour ne garder QUE les fiches valides qui ont un nom et prénom
+      const valides = data.filter(m => m.nom && m.prenom);
+      const sorted = valides.sort((a, b) => (a.nom || "").localeCompare(b.nom || ""));
+      
+      setMediateurs(sorted);
+      
+      // Logique d'affectation automatique de la vue
+      if (sorted.length > 0) {
+        if (localStorage.getItem("user_role") === "Admin") {
+          if (!selectedMedId) {
+            setSelectedMedId(sorted[0].id);
+          }
+        } else {
+          // Si c'est un médiateur, on le force directement sur son propre email
+          const monEmail = localStorage.getItem("user_email") || "";
+          const maFiche = sorted.find(m => m.email?.toLowerCase() === monEmail.toLowerCase());
+          if (maFiche) {
+            setSelectedMedId(maFiche.id);
+          }
+        }
+      }
+    });
 
-  const totalHeuresPlanning = Object.values(statsTerritoires).reduce((a, b) => a + b, 0);
+    return () => { unsubActions(); unsubMed(); };
+  }, [selectedMedId]);
+
+  const currentMediateur = mediateurs.find(m => m.id === selectedMedId);
+
+  // 3. Filtrage des actions
+  const currentMedActions = actions.filter(a => {
+    if (!currentMediateur) return false;
+    const nomComplet = `${currentMediateur.prenom || ""} ${currentMediateur.nom || ""}`.trim();
+    return a.mediateurId === selectedMedId || a.mediateurNom === nomComplet || a.mediateur === nomComplet;
+  });
+
+  const calculerDureeHeures = (debut: string, fin: string) => {
+    if (!debut || !fin) return 3.5; 
+    const [hDeb, mDeb] = debut.split(":").map(Number);
+    const [hFin, mFin] = fin.split(":").map(Number);
+    if (isNaN(hDeb) || isNaN(hFin)) return 3.5;
+    
+    let totalMinutes = (hFin * 60 + mFin) - (hDeb * 60 + mDeb);
+    if (totalMinutes <= 0) return 3.5;
+
+    // Déduction repas (13h-14h)
+    if ((hDeb * 60 + mDeb) <= 13 * 60 && (hFin * 60 + mFin) >= 14 * 60) {
+      totalMinutes -= 60;
+    }
+    return totalMinutes / 60;
+  };
+
+  // 4. Synthèse analytique
+  const analyticsSummary = React.useMemo(() => {
+    const summary: { [code: string]: { code: string; label: string; totalHeures: number; count: number } } = {};
+    const dejaCompte = new Set<string>();
+
+    currentMedActions.forEach(action => {
+      const code = (action.codeAnalytique || "").trim() || "SANS_CODE";
+      const label = action.codeAnalytique ? `Code ${action.codeAnalytique}` : "Sans code analytique / Non spécifié";
+      const cleUnique = `${action.date}_${action.moment || ""}_${code}_${action.debut || ""}_${action.fin || ""}`;
+
+      if (!summary[code]) {
+        summary[code] = { code, label, totalHeures: 0, count: 0 };
+      }
+
+      if (dejaCompte.has(cleUnique)) {
+        summary[code].count += 1;
+      } else {
+        const heures = calculerDureeHeures(action.debut || "", action.fin || "");
+        summary[code].totalHeures += heures;
+        summary[code].count += 1;
+        if (action.debut && action.fin) dejaCompte.add(cleUnique);
+      }
+    });
+
+    return Object.values(summary)
+      .map(item => ({ ...item, totalHeures: Math.round(item.totalHeures * 10) / 10 }))
+      .sort((a, b) => b.totalHeures - a.totalHeures);
+  }, [currentMedActions]);
+
+  const totalHeuresGlobal = analyticsSummary.reduce((acc, curr) => acc + curr.totalHeures, 0);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans antialiased">
-      <div className="max-w-6xl mx-auto">
+    <main className="min-h-screen bg-slate-950 text-white p-6 pt-[75px]">
+      
+      <header className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-5 py-3 border-b border-slate-800 bg-slate-950">
+        <div className="flex items-center gap-3">
+          <Link href="/" className="text-lg tracking-tight text-white hover:opacity-80 transition-opacity font-bold">
+            Accueil
+          </Link>
+          <span className="text-slate-600">/</span>
+          <span className="text-slate-300 font-medium">Ma Synthèse analytique</span>
+        </div>
+        <Link href="/activites_types" className="bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 px-3 py-1.5 rounded-md text-xs font-medium transition-colors">
+          Retour à l'Agenda
+        </Link>
+      </header>
+
+      <div className="max-w-4xl mx-auto space-y-6 mt-4">
         
-        {/* EN-TÊTE */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
-          <div className="flex items-center gap-4">
-            <div className="h-10 w-1 bg-purple-500 rounded-full shadow-[0_0_15px_rgba(147,51,234,0.6)]"></div>
+        {/* BANDEAU DE SELECTION ET FILTRE ASSOCIE */}
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-blue-600/10 rounded-lg text-blue-500 border border-blue-500/20">
+              <UserIcon className="w-5 h-5" />
+            </div>
             <div>
-              <h1 className="text-3xl font-black text-white uppercase italic tracking-tight">Tableau de Bord</h1>
-              <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mt-0.5">Indicateurs d'impact et bilans — Colombbus 2026</p>
+              <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+                {userRole === "Admin" ? "Analyse de Profil (Mode Admin)" : "Mon Espace Analytique"}
+              </h2>
+              <p className="text-xs text-slate-500">
+                {userRole === "Admin" 
+                  ? "Sélectionnez un profil pour auditer la répartition de ses heures." 
+                  : "Consultez le récapitulatif de vos heures par code analytique."}
+              </p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Link 
-              href="/mediateurs" 
-              className="inline-flex items-center gap-2 bg-purple-900 border border-purple-800 px-4 py-2 rounded-xl text-purple-200 hover:text-white hover:bg-purple-800 transition-all text-xs font-bold uppercase tracking-wider shadow-md"
-            >
-              <UserIcon className="w-4 h-4" />
-              <span>Vue par Médiateur</span>
-            </Link>
-            <Link 
-              href="/" 
-              className="inline-flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all text-xs font-bold uppercase tracking-wider shadow-md"
-            >
-              <ArrowLeftIcon className="w-4 h-4" />
-              <span>Menu Principal</span>
-            </Link>
-          </div>
-        </div>
-
-        {/* CHIFFRES CLÉS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-          <StatCard title="Profils Uniques (Indiv)" value={stats.totalInscrits} color="emerald" icon={<UserPlusIcon className="w-5 h-5" />} />
-          <StatCard title="Rendez-vous Présents (Indiv)" value={stats.totalInterventions} color="indigo" icon={<CalendarDaysIcon className="w-5 h-5" />} />
-          <StatCard title="Fréquentation Ateliers (Coll)" value={totalParticipantsCollectifs} color="purple" icon={<UserGroupIcon className="w-5 h-5" />} />
-          <StatCard title="Impact Global Total" value={stats.totalInscrits + totalParticipantsCollectifs} color="amber" icon={<SparklesIcon className="w-5 h-5" />} />
-        </div>
-
-        {/* GRAPHES CODES ANALYTIQUES & TERRITOIRES */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
           
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl lg:col-span-2">
-            <h2 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-6 pb-3 border-b border-slate-800 flex items-center gap-2">
-              <ChartBarIcon className="w-4 h-4 text-cyan-400" />
-              Volume Horaire par Codes Analytiques
-            </h2>
+          {/* CONDITION UNIQUE : Seulement si l'utilisateur connecté est un Admin */}
+          {userRole === "Admin" ? (
+            <div className="w-full sm:w-72">
+              <select
+                value={selectedMedId}
+                onChange={(e) => setSelectedMedId(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white font-medium outline-none focus:border-slate-700 transition-colors cursor-pointer"
+              >
+                <option value="" disabled>-- Sélectionner un médiateur --</option>
+                {mediateurs.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.prenom} {m.nom?.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            // Si c'est un Médiateur, on affiche juste un petit badge sécurisé discret
+            <div className="px-4 py-2 bg-slate-950 border border-slate-850 rounded-xl text-xs font-mono text-emerald-400 font-semibold shadow-inner">
+              🔒 Compte connecté : {userEmail}
+            </div>
+          )}
+        </div>
+
+        {currentMediateur ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
-            {Object.keys(statsCodesAnalytiques).length === 0 ? (
-              <p className="text-xs text-slate-600 font-bold uppercase py-4 text-center">Aucun code analytique indexé.</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.entries(statsCodesAnalytiques)
-                  .sort((a, b) => b[1].totalHeures - a[1].totalHeures)
-                  .map(([code, data]) => {
-                    const pct = totalHeuresCodees > 0 && code !== "Sans code spécifié"
-                      ? (data.totalHeures / totalHeuresCodees) * 100 
-                      : 0;
-
-                    return (
-                      <div key={code} className="bg-slate-950/40 p-4 rounded-2xl border border-slate-800/60 flex flex-col justify-between gap-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex flex-col gap-0.5">
-                            <span className={`text-xs font-mono font-black uppercase tracking-wider ${code === "Sans code spécifié" ? "text-slate-500 italic" : "text-cyan-400"}`}>
-                              {code}
-                            </span>
-                            {code !== "Sans code spécifié" && (
-                              <span className="text-[10px] font-bold text-slate-600 uppercase">
-                                Poids d'heures : {Math.round(pct)}%
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-right font-mono shrink-0">
-                            <span className="text-sm font-black text-white block">{data.totalHeures} h</span>
-                          </div>
-                        </div>
-
-                        <div className="border-t border-slate-900/60 pt-2">
-                          <div className="flex flex-wrap gap-1.5">
-                            {Object.entries(data.mediateurs).map(([nom, h]) => (
-                              <span key={nom} className="inline-flex items-center gap-1.5 bg-slate-900 px-2 py-0.5 rounded-md border border-slate-800 text-[10px] text-slate-300">
-                                {nom} <strong className="text-cyan-400 font-mono font-bold">({h}h)</strong>
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+            {/* FICHE INDIVIDUELLE */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4 self-start">
+              <div>
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Fiche Médiateur</h3>
+                <div className="text-lg font-bold text-white">{currentMediateur.prenom} {currentMediateur.nom?.toUpperCase()}</div>
+                <div className="text-xs text-blue-400 font-mono font-medium mt-0.5">{currentMediateur.poste || "Médiateur Social"}</div>
               </div>
-            )}
-          </div>
 
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl flex flex-col justify-between">
-            <div>
-              <h2 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-6 pb-3 border-b border-slate-800 flex items-center gap-2">
-                <MapPinIcon className="w-4 h-4 text-amber-400" />
-                Volume Horaire par Territoire
-              </h2>
-              
-              <div className="space-y-4">
-                {Object.entries(statsTerritoires)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([territoire, heures]) => {
-                    const percentage = totalHeuresPlanning > 0 ? (heures / totalHeuresPlanning) * 100 : 0;
-                    
-                    let label = `Département ${territoire}`;
-                    if (territoire === "75") label = "75 — Paris";
-                    if (territoire === "91") label = "91 — Essonne";
-                    if (territoire === "92") label = "92 — Hauts-de-Seine";
-                    if (territoire === "Non spécifié") label = "Modèles sans territoire";
+              <div className="pt-3 border-t border-slate-800/60 grid grid-cols-2 gap-2">
+                <div>
+                  <span className="block text-[10px] text-slate-500 uppercase font-mono">Statut</span>
+                  <span className="text-xs font-semibold text-slate-300">{currentMediateur.statut || "Permanent"}</span>
+                </div>
+                {currentMediateur.sitePrincipal && (
+                  <div>
+                    <span className="block text-[10px] text-slate-500 uppercase font-mono">Site Principal</span>
+                    <span className="text-xs font-semibold text-slate-300">{currentMediateur.sitePrincipal}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-4 border-t border-slate-800/60 bg-slate-950/40 -mx-5 -mb-5 p-5 rounded-b-xl flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ClockIcon className="w-4 h-4 text-emerald-500" />
+                  <span className="text-xs text-slate-400 font-medium">Volume total :</span>
+                </div>
+                <div className="text-lg font-black text-emerald-400 font-mono">
+                  {totalHeuresGlobal.toFixed(1)}h
+                </div>
+              </div>
+            </div>
+
+            {/* GRAPHIQUE ANALYTIQUE */}
+            <div className="md:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
+                <ChartBarIcon className="w-4 h-4 text-slate-400" />
+                <h3 className="text-sm font-semibold text-slate-200">Total d'heures par code analytique</h3>
+              </div>
+
+              {analyticsSummary.length === 0 ? (
+                <div className="text-center py-12 text-xs text-slate-500 font-medium">
+                  Aucune mission ou activité enregistrée sur l'agenda.
+                </div>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  {analyticsSummary.map((item) => {
+                    const pourcentage = totalHeuresGlobal > 0 ? (item.totalHeures / totalHeuresGlobal) * 100 : 0;
+                    const isSansCode = item.code === "SANS_CODE";
 
                     return (
-                      <div key={territoire} className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60">
-                        <div className="flex justify-between items-center text-xs font-bold mb-1.5">
-                          <span className="text-slate-300 uppercase tracking-wide text-[10px]">{label}</span>
-                          <span className="text-amber-400 font-mono font-black">{heures} h</span>
+                      <div key={item.code} className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 ${
+                              isSansCode 
+                                ? "bg-slate-950 text-slate-500 border border-slate-800" 
+                                : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                            }`}>
+                              {isSansCode ? "N/A" : item.code}
+                            </span>
+                            <span className="text-slate-300 truncate font-medium">
+                              {item.label}
+                            </span>
+                          </div>
+                          
+                          <div className="text-right shrink-0 font-mono font-bold text-slate-200 pl-2">
+                            {item.totalHeures.toFixed(1)}h 
+                            <span className="text-[10px] text-slate-500 font-normal ml-1">
+                              ({pourcentage.toFixed(0)}%)
+                            </span>
+                          </div>
                         </div>
-                        <div className="w-full bg-slate-950 border border-slate-850 h-2 rounded-full overflow-hidden p-0.5">
+
+                        <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800/40">
                           <div 
-                            className="bg-gradient-to-r from-amber-600 to-yellow-400 h-full rounded-full transition-all duration-500" 
-                            style={{ width: `${percentage}%` }}
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              isSansCode ? "bg-slate-700" : "bg-gradient-to-r from-blue-600 to-indigo-500"
+                            }`}
+                            style={{ width: `${pourcentage}%` }}
                           ></div>
                         </div>
                       </div>
                     );
                   })}
-              </div>
-            </div>
-            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider text-center mt-4 pt-3 border-t border-slate-800/40">
-              Total indexé : {Math.round(totalHeuresPlanning * 10) / 10} heures
-            </div>
-          </div>
-
-        </div>
-
-        {/* SUIVI THÉMATIQUE */}
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl mb-10">
-          <h2 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-6 pb-3 border-b border-slate-800 flex items-center gap-2">
-            <BookmarkSquareIcon className="w-4 h-4 text-emerald-400" />
-            Impact par Thématique d'Accompagnement (Volume d'Actions)
-          </h2>
-          {Object.keys(stats.repartitionThematiques).length === 0 ? (
-            <p className="text-xs text-slate-600 font-bold uppercase py-4 text-center">Aucune thématique enregistrée sur les rendez-vous.</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
-              {Object.entries(stats.repartitionThematiques)
-                .sort((a, b) => b[1] - a[1])
-                .map(([label, count]) => {
-                  const percentage = stats.totalInterventions > 0 ? (count / stats.totalInterventions) * 100 : 0;
-                  return (
-                    <div key={label} className="group">
-                      <div className="flex justify-between text-xs mb-2 font-bold">
-                        <span className="text-slate-300 group-hover:text-emerald-400 transition-colors uppercase tracking-wide text-[11px]">{label}</span>
-                        <div className="space-x-2 font-mono">
-                          <span className="text-slate-500">({Math.round(percentage)}%)</span>
-                          <span className="text-emerald-400 font-black">{count} actes</span>
-                        </div>
-                      </div>
-                      <div className="w-full bg-slate-950 border border-slate-800/60 h-3 rounded-full overflow-hidden p-0.5">
-                        <div 
-                          className="bg-gradient-to-r from-emerald-600 to-teal-400 h-full rounded-full transition-all duration-500" 
-                          style={{ width: `${percentage}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          )}
-        </div>
-
-        {/* ACTIONS COLLECTIVES */}
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl mb-10">
-          <h2 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-6 pb-3 border-b border-slate-800 flex items-center gap-2">
-            <BuildingOfficeIcon className="w-4 h-4 text-purple-400" />
-            Suivi Territorial des Actions Collectives (Lieu & Trimestre)
-          </h2> 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {Object.entries(statsCollectives).map(([lieu, donneesLieu]) => (
-              <div key={lieu} className="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between">
-                <div>
-                  <div className="flex justify-between items-start border-b border-slate-900 pb-2 mb-3">
-                    <h3 className="font-black text-sm text-purple-400 uppercase italic tracking-tight truncate max-w-[70%]">{lieu}</h3>
-                    <span className="bg-purple-950/60 border border-purple-900 text-purple-400 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md">{donneesLieu.totalGlobal} part.</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {Object.entries(donneesLieu.trimestres).map(([tri, dataTri]) => (
-                      <div key={tri} className="bg-slate-900 p-2.5 rounded-xl border border-slate-800/50 flex flex-col justify-between">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{tri}</span>
-                          <span className="text-xs font-mono font-black text-white">{dataTri.total}</span>
-                        </div>
-                        <div className="flex justify-between text-[9px] font-medium text-slate-600 border-t border-slate-950 pt-1 mt-1">
-                          <span>H: <strong className="text-slate-400 font-mono">{dataTri.hommes}</strong></span>
-                          <span>F: <strong className="text-purple-400/70 font-mono">{dataTri.femmes}</strong></span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
+              )}
+            </div>
 
+          </div>
+        ) : (
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center text-xs text-slate-500 font-medium">
+            Aucun profil de médiateur ne correspond à votre adresse e-mail.
+          </div>
+        )}
       </div>
     </main>
-  );
-}
-
-function StatCard({ title, value, color, icon }: { title: string; value: string | number; color: "emerald" | "indigo" | "purple" | "amber"; icon: React.ReactNode }) {
-  const colorThemes = {
-    emerald: { text: "text-emerald-400", bgIcon: "bg-emerald-950/50 text-emerald-400 border-emerald-900/60" },
-    indigo: { text: "text-indigo-400", bgIcon: "bg-indigo-950/50 text-indigo-400 border-indigo-900/60" },
-    purple: { text: "text-purple-400", bgIcon: "bg-purple-950/50 text-purple-400 border-purple-900/60" },
-    amber: { text: "text-amber-400", bgIcon: "bg-amber-950/50 text-amber-400 border-amber-900/60" },
-  };
-  return (
-    <div className="p-5 rounded-3xl border border-slate-800 bg-slate-900 shadow-xl flex items-center justify-between">
-      <div>
-        <p className="text-slate-500 text-[10px] uppercase tracking-widest font-black">{title}</p>
-        <p className={`text-3xl font-black mt-1 font-mono tracking-tight ${colorThemes[color].text}`}>{value}</p>
-      </div>
-      <div className={`p-2.5 rounded-xl border ${colorThemes[color].bgIcon}`}>{icon}</div>
-    </div>
   );
 }

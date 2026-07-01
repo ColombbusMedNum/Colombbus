@@ -143,9 +143,17 @@ export default function PlanningExpertMix() {
         validee: nouvelEtat
       });
 
+      const dateSemaineStr = monday.toLocaleDateString('fr-FR', {day:'numeric', month:'short'});
+
       if (nouvelEtat === true) {
         await addDoc(collection(db, "notifications"), {
-          message: `📅 Le planning de la semaine du ${monday.toLocaleDateString('fr-FR', {day:'numeric', month:'short'})} a été validé et verrouillé.`,
+          message: `📅 Le planning de la semaine du ${dateSemaineStr} a été validé et verrouillé.`,
+          createdAt: Date.now(),
+          lue: false
+        });
+      } else {
+        await addDoc(collection(db, "notifications"), {
+          message: `⚠️ Attention : Le planning de la semaine du ${dateSemaineStr} est en cours de modification.`,
           createdAt: Date.now(),
           lue: false
         });
@@ -400,7 +408,6 @@ export default function PlanningExpertMix() {
     return "bg-amber-500/10 text-amber-500 border-amber-500/20";
   };
 
-  // Récupération des limites de la semaine affichée à l'écran pour le filtrage intelligent
   const startOfWeekStr = weekDays[0].toLocaleDateString('en-CA');
   const endOfWeekStr = weekDays[weekDays.length - 1].toLocaleDateString('en-CA');
 
@@ -440,6 +447,7 @@ export default function PlanningExpertMix() {
         </div>
 
         <div className="flex items-center gap-4">
+          {/* MENU NOTIFICATION CLOCHE MODIFIÉ */}
           <div className="relative">
             <button 
               onClick={() => setIsNotifOpen(!isNotifOpen)} 
@@ -471,12 +479,23 @@ export default function PlanningExpertMix() {
                   {notifications.length === 0 ? (
                     <div className="text-center py-5 text-slate-500 text-[11px]">Aucune notification pour le moment</div>
                   ) : (
-                    notifications.map(n => (
+                    notifications.slice(0, 5).map(n => (
                       <div key={n.id} className={`p-2.5 rounded-lg text-[11px] leading-tight border ${n.lue ? 'bg-slate-950/40 border-slate-900/60 text-slate-400' : 'bg-slate-950 border-blue-500/20 text-slate-200 font-medium'}`}>
                         {n.message}
                       </div>
                     ))
                   )}
+                </div>
+                
+                {/* LIEN AJOUTÉ VERS LA PAGE GLOBALE */}
+                <div className="border-t border-slate-800 pt-2 text-center">
+                  <Link 
+                    href="/notifications" 
+                    onClick={() => setIsNotifOpen(false)} 
+                    className="text-[11px] text-blue-400 hover:underline font-semibold block w-full"
+                  >
+                    Voir toutes les notifications →
+                  </Link>
                 </div>
               </div>
             )}
@@ -553,7 +572,6 @@ export default function PlanningExpertMix() {
           <div className="space-y-1.5 pt-1.5 border-t border-slate-800/60">
             {activitesTypes
               .filter(type => {
-                // Modification ici : On filtre par rapport à la semaine affichée à l'écran
                 if (type.dateDebut && endOfWeekStr < type.dateDebut) return false;
                 if (type.dateFin && startOfWeekStr > type.dateFin) return false;
                 return true;
@@ -612,7 +630,7 @@ export default function PlanningExpertMix() {
             </thead>
             <tbody className="divide-y divide-slate-800/40">
               {mediateurs
-                .filter(m => m.actif !== false)
+                .filter(m => m.actif !== false && (m.prenom || m.nom))
                 .filter(m => voirMasques ? true : !m.masque)
                 .map(m => {
                   const pNom = m.prenom || "";
@@ -731,7 +749,6 @@ export default function PlanningExpertMix() {
             
             <div className="flex flex-col gap-1">
               <label className="text-[10px] text-slate-400 font-medium font-mono">Territoire</label>
-              {/* Correction de l'objet de mise à jour ci-dessous : territoire au lieu de territorio */}
               <select className="field-dark" value={newActivite.territoire} onChange={e => setNewActivite({...newActivite, territoire: e.target.value})}>
                 <option value="">Aucun</option>
                 <option value="75">75 (Paris)</option>
