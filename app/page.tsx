@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { db } from "../lib/firebase"; // Assurez-vous que ce chemin pointe bien vers votre fichier de config Firebase
+import { collection, onSnapshot } from "firebase/firestore";
 import {   
   UsersIcon,   
   ChartBarIcon,   
@@ -15,14 +17,19 @@ import {
   DocumentPlusIcon,
   FolderIcon,
   XMarkIcon,
-  ArrowLeftStartOnRectangleIcon
+  ArrowLeftStartOnRectangleIcon,
+  ShieldCheckIcon,
+  LockClosedIcon // Importation du cadenas pour les vues restreintes
 } from "@heroicons/react/24/outline";
 
 export default function HomePage() {
-  const [userRole, setUserRole] = useState<"admin" | "mediateur" | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [activeFolder, setActiveFolder] = useState<"rencontres" | "stats" | null>(null);
+  
+  // ÉTAT POUR STOCKER LA MATRICE DE SÉCURITÉ EN DIRECT
+  const [droitsMaitres, setDroitsMaitres] = useState<Record<string, any>>({});
 
-  // Vérifie les cookies au chargement pour s'aligner avec le middleware
+  // 1. Synchronisation du rôle et écoute de la base de données de sécurité
   useEffect(() => {
     const getCookie = (name: string) => {
       const value = `; ${document.cookie}`;
@@ -31,26 +38,37 @@ export default function HomePage() {
       return null;
     };
 
-    const role = getCookie("user_role")?.toLowerCase();
-    if (role === "admin" || role === "mediateur") {
-      setUserRole(role as "admin" | "mediateur");
-    } else {
-      const localRole = localStorage.getItem("user_role")?.toLowerCase();
-      if (localRole === "admin" || localRole === "mediateur") {
-        setUserRole(localRole as "admin" | "mediateur");
-      }
-    }
+    // Récupération globale du rôle avec nettoyage de la casse
+    const role = (getCookie("user_role") || localStorage.getItem("user_role"))?.toLowerCase() || null;
+    setUserRole(role);
+
+    // ÉCOUTE EN TEMPS RÉEL DE LA CONFIGURATION DES DROITS
+    const unsub = onSnapshot(collection(db, "configuration_droits"), (snap) => {
+      const dataDroits: Record<string, any> = {};
+      snap.docs.forEach(d => {
+        dataDroits[d.id] = d.data();
+      });
+      setDroitsMaitres(dataDroits);
+    });
+
+    return () => unsub();
   }, []);
 
-  // FONCTION DE DÉCONNEXION SYNCHRONE AVEC LE MIDDLEWARE
+  // 2. FONCTION CLÉ : Comprend si l'ID d'action est coché pour le rôle actuel
+  const aLeDroit = (actionId: string) => {
+    if (!userRole) return true; // Pendant le chargement initial, on ne bloque pas
+    if (userRole === "admin") return true; // L'administrateur a toujours tous les droits pass-partout
+    
+    // Regarde dans le document Firestore de cette action, si la clé du rôle est à true
+    return !!droitsMaitres[actionId]?.[userRole];
+  };
+
+  // FONCTION DE DÉCONNEXION
   const handleLogout = () => {
-    // Élimine les verrous du middleware
     document.cookie = "session_token=; path=/; max-age=0; SameSite=Lax; Secure";
     document.cookie = "user_role=; path=/; max-age=0; SameSite=Lax; Secure";
     localStorage.removeItem("user_role");
     localStorage.removeItem("user_email");
-
-    // Redirection stricte
     window.location.href = "/login";
   };
 
@@ -93,18 +111,33 @@ export default function HomePage() {
             /* ================= VUE FERMÉE ================= */
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full items-stretch">
               
-              {/* AGENDA DES MÉDIATEURS */}
-              <Link href="/activites_types" className="group bg-slate-900 border border-slate-800 rounded-3xl p-6 hover:border-amber-500/50 shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px]">
-                <div className="bg-slate-950 border border-slate-800 w-16 h-16 rounded-2xl flex items-center justify-center mb-5 group-hover:bg-amber-600 group-hover:border-amber-500 group-hover:shadow-[0_0_20px_rgba(245,158,11,0.4)] transition-all duration-300">
-                  <CalendarDaysIcon className="w-7 h-7 text-amber-400 group-hover:text-white" />
+              {/* AGENDA DES MÉDIATEURS CONDITIONNEL */}
+              {aLeDroit("consulter_agenda_mediateurs") ? (
+                <Link href="/activites_types" className="group bg-slate-900 border border-slate-800 rounded-3xl p-6 hover:border-amber-500/50 shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px]">
+                  <div className="bg-slate-950 border border-slate-800 w-16 h-16 rounded-2xl flex items-center justify-center mb-5 group-hover:bg-amber-600 group-hover:border-amber-500 group-hover:shadow-[0_0_20px_rgba(245,158,11,0.4)] transition-all duration-300">
+                    <CalendarDaysIcon className="w-7 h-7 text-amber-400 group-hover:text-white" />
+                  </div>
+                  <h2 className="text-sm font-black uppercase tracking-wide text-white group-hover:text-amber-400 transition-colors">
+                    Agenda des Médiateurs
+                  </h2>
+                  <p className="text-xs text-slate-500 font-medium mt-2 leading-relaxed max-w-[200px]">
+                    Gérer l'équipe et le planning des actions
+                  </p>
+                </Link>
+              ) : (
+                /* VERSION BLOQUÉE : S'affiche en grisé avec un cadenas si décoché */
+                <div className="group bg-slate-900/30 opacity-40 border border-slate-900/60 rounded-3xl p-6 shadow-xl flex flex-col items-center justify-center text-center min-h-[240px] pointer-events-none select-none">
+                  <div className="bg-slate-950 border border-slate-900/40 w-16 h-16 rounded-2xl flex items-center justify-center mb-5 text-slate-600">
+                    <LockClosedIcon className="w-7 h-7" />
+                  </div>
+                  <h2 className="text-sm font-black uppercase tracking-wide text-slate-500">
+                    Agenda des Médiateurs
+                  </h2>
+                  <p className="text-xs text-slate-600 font-medium mt-2 leading-relaxed max-w-[200px]">
+                    Accès restreint par l'administrateur
+                  </p>
                 </div>
-                <h2 className="text-sm font-black uppercase tracking-wide text-white group-hover:text-amber-400 transition-colors">
-                  Agenda des Médiateurs
-                </h2>
-                <p className="text-xs text-slate-500 font-medium mt-2 leading-relaxed max-w-[200px]">
-                  Gérer l'équipe et le planning des actions
-                </p>
-              </Link>
+              )}
 
               {/* RENCONTRES NUMÉRIQUES */}
               <button 
@@ -152,7 +185,7 @@ export default function HomePage() {
 
             </div>
           ) : activeFolder === "rencontres" ? (
-            /* ================= VUE AGRANDIE : CONTENU DE RENCONTRES NUMÉRIQUES ================= */
+            /* ================= VUE AGRANDIE : RENCONTRES NUMÉRIQUES ================= */
             <div className="bg-slate-900/90 border border-indigo-500/40 rounded-[2.5rem] p-6 md:p-8 shadow-2xl transition-all duration-300 backdrop-blur-md animate-in fade-in zoom-in-95 duration-200 w-full max-w-4xl mx-auto">
               
               <div className="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
@@ -198,18 +231,32 @@ export default function HomePage() {
                   </p>
                 </Link>
 
-                {/* AGENDA SURESNES */}
-                <Link href="/suresnes" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-teal-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-teal-600 transition-all">
-                    <CalendarIcon className="w-4 h-4 text-teal-400 group-hover:text-white" />
+                {/* AGENDA SURESNES INTERACTIF */}
+                {aLeDroit("consulter_agenda_suresnes") ? (
+                  <Link href="/suresnes" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-teal-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                    <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-teal-600 transition-all">
+                      <CalendarIcon className="w-4 h-4 text-teal-400 group-hover:text-white" />
+                    </div>
+                    <h2 className="text-[11px] font-black uppercase tracking-wide text-white group-hover:text-teal-400 transition-colors">
+                      Agenda Suresnes
+                    </h2>
+                    <p className="text-[9px] text-slate-500 font-medium mt-1 leading-relaxed">
+                      Consulter l'agenda du Relais Numérique
+                    </p>
+                  </Link>
+                ) : (
+                  <div className="group bg-slate-950/40 opacity-40 border border-slate-900 rounded-2xl p-4 flex flex-col items-center text-center pointer-events-none select-none">
+                    <div className="bg-slate-900 border border-slate-850/50 w-10 h-10 rounded-xl flex items-center justify-center mb-3 text-slate-600">
+                      <LockClosedIcon className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-[11px] font-black uppercase tracking-wide text-slate-500">
+                      Agenda Suresnes
+                    </h2>
+                    <p className="text-[9px] text-slate-650 font-medium mt-1 leading-relaxed">
+                      Accès restreint
+                    </p>
                   </div>
-                  <h2 className="text-[11px] font-black uppercase tracking-wide text-white group-hover:text-teal-400 transition-colors">
-                    Agenda Suresnes
-                  </h2>
-                  <p className="text-[9px] text-slate-500 font-medium mt-1 leading-relaxed">
-                    Consulter l'agenda du Relais Numérique
-                  </p>
-                </Link>
+                )}
 
                 {/* ÉMARGEMENTS & DOC. INTERNES */}
                 <Link href="/emargements" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-cyan-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95">
@@ -250,24 +297,11 @@ export default function HomePage() {
                   </p>
                 </Link>
 
-                {/* VOLUME HORAIRE */}
-                <Link href="/volume-horaire" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-blue-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-blue-600 transition-all">
-                    <ClockIcon className="w-4 h-4 text-blue-400 group-hover:text-white" />
-                  </div>
-                  <h2 className="text-[11px] font-black uppercase tracking-wide text-white group-hover:text-blue-400 transition-colors">
-                    Volume Horaire
-                  </h2>
-                  <p className="text-[9px] text-slate-500 font-medium mt-1 leading-relaxed">
-                    Analyser le temps de travail et coûts RH
-                  </p>
-                </Link>
-
               </div>
             </div>
           ) : (
             /* ================= VUE AGRANDIE : STATISTIQUES & BILANS ================= */
-            <div className="bg-slate-900/90 border border-purple-500/40 rounded-[2.5rem] p-6 md:p-8 shadow-2xl transition-all duration-300 backdrop-blur-md animate-in fade-in zoom-in-95 duration-200 max-w-3xl mx-auto w-full">
+            <div className="bg-slate-900/90 border border-purple-500/40 rounded-[2.5rem] p-6 md:p-8 shadow-2xl transition-all duration-300 backdrop-blur-md animate-in fade-in zoom-in-95 duration-200 max-w-4xl mx-auto w-full">
               <div className="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
                 <div className="flex items-center gap-2">
                   <ChartBarIcon className="w-5 h-5 text-purple-400" />
@@ -283,7 +317,7 @@ export default function HomePage() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* STATS GLOBALES */}
                 <Link href="/statistiques" className="group bg-slate-950 border border-slate-850 rounded-2xl p-5 hover:border-purple-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                   <div className="bg-slate-900 border border-slate-800 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:bg-purple-600 transition-all">
@@ -309,6 +343,34 @@ export default function HomePage() {
                     Édition et étude du bilan d'impact annuel du Relais Numérique
                   </p>
                 </Link>
+
+                {/* VOLUME HORAIRE - Replacé correctement au même niveau */}
+                <Link href="/volume-horaire" className="group bg-slate-950 border border-slate-850 rounded-2xl p-5 hover:border-blue-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                  <div className="bg-slate-900 border border-slate-800 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:bg-blue-600 transition-all">
+                    <ClockIcon className="w-5 h-5 text-blue-400 group-hover:text-white" />
+                  </div>
+                  <h2 className="text-xs font-black uppercase tracking-wide text-white group-hover:text-blue-400 transition-colors">
+                    Volume Horaire
+                  </h2>
+                  <p className="text-[10px] text-slate-500 font-medium mt-1.5 leading-relaxed">
+                    Analyser le temps de travail et coûts RH
+                  </p>
+                </Link>
+
+                {/* GESTION DES DROITS (Visible uniquement par l'admin) */}
+                {userRole === "admin" && (
+                  <Link href="/admin/droits" className="group bg-slate-950 border border-slate-850 rounded-2xl p-5 hover:border-rose-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95 bg-gradient-to-b from-slate-950 to-rose-950/10 animate-in fade-in duration-300">
+                    <div className="bg-slate-900 border border-slate-800 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:bg-rose-600 transition-all">
+                      <ShieldCheckIcon className="w-5 h-5 text-rose-400 group-hover:text-white" />
+                    </div>
+                    <h2 className="text-xs font-black uppercase tracking-wide text-white group-hover:text-rose-400 transition-colors">
+                      Gérer les Droits
+                    </h2>
+                    <p className="text-[10px] text-slate-500 font-medium mt-1.5 leading-relaxed">
+                      Matrice de sécurité et modification des rôles de l'équipe
+                    </p>
+                  </Link>
+                )}
               </div>
             </div>
           )}

@@ -11,7 +11,8 @@ import {
   DocumentDuplicateIcon, PencilSquareIcon, 
   UsersIcon, MapPinIcon, EyeIcon, EyeSlashIcon,
   CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon,
-  CheckCircleIcon, LockClosedIcon, BellIcon
+  CheckCircleIcon, LockClosedIcon, BellIcon,
+  ChatBubbleLeftRightIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 
@@ -93,7 +94,6 @@ export default function PlanningExpertMix() {
       setSemainesValidees(vMap);
     });
 
-    // Écoute des notifications en temps réel
     const unsubNotifs = onSnapshot(collection(db, "notifications"), (snap) => {
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setNotifications(list.sort((a: any, b: any) => b.createdAt - a.createdAt));
@@ -102,7 +102,6 @@ export default function PlanningExpertMix() {
     const unsubMed = onSnapshot(collection(db, "liste_mediateurs"), (snap) => {
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       
-      // Tri par ordre de priorité de statut, puis par Nom de famille par ordre alphabétique
       const sortedData = data.sort((a, b) => {
         const priorityA = getStatusPriority(a.statut || "Permanent");
         const priorityB = getStatusPriority(b.statut || "Permanent");
@@ -340,6 +339,7 @@ export default function PlanningExpertMix() {
       date: dateStr, 
       lieu, 
       type: "Action",
+      commentaire: "",
       couleur: selectedModel?.couleur || "#6366f1",
       ...(selectedModel?.adresse ? { adresse: selectedModel.adresse } : {}),
       ...(selectedModel?.debut ? { debut: selectedModel.debut, fin: selectedModel.fin } : {}),
@@ -361,6 +361,51 @@ export default function PlanningExpertMix() {
           usager: ""
         });
       }
+    }
+  };
+
+  const handleEditCommentaire = async (actionId: string, currentCommentaire: string) => {
+    if (estSemaineValidee) {
+      if (currentCommentaire && currentCommentaire.trim() !== "") {
+        alert(`💬 Note / Commentaire (Lecture seule) :\n\n"${currentCommentaire}"`);
+      } else {
+        alert("🔒 Cette semaine est validée et verrouillée. Aucun commentaire n'a été saisi sur cette activité.");
+      }
+      return;
+    }
+
+    const nouveauCommentaire = prompt("Commentaire / Notes pour cette activité :", currentCommentaire || "");
+    if (nouveauCommentaire === null) return; // Annulation
+    
+    try {
+      await updateDoc(doc(db, "planning_mediateurs", actionId), {
+        commentaire: nouveauCommentaire.trim()
+      });
+
+      const actionCible = actions.find(a => a.id === actionId);
+      if (actionCible && nouveauCommentaire.trim() !== "") {
+        let dateFormatee = actionCible.date;
+        try {
+          const [yyyy, mm, dd] = actionCible.date.split("-");
+          if (yyyy && mm && dd) {
+            // Créer un objet date local pour récupérer le nom du jour
+            const dateObj = new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd));
+            const jourSemaine = dateObj.toLocaleDateString('fr-FR', { weekday: 'long' });
+            dateFormatee = `${jourSemaine} ${dd}/${mm}`;
+          }
+        } catch(e) {}
+
+        const nomQuiModifie = actionCible.mediateurNom || "Médiateur";
+        const periode = actionCible.moment || "Présence";
+
+        await addDoc(collection(db, "notifications"), {
+          message: `💬 Note de ${nomQuiModifie} le ${dateFormatee} (${periode}) : "${nouveauCommentaire.trim()}"`,
+          createdAt: Date.now(),
+          lue: false
+        });
+      }
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour du commentaire :", error);
     }
   };
 
@@ -447,7 +492,6 @@ export default function PlanningExpertMix() {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* MENU NOTIFICATION CLOCHE MODIFIÉ */}
           <div className="relative">
             <button 
               onClick={() => setIsNotifOpen(!isNotifOpen)} 
@@ -487,7 +531,6 @@ export default function PlanningExpertMix() {
                   )}
                 </div>
                 
-                {/* LIEN AJOUTÉ VERS LA PAGE GLOBALE */}
                 <div className="border-t border-slate-800 pt-2 text-center">
                   <Link 
                     href="/notifications" 
@@ -631,7 +674,19 @@ export default function PlanningExpertMix() {
             <tbody className="divide-y divide-slate-800/40">
               {mediateurs
                 .filter(m => m.actif !== false && (m.prenom || m.nom))
-                .filter(m => voirMasques ? true : !m.masque)
+                .filter(m => {
+                  if (voirMasques) return true;
+                  if (!m.masque) return true;
+
+                  const mNomComplet = `${m.prenom || ""} ${m.nom || ""}`.trim();
+                  const aDesActionsCetteSemaine = actions.some((action: any) => {
+                    const correspondAuMediateur = action.mediateurId === m.id || action.mediateurNom === mNomComplet;
+                    const estCetteSemaine = weekDays.some(day => day.toLocaleDateString('en-CA') === action.date);
+                    return correspondAuMediateur && estCetteSemaine;
+                  });
+
+                  return aDesActionsCetteSemaine;
+                })
                 .map(m => {
                   const pNom = m.prenom || "";
                   const fNom = m.nom || "";
@@ -668,8 +723,8 @@ export default function PlanningExpertMix() {
                         return (
                           <td key={dateStr} className="p-1 border-l border-slate-800/30 align-middle">
                             <div className="grid grid-cols-2 gap-1 min-h-[38px]">
-                              <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={deleteAction} estSemaineValidee={estSemaineValidee} />
-                              <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={deleteAction} estSemaineValidee={estSemaineValidee} />
+                              <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={deleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} />
+                              <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={deleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} />
                             </div>
                           </td>
                         );
@@ -813,10 +868,10 @@ export default function PlanningExpertMix() {
 }
 
 // COMPOSANT CELLULE
-function DayCell({ actions, m, moment, date, onAdd, onDelete, estSemaineValidee }: any) {
+function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire, estSemaineValidee }: any) {
   const mNomComplet = `${m.prenom || ""} ${m.nom || ""}`.trim();
   const filtered = actions.filter((a: any) => 
-    (a.mediateurId === m.id || a.mediateurNom === mNomComplet) && a.date === date && a.moment === moment
+    (a.mediatId === m.id || a.mediateurId === m.id || a.mediateurNom === mNomComplet) && a.date === date && a.moment === moment
   );
   
   return (
@@ -825,18 +880,29 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, estSemaineValidee 
       {filtered.map((a: any) => {
         const territorio = a.territoire || "";
         const hexColor = a.couleur || "#6366f1";
+        const hasCommentaire = !!a.commentaire;
 
         return (
           <div 
             key={a.id} 
+            onClick={() => onEditCommentaire(a.id, a.commentaire)}
             style={{ backgroundColor: hexToRgba(hexColor, 0.15), borderColor: hexToRgba(hexColor, 0.4), color: hexColor }}
-            className="px-1.5 py-0.5 rounded border text-[9px] font-medium flex items-center justify-between w-full min-h-[22px] hover:brightness-125 transition-all"
+            className={`px-1.5 py-0.5 rounded border text-[9px] font-medium flex items-center justify-between w-full min-h-[22px] hover:brightness-125 transition-all relative ${estSemaineValidee ? 'cursor-default' : 'cursor-pointer'}`}
+            title={hasCommentaire ? `Note : ${a.commentaire}` : "Cliquer pour ajouter une note"}
           >
-            <span className="truncate pr-0.5 text-slate-200" title={`${moment} : ${a.lieu}`}>
+            <span className="truncate pr-3 text-slate-200" title={`${moment} : ${a.lieu}`}>
               {a.lieu} {territorio && <span className="text-[8px] opacity-50">[{territorio}]</span>}
             </span>
+            
+            {/* Indicateur visuel comme Google Sheets (Bulle de dialogue) */}
+            {hasCommentaire && (
+              <span className="absolute right-6 top-1 text-amber-400">
+                <ChatBubbleLeftRightIcon className="w-2.5 h-2.5 fill-amber-400/20" />
+              </span>
+            )}
+
             {!estSemaineValidee && (
-              <button onClick={(e) => { e.stopPropagation(); onDelete(a.id); }} className="text-slate-500 hover:text-red-400 p-0.5 shrink-0">
+              <button onClick={(e) => { e.stopPropagation(); onDelete(a.id); }} className="text-slate-500 hover:text-red-400 p-0.5 shrink-0 z-10">
                 <TrashIcon className="w-2.5 h-2.5"/>
               </button>
             )}

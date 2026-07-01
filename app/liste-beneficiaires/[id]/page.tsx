@@ -34,7 +34,7 @@ import {
   ClipboardDocumentCheckIcon,
   ExclamationTriangleIcon,
   TrashIcon,
-  NoSymbolIcon // Ajout de l'icône pour la blacklist
+  NoSymbolIcon
 } from "@heroicons/react/24/outline";
 
 // --- TYPES & INTERFACES ---
@@ -139,7 +139,7 @@ export default function FicheBeneficiaire() {
     totalPresents: 0, tauxAssiduite: 100, satisfactionMoyenne: 0, thematiquePhare: "—"
   });
 
-  // Liste des thématiques nécessitant une évaluation (>= 5 rendez-vous présents)
+  // Liste des thématiques nécessitant une évaluation (multiples de 5 rendez-vous présents)
   const [thematiquesAAlerter, setThematiquesAAlerter] = useState<string[]>([]);
 
   const isProfilIncomplet = user ? (!user.Téléphone || !user.email || !user.Situation_Socio_Pro) : false;
@@ -283,7 +283,9 @@ export default function FicheBeneficiaire() {
 
     const keys = Object.keys(compteurs);
     const topThematique = keys.length === 0 ? "—" : keys.reduce((a, b) => compteurs[a] > compteurs[b] ? a : b);
-    const alertes = keys.filter(thematique => compteurs[thematique] >= 5);
+    
+    // L'alerte permanente s'affiche si le compteur est un multiple de 5 (5, 10, 15...)
+    const alertes = keys.filter(thematique => compteurs[thematique] > 0 && compteurs[thematique] % 5 === 0);
     
     setThematiquesAAlerter(alertes);
     setStats({ totalPresents: totalPresentsCount, tauxAssiduite: taux, satisfactionMoyenne: moyenneSat, thematiquePhare: topThematique });
@@ -324,7 +326,6 @@ export default function FicheBeneficiaire() {
     e.preventDefault();
     if (!userExists) return alert("Créez d'abord le profil.");
     
-    // Si l'action est enregistrée sous le type de session "Collecte Tech", on force le lieu
     let lieuFinal = isNouveauLieu ? formData.nouveauLieuStructure.trim() : formData.lieu;
     if (formData.momentChoisi === "Collecte Tech") {
       lieuFinal = "92 - Collecte Tech";
@@ -353,13 +354,34 @@ export default function FicheBeneficiaire() {
         createdAt: serverTimestamp()
       });
 
-      // 2. Si le moment choisi est "Collecte Tech", on met à jour également le profil principal du bénéficiaire
+      // 2. Si le moment choisi est "Collecte Tech", on met à jour également le profil principal
       if (formData.momentChoisi === "Collecte Tech") {
         await updateDoc(doc(db, "utilisateurs", userId), {
           Lieu_RDV: "92 - Collecte Tech",
           lieuRDV: "92 - Collecte Tech"
         });
       }
+
+      // --- LOGIQUE D'ALERTE : DIAGNOSTIC TOUTES LES 5 VISITES ---
+      if (formData.statut === "Présent" && formData.thematique) {
+        const visitesMemeThematique = rdvs.filter(
+          r => r.statut === "Présent" && 
+          r.thematique === formData.thematique &&
+          !["Diagnostic Initial", "Diagnostic Final", "Questionnaire de satisfaction", "Collecte Tech"].includes(r.moment)
+        );
+        
+        const nouveauTotal = visitesMemeThematique.length + 1;
+
+        if (nouveauTotal % 5 === 0) {
+          const reponse = window.confirm(
+            `🚨 Alerte : Ce bénéficiaire vient d'atteindre ${nouveauTotal} rendez-vous sur la thématique "${formData.thematique}".\n\nSouhaitez-vous le rediriger immédiatement vers le formulaire pour passer un nouveau diagnostic ?`
+          );
+          if (reponse) {
+            router.push(`/diagnosticform?id=${userId}`);
+          }
+        }
+      }
+      // --------------------------------------------------------
 
       setFormData(prev => ({ 
         ...prev, 
@@ -536,7 +558,7 @@ export default function FicheBeneficiaire() {
             <div>
               <h3 className="text-sm font-black text-red-400 uppercase tracking-wide">Évaluation des progrès requise !</h3>
               <p className="text-xs text-slate-300 mt-1">
-                Ce bénéficiaire a atteint ou dépassé <span className="font-bold text-white">5 rendez-vous</span> sur : <span className="text-red-400 font-bold">{thematiquesAAlerter.join(", ")}</span>.
+                Ce bénéficiaire est actuellement sur un multiple de <span className="font-bold text-white">5 rendez-vous</span> sur : <span className="text-red-400 font-bold">{thematiquesAAlerter.join(", ")}</span>. Un nouveau diagnostic est recommandé.
               </p>
             </div>
           </div>
@@ -930,7 +952,7 @@ export default function FicheBeneficiaire() {
 
               <form onSubmit={handleSaveProfil} className="space-y-4">
                 
-                {/* BLOC ZONE DE DANGER : BLACKLIST (Tout en haut de la modale pour attirer l'attention) */}
+                {/* BLOC ZONE DE DANGER : BLACKLIST */}
                 <div className="bg-red-950/20 border border-red-900/60 p-4 rounded-2xl flex items-center justify-between gap-4">
                   <div className="flex items-center gap-2.5">
                     <NoSymbolIcon className="w-5 h-5 text-red-500 shrink-0" />
@@ -1043,7 +1065,7 @@ export default function FicheBeneficiaire() {
                   </div>
                 </div>
 
-                {/* AJOUT SÉLECTION DU LIEU EXCLUSIF COLLECTE TECH DANS LE PROFIL GLOBALE SI BESOIN */}
+                {/* Rattachement Événementnel principal */}
                 <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80">
                   <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Rattachement Événementnel principal</label>
                   <select 

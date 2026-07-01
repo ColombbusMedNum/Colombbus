@@ -2,21 +2,23 @@
 
 import React, { useState } from "react";
 import { auth, db } from "../../lib/firebase"; 
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { useRouter } from "next/navigation";
-import { LockClosedIcon, EnvelopeIcon, ShieldExclamationIcon, ArrowRightEndOnRectangleIcon } from "@heroicons/react/24/outline";
+import { LockClosedIcon, EnvelopeIcon, ShieldExclamationIcon, ArrowRightEndOnRectangleIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccessMessage(null);
 
     if (!auth) {
       setError("Le service d'authentification n'est pas prêt. Veuillez rafraîchir la page.");
@@ -56,12 +58,58 @@ export default function LoginPage() {
       router.push("/");
       
     } catch (err: any) {
-      console.error(err);
-      if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
-        setError("Identifiants incorrects. Veuillez réessayer.");
+      console.error("Erreur détectée :", err.code, err);
+      
+      // Gestion unifiée de l'erreur d'identifiants Firebase (V10+)
+      if (
+        err.code === "auth/invalid-credential" || 
+        err.code === "auth/user-not-found" || 
+        err.code === "auth/wrong-password"
+      ) {
+        setError(
+          "Identifiants incorrects. S'il s'agit de votre première connexion, vous devez d'abord configurer votre mot de passe à l'aide du bouton de récupération ci-dessous."
+        );
+      } else if (err.code === "auth/too-many-requests") {
+        setError(
+          "Compte temporairement bloqué suite à un trop grand nombre de tentatives. Veuillez patienter un instant ou réinitialiser votre mot de passe."
+        );
       } else {
         setError(err.message || "Une erreur est survenue lors de la connexion.");
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setError(null);
+    setSuccessMessage(null);
+
+    const emailNettoye = email.trim().toLowerCase();
+
+    if (!emailNettoye) {
+      setError("Veuillez d'abord saisir votre adresse email dans le champ ci-dessus.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const q = query(collection(db, "liste_mediateurs"), where("email", "==", emailNettoye));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        setError("Cette adresse email n'est pas répertoriée dans notre équipe.");
+        return;
+      }
+
+      await sendPasswordResetEmail(auth, emailNettoye);
+      setSuccessMessage(
+        "Un e-mail de configuration / récupération de mot de passe vient de vous être envoyé. Pensez à vérifier vos spams !"
+      );
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Une erreur est survenue lors de l'envoi de l'e-mail.");
     } finally {
       setLoading(false);
     }
@@ -95,6 +143,14 @@ export default function LoginPage() {
           </div>
         )}
 
+        {/* Bloc d'affichage des succès */}
+        {successMessage && (
+          <div className="mb-5 p-3.5 bg-emerald-950/40 border border-emerald-900/60 rounded-xl flex items-start gap-2.5 text-emerald-400 text-xs font-semibold">
+            <CheckCircleIcon className="w-5 h-5 shrink-0 mt-0.5" />
+            <span>{successMessage}</span>
+          </div>
+        )}
+
         {/* Formulaire de saisie */}
         <form onSubmit={handleLogin} className="space-y-4 text-xs">
           <div>
@@ -119,7 +175,6 @@ export default function LoginPage() {
               <LockClosedIcon className="w-4 h-4 text-slate-600 absolute left-3 top-3.5" />
               <input 
                 type="password" 
-                required 
                 placeholder="••••••••" 
                 className="w-full pl-10 pr-4 py-3 bg-slate-900/40 border border-slate-800 focus:border-emerald-500/80 text-white rounded-lg outline-none transition-colors" 
                 value={password} 
@@ -142,6 +197,18 @@ export default function LoginPage() {
             )}
           </button>
         </form>
+
+        {/* Lien de récupération ou de première configuration */}
+        <div className="text-center mt-6">
+          <button
+            type="button"
+            disabled={loading}
+            onClick={handleForgotPassword}
+            className="text-[11px] font-bold text-slate-500 hover:text-emerald-400 transition-colors underline bg-transparent border-none cursor-pointer"
+          >
+            Première connexion ou mot de passe oublié ?
+          </button>
+        </div>
 
       </div>
     </div>
