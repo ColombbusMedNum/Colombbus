@@ -11,14 +11,16 @@ import {
   ClockIcon,
   UserIcon,
   XMarkIcon,
-  EnvelopeIcon,      
+  EnvelopeIcon,   
+  PhoneIcon,   
   Squares2X2Icon,  
   ListBulletIcon,
   MapPinIcon,
   PlusIcon,
   ChevronDownIcon,
   CalendarDaysIcon,
-  ShieldCheckIcon
+  ShieldCheckIcon,
+  AcademicCapIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 
@@ -38,6 +40,16 @@ const HORAIRES_PAR_DEFAUT = {
   vendredi: { debut: "09:30", fin: "17:00" }
 };
 
+// Fonction utilitaire pour formater le numéro sous la forme 00 00 00 00 00
+const formatPhoneNumber = (phoneStr: string) => {
+  if (!phoneStr) return "";
+  // On ne garde que les chiffres
+  const cleaned = phoneStr.replace(/\D/g, "");
+  // On découpe par groupe de 2 chiffres
+  const match = cleaned.match(/.{1,2}/g);
+  return match ? match.join(" ") : phoneStr;
+};
+
 const getTerritoryColor = (territory: string) => {
   const t = territory.toLowerCase().trim();
   if (t === "paris") return "bg-blue-950/40 border-blue-800/60 text-blue-400";
@@ -53,6 +65,27 @@ const getTerritoryColor = (territory: string) => {
     "bg-indigo-950/40 border-indigo-800/60 text-indigo-400",
   ];
   return colors[hash % colors.length];
+};
+
+const getRoleTextColor = (role: string) => {
+  switch (role) {
+    case 'Admin': return 'text-amber-400';
+    case 'Lecteur': return 'text-blue-400';
+    case 'ChargeTerritoire': return 'text-emerald-400';
+    case 'CoordinateurProjet': return 'text-purple-400';
+    default: return 'text-slate-400';
+  }
+};
+
+const getRoleLabel = (role: string) => {
+  switch (role) {
+    case 'Mediateur': return 'Médiateur';
+    case 'Admin': return 'Admin';
+    case 'Lecteur': return 'Lecteur';
+    case 'ChargeTerritoire': return 'Chargé de territoire';
+    case 'CoordinateurProjet': return 'Coordinateur de projet';
+    default: return role;
+  }
 };
 
 export default function GestionEquipe() {
@@ -75,6 +108,9 @@ export default function GestionEquipe() {
 
   const [listeTerritoires, setListeTerritoires] = useState<string[]>(["Paris", "Massy"]);
   const [nouveauTerritoireInput, setNouveauTerritoireInput] = useState("");
+  
+  const [listeQualitesGlobales, setListeQualitesGlobales] = useState<string[]>([]);
+  const [competenceInput, setCompetenceInput] = useState("");
 
   const [formData, setFormData] = useState({
     prenom: "",      
@@ -88,7 +124,8 @@ export default function GestionEquipe() {
     sites: [] as string[], 
     rattachementHoraireACI: "Paris", 
     taux: 0,
-    actif: true
+    actif: true,
+    competences: [] as string[]
   });
 
   useEffect(() => {
@@ -100,10 +137,21 @@ export default function GestionEquipe() {
     });
 
     const unsubConfig = onSnapshot(doc(db, "liste_mediateurs", "parametres_configuration"), (snapshot) => {
-      if (snapshot.exists() && snapshot.data().territoires) {
-        setListeTerritoires(snapshot.data().territoires.sort());
+      if (snapshot.exists()) {
+        const configData = snapshot.data();
+        if (configData.territoires) {
+          setListeTerritoires(configData.territoires.sort());
+        }
+        if (configData.qualitesGlobales) {
+          setListeQualitesGlobales(configData.qualitesGlobales.sort());
+        } else {
+          setListeQualitesGlobales([]);
+        }
       } else {
-        setDoc(doc(db, "liste_mediateurs", "parametres_configuration"), { territoires: ["Paris", "Massy"] });
+        setDoc(doc(db, "liste_mediateurs", "parametres_configuration"), { 
+          territoires: ["Paris", "Massy"],
+          qualitesGlobales: ["Excel", "Word"]
+        });
       }
     });
 
@@ -140,7 +188,7 @@ export default function GestionEquipe() {
     setNouveauTerritoireInput("");
     
     try {
-      await setDoc(doc(db, "liste_mediateurs", "parametres_configuration"), { territoires: nouvelleListe });
+      await updateDoc(doc(db, "liste_mediateurs", "parametres_configuration"), { territoires: nouvelleListe });
     } catch (err) {
       console.error(err);
     }
@@ -156,7 +204,7 @@ export default function GestionEquipe() {
     const nouvelleListe = listeTerritoires.filter(t => t !== nom).sort();
     setListeTerritoires(nouvelleListe);
     try {
-      await setDoc(doc(db, "liste_mediateurs", "parametres_configuration"), { territoires: nouvelleListe });
+      await updateDoc(doc(db, "liste_mediateurs", "parametres_configuration"), { territoires: nouvelleListe });
     } catch (err) {
       console.error(err);
     }
@@ -188,6 +236,39 @@ export default function GestionEquipe() {
     });
   };
 
+  const handleAddCompetence = async (qualitePreselectionnee?: string) => {
+    const value = (qualitePreselectionnee || competenceInput).trim();
+    if (!value) return;
+
+    if (!formData.competences.includes(value)) {
+      setFormData(prev => ({
+        ...prev,
+        competences: [...prev.competences, value]
+      }));
+    }
+
+    if (!listeQualitesGlobales.some(q => q.toLowerCase() === value.toLowerCase())) {
+      const nouveauCatalogue = [...listeQualitesGlobales, value].sort();
+      setListeQualitesGlobales(nouveauCatalogue);
+      try {
+        await updateDoc(doc(db, "liste_mediateurs", "parametres_configuration"), {
+          qualitesGlobales: nouveauCatalogue
+        });
+      } catch (err) {
+        console.error("Erreur lors de la mise à jour du catalogue de qualités :", err);
+      }
+    }
+
+    setCompetenceInput("");
+  };
+
+  const handleRemoveCompetence = (indexToRemove: number) => {
+    setFormData(prev => ({
+      ...prev,
+      competences: prev.competences.filter((_, idx) => idx !== indexToRemove)
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.prenom || !formData.nom || !formData.email) {
@@ -198,6 +279,7 @@ export default function GestionEquipe() {
     const netPayload = {
       ...formData,
       email: formData.email.trim().toLowerCase(),
+      telephone: formData.telephone.trim(),
       taux: Number(formData.taux) || 0
     };
 
@@ -236,7 +318,8 @@ export default function GestionEquipe() {
         sites: med.sites ? med.sites : (med.sitePrincipal ? [med.sitePrincipal] : []),
         rattachementHoraireACI: med.rattachementHoraireACI || "Paris",
         taux: med.taux !== undefined ? Number(med.taux) : 0,
-        actif: med.actif !== undefined ? med.actif : true
+        actif: med.actif !== undefined ? med.actif : true,
+        competences: med.competences || []
       });
     } else {
       setEditingMed(null);
@@ -252,10 +335,12 @@ export default function GestionEquipe() {
         sites: [],
         rattachementHoraireACI: "Paris",
         taux: 0,
-        actif: true
+        actif: true,
+        competences: []
       });
     }
     setIsModalOpen(true);
+    setCompetenceInput("");
   };
 
   const closeModal = () => {
@@ -288,7 +373,15 @@ export default function GestionEquipe() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto shrink-0">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto shrink-0">
+          <Link 
+            href="/competences" 
+            className="flex items-center justify-center gap-2 bg-blue-900 hover:bg-blue-800 border border-blue-700 text-white px-5 py-3 rounded-xl font-black uppercase text-xs tracking-widest transition-all cursor-pointer flex-1 md:flex-none"
+          >
+            <AcademicCapIcon className="w-5 h-5 text-blue-400" /> 
+            <span>Suivi des Qualités</span>
+          </Link>
+
           <Link 
             href="/activites_types" 
             className="flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-500 text-white px-5 py-3 rounded-xl font-black uppercase text-xs tracking-widest transition-all cursor-pointer flex-1 md:flex-none"
@@ -340,7 +433,7 @@ export default function GestionEquipe() {
         </form>
       </div>
 
-      {/* GRILLES HORAIRES Fixed */}
+      {/* GRILLES HORAIRES */}
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
         {(["Paris", "Massy"] as const).map(site => {
           const isOpen = accordionOpen[site];
@@ -419,7 +512,9 @@ export default function GestionEquipe() {
                 <div key={m.id} className="group relative bg-slate-950/90 border-2 border-slate-700 hover:border-emerald-500/50 rounded-2xl p-5 shadow-2xl flex flex-col justify-between min-h-[190px] transition-all duration-200">
                   <div className="absolute top-0 right-0 flex divide-x-2 divide-slate-700 rounded-bl-xl rounded-tr-2xl border-l-2 border-b-2 border-slate-700 bg-slate-900 text-[10px] font-black uppercase">
                     <span className="px-3 py-1.5 text-slate-300">{m.statut}</span>
-                    <span className={`px-3 py-1.5 ${userRole === 'Admin' ? 'text-amber-400' : userRole === 'Lecteur' ? 'text-blue-400' : 'text-slate-400'}`}>{userRole}</span>
+                    <span className={`px-3 py-1.5 ${getRoleTextColor(userRole)}`}>
+                      {getRoleLabel(userRole)}
+                    </span>
                   </div>
                   <div className="mt-4">
                     <div className="flex items-center gap-3 mb-3">
@@ -434,6 +529,12 @@ export default function GestionEquipe() {
                     
                     <div className="space-y-1.5 border-t border-slate-900/60 pt-3 text-[11px] text-slate-400">
                       {m.email && <p className="truncate"><EnvelopeIcon className="w-3.5 h-3.5 inline mr-1 text-slate-600" /> {m.email}</p>}
+                      {/* Affichage du téléphone avec l'utilitaire de formatage (00 00 00 00 00) */}
+                      {m.telephone && (
+                        <p className="truncate">
+                          <PhoneIcon className="w-3.5 h-3.5 inline mr-1 text-slate-600" /> {formatPhoneNumber(m.telephone)}
+                        </p>
+                      )}
                       <div className="flex flex-wrap items-center gap-1.5">
                         <MapPinIcon className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                         {localSites.length === 0 ? (
@@ -481,28 +582,31 @@ export default function GestionEquipe() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-900 text-xs text-slate-300">
-                {filteredMediateurs.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-950/50">
-                    <td className="p-4 pl-6 font-bold text-white">{m.prenom} <span className="uppercase text-slate-400 ml-0.5">{m.nom}</span></td>
-                    <td className="p-4 text-slate-400 font-mono text-[11px]">{m.email || "-"}</td>
-                    <td className="p-4">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border border-slate-800 bg-slate-900 ${m.role === 'Admin' ? 'text-amber-400' : m.role === 'Lecteur' ? 'text-blue-400' : 'text-slate-400'}`}>
-                        {m.role || "Mediateur"}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex flex-wrap gap-1">
-                        {(m.sites || []).map((s: string) => (
-                          <span key={s} className={`px-2 py-0.5 border text-[10px] font-semibold rounded ${getTerritoryColor(s)}`}>{s}</span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="p-4 pr-6 text-right">
-                      <button onClick={() => openModal(m)} className="p-1 text-slate-500 hover:text-white mr-2 cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
-                      <button onClick={() => toggleArchive(m)} className="p-1 text-slate-500 cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredMediateurs.map((m) => {
+                  const userRole = m.role || "Mediateur";
+                  return (
+                    <tr key={m.id} className="hover:bg-slate-950/50">
+                      <td className="p-4 pl-6 font-bold text-white">{m.prenom} <span className="uppercase text-slate-400 ml-0.5">{m.nom}</span></td>
+                      <td className="p-4 text-slate-400 font-mono text-[11px]">{m.email || "-"}</td>
+                      <td className="p-4">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border border-slate-800 bg-slate-900 ${getRoleTextColor(userRole)}`}>
+                          {getRoleLabel(userRole)}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex flex-wrap gap-1">
+                          {(m.sites || []).map((s: string) => (
+                            <span key={s} className={`px-2 py-0.5 border text-[10px] font-semibold rounded ${getTerritoryColor(s)}`}>{s}</span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="p-4 pr-6 text-right">
+                        <button onClick={() => openModal(m)} className="p-1 text-slate-500 hover:text-white mr-2 cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
+                        <button onClick={() => toggleArchive(m)} className="p-1 text-slate-500 cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -512,7 +616,7 @@ export default function GestionEquipe() {
       {/* MODALE RECRUTEMENT / EDITION */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-950 border-2 border-slate-700 w-full max-w-lg rounded-2xl p-6 shadow-2xl">
+          <div className="bg-slate-950 border-2 border-slate-700 w-full max-w-lg rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-900 pb-4 mb-5">
               <h2 className="text-base font-black uppercase text-white flex items-center gap-2">
                 <UserIcon className="w-5 h-5 text-emerald-500" />
@@ -539,15 +643,19 @@ export default function GestionEquipe() {
                   <input type="text" maxLength={3} className="w-full p-3 bg-slate-900/50 border border-slate-800 text-white rounded-lg text-center uppercase" value={formData.trigramme} onChange={e => setFormData({...formData, trigramme: e.target.value})} />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Email (Sert d'identifiant de connexion) *</label>
+                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Email *</label>
                   <input type="email" required placeholder="nom@colombbus.org" className="w-full p-3 bg-slate-900/50 border border-slate-800 text-white rounded-lg font-mono" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="col-span-2">
                   <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Poste</label>
                   <input type="text" className="w-full p-3 bg-slate-900/50 border border-slate-800 text-white rounded-lg" value={formData.poste} onChange={e => setFormData({...formData, poste: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Téléphone (Optionnel)</label>
+                  <input type="tel" placeholder="06..." className="w-full p-3 bg-slate-900/50 border border-slate-800 text-white rounded-lg" value={formData.telephone} onChange={e => setFormData({...formData, telephone: e.target.value})} />
                 </div>
               </div>
 
@@ -568,6 +676,8 @@ export default function GestionEquipe() {
                   </label>
                   <select className="w-full p-3 bg-slate-900 border border-amber-900/30 text-amber-400 rounded-lg outline-none font-bold" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
                     <option value="Mediateur">Médiateur</option>
+                    <option value="ChargeTerritoire">Chargé de territoire</option>
+                    <option value="CoordinateurProjet">Coordinateur de projet</option>
                     <option value="Admin">Admin</option>
                     <option value="Lecteur">Lecteur</option>
                   </select>
@@ -601,6 +711,82 @@ export default function GestionEquipe() {
                   </select>
                 </div>
               )}
+
+              {/* SECTION GESTION DES QUALITÉS */}
+              <div className="border-t border-slate-900/60 pt-4">
+                <label className="block text-[10px] font-black uppercase text-blue-400 mb-1.5 flex items-center gap-1">
+                  <AcademicCapIcon className="w-4 h-4" /> Qualités & Compétences (Excel, Word...)
+                </label>
+                
+                <div className="flex gap-2 mb-3">
+                  <input 
+                    type="text"
+                    placeholder="Saisir ou choisir une qualité ci-dessous..."
+                    value={competenceInput}
+                    onChange={e => setCompetenceInput(e.target.value)}
+                    onKeyDown={e => {
+                      if(e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddCompetence();
+                      }
+                    }}
+                    className="flex-1 p-2.5 bg-slate-900/50 border border-slate-800 text-white rounded-lg outline-none focus:border-blue-500"
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => handleAddCompetence()}
+                    className="px-3 bg-blue-950 border border-blue-800 hover:bg-blue-900 text-blue-400 font-bold rounded-lg transition-colors cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+
+                {listeQualitesGlobales.length > 0 && (
+                  <div className="mb-3">
+                    <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Qualités enregistrées dans la base (cliquer pour ajouter) :</p>
+                    <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1.5 bg-black/40 rounded-lg border border-slate-900">
+                      {listeQualitesGlobales.map((qualite) => {
+                        const dejàAttribuee = formData.competences.includes(qualite);
+                        return (
+                          <button
+                            key={qualite}
+                            type="button"
+                            disabled={dejàAttribuee}
+                            onClick={() => handleAddCompetence(qualite)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all ${
+                              dejàAttribuee 
+                              ? "bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed" 
+                              : "bg-slate-950 border-slate-800 text-slate-400 hover:border-blue-700 hover:text-blue-400 cursor-pointer"
+                            }`}
+                          >
+                            {qualite}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Qualités retenues pour ce profil :</p>
+                <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 bg-black/20 border border-slate-900 rounded-lg">
+                  {formData.competences.length === 0 ? (
+                    <span className="text-[10px] text-slate-600 italic self-center">Aucune qualité sélectionnée</span>
+                  ) : (
+                    formData.competences.map((comp, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1 bg-blue-950/60 border border-blue-900/50 text-blue-400 px-2 py-0.5 rounded-md font-medium text-[11px]">
+                        {comp}
+                        <button 
+                          type="button" 
+                          onClick={() => handleRemoveCompetence(idx)}
+                          className="text-slate-500 hover:text-red-400 font-bold ml-1 cursor-pointer"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
 
               <div className="border-t border-slate-900/60 pt-4">
                 <label className="block text-[10px] font-black uppercase text-slate-400 mb-2">Affectation Territoire(s)</label>
