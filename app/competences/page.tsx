@@ -8,13 +8,15 @@ import {
   AcademicCapIcon, 
   MagnifyingGlassIcon,
   UserGroupIcon,
-  XMarkIcon
+  XMarkIcon,
+  MapPinIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 
 export default function SuiviCompetences() {
   const [mediateurs, setMediateurs] = useState<any[]>([]);
   const [searchFilter, setSearchFilter] = useState("");
+  const [selectedTerritory, setSelectedTerritory] = useState<string | null>(null);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "liste_mediateurs"), (snapshot) => {
@@ -26,17 +28,30 @@ export default function SuiviCompetences() {
     return () => unsub();
   }, []);
 
-  // Filtrer les médiateurs actifs par rapport au tag de compétences recherché
+  // Extraire dynamiquement la liste de tous les territoires des médiateurs actifs
+  const listeTerritoires = Array.from(
+    new Set(
+      mediateurs
+        .filter(m => m.actif !== false)
+        .flatMap(m => m.sites || [])
+    )
+  ).sort() as string[];
+
+  // Filtrer les médiateurs actifs par rapport au tag de compétences ET au territoire sélectionné
   const filteredData = mediateurs.filter(m => {
     if (m.actif === false) return false; // On ne garde que l'équipe active
     
-    // Si pas de recherche, on affiche tout le monde
-    if (!searchFilter.trim()) return true;
+    // 1. Filtrage par Territoire (si un territoire est sélectionné)
+    if (selectedTerritory) {
+      const mSites = m.sites || [];
+      if (!mSites.includes(selectedTerritory)) return false;
+    }
 
+    // 2. Filtrage par Compétence / Qualité
+    if (!searchFilter.trim()) return true;
     const query = searchFilter.toLowerCase().trim();
     const listComp = m.competences || [];
     
-    // On vérifie si l'une des compétences contient le mot cherché
     return listComp.some((c: string) => c.toLowerCase().includes(query));
   });
 
@@ -47,7 +62,7 @@ export default function SuiviCompetences() {
       <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 border-b border-slate-900 pb-6">
         <div className="flex items-center gap-3">
           <Link 
-            href="/equipe" // Remplacez par le chemin exact si ce n'est pas /gestion_equipe
+            href="/equipe" 
             className="p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white rounded-xl transition-all cursor-pointer flex items-center justify-center"
             title="Retour à l'équipe"
           >
@@ -63,8 +78,9 @@ export default function SuiviCompetences() {
         </div>
       </div>
 
-      {/* ZONE FILTRE DE RECHERCHE */}
-      <div className="max-w-4xl mx-auto mb-6">
+      {/* ZONE FILTRES DE RECHERCHE */}
+      <div className="max-w-4xl mx-auto mb-6 space-y-4">
+        {/* Recherche textuelle par qualité */}
         <div className="relative">
           <MagnifyingGlassIcon className="absolute left-4 top-3.5 w-5 h-5 text-slate-500" />
           <input 
@@ -74,7 +90,6 @@ export default function SuiviCompetences() {
             onChange={e => setSearchFilter(e.target.value)}
             className="w-full pl-12 pr-12 py-3.5 bg-slate-950 border-2 border-slate-800 focus:border-blue-600 text-white rounded-2xl text-sm font-medium outline-none transition-all placeholder:text-slate-600"
           />
-          {/* Bouton pour vider la recherche si elle est active */}
           {searchFilter && (
             <button 
               onClick={() => setSearchFilter("")}
@@ -85,9 +100,54 @@ export default function SuiviCompetences() {
             </button>
           )}
         </div>
-        {searchFilter && (
-          <p className="text-[11px] text-slate-500 mt-2 font-medium">
-            Résultats pour la recherche : <span className="text-blue-400 font-bold">"{searchFilter}"</span> — {filteredData.length} collaborateur(s) trouvé(s)
+
+        {/* Filtrage par Territoire / Site */}
+        {listeTerritoires.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-[10px] uppercase font-black tracking-wider text-slate-500 flex items-center gap-1 mr-1">
+              <MapPinIcon className="w-3.5 h-3.5 text-slate-600" /> Territoire :
+            </span>
+            <button
+              onClick={() => setSelectedTerritory(null)}
+              className={`px-3 py-1.5 rounded-xl font-bold text-xs border transition-all cursor-pointer ${
+                selectedTerritory === null
+                  ? "bg-blue-950/60 border-blue-800 text-blue-400 shadow-md shadow-blue-950/50"
+                  : "bg-slate-950 border-slate-900 text-slate-400 hover:border-slate-800 hover:text-slate-200"
+              }`}
+            >
+              Tous
+            </button>
+            {listeTerritoires.map((territory) => (
+              <button
+                key={territory}
+                onClick={() => setSelectedTerritory(territory)}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs border transition-all cursor-pointer ${
+                  selectedTerritory === territory
+                    ? "bg-blue-950/60 border-blue-800 text-blue-400 shadow-md shadow-blue-950/50"
+                    : "bg-slate-950 border-slate-900 text-slate-400 hover:border-slate-800 hover:text-slate-200"
+                }`}
+              >
+                {territory}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {(searchFilter || selectedTerritory) && (
+          <p className="text-[11px] text-slate-500 font-medium">
+            Filtres actifs :{" "}
+            {searchFilter && (
+              <span>
+                Qualité <span className="text-blue-400 font-bold">"{searchFilter}"</span>
+              </span>
+            )}
+            {searchFilter && selectedTerritory && " + "}
+            {selectedTerritory && (
+              <span>
+                Territoire <span className="text-blue-400 font-bold">"{selectedTerritory}"</span>
+              </span>
+            )}
+            {" — "}{filteredData.length} collaborateur(s) trouvé(s)
           </p>
         )}
       </div>
@@ -97,7 +157,7 @@ export default function SuiviCompetences() {
         {filteredData.length === 0 ? (
           <div className="text-center py-16 border-2 border-dashed border-slate-900 rounded-2xl bg-slate-950/20">
             <UserGroupIcon className="w-8 h-8 text-slate-700 mx-auto mb-2" />
-            <p className="text-slate-500 text-sm font-medium">Aucun médiateur ne possède cette qualité pour le moment.</p>
+            <p className="text-slate-500 text-sm font-medium">Aucun médiateur ne correspond à ces critères de recherche.</p>
           </div>
         ) : (
           filteredData.map((m) => {
@@ -126,7 +186,6 @@ export default function SuiviCompetences() {
                     <span className="text-[11px] italic text-slate-600">Aucune qualité renseignée</span>
                   ) : (
                     comps.map((c: string, i: number) => {
-                      // Mettre en valeur la compétence si elle correspond au filtre tapé
                       const matchRecherche = searchFilter.trim() && c.toLowerCase().includes(searchFilter.toLowerCase().trim());
                       return (
                         <button 
