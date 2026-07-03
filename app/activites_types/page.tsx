@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { db } from "../../lib/firebase";
 import { 
   collection, onSnapshot, query, orderBy, addDoc, 
@@ -41,6 +41,9 @@ export default function PlanningExpertMix() {
   const [semainesValidees, setSemainesValidees] = useState<Record<string, boolean>>({});
   const [notifications, setNotifications] = useState<any[]>([]);
   
+  // ID du médiateur connecté (À remplacer dynamiquement par votre système d'authentification ou sélection de profil)
+  const [currentUserId, setCurrentUserId] = useState<string | null>("ID_DU_MEDIATEUR_CONNECTE");
+  
   // États UI
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -50,6 +53,18 @@ export default function PlanningExpertMix() {
   const [voirSamedi, setVoirSamedi] = useState(false); 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [filtrePersoUniquement, setFiltrePersoUniquement] = useState(true); // Bloqué par défaut sur l'affichage "perso"
+
+  // Référence pour fermer la cloche de notification au clic extérieur
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  // État pour la gestion des commentaires (gère aussi le mode lecture seule si verrouillé)
+  const [activeCommentModal, setActiveCommentModal] = useState<{
+    actionId: string;
+    currentText: string;
+    inputText: string;
+    readOnly: boolean;
+  } | null>(null);
   
   // Formulaires Médiateurs
   const [newMed, setNewMed] = useState({ prenom: "", nom: "", poste: "", statut: "Permanent", debutACI: "09:00", finACI: "17:00", masque: false });
@@ -81,6 +96,22 @@ export default function PlanningExpertMix() {
     return 4;
   };
 
+  // Effet pour fermer les notifications au clic extérieur
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setIsNotifOpen(false);
+      }
+    }
+    
+    if (isNotifOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isNotifOpen]);
+
   useEffect(() => {
     const unsubActions = onSnapshot(collection(db, "planning_mediateurs"), (snap) => {
       setActions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -94,7 +125,16 @@ export default function PlanningExpertMix() {
       setSemainesValidees(vMap);
     });
 
-    const unsubNotifs = onSnapshot(collection(db, "notifications"), (snap) => {
+    // Écoute des notifications avec application du filtre "perso" par défaut
+    let qNotifs = collection(db, "notifications") as any;
+    if (filtrePersoUniquement && currentUserId) {
+      qNotifs = query(
+        collection(db, "notifications"),
+        where("destinataireId", "==", currentUserId)
+      );
+    }
+
+    const unsubNotifs = onSnapshot(qNotifs, (snap) => {
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setNotifications(list.sort((a: any, b: any) => b.createdAt - a.createdAt));
     });
@@ -133,7 +173,7 @@ export default function PlanningExpertMix() {
     });
 
     return () => { unsubActions(); unsubMed(); unsubActs(); unsubSemaines(); unsubNotifs(); };
-  }, []);
+  }, [filtrePersoUniquement, currentUserId]);
 
   const toggleValidationSemaine = async () => {
     try {
@@ -300,6 +340,13 @@ export default function PlanningExpertMix() {
     const isSuresnesAction = upperLieu.includes("RN") || upperLieu.includes("RND");
     const nomCompletLiaison = `${prenom} ${nom}`.trim();
 
+    // Formatage de la date pour le message de notification (ex: 15/07)
+    let dateFormatee = dateStr;
+    try {
+      const [yyyy, mm, dd] = dateStr.split("-");
+      if (yyyy && mm && dd) dateFormatee = `${dd}/${mm}`;
+    } catch (e) {}
+
     const qSuresnes = query(
       collection(db, "planning_suresnes"),
       where("date", "==", dateStr),
@@ -320,6 +367,15 @@ export default function PlanningExpertMix() {
           updateDoc(doc(db, "planning_suresnes", d.id), { mediateurNom: nouveauNom })
         );
         await Promise.all(transfers);
+
+        // 🔔 NOTIFICATION CIBLÉE : Transfert de rendez-vous usagers
+        await addDoc(collection(db, "notifications"), {
+          destinataireId: mediatId,
+          message: `🔄 RDV Suresnes transférés : Les usagers du ${dateFormatee} (${moment}) ont été réaffectés à ${nouveauNom}.`,
+          createdAt: Date.now(),
+          lue: false
+        });
+
         alert(`Succès : Les usagers de Suresnes sont maintenant affectés à ${nouveauNom}.`);
       } else {
         alert("Action annulée.");
@@ -332,8 +388,13 @@ export default function PlanningExpertMix() {
     );
     await Promise.all(deletes);
 
+    // Vérifier s'il y avait déjà une action pour ce moment afin de préciser s'il s'agit d'un remplacement
+    const aDejaAction = actions.some((a: any) => 
+      (a.mediatId === mediatId || a.mediateurNom === nomCompletLiaison) && a.date === dateStr && a.moment === moment
+    );
+
     await addDoc(collection(db, "planning_mediateurs"), {
-      mediateurId: mediatId, 
+      mediatId: mediatId, 
       mediateurNom: nomCompletLiaison, 
       moment, 
       date: dateStr, 
@@ -345,6 +406,16 @@ export default function PlanningExpertMix() {
       ...(selectedModel?.debut ? { debut: selectedModel.debut, fin: selectedModel.fin } : {}),
       ...(selectedModel?.territoire ? { territoire: selectedModel.territoire } : {}),
       ...(selectedModel?.codeAnalytique ? { codeAnalytique: selectedModel.codeAnalytique } : {}) 
+    });
+
+    // 🔔 NOTIFICATION INDIVIDUELLE : Ajout ou remplacement d'activité lié au destinataireId
+    await addDoc(collection(db, "notifications"), {
+      destinataireId: mediatId,
+      message: aDejaAction 
+        ? `🔄 Activité remplacée : Vous êtes maintenant planifié(e) sur "${lieu}" le ${dateFormatee} (${moment}).`
+        : `📅 Nouvelle activité : Vous êtes planifié(e) sur "${lieu}" le ${dateFormatee} (${moment}).`,
+      createdAt: Date.now(),
+      lue: false
     });
 
     if (isSuresnesAction) {
@@ -364,48 +435,85 @@ export default function PlanningExpertMix() {
     }
   };
 
-  const handleEditCommentaire = async (actionId: string, currentCommentaire: string) => {
+  const handleEditCommentaire = (actionId: string, currentCommentaire: string) => {
     if (estSemaineValidee) {
-      if (currentCommentaire && currentCommentaire.trim() !== "") {
-        alert(`💬 Note / Commentaire (Lecture seule) :\n\n"${currentCommentaire}"`);
-      } else {
-        alert("🔒 Cette semaine est validée et verrouillée. Aucun commentaire n'a été saisi sur cette activité.");
-      }
+      if (!currentCommentaire || currentCommentaire.trim() === "") return;
+      setActiveCommentModal({
+        actionId,
+        currentText: currentCommentaire,
+        inputText: currentCommentaire,
+        readOnly: true
+      });
       return;
     }
 
-    const nouveauCommentaire = prompt("Commentaire / Notes pour cette activité :", currentCommentaire || "");
-    if (nouveauCommentaire === null) return; // Annulation
+    setActiveCommentModal({
+      actionId,
+      currentText: currentCommentaire || "",
+      inputText: currentCommentaire || "",
+      readOnly: false
+    });
+  };
+
+  const handleSaveCommentaire = async (supprimer = false) => {
+    if (!activeCommentModal || activeCommentModal.readOnly) return;
+    const { actionId, currentText, inputText } = activeCommentModal;
     
     try {
+      const texteFinal = supprimer ? "" : inputText.trim();
+      
+      // 1. Sauvegarde en base de données
       await updateDoc(doc(db, "planning_mediateurs", actionId), {
-        commentaire: nouveauCommentaire.trim()
+        commentaire: texteFinal
       });
 
+      // 2. Récupération des infos de l'action pour la notification
       const actionCible = actions.find(a => a.id === actionId);
-      if (actionCible && nouveauCommentaire.trim() !== "") {
+      if (actionCible) {
         let dateFormatee = actionCible.date;
         try {
           const [yyyy, mm, dd] = actionCible.date.split("-");
           if (yyyy && mm && dd) {
-            // Créer un objet date local pour récupérer le nom du jour
             const dateObj = new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd));
             const jourSemaine = dateObj.toLocaleDateString('fr-FR', { weekday: 'long' });
             dateFormatee = `${jourSemaine} ${dd}/${mm}`;
           }
         } catch(e) {}
 
-        const nomQuiModifie = actionCible.mediateurNom || "Médiateur";
         const periode = actionCible.moment || "Présence";
 
-        await addDoc(collection(db, "notifications"), {
-          message: `💬 Note de ${nomQuiModifie} le ${dateFormatee} (${periode}) : "${nouveauCommentaire.trim()}"`,
-          createdAt: Date.now(),
-          lue: false
-        });
+        // Cas 1 : Suppression du commentaire
+        if (supprimer) {
+          await addDoc(collection(db, "notifications"), {
+            destinataireId: actionCible.mediatId,
+            message: `🗑️ Note supprimée sur votre créneau du ${dateFormatee} (${periode}) : "${currentText}"`,
+            createdAt: Date.now(),
+            lue: false
+          });
+        } 
+        // Cas 2 : Modification d'un commentaire existant
+        else if (currentText && currentText.trim() !== "" && currentText.trim() !== texteFinal) {
+          await addDoc(collection(db, "notifications"), {
+            destinataireId: actionCible.mediatId,
+            message: `📝 Note modifiée sur votre créneau du ${dateFormatee} (${periode}). Ancienne : "${currentText}" ➔ Nouvelle : "${texteFinal}"`,
+            createdAt: Date.now(),
+            lue: false
+          });
+        } 
+        // Cas 3 : Premier ajout d'un commentaire (l'ancien était vide)
+        else if (texteFinal !== "" && (!currentText || currentText.trim() === "")) {
+          await addDoc(collection(db, "notifications"), {
+            destinataireId: actionCible.mediatId,
+            message: `💬 Nouvelle note ajoutée sur votre créneau du ${dateFormatee} (${periode}) : "${texteFinal}"`,
+            createdAt: Date.now(),
+            lue: false
+          });
+        }
       }
     } catch (error) {
       console.error("Erreur lors de la mise à jour du commentaire :", error);
+    } finally {
+      setActiveCommentModal(null);
     }
   };
 
@@ -492,7 +600,9 @@ export default function PlanningExpertMix() {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="relative">
+          
+          {/* COMPOSANT CLOCHE NOTIFICATION */}
+          <div className="relative" ref={notifRef}>
             <button 
               onClick={() => setIsNotifOpen(!isNotifOpen)} 
               className="p-2 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-lg text-slate-300 hover:text-white relative cursor-pointer flex items-center justify-center min-w-[36px] h-9"
@@ -509,7 +619,7 @@ export default function PlanningExpertMix() {
             {isNotifOpen && (
               <div className="absolute right-0 mt-2 w-80 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-50 p-3 space-y-2">
                 <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                  <span className="text-xs font-bold text-slate-300">Alertes ({notifications.length})</span>
+                  <span className="text-xs font-bold text-slate-300">Mes Alertes ({notifications.length})</span>
                   <div className="flex gap-2.5">
                     {nonLuesCount > 0 && (
                       <button onClick={marquerToutCommeLu} className="text-[10px] text-blue-400 hover:text-blue-300 font-medium">Tout lire</button>
@@ -521,7 +631,7 @@ export default function PlanningExpertMix() {
                 </div>
                 <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5">
                   {notifications.length === 0 ? (
-                    <div className="text-center py-5 text-slate-500 text-[11px]">Aucune notification pour le moment</div>
+                    <div className="text-center py-5 text-slate-500 text-[11px]">Aucune alerte personnelle pour le moment</div>
                   ) : (
                     notifications.slice(0, 5).map(n => (
                       <div key={n.id} className={`p-2.5 rounded-lg text-[11px] leading-tight border ${n.lue ? 'bg-slate-950/40 border-slate-900/60 text-slate-400' : 'bg-slate-950 border-blue-500/20 text-slate-200 font-medium'}`}>
@@ -680,7 +790,7 @@ export default function PlanningExpertMix() {
 
                   const mNomComplet = `${m.prenom || ""} ${m.nom || ""}`.trim();
                   const aDesActionsCetteSemaine = actions.some((action: any) => {
-                    const correspondAuMediateur = action.mediateurId === m.id || action.mediateurNom === mNomComplet;
+                    const correspondAuMediateur = action.mediatId === m.id || action.mediateurId === m.id || action.mediateurNom === mNomComplet;
                     const estCetteSemaine = weekDays.some(day => day.toLocaleDateString('en-CA') === action.date);
                     return correspondAuMediateur && estCetteSemaine;
                   });
@@ -737,6 +847,73 @@ export default function PlanningExpertMix() {
         </div>
       </div>
 
+      {/* MODALE COMMENTAIRES */}
+      {activeCommentModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[120] p-4">
+          <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl w-full max-w-sm space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <h3 className="font-bold text-sm text-slate-200 flex items-center gap-2">
+                <ChatBubbleLeftRightIcon className="w-4 h-4 text-amber-400" /> 
+                {activeCommentModal.readOnly ? "Note / Commentaire (Lecture seule)" : "Notes & Commentaires"}
+              </h3>
+              <button onClick={() => setActiveCommentModal(null)} className="text-slate-400 hover:text-white p-1">
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">Indications complémentaires : </label>
+              {activeCommentModal.readOnly ? (
+                <div className="w-full bg-slate-950 border border-slate-800/80 rounded-md text-xs text-slate-300 min-h-24 p-2.5 overflow-y-auto whitespace-pre-wrap leading-relaxed select-text">
+                  {activeCommentModal.inputText || "Aucun commentaire saisi."}
+                </div>
+              ) : (
+                <textarea
+                  rows={3}
+                  className="field-dark w-full resize-none h-24 p-2"
+                  placeholder="Saisissez vos précisions ou commentaires ici..."
+                  value={activeCommentModal.inputText}
+                  onChange={(e) => setActiveCommentModal({ ...activeCommentModal, inputText: e.target.value })}
+                />
+              )}
+            </div>
+
+            <div className="flex justify-between gap-2 pt-2 border-t border-slate-800/60">
+              {!activeCommentModal.readOnly && activeCommentModal.currentText ? (
+                <button
+                  type="button"
+                  onClick={() => handleSaveCommentaire(true)}
+                  className="bg-red-950/40 border border-red-500/30 text-red-400 hover:bg-red-900/40 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1"
+                >
+                  <TrashIcon className="w-3.5 h-3.5" /> Supprimer
+                </button>
+              ) : (
+                <div />
+              )}
+              
+              <div className="flex gap-2">
+                <button 
+                  type="button" 
+                  onClick={() => setActiveCommentModal(null)} 
+                  className="text-slate-400 text-xs px-3 hover:text-white font-medium"
+                >
+                  {activeCommentModal.readOnly ? "Fermer" : "Annuler"}
+                </button>
+                {!activeCommentModal.readOnly && (
+                  <button 
+                    type="button" 
+                    onClick={() => handleSaveCommentaire(false)} 
+                    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-lg text-xs font-semibold"
+                  >
+                    Enregistrer
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODALE CRÉATION/ÉDITION STAFF */}
       {isUserModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
@@ -770,9 +947,9 @@ export default function PlanningExpertMix() {
             </div>
             <input placeholder="Poste" value={newMed.poste} className="field-dark" onChange={e => setNewMed({...newMed, poste: e.target.value})} />
             <select className="field-dark" value={newMed.statut} onChange={e => setNewMed({...newMed, statut: e.target.value})}>
-              <option value="Cadre">Cadre</option>
-              <option value="Permanent">Permanent</option>
-              <option value="ACI">ACI</option>
+              <option value="Cadre" className="bg-slate-900 text-white">Cadre</option>
+              <option value="Permanent" className="bg-slate-900 text-white">Permanent</option>
+              <option value="ACI" className="bg-slate-900 text-white">ACI</option>
             </select>
             <div className="flex gap-2 pt-1">
               <button type="submit" className="flex-1 bg-blue-600 py-1.5 rounded-md text-xs font-medium">Sauver</button>
@@ -782,7 +959,7 @@ export default function PlanningExpertMix() {
         </div>
       )}
 
-      {/* MODALE DES ACTIVITÉS TYPES CORRIGÉE */}
+      {/* MODALE DES ACTIVITÉS TYPES */}
       {isActiviteModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
           <form onSubmit={handleSaveActiviteType} className="bg-slate-900 border border-slate-800 p-5 rounded-xl w-full max-w-xs space-y-3">
@@ -805,10 +982,10 @@ export default function PlanningExpertMix() {
             <div className="flex flex-col gap-1">
               <label className="text-[10px] text-slate-400 font-medium font-mono">Territoire</label>
               <select className="field-dark" value={newActivite.territoire} onChange={e => setNewActivite({...newActivite, territoire: e.target.value})}>
-                <option value="">Aucun</option>
-                <option value="75">75 (Paris)</option>
-                <option value="91">91 (Essonne)</option>
-                <option value="92">92 (Hauts-de-Seine)</option>
+                <option value="" className="bg-slate-900 text-white">Aucun</option>
+                <option value="75" className="bg-slate-900 text-white">75 (Paris)</option>
+                <option value="91" className="bg-slate-900 text-white">91 (Essonne)</option>
+                <option value="92" className="bg-slate-900 text-white">92 (Hauts-de-Seine)</option>
               </select>
             </div>
 
@@ -887,14 +1064,14 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
             key={a.id} 
             onClick={() => onEditCommentaire(a.id, a.commentaire)}
             style={{ backgroundColor: hexToRgba(hexColor, 0.15), borderColor: hexToRgba(hexColor, 0.4), color: hexColor }}
-            className={`px-1.5 py-0.5 rounded border text-[9px] font-medium flex items-center justify-between w-full min-h-[22px] hover:brightness-125 transition-all relative ${estSemaineValidee ? 'cursor-default' : 'cursor-pointer'}`}
-            title={hasCommentaire ? `Note : ${a.commentaire}` : "Cliquer pour ajouter une note"}
+            className="px-1.5 py-0.5 rounded border text-[9px] font-medium flex items-center justify-between w-full min-h-[22px] hover:brightness-125 transition-all relative cursor-pointer"
+            title={hasCommentaire ? `Note : ${a.commentaire}` : estSemaineValidee ? "Semaine verrouillée" : "Cliquer pour ajouter une note"}
           >
             <span className="truncate pr-3 text-slate-200" title={`${moment} : ${a.lieu}`}>
               {a.lieu} {territorio && <span className="text-[8px] opacity-50">[{territorio}]</span>}
             </span>
             
-            {/* Indicateur visuel comme Google Sheets (Bulle de dialogue) */}
+            {/* Indicateur de commentaire style Google Sheets (icône) */}
             {hasCommentaire && (
               <span className="absolute right-6 top-1 text-amber-400">
                 <ChatBubbleLeftRightIcon className="w-2.5 h-2.5 fill-amber-400/20" />
