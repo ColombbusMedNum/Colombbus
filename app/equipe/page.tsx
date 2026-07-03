@@ -71,8 +71,7 @@ const getRoleTextColor = (role: string) => {
   switch (role) {
     case 'Admin': return 'text-amber-400';
     case 'Lecteur': return 'text-blue-400';
-    case 'ChargeTerritoire': return 'text-emerald-400';
-    case 'CoordinateurProjet': return 'text-purple-400';
+        case 'CoordinateurProjet': return 'text-purple-400';
     default: return 'text-slate-400';
   }
 };
@@ -82,7 +81,7 @@ const getRoleLabel = (role: string) => {
     case 'Mediateur': return 'Médiateur';
     case 'Admin': return 'Admin';
     case 'Lecteur': return 'Lecteur';
-    case 'ChargeTerritoire': return 'Chargé de territoire';
+    
     case 'CoordinateurProjet': return 'Coordinateur de projet';
     default: return role;
   }
@@ -676,7 +675,7 @@ export default function GestionEquipe() {
                   </label>
                   <select className="w-full p-3 bg-slate-900 border border-amber-900/30 text-amber-400 rounded-lg outline-none font-bold" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
                     <option value="Mediateur">Médiateur</option>
-                    <option value="ChargeTerritoire">Chargé de territoire</option>
+                    
                     <option value="CoordinateurProjet">Coordinateur de projet</option>
                     <option value="Admin">Admin</option>
                     <option value="Lecteur">Lecteur</option>
