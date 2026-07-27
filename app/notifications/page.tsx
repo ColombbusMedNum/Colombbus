@@ -70,7 +70,7 @@ export default function AllNotificationsPage() {
           <div className="flex items-center gap-4">
             {/* BOUTON DE RETOUR VERS L'AGENDA DES MÉDIATEURS / ACTIVITÉS TYPES */}
             <Link 
-              href="/activites_types" 
+              href="/agenda" 
               className="p-2 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-lg text-slate-400 hover:text-white transition-colors flex items-center justify-center cursor-pointer gap-2 text-xs font-medium"
               title="Retour à l'agenda des médiateurs"
             >
