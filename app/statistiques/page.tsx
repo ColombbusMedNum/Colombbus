@@ -12,14 +12,18 @@ export default function StatsMediateursAnalytique() {
   const [selectedMedId, setSelectedMedId] = useState<string>("");
   
   // États de session
-  const [userRole, setUserRole] = useState<string>("Mediateur");
-  const [userEmail, setUserEmail] = useState<string>("");
+  const [userRole, setUserRole] = useState<string>("mediateur");
+  const [userEmail, setUserEmail] = useState<string>("emmanuel-nkup@colombbus.org");
 
   // 1. Récupération instantanée des rôles stockés au login
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setUserRole(localStorage.getItem("user_role") || "Mediateur");
+      const role = (localStorage.getItem("user_role") || "mediateur").toLowerCase();
+      setUserRole(role);
       setUserEmail(localStorage.getItem("user_email") || "");
+      if (role === "admin" && !selectedMedId) {
+        setSelectedMedId("all");
+      }
     }
   }, []);
 
@@ -40,9 +44,10 @@ export default function StatsMediateursAnalytique() {
       
       // Logique d'affectation automatique de la vue
       if (sorted.length > 0) {
-        if (localStorage.getItem("user_role") === "Admin") {
+        const storedRole = (localStorage.getItem("user_role") || "mediateur").toLowerCase();
+        if (storedRole === "admin") {
           if (!selectedMedId) {
-            setSelectedMedId(sorted[0].id);
+            setSelectedMedId("all");
           }
         } else {
           // Si c'est un médiateur, on le force directement sur son propre email
@@ -58,10 +63,13 @@ export default function StatsMediateursAnalytique() {
     return () => { unsubActions(); unsubMed(); };
   }, [selectedMedId]);
 
-  const currentMediateur = mediateurs.find(m => m.id === selectedMedId);
+  const currentMediateur = selectedMedId === "all"
+    ? { id: "all", prenom: "Tous les", nom: "Médiateurs", poste: "Vue Globale", statut: "Tous les statuts" }
+    : mediateurs.find(m => m.id === selectedMedId);
 
   // 3. Filtrage des actions
   const currentMedActions = actions.filter(a => {
+    if (selectedMedId === "all") return true;
     if (!currentMediateur) return false;
     const nomComplet = `${currentMediateur.prenom || ""} ${currentMediateur.nom || ""}`.trim();
     return a.mediateurId === selectedMedId || a.mediateurNom === nomComplet || a.mediateur === nomComplet;
@@ -91,7 +99,7 @@ export default function StatsMediateursAnalytique() {
     currentMedActions.forEach(action => {
       const code = (action.codeAnalytique || "").trim() || "SANS_CODE";
       const label = action.codeAnalytique ? `Code ${action.codeAnalytique}` : "Sans code analytique / Non spécifié";
-      const cleUnique = `${action.date}_${action.moment || ""}_${code}_${action.debut || ""}_${action.fin || ""}`;
+      const cleUnique = `${action.mediateurId || action.mediateurNom || ""}_${action.date}_${action.moment || ""}_${code}_${action.debut || ""}_${action.fin || ""}`;
 
       if (!summary[code]) {
         summary[code] = { code, label, totalHeures: 0, count: 0 };
@@ -125,7 +133,7 @@ export default function StatsMediateursAnalytique() {
           <span className="text-slate-600">/</span>
           <span className="text-slate-300 font-medium">Ma Synthèse analytique</span>
         </div>
-        <Link href="/activites_types" className="bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 px-3 py-1.5 rounded-md text-xs font-medium transition-colors">
+        <Link href="/agenda" className="bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 px-3 py-1.5 rounded-md text-xs font-medium transition-colors">
           Retour à l'Agenda
         </Link>
       </header>
@@ -140,10 +148,10 @@ export default function StatsMediateursAnalytique() {
             </div>
             <div>
               <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
-                {userRole === "Admin" ? "Analyse de Profil (Mode Admin)" : "Mon Espace Analytique"}
+                {userRole === "admin" ? "Analyse de Profil (Mode Admin)" : "Mon Espace Analytique"}
               </h2>
               <p className="text-xs text-slate-500">
-                {userRole === "Admin" 
+                {userRole === "admin" 
                   ? "Sélectionnez un profil pour auditer la répartition de ses heures." 
                   : "Consultez le récapitulatif de vos heures par code analytique."}
               </p>
@@ -151,7 +159,7 @@ export default function StatsMediateursAnalytique() {
           </div>
           
           {/* CONDITION UNIQUE : Seulement si l'utilisateur connecté est un Admin */}
-          {userRole === "Admin" ? (
+          {userRole === "admin" ? (
             <div className="w-full sm:w-72">
               <select
                 value={selectedMedId}
@@ -159,6 +167,7 @@ export default function StatsMediateursAnalytique() {
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white font-medium outline-none focus:border-slate-700 transition-colors cursor-pointer"
               >
                 <option value="" disabled>-- Sélectionner un médiateur --</option>
+                <option value="all">Tous les médiateurs</option>
                 {mediateurs.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.prenom} {m.nom?.toUpperCase()}

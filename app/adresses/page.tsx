@@ -84,7 +84,7 @@ export default function ListeAdresses() {
         {/* EN-TÊTE AVEC RETOUR VERS LE PLANNING EXPERT */}
         <div className="flex items-center gap-4 mb-10">
           <Link 
-            href="/activites_types" 
+            href="/agenda" 
             className="p-2.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:text-white rounded-xl text-slate-400 transition-all active:scale-95 shadow-md"
           >
             <ArrowLeftIcon className="w-4 h-4" />

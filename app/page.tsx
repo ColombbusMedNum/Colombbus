@@ -113,7 +113,7 @@ export default function HomePage() {
               
               {/* AGENDA DES MÉDIATEURS CONDITIONNEL */}
               {aLeDroit("consulter_agenda_mediateurs") ? (
-                <Link href="/activites_types" className="group bg-slate-900 border border-slate-800 rounded-3xl p-6 hover:border-amber-500/50 shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px]">
+                <Link href="/agenda" className="group bg-slate-900 border border-slate-800 rounded-3xl p-6 hover:border-amber-500/50 shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px]">
                   <div className="bg-slate-950 border border-slate-800 w-16 h-16 rounded-2xl flex items-center justify-center mb-5 group-hover:bg-amber-600 group-hover:border-amber-500 group-hover:shadow-[0_0_20px_rgba(245,158,11,0.4)] transition-all duration-300">
                     <CalendarDaysIcon className="w-7 h-7 text-amber-400 group-hover:text-white" />
                   </div>
