@@ -19,7 +19,9 @@ import {
   XMarkIcon,
   ArrowLeftStartOnRectangleIcon,
   ShieldCheckIcon,
-  LockClosedIcon // Importation du cadenas pour les vues restreintes
+  LockClosedIcon, // Importation du cadenas pour les vues restreintes
+  WrenchScrewdriverIcon, // Icône pour Bilan Tech
+  MapPinIcon // Importation de l'icône pour Rendez-vous par lieu
 } from "@heroicons/react/24/outline";
 
 export default function HomePage() {
@@ -218,6 +220,45 @@ export default function HomePage() {
                   </p>
                 </Link>
 
+                {/* RENDEZ-VOUS PAR LIEUX */}
+                <Link href="/rendez-vous-par-lieu" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-rose-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95 bg-gradient-to-b from-slate-950 to-rose-950/10">
+                  <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-rose-600 transition-all">
+                    <MapPinIcon className="w-4 h-4 text-rose-400 group-hover:text-white" />
+                  </div>
+                  <h2 className="text-[11px] font-black uppercase tracking-wide text-white group-hover:text-rose-400 transition-colors">
+                    Rendez-vous par lieu
+                  </h2>
+                  <p className="text-[9px] text-slate-400 font-medium mt-1 leading-relaxed">
+                    Consulter et planifier les rendez-vous selon les lieux
+                  </p>
+                </Link>
+
+                {/* FICHE BILAN */}
+                <Link href="/fiches-bilans" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-blue-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95 bg-gradient-to-b from-slate-950 to-blue-950/10">
+                  <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-blue-600 transition-all">
+                    <ClipboardDocumentCheckIcon className="w-4 h-4 text-blue-400 group-hover:text-white" />
+                  </div>
+                  <h2 className="text-[11px] font-black uppercase tracking-wide text-white group-hover:text-blue-400 transition-colors">
+                    Fiche Bilan
+                  </h2>
+                  <p className="text-[9px] text-slate-400 font-medium mt-1 leading-relaxed">
+                    Accéder aux fiches de synthèses et bilans
+                  </p>
+                </Link>
+
+                {/* BILAN TECH */}
+                <Link href="/bilan_tech" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-amber-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95 bg-gradient-to-b from-slate-950 to-amber-950/10">
+                  <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-amber-600 transition-all">
+                    <WrenchScrewdriverIcon className="w-4 h-4 text-amber-400 group-hover:text-white" />
+                  </div>
+                  <h2 className="text-[11px] font-black uppercase tracking-wide text-white group-hover:text-amber-400 transition-colors">
+                    Bilan Tech
+                  </h2>
+                  <p className="text-[9px] text-slate-400 font-medium mt-1 leading-relaxed">
+                    Effectuer et suivre les bilans techniques
+                  </p>
+                </Link>
+
                 {/* SUIVI DES COLLECTES TECH */}
                 <Link href="/suivi-collecte" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-purple-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95 bg-gradient-to-b from-slate-950 to-purple-950/10">
                   <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-purple-600 transition-all">
@@ -344,7 +385,7 @@ export default function HomePage() {
                   </p>
                 </Link>
 
-                {/* VOLUME HORAIRE - Replacé correctement au même niveau */}
+                {/* VOLUME HORAIRE */}
                 <Link href="/volume-horaire" className="group bg-slate-950 border border-slate-850 rounded-2xl p-5 hover:border-blue-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                   <div className="bg-slate-900 border border-slate-800 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:bg-blue-600 transition-all">
                     <ClockIcon className="w-5 h-5 text-blue-400 group-hover:text-white" />
