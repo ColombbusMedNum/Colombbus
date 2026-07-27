@@ -120,7 +120,7 @@ export default function StatsMediateursAnalytique() {
           <span className="text-slate-600">/</span>
           <span className="text-slate-300 font-medium">Synthèse analytique par médiateur</span>
         </div>
-        <Link href="/activites_types" className="bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 px-3 py-1.5 rounded-md text-xs font-medium transition-colors">
+        <Link href="/agenda" className="bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 px-3 py-1.5 rounded-md text-xs font-medium transition-colors">
           Retour à l'Agenda
         </Link>
       </header>
