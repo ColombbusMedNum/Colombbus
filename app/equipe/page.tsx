@@ -382,7 +382,7 @@ export default function GestionEquipe() {
           </Link>
 
           <Link 
-            href="/activites_types" 
+            href="/agenda" 
             className="flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-500 text-white px-5 py-3 rounded-xl font-black uppercase text-xs tracking-widest transition-all cursor-pointer flex-1 md:flex-none"
           >
             <CalendarDaysIcon className="w-5 h-5" /> 
