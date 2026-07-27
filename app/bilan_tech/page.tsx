@@ -6,6 +6,9 @@ import { db } from "../../lib/firebase";
 import { 
   collection, 
   getDocs, 
+  doc,
+  setDoc,
+  addDoc,
   query, 
   orderBy, 
   where, 
@@ -21,7 +24,13 @@ import {
   ClipboardDocumentCheckIcon,
   PencilSquareIcon,
   UserGroupIcon,
-  BuildingOfficeIcon
+  BuildingOfficeIcon,
+  ClockIcon,
+  PlusIcon,
+  CheckIcon,
+  TrashIcon,
+  XMarkIcon,
+  FolderOpenIcon
 } from "@heroicons/react/24/outline";
 
 interface CompetencePix {
@@ -57,6 +66,13 @@ function RapportDiagnosticPixContent() {
   const [selectedBeneficiaireId, setSelectedBeneficiaireId] = useState<string>("");
   const [selectedLieuId, setSelectedLieuId] = useState<string>("");
 
+  // ÉTATS HISTORIQUE ET FICHE COURANTE
+  const [historiqueFiches, setHistoriqueFiches] = useState<any[]>([]);
+  const [selectedFicheId, setSelectedFicheId] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [formData, setFormData] = useState({
@@ -88,9 +104,45 @@ function RapportDiagnosticPixContent() {
     }
   }, [formData.commentaireDiag]);
 
+  // Récupérer l'historique (Firestore + Fallback LocalStorage si hors ligne / dev local)
+  const chargerHistoriqueFiches = async (userId: string) => {
+    let docs: any[] = [];
+    
+    // 1. Essai Firestore
+    try {
+      const fichesRef = collection(db, "utilisateurs", userId, "fiches_bilan");
+      const q = query(fichesRef, orderBy("dateMiseAJour", "desc"));
+      const snap = await getDocs(q);
+      docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+      console.warn("Firestore non accessible, chargement depuis le LocalStorage local.");
+    }
+
+    // 2. Repli / Fusion avec LocalStorage pour le dev local
+    const localData = localStorage.getItem(`fiches_bilan_${userId}`);
+    if (localData) {
+      try {
+        const parsedLocal = JSON.parse(localData);
+        // On fusionne les fiches locales si elles n'existent pas déjà
+        parsedLocal.forEach((lf: any) => {
+          if (!docs.some(d => d.id === lf.id)) {
+            docs.push(lf);
+          }
+        });
+      } catch (e) {
+        console.error("Erreur de lecture du LocalStorage", e);
+      }
+    }
+
+    docs.sort((a, b) => new Date(b.dateMiseAJour).getTime() - new Date(a.dateMiseAJour).getTime());
+    setHistoriqueFiches(docs);
+    return docs;
+  };
+
   // Chargement des infos d'un bénéficiaire
   const chargerDonneesBeneficiaire = async (targetId: string, list: any[]) => {
     setSelectedBeneficiaireId(targetId);
+    setSelectedFicheId("");
 
     const b = list.find(item => item.id === targetId);
     if (b) {
@@ -100,44 +152,144 @@ function RapportDiagnosticPixContent() {
         prenom: b.Prénom || ""
       }));
 
-      try {
-        const visitesRef = collection(db, "utilisateurs", targetId, "visites");
-        const snapshot = await getDocs(visitesRef);
+      const fiches = await chargerHistoriqueFiches(targetId);
 
-        const diagDoc = snapshot.docs
-          .map(d => ({ id: d.id, ...d.data() } as any))
-          .filter(v => v.moment === "Diagnostic Initial" || v.moment === "Collecte Tech")
-          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      if (fiches.length > 0) {
+        appliquerFiche(fiches[0]);
+      } else {
+        try {
+          const visitesRef = collection(db, "utilisateurs", targetId, "visites");
+          const snapshot = await getDocs(visitesRef);
 
-        if (diagDoc) {
-          let scoreObtenu = 0;
-          let totalMax = 44;
+          const diagDoc = snapshot.docs
+            .map(d => ({ id: d.id, ...d.data() } as any))
+            .filter(v => v.moment === "Diagnostic Initial" || v.moment === "Collecte Tech")
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
 
-          if (diagDoc.score) {
-            const parts = String(diagDoc.score).split("/");
-            scoreObtenu = parseInt(parts[0].trim(), 10) || 0;
-            if (parts[1]) {
-              totalMax = parseInt(parts[1].trim(), 10) || totalMax;
+          if (diagDoc) {
+            let scoreObtenu = 0;
+            let totalMax = 44;
+
+            if (diagDoc.score) {
+              const parts = String(diagDoc.score).split("/");
+              scoreObtenu = parseInt(parts[0].trim(), 10) || 0;
+              if (parts[1]) {
+                totalMax = parseInt(parts[1].trim(), 10) || totalMax;
+              }
+            } else if (diagDoc.satisfaction) {
+              const scoreNode = typeof diagDoc.satisfaction === "object" 
+                ? diagDoc.satisfaction.evaluationGlobale 
+                : diagDoc.satisfaction;
+              scoreObtenu = Number(scoreNode) || 0;
             }
-          } else if (diagDoc.satisfaction) {
-            const scoreNode = typeof diagDoc.satisfaction === "object" 
-              ? diagDoc.satisfaction.evaluationGlobale 
-              : diagDoc.satisfaction;
-            scoreObtenu = Number(scoreNode) || 0;
-          }
 
-          setFormData(prev => ({
-            ...prev,
-            bonnesReponsesDiag: scoreObtenu,
-            totalQuestionsDiag: totalMax,
-            dateDiagnostic: diagDoc.date || prev.dateDiagnostic,
-            commentaireDiag: diagDoc.details || prev.commentaireDiag
-          }));
+            setFormData(prev => ({
+              ...prev,
+              bonnesReponsesDiag: scoreObtenu,
+              totalQuestionsDiag: totalMax,
+              dateDiagnostic: diagDoc.date || prev.dateDiagnostic,
+              commentaireDiag: diagDoc.details || prev.commentaireDiag
+            }));
+          }
+          setCompetences(DEFAULT_COMPETENCES);
+        } catch (error) {
+          console.error("Erreur lors de la récupération du diagnostic :", error);
         }
-      } catch (error) {
-        console.error("Erreur lors de la récupération du diagnostic :", error);
       }
     }
+  };
+
+  const appliquerFiche = (fiche: any) => {
+    setSelectedFicheId(fiche.id);
+    if (fiche.formData) {
+      setFormData(fiche.formData);
+    }
+    if (fiche.competences && Array.isArray(fiche.competences)) {
+      setCompetences(fiche.competences);
+    }
+  };
+
+  // Sauvegarder dans Firestore + LocalStorage
+  const handleSaveFiche = async () => {
+    if (!selectedBeneficiaireId) {
+      alert("Veuillez d'abord sélectionner un bénéficiaire.");
+      return;
+    }
+
+    setSaving(true);
+    const newId = selectedFicheId || `fiche_local_${Date.now()}`;
+    const payload = {
+      id: newId,
+      formData,
+      competences,
+      dateMiseAJour: new Date().toISOString(),
+      titre: `Bilan du ${formData.dateAbcPix || new Date().toISOString().split("T")[0]}`
+    };
+
+    // 1. Sauvegarde LocalStorage
+    try {
+      const localKey = `fiches_bilan_${selectedBeneficiaireId}`;
+      const localExistants = JSON.parse(localStorage.getItem(localKey) || "[]");
+      const index = localExistants.findIndex((f: any) => f.id === newId);
+      if (index >= 0) {
+        localExistants[index] = payload;
+      } else {
+        localExistants.push(payload);
+      }
+      localStorage.setItem(localKey, JSON.stringify(localExistants));
+    } catch (e) {
+      console.error("Erreur d'enregistrement local", e);
+    }
+
+    // 2. Sauvegarde Firestore
+    try {
+      const fichesRef = collection(db, "utilisateurs", selectedBeneficiaireId, "fiches_bilan");
+      if (selectedFicheId && !selectedFicheId.startsWith("fiche_local_")) {
+        await setDoc(doc(db, "utilisateurs", selectedBeneficiaireId, "fiches_bilan", selectedFicheId), payload, { merge: true });
+      } else {
+        const docAdded = await addDoc(fichesRef, payload);
+        payload.id = docAdded.id;
+      }
+    } catch (error) {
+      console.warn("Firestore non accessible, enregistrement gardé localement.", error);
+    }
+
+    setSelectedFicheId(payload.id);
+    await chargerHistoriqueFiches(selectedBeneficiaireId);
+
+    setSaveSuccess(true);
+    setSaving(false);
+    setTimeout(() => setSaveSuccess(false), 3000);
+  };
+
+  const handleSupprimerFiche = async (ficheId: string) => {
+    if (!confirm("Voulez-vous vraiment supprimer cette fiche de l'historique ?")) return;
+
+    // Supprimer du LocalStorage
+    const localKey = `fiches_bilan_${selectedBeneficiaireId}`;
+    const localExistants = JSON.parse(localStorage.getItem(localKey) || "[]");
+    const filtrés = localExistants.filter((f: any) => f.id !== ficheId);
+    localStorage.setItem(localKey, JSON.stringify(filtrés));
+
+    // Réactualiser l'historique
+    await chargerHistoriqueFiches(selectedBeneficiaireId);
+    if (selectedFicheId === ficheId) {
+      setSelectedFicheId("");
+    }
+  };
+
+  const handleNouvelleFiche = () => {
+    setSelectedFicheId("");
+    setCompetences(DEFAULT_COMPETENCES);
+    setFormData(prev => ({
+      ...prev,
+      dateDiagnostic: new Date().toISOString().split("T")[0],
+      dateAbcPix: new Date().toISOString().split("T")[0],
+      bonnesReponsesDiag: 0,
+      niveauObserve: "Niveau débutant",
+      commentaireDiag: "",
+      commentaireObservations: ""
+    }));
   };
 
   useEffect(() => {
@@ -181,6 +333,8 @@ function RapportDiagnosticPixContent() {
       chargerDonneesBeneficiaire(targetId, listeBeneficiaires);
     } else {
       setSelectedBeneficiaireId("");
+      setHistoriqueFiches([]);
+      setSelectedFicheId("");
       setFormData(prev => ({ ...prev, nom: "", prenom: "" }));
     }
   };
@@ -222,11 +376,13 @@ function RapportDiagnosticPixContent() {
             Fiche de Diagnostic & ABC PIX
           </h1>
           <p className="text-xs text-slate-400">
-            Sélectionnez le bénéficiaire et le lieu d'intervention dans la base de données.
+            Sélectionnez un bénéficiaire et gérez l'historique de ses bilans.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          
+          {/* Sélection du bénéficiaire */}
           <div className="relative flex items-center">
             <UserGroupIcon className="w-4 h-4 text-emerald-400 absolute left-3 pointer-events-none" />
             <select
@@ -246,31 +402,141 @@ function RapportDiagnosticPixContent() {
             </select>
           </div>
 
+          {/* Sélection du lieu */}
           <div className="relative flex items-center">
             <BuildingOfficeIcon className="w-4 h-4 text-emerald-400 absolute left-3 pointer-events-none" />
             <select
               value={selectedLieuId}
               onChange={handleSelectLieu}
-              className="bg-slate-950 text-slate-200 border border-slate-700 text-xs font-bold rounded-xl pl-9 pr-4 py-2.5 outline-none focus:border-emerald-500 transition-all cursor-pointer max-w-[220px] truncate"
+              className="bg-slate-950 text-slate-200 border border-slate-700 text-xs font-bold rounded-xl pl-9 pr-4 py-2.5 outline-none focus:border-emerald-500 transition-all cursor-pointer max-w-[160px] truncate"
             >
-              <option value="">-- Choisir un lieu --</option>
+              <option value="">-- Lieu --</option>
               {listeLieux.map(l => (
                 <option key={l.id} value={l.id}>
-                  {l.nomRaccourci || l.nomComplet} ({l.localisation})
+                  {l.nomRaccourci || l.nomComplet}
                 </option>
               ))}
             </select>
           </div>
 
+          {/* BOUTON HISTORIQUE (MODALE) */}
+          {selectedBeneficiaireId && (
+            <button
+              onClick={() => setShowHistoryModal(true)}
+              className="flex items-center gap-2 bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-300 px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer relative"
+            >
+              <ClockIcon className="w-4 h-4 text-indigo-400" />
+              <span>Historique ({historiqueFiches.length})</span>
+            </button>
+          )}
+
+          {/* BOUTON ENREGISTRER */}
+          <button
+            onClick={handleSaveFiche}
+            disabled={saving || !selectedBeneficiaireId}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg ${
+              saveSuccess 
+                ? "bg-emerald-600 text-white" 
+                : "bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40"
+            }`}
+          >
+            {saveSuccess ? <CheckIcon className="w-4 h-4" /> : <PlusIcon className="w-4 h-4" />}
+            <span>{saving ? "Sauvegarde..." : saveSuccess ? "Enregistré !" : "Enregistrer la fiche"}</span>
+          </button>
+
+          {/* BOUTON IMPRIMER */}
           <button
             onClick={handlePrint}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-emerald-950"
+            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-3.5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer border border-slate-700"
           >
-            <PrinterIcon className="w-4 h-4" />
-            <span>Imprimer / PDF</span>
+            <PrinterIcon className="w-4 h-4 text-emerald-400" />
+            <span>Imprimer</span>
           </button>
         </div>
       </div>
+
+      {/* MODALE D'HISTORIQUE DE COMPÉTENCES */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl relative space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-black uppercase text-white flex items-center gap-2">
+                <ClockIcon className="w-5 h-5 text-indigo-400" />
+                Historique des fiches bilans
+              </h3>
+              <button 
+                onClick={() => setShowHistoryModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex justify-between items-center bg-slate-950 p-3 rounded-xl border border-slate-800">
+              <span className="text-xs text-slate-400">Bénéficiaire : <strong className="text-white">{formData.prenom} {formData.nom}</strong></span>
+              <button
+                onClick={() => {
+                  handleNouvelleFiche();
+                  setShowHistoryModal(false);
+                }}
+                className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+              >
+                <PlusIcon className="w-3.5 h-3.5" /> Nouvelle fiche vierge
+              </button>
+            </div>
+
+            <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+              {historiqueFiches.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-6">Aucune fiche enregistrée pour le moment.</p>
+              ) : (
+                historiqueFiches.map((f) => (
+                  <div 
+                    key={f.id} 
+                    className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                      selectedFicheId === f.id 
+                        ? "bg-indigo-950/60 border-indigo-500/80 text-white" 
+                        : "bg-slate-950/40 border-slate-800 hover:border-slate-700 text-slate-300"
+                    }`}
+                  >
+                    <div 
+                      className="flex-1"
+                      onClick={() => {
+                        appliquerFiche(f);
+                        setShowHistoryModal(false);
+                      }}
+                    >
+                      <div className="text-xs font-bold flex items-center gap-2">
+                        <FolderOpenIcon className="w-4 h-4 text-indigo-400" />
+                        {f.titre || "Fiche Bilan"}
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">
+                        Mis à jour le : {new Date(f.dateMiseAJour).toLocaleString("fr-FR")}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleSupprimerFiche(f.id)}
+                      className="text-slate-600 hover:text-rose-400 p-1.5 transition-colors"
+                      title="Supprimer la fiche"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="pt-2 text-right">
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2 rounded-xl"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* DOCUMENT IMPRIMABLE */}
       <div className="max-w-5xl mx-auto bg-slate-900 border-2 border-slate-800 rounded-3xl p-6 md:p-10 shadow-2xl space-y-8 print:bg-white print:text-black print:border-none print:shadow-none print:p-0">
