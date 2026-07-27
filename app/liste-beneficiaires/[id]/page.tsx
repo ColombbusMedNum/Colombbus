@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { db } from "../../../lib/firebase";
+import { db } from "@/lib/firebase";
 import { 
   doc, 
   collection, 
@@ -81,7 +81,8 @@ interface Mediateur {
 
 interface LieuGlobal {
   id: string;
-  nom: string;
+  nomCourt: string;
+  nomComplet: string;
 }
 
 export default function FicheBeneficiaire() {
@@ -96,11 +97,8 @@ export default function FicheBeneficiaire() {
   
   const [listeMediateurs, setListeMediateurs] = useState<Mediateur[]>([]);
   
-  // Gestion des lieux
+  // Gestion des lieux depuis la collection "liste_lieux"
   const [lieuxGlobaux, setLieuxGlobaux] = useState<LieuGlobal[]>([]);
-  const [isNouveauLieu, setIsNouveauLieu] = useState(false);
-  const [isEditingLieu, setIsEditingLieu] = useState(false);
-  const [editLieuNom, setEditLieuNom] = useState("");
 
   // Pop-up Profil
   const [isModalProfilOpen, setIsModalProfilOpen] = useState(false);
@@ -125,8 +123,7 @@ export default function FicheBeneficiaire() {
   const [formData, setFormData] = useState({
     mediateur: "", 
     thematique: "Accès aux droits",
-    lieu: "Structure Principale",
-    nouveauLieuStructure: "",
+    lieu: "",
     details: "",
     satisfaction: "5",
     dateChoisie: aujourdhuiStr,
@@ -139,7 +136,7 @@ export default function FicheBeneficiaire() {
     totalPresents: 0, tauxAssiduite: 100, satisfactionMoyenne: 0, thematiquePhare: "—"
   });
 
-  // Liste des thématiques nécessitant une évaluation (multiples de 5 rendez-vous présents)
+  // Liste des thématiques nécessitant une évaluation
   const [thematiquesAAlerter, setThematiquesAAlerter] = useState<string[]>([]);
 
   const isProfilIncomplet = user ? (!user.Téléphone || !user.email || !user.Situation_Socio_Pro) : false;
@@ -186,7 +183,7 @@ export default function FicheBeneficiaire() {
     return () => unsubEquipe();
   }, []);
 
-  // Écoute Profil, Visites & Lieux Globaux
+  // Écoute Profil, Visites & Lieux Globaux (depuis "liste_lieux")
   useEffect(() => {
     if (!userId) return;
 
@@ -223,13 +220,32 @@ export default function FicheBeneficiaire() {
       setRdvs(rdvList);
     });
 
-    // 3. Écoute de la liste des lieux GLOBALE
-    const unsubLieux = onSnapshot(collection(db, "lieux"), (snap) => {
-      const lieuxEnregistres = snap.docs.map(d => ({
-        id: d.id,
-        nom: d.data().nom as string
-      }));
+    // 3. Écoute de la liste des lieux depuis la collection "liste_lieux"
+    const unsubLieux = onSnapshot(collection(db, "liste_lieux"), (snap) => {
+      const lieuxEnregistres = snap.docs
+        .map(d => {
+          const data = d.data();
+          const raccourci = (data.nomRaccourci || data.nomCourt || data.nom || d.id) as string;
+          const complet = (data.nomComplet || data.nom || raccourci) as string;
+          const estActif = data.actif !== false;
+
+          return {
+            id: d.id,
+            nomCourt: raccourci,
+            nomComplet: complet,
+            actif: estActif
+          };
+        })
+        .filter(l => l.actif);
+
       setLieuxGlobaux(lieuxEnregistres);
+
+      if (lieuxEnregistres.length > 0) {
+        setFormData(prev => ({
+          ...prev,
+          lieu: prev.lieu || lieuxEnregistres[0].nomCourt
+        }));
+      }
     });
 
     return () => { 
@@ -238,16 +254,6 @@ export default function FicheBeneficiaire() {
       unsubLieux(); 
     };
   }, [userId]);
-
-  const tousLesLieuxVisibles = [
-    "Structure Principale", 
-    "À distance", 
-    "À domicile", 
-    "92 - Collecte Tech",
-    ...lieuxGlobaux.map(l => l.nom)
-  ];
-
-  const lieuSelectionneFirebase = lieuxGlobaux.find(l => l.nom === formData.lieu);
 
   // Calcul stats et alertes thématiques
   useEffect(() => {
@@ -284,7 +290,6 @@ export default function FicheBeneficiaire() {
     const keys = Object.keys(compteurs);
     const topThematique = keys.length === 0 ? "—" : keys.reduce((a, b) => compteurs[a] > compteurs[b] ? a : b);
     
-    // L'alerte permanente s'affiche si le compteur est un multiple de 5 (5, 10, 15...)
     const alertes = keys.filter(thematique => compteurs[thematique] > 0 && compteurs[thematique] % 5 === 0);
     
     setThematiquesAAlerter(alertes);
@@ -310,23 +315,11 @@ export default function FicheBeneficiaire() {
     } catch (error) { setModalStatus("❌ Erreur"); }
   };
 
-  const handleUpdateLieuGlobal = async () => {
-    if (!lieuSelectionneFirebase || !editLieuNom.trim()) return;
-    try {
-      const lieuRef = doc(db, "lieux", lieuSelectionneFirebase.id);
-      await updateDoc(lieuRef, { nom: editLieuNom.trim() });
-      setFormData(prev => ({ ...prev, lieu: editLieuNom.trim() }));
-      setIsEditingLieu(false);
-    } catch (error) {
-      console.error("Erreur modification lieu:", error);
-    }
-  };
-
   const handleAddRDV = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userExists) return alert("Créez d'abord le profil.");
     
-    let lieuFinal = isNouveauLieu ? formData.nouveauLieuStructure.trim() : formData.lieu;
+    let lieuFinal = formData.lieu;
     if (formData.momentChoisi === "Collecte Tech") {
       lieuFinal = "92 - Collecte Tech";
     }
@@ -334,14 +327,6 @@ export default function FicheBeneficiaire() {
     if (!lieuFinal || !formData.mediateur) return alert("Champs obligatoires manquants.");
 
     try {
-      if (isNouveauLieu && formData.nouveauLieuStructure.trim()) {
-        await addDoc(collection(db, "lieux"), {
-          nom: lieuFinal,
-          createdAt: serverTimestamp()
-        });
-      }
-
-      // 1. Enregistrement de la visite
       await addDoc(collection(db, "utilisateurs", userId, "visites"), {
         mediateur: formData.mediateur,
         thematique: formData.statut === "Absent" ? "" : formData.thematique,
@@ -354,7 +339,6 @@ export default function FicheBeneficiaire() {
         createdAt: serverTimestamp()
       });
 
-      // 2. Si le moment choisi est "Collecte Tech", on met à jour également le profil principal
       if (formData.momentChoisi === "Collecte Tech") {
         await updateDoc(doc(db, "utilisateurs", userId), {
           Lieu_RDV: "92 - Collecte Tech",
@@ -362,7 +346,6 @@ export default function FicheBeneficiaire() {
         });
       }
 
-      // --- LOGIQUE D'ALERTE : DIAGNOSTIC TOUTES LES 5 VISITES ---
       if (formData.statut === "Présent" && formData.thematique) {
         const visitesMemeThematique = rdvs.filter(
           r => r.statut === "Présent" && 
@@ -381,17 +364,14 @@ export default function FicheBeneficiaire() {
           }
         }
       }
-      // --------------------------------------------------------
 
       setFormData(prev => ({ 
         ...prev, 
         details: "", 
         satisfaction: "5", 
         statut: "Présent", 
-        nouveauLieuStructure: "",
         lieu: formData.momentChoisi === "Collecte Tech" ? "92 - Collecte Tech" : lieuFinal
       }));
-      setIsNouveauLieu(false);
     } catch (error) { console.error(error); }
   };
 
@@ -638,36 +618,36 @@ export default function FicheBeneficiaire() {
                 </div>
 
                 <div>
-                  <div className="flex justify-between mb-1">
+                  <div className="flex justify-between items-center mb-1">
                     <label className="text-[10px] font-bold text-slate-400 uppercase">Lieu de la rencontre</label>
-                    <div className="flex items-center gap-2">
-                      {!isNouveauLieu && lieuSelectionneFirebase && !isEditingLieu && (
-                        <button type="button" onClick={() => { setIsEditingLieu(true); setEditLieuNom(formData.lieu); }} className="text-[9px] text-amber-500 font-bold underline uppercase">✏️ Corriger ce lieu</button>
-                      )}
-                      <button type="button" onClick={() => { setIsNouveauLieu(!isNouveauLieu); setIsEditingLieu(false); }} className="text-[9px] text-emerald-400 font-bold underline uppercase">
-                        {isNouveauLieu ? "Choisir existant" : "+ Nouveau lieu"}
-                      </button>
-                    </div>
+                    <Link 
+                      href="/localisations" 
+                      className="text-[9px] text-emerald-400 font-bold underline uppercase hover:text-emerald-300 transition-colors"
+                    >
+                      + Ajouter un lieu
+                    </Link>
                   </div>
 
-                  {isNouveauLieu ? (
-                    <input type="text" value={formData.nouveauLieuStructure} onChange={e => setFormData({...formData, nouveauLieuStructure: e.target.value})} className={inputClass} placeholder="Nom du nouveau lieu..." required />
-                  ) : isEditingLieu ? (
-                    <div className="flex gap-1">
-                      <input type="text" value={editLieuNom} onChange={e => setEditLieuNom(e.target.value)} className={`${inputClass} flex-1`} required />
-                      <button type="button" onClick={handleUpdateLieuGlobal} className="p-2 bg-emerald-500 text-slate-950 rounded-xl"><CheckIcon className="w-4 h-4 stroke-[3]" /></button>
-                      <button type="button" onClick={() => setIsEditingLieu(false)} className="p-2 bg-slate-800 text-slate-400 rounded-xl"><XMarkIcon className="w-4 h-4" /></button>
-                    </div>
-                  ) : (
-                    <select 
-                      value={formData.momentChoisi === "Collecte Tech" ? "92 - Collecte Tech" : formData.lieu} 
-                      disabled={formData.momentChoisi === "Collecte Tech"}
-                      onChange={e => setFormData({...formData, lieu: e.target.value})} 
-                      className={`${inputClass} disabled:opacity-60 disabled:cursor-not-allowed`}
-                    >
-                      {tousLesLieuxVisibles.map((l, idx) => <option key={idx} value={l}>{l}</option>)}
-                    </select>
-                  )}
+                  {/* DÉROULANTE LIEU AVEC LE CHAMP nomRaccourci */}
+                  <select 
+                    value={formData.momentChoisi === "Collecte Tech" ? "92 - Collecte Tech" : formData.lieu} 
+                    disabled={formData.momentChoisi === "Collecte Tech"}
+                    onChange={e => setFormData({...formData, lieu: e.target.value})} 
+                    className={`${inputClass} disabled:opacity-60 disabled:cursor-not-allowed`}
+                  >
+                    {formData.momentChoisi === "Collecte Tech" && (
+                      <option value="92 - Collecte Tech">92 - Collecte Tech</option>
+                    )}
+                    {lieuxGlobaux.length === 0 ? (
+                      <option value="">Aucun lieu disponible</option>
+                    ) : (
+                      lieuxGlobaux.map((l) => (
+                        <option key={l.id} value={l.nomCourt}>
+                          {l.nomCourt}
+                        </option>
+                      ))
+                    )}
+                  </select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -710,7 +690,7 @@ export default function FicheBeneficiaire() {
                   </div>
                 )}
 
-                <button type="submit" disabled={isEditingLieu} className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-slate-950 font-bold py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg">
+                <button type="submit" className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-slate-950 font-bold py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg">
                   Enregistrer l'action
                 </button>
               </form>
@@ -793,13 +773,22 @@ export default function FicheBeneficiaire() {
                             <td className="py-3 px-2 max-w-[200px]">
                               {isEditing && editFormData ? (
                                 <div className="space-y-1">
-                                  <input 
-                                    type="text" 
+                                  {/* ÉDITION LIEU AVEC LE CHAMP nomRaccourci */}
+                                  <select 
                                     value={editFormData.moment === "Collecte Tech" ? "92 - Collecte Tech" : editFormData.lieu} 
                                     disabled={editFormData.moment === "Collecte Tech"}
                                     onChange={e => setEditFormData({...editFormData, lieu: e.target.value})} 
-                                    className="bg-slate-950 border border-slate-700 text-[11px] p-1 rounded text-white outline-none w-full disabled:opacity-60" 
-                                  />
+                                    className="bg-slate-950 border border-slate-700 text-[11px] p-1 rounded text-white outline-none w-full disabled:opacity-60"
+                                  >
+                                    {lieuxGlobaux.map((l) => (
+                                      <option key={l.id} value={l.nomCourt}>
+                                        {l.nomCourt}
+                                      </option>
+                                    ))}
+                                    {editFormData.lieu && !lieuxGlobaux.some(l => l.nomCourt === editFormData.lieu) && (
+                                      <option value={editFormData.lieu}>{editFormData.lieu}</option>
+                                    )}
+                                  </select>
                                   {editFormData.statut === "Présent" && (
                                     <textarea value={editFormData.details} onChange={e => setEditFormData({...editFormData, details: e.target.value})} rows={2} className="bg-slate-950 border border-slate-700 text-[11px] p-1 rounded text-white outline-none w-full resize-none" />
                                   )}
@@ -903,11 +892,28 @@ export default function FicheBeneficiaire() {
                             {diag.thematique && <p className="text-[11px] text-slate-500 mt-1">Axe évalué : <span className="text-slate-300 font-medium">{diag.thematique}</span></p>}
                           </div>
 
-                          <div className="w-full sm:w-auto text-left sm:text-right">
+                          <div className="w-full sm:w-auto text-left sm:text-right flex items-center justify-end gap-3">
+                            {/* Bouton Bilan Tech présent uniquement si la carte est "Collecte Tech" */}
+                            {diag.moment === "Collecte Tech" && (
+                              <Link 
+  href={`/bilan_tech?id=${userId}`}
+  target="_blank"
+  rel="noopener noreferrer"
+  className="inline-flex items-center gap-1.5 bg-teal-600 hover:bg-teal-500 text-white text-[11px] font-bold uppercase tracking-wider px-3 py-2 rounded-xl transition-all shadow-md shrink-0"
+>
+  <ClipboardDocumentCheckIcon className="w-4 h-4 shrink-0" />
+  <span>Bilan Tech</span>
+</Link>
+                            )}
+
                             {diag.score ? (
-                              <div className="bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg inline-block">
-                                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">Score / Résultat</span>
-                                <span className="text-sm font-black text-purple-400 font-mono">{diag.score}</span>
+                              <div className="bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg inline-block text-center">
+                                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">
+                                  Score / Résultat
+                                </span>
+                                <span className="text-sm font-black text-purple-400 font-mono">
+                                  {diag.score}
+                                </span>
                               </div>
                             ) : exactSatisfactionNode ? (
                               <div className="text-xs font-bold text-amber-400 bg-amber-950/20 border border-amber-900/50 px-2.5 py-1 rounded-lg inline-block">
