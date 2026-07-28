@@ -261,7 +261,7 @@ export default function PlanningSuresnes() {
           <div className="flex items-center gap-3">
             <div className="h-9 w-1 bg-emerald-500 rounded-full"></div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-white">Suresnes — Relais Numérique</h1>
+              <h1 className="text-xl font-bold tracking-tight text-white">Suresnes — Rencontres Numériques</h1>
               <p className="text-xs text-slate-500 font-medium">Suivi des rendez-vous, thématiques et présence des médiateurs</p>
             </div>
           </div>
