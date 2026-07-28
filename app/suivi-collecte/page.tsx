@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { db } from "../../lib/firebase";
-import { collection, onSnapshot, doc, updateDoc, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, doc, updateDoc, getDocs, addDoc } from "firebase/firestore";
 import { ChevronLeftIcon, ArrowDownTrayIcon, UserGroupIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 
@@ -121,10 +121,43 @@ export default function SuiviCollecteTech() {
   };
 
   const handleToggleStep = async (id: string, field: keyof BeneficiaireCollecte, currentVal: boolean) => {
+    const newVal = !currentVal;
+
     try {
-      await updateDoc(doc(db, "utilisateurs", id), { [field]: !currentVal });
+      // 1. Mise à jour de l'état dans Firestore
+      await updateDoc(doc(db, "utilisateurs", id), { [field]: newVal });
+
+      // 2. Traitement si la case "devis" passe à true
+      if (field === "devis" && newVal) {
+        const beneficiaire = beneficiaires.find((b) => b.id === id);
+
+        if (beneficiaire) {
+          const dateJour = new Date().toLocaleDateString("fr-FR");
+          const messageNotif = `📄 Demande de devis : La case devis a été cochée pour ${beneficiaire.prenom} ${beneficiaire.nom} (Tel: ${beneficiaire.telephone} / Email: ${beneficiaire.email}).`;
+
+          // A. Ajout dans la collection "notifications" de l'application
+          await addDoc(collection(db, "notifications"), {
+            message: messageNotif,
+            createdAt: Date.now(),
+            lue: false,
+            destinataireEmail: "ct92-mednum@colombbus.org",
+            type: "devis_collecte"
+          });
+
+          // B. Envoi d'un email en arrière-plan via l'API interne
+          fetch("/api/send-email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              to: "ct92-mednum@colombbus.org",
+              subject: `[Collecte Tech] Demande de devis - ${beneficiaire.prenom} ${beneficiaire.nom}`,
+              text: `Bonjour,\n\nLa case 'Devis' a été cochée le ${dateJour} pour le bénéficiaire suivant :\n\n- Nom : ${beneficiaire.nom}\n- Prénom : ${beneficiaire.prenom}\n- Téléphone : ${beneficiaire.telephone}\n- Email : ${beneficiaire.email}\n- Année : ${beneficiaire.annee}\n\nMerci de prendre en charge cette demande.`
+            })
+          }).catch((err) => console.error("Erreur d'envoi d'email :", err));
+        }
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Erreur lors de la mise à jour :", err);
     }
   };
 
