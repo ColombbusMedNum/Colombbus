@@ -241,6 +241,7 @@ function FichesBilansContent() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+          
             <Link
               href={`/fiches-bilans/historique?lieu=${encodeURIComponent(lieuSelectionne)}&mois=${moisSelectionne}`}
               className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg"
@@ -320,19 +321,17 @@ function FichesBilansContent() {
                     idx > 0 ? "print:break-before-page" : ""
                   }`}
                 >
-                  {/* EN-TÊTE DU DOCUMENT IMPRIMABLE AVEC LOGOS */}
-                  <div className="border-b-2 border-slate-800 print:border-slate-300 pb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
-                    <div className="flex items-center gap-4 bg-white/95 p-2.5 rounded-2xl shadow-sm print:bg-transparent print:p-0 print:shadow-none">
+                  {/* EN-TÊTE DU DOCUMENT IMPRIMABLE AVEC LOGOS ET TITRE CENTRÉ */}
+                  <div className="border-b-2 border-slate-800 print:border-slate-300 pb-6 flex flex-col items-center gap-4 text-center">
+                    <div className="w-full bg-white/95 p-2.5 rounded-2xl shadow-sm print:bg-transparent print:p-0 print:shadow-none flex justify-center">
                       <img 
                         src="/logos/residence.png" 
                         alt="Logo Colombbus" 
-                        className="h-12 w-auto object-contain"
+                        className="w-full h-auto max-h-28 object-contain"
                       />
-                      <div className="h-10 w-[1px] bg-slate-300" />
-                      
                     </div>
 
-                    <div className="text-center sm:text-right">
+                    <div>
                       <h2 className="text-2xl font-black uppercase tracking-tight text-white print:text-black">
                         Fiche Bilan Mensuelle
                       </h2>
@@ -465,7 +464,7 @@ function FichesBilansContent() {
                   <div className="hidden print:flex pt-6 border-t border-slate-300 justify-between items-end text-xs">
                     <div>
                       <p className="text-[10px] text-slate-500 font-mono">
-                        Fiche générée le {new Date().toLocaleDateString("fr-FR")} — Association Colombbus
+                        
                       </p>
                     </div>
                     <div className="w-56 text-right space-y-8">

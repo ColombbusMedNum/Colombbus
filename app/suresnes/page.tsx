@@ -729,6 +729,15 @@ function UsagerInput({ docId, initialValue, beneficiairesListe }: { docId: strin
               setValue(label); setIsModalOpen(false);
             } catch(err) { console.error(err); }
           }} className="bg-slate-900 border border-slate-800 p-5 rounded-2xl w-full max-w-xs space-y-4 shadow-2xl">
+            
+            {/* BANDEAU ROUGE D'ALERTE */}
+            <div className="bg-red-950/80 border border-red-600/80 rounded-xl p-3 text-red-200 text-xs flex items-center gap-2.5 shadow-inner">
+              <ExclamationTriangleIcon className="w-5 h-5 shrink-0 text-red-500" />
+              <span className="font-bold leading-tight">
+                La personne habite t'elle Suresnes ?
+              </span>
+            </div>
+
             <h3 className="font-bold text-sm text-white">Nouveau bénéficiaire</h3>
             <input placeholder="Prénom" value={newPrenom} className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white" required onChange={e => setNewPrenom(e.target.value)} />
             <input placeholder="Nom" value={newNom} className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white" required onChange={e => setNewNom(e.target.value)} />
@@ -743,8 +752,8 @@ function UsagerInput({ docId, initialValue, beneficiairesListe }: { docId: strin
             </div>
 
             <div className="flex gap-2 pt-1">
-              <button type="submit" className="flex-1 bg-emerald-600 text-white py-1.5 rounded-xl text-xs font-bold cursor-pointer">Créer</button>
-              <button type="button" onClick={() => setIsModalOpen(false)} className="text-slate-400 text-xs px-2 cursor-pointer">Annuler</button>
+              <button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-colors">Créer</button>
+              <button type="button" onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white text-xs px-2 cursor-pointer transition-colors">Annuler</button>
             </div>
           </form>
         </div>

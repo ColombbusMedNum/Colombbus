@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { db } from "../../lib/firebase";
+import Link from "next/link";
 import { 
   collection, 
   getDocs, 
@@ -30,7 +31,8 @@ import {
   CheckIcon,
   TrashIcon,
   XMarkIcon,
-  FolderOpenIcon
+  FolderOpenIcon,
+  ChevronLeftIcon
 } from "@heroicons/react/24/outline";
 
 interface CompetencePix {
@@ -452,6 +454,15 @@ function RapportDiagnosticPixContent() {
             <PrinterIcon className="w-4 h-4 text-emerald-400" />
             <span>Imprimer</span>
           </button>
+
+          {/* BOUTON RETOUR TABLEAU DE BORD */}
+          <Link 
+            href="/" 
+            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-3.5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer border border-slate-700"
+          >
+            <ChevronLeftIcon className="w-4 h-4 text-emerald-400" />
+            <span>Tableau de bord</span>
+          </Link>
         </div>
       </div>
 
