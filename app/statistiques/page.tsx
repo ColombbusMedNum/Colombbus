@@ -3,8 +3,15 @@
 import React, { useState, useEffect } from "react";
 import { db } from "../../lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
-import { UserIcon, ChartBarIcon, ClockIcon } from "@heroicons/react/24/outline";
+import { UserIcon, ChartBarIcon, ClockIcon, ArrowLeftIcon, CalendarDaysIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
+import { Quicksand } from "next/font/google";
+
+// Police Quicksand pour toute la page
+const quicksand = Quicksand({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
 
 export default function StatsMediateursAnalytique() {
   const [actions, setActions] = useState<any[]>([]);
@@ -123,34 +130,57 @@ export default function StatsMediateursAnalytique() {
   const totalHeuresGlobal = analyticsSummary.reduce((acc, curr) => acc + curr.totalHeures, 0);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-6 pt-[75px]">
+    <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
       
-      <header className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-5 py-3 border-b border-slate-800 bg-slate-950">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="text-lg tracking-tight text-white hover:opacity-80 transition-opacity font-bold">
-            Accueil
-          </Link>
-          <span className="text-slate-600">/</span>
-          <span className="text-slate-300 font-medium">Ma Synthèse analytique</span>
-        </div>
-        <Link href="/agenda" className="bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 px-3 py-1.5 rounded-md text-xs font-medium transition-colors">
-          Retour à l'Agenda
-        </Link>
-      </header>
+      {/* HALO LUMINEUX AMBIANT */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
 
-      <div className="max-w-4xl mx-auto space-y-6 mt-4">
+      <div className="max-w-5xl mx-auto relative z-10 space-y-6">
         
+        {/* EN-TÊTE & NAVIGATION */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-4 border-b border-[#404040]/10">
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
+            <div>
+              <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
+                Synthèse <span className="text-[#EA601F] font-semibold">analytique</span>
+              </h1>
+              <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
+                Suivi et audit du volume horaire par code analytique
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap gap-2">
+            <Link 
+              href="/" 
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+            >
+              <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Accueil</span>
+            </Link>
+
+            <Link 
+              href="/agenda" 
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md active:scale-95 group"
+            >
+              <CalendarDaysIcon className="w-4 h-4 transition-transform group-hover:scale-110" />
+              <span>Agenda</span>
+            </Link>
+          </div>
+        </div>
+
         {/* BANDEAU DE SELECTION ET FILTRE ASSOCIE */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-blue-600/10 rounded-lg text-blue-500 border border-blue-500/20">
+            <div className="p-3 bg-[#005259]/10 rounded-xl text-[#005259] border border-[#005259]/20">
               <UserIcon className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+              <h2 className="text-xs font-bold text-[#005259] uppercase tracking-wider">
                 {userRole === "admin" ? "Analyse de Profil (Mode Admin)" : "Mon Espace Analytique"}
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-[#404040]/70 font-medium">
                 {userRole === "admin" 
                   ? "Sélectionnez un profil pour auditer la répartition de ses heures." 
                   : "Consultez le récapitulatif de vos heures par code analytique."}
@@ -164,7 +194,7 @@ export default function StatsMediateursAnalytique() {
               <select
                 value={selectedMedId}
                 onChange={(e) => setSelectedMedId(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white font-medium outline-none focus:border-slate-700 transition-colors cursor-pointer"
+                className="w-full px-3 py-2.5 bg-[#F3F3F2] border border-[#404040]/15 rounded-xl text-xs font-bold text-[#404040] outline-none focus:border-[#005259] focus:ring-1 focus:ring-[#005259] transition-all cursor-pointer"
               >
                 <option value="" disabled>-- Sélectionner un médiateur --</option>
                 <option value="all">Tous les médiateurs</option>
@@ -176,8 +206,8 @@ export default function StatsMediateursAnalytique() {
               </select>
             </div>
           ) : (
-            // Si c'est un Médiateur, on affiche juste un petit badge sécurisé discret
-            <div className="px-4 py-2 bg-slate-950 border border-slate-850 rounded-xl text-xs font-mono text-emerald-400 font-semibold shadow-inner">
+            // Si c'est un Médiateur, on affiche un petit badge sécurisé
+            <div className="px-4 py-2 bg-[#F3F3F2] border border-[#404040]/10 rounded-xl text-xs font-mono text-[#005259] font-semibold shadow-inner">
               🔒 Compte connecté : {userEmail}
             </div>
           )}
@@ -187,46 +217,46 @@ export default function StatsMediateursAnalytique() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
             {/* FICHE INDIVIDUELLE */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4 self-start">
+            <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 space-y-4 self-start shadow-sm">
               <div>
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Fiche Médiateur</h3>
-                <div className="text-lg font-bold text-white">{currentMediateur.prenom} {currentMediateur.nom?.toUpperCase()}</div>
-                <div className="text-xs text-blue-400 font-mono font-medium mt-0.5">{currentMediateur.poste || "Médiateur Social"}</div>
+                <h3 className="text-[10px] font-bold text-[#404040]/60 uppercase tracking-widest mb-2">Fiche Médiateur</h3>
+                <div className="text-lg font-bold uppercase tracking-tight text-[#005259]">{currentMediateur.prenom} {currentMediateur.nom?.toUpperCase()}</div>
+                <div className="text-xs text-[#EA601F] font-mono font-bold mt-0.5">{currentMediateur.poste || "Médiateur Social"}</div>
               </div>
 
-              <div className="pt-3 border-t border-slate-800/60 grid grid-cols-2 gap-2">
+              <div className="pt-3 border-t border-[#404040]/10 grid grid-cols-2 gap-2">
                 <div>
-                  <span className="block text-[10px] text-slate-500 uppercase font-mono">Statut</span>
-                  <span className="text-xs font-semibold text-slate-300">{currentMediateur.statut || "Permanent"}</span>
+                  <span className="block text-[10px] text-[#404040]/60 uppercase font-bold tracking-wider">Statut</span>
+                  <span className="text-xs font-bold text-[#404040]">{currentMediateur.statut || "Permanent"}</span>
                 </div>
                 {currentMediateur.sitePrincipal && (
                   <div>
-                    <span className="block text-[10px] text-slate-500 uppercase font-mono">Site Principal</span>
-                    <span className="text-xs font-semibold text-slate-300">{currentMediateur.sitePrincipal}</span>
+                    <span className="block text-[10px] text-[#404040]/60 uppercase font-bold tracking-wider">Site Principal</span>
+                    <span className="text-xs font-bold text-[#404040]">{currentMediateur.sitePrincipal}</span>
                   </div>
                 )}
               </div>
 
-              <div className="pt-4 border-t border-slate-800/60 bg-slate-950/40 -mx-5 -mb-5 p-5 rounded-b-xl flex items-center justify-between">
+              <div className="pt-4 border-t border-[#404040]/10 bg-[#F3F3F2] -mx-5 -mb-5 p-5 rounded-b-2xl flex items-center justify-between border-b border-x border-[#404040]/5">
                 <div className="flex items-center gap-2">
-                  <ClockIcon className="w-4 h-4 text-emerald-500" />
-                  <span className="text-xs text-slate-400 font-medium">Volume total :</span>
+                  <ClockIcon className="w-4 h-4 text-[#EA601F]" />
+                  <span className="text-xs text-[#005259] font-bold uppercase tracking-wider">Volume total :</span>
                 </div>
-                <div className="text-lg font-black text-emerald-400 font-mono">
+                <div className="text-xl font-black text-[#005259] font-mono">
                   {totalHeuresGlobal.toFixed(1)}h
                 </div>
               </div>
             </div>
 
             {/* GRAPHIQUE ANALYTIQUE */}
-            <div className="md:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-800/60">
-                <ChartBarIcon className="w-4 h-4 text-slate-400" />
-                <h3 className="text-sm font-semibold text-slate-200">Total d'heures par code analytique</h3>
+            <div className="md:col-span-2 bg-white border border-[#404040]/10 rounded-2xl p-5 space-y-4 shadow-sm">
+              <div className="flex items-center gap-2 pb-3 border-b border-[#404040]/10">
+                <ChartBarIcon className="w-4 h-4 text-[#005259]" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#005259]">Total d'heures par code analytique</h3>
               </div>
 
               {analyticsSummary.length === 0 ? (
-                <div className="text-center py-12 text-xs text-slate-500 font-medium">
+                <div className="text-center py-12 text-xs text-[#404040]/60 font-bold uppercase tracking-wider">
                   Aucune mission ou activité enregistrée sur l'agenda.
                 </div>
               ) : (
@@ -239,30 +269,32 @@ export default function StatsMediateursAnalytique() {
                       <div key={item.code} className="space-y-1.5">
                         <div className="flex items-center justify-between text-xs">
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 ${
+                            <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider shrink-0 border ${
                               isSansCode 
-                                ? "bg-slate-950 text-slate-500 border border-slate-800" 
-                                : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                                ? "bg-[#F3F3F2] text-[#404040]/60 border-[#404040]/20" 
+                                : "bg-[#005259]/10 text-[#005259] border-[#005259]/20"
                             }`}>
                               {isSansCode ? "N/A" : item.code}
                             </span>
-                            <span className="text-slate-300 truncate font-medium">
+                            <span className="text-[#404040] truncate font-semibold">
                               {item.label}
                             </span>
                           </div>
                           
-                          <div className="text-right shrink-0 font-mono font-bold text-slate-200 pl-2">
+                          <div className="text-right shrink-0 font-mono font-bold text-[#005259] pl-2">
                             {item.totalHeures.toFixed(1)}h 
-                            <span className="text-[10px] text-slate-500 font-normal ml-1">
+                            <span className="text-[10px] text-[#404040]/60 font-normal ml-1">
                               ({pourcentage.toFixed(0)}%)
                             </span>
                           </div>
                         </div>
 
-                        <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800/40">
+                        <div className="w-full bg-[#F3F3F2] rounded-full h-2.5 overflow-hidden border border-[#404040]/10">
                           <div 
                             className={`h-full rounded-full transition-all duration-500 ${
-                              isSansCode ? "bg-slate-700" : "bg-gradient-to-r from-blue-600 to-indigo-500"
+                              isSansCode 
+                                ? "bg-[#404040]/30" 
+                                : "bg-gradient-to-r from-[#EA601F] to-[#EF736A]"
                             }`}
                             style={{ width: `${pourcentage}%` }}
                           ></div>
@@ -276,7 +308,7 @@ export default function StatsMediateursAnalytique() {
 
           </div>
         ) : (
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-12 text-center text-xs text-slate-500 font-medium">
+          <div className="bg-white border border-[#404040]/10 rounded-2xl p-12 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60 shadow-sm">
             Aucun profil de médiateur ne correspond à votre adresse e-mail.
           </div>
         )}

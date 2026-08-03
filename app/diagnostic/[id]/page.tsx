@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { db } from "@/lib/firebase"; 
 import { doc, getDoc, collection, addDoc } from "firebase/firestore";
 import Link from "next/link";
+import { Quicksand } from "next/font/google";
 import { 
   ArrowLeftIcon, 
   CheckCircleIcon, 
@@ -13,8 +14,15 @@ import {
   FaceSmileIcon,
   ChevronRightIcon,
   ChevronLeftIcon,
-  WrenchScrewdriverIcon
+  WrenchScrewdriverIcon,
+  XMarkIcon
 } from "@heroicons/react/24/outline";
+
+// Police Quicksand identique à la liste bénéficiaires
+const quicksand = Quicksand({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
 
 // --- RÉFÉRENTIEL DES QUESTIONS DU QCM (BUREAUTIQUE STANDARD) ---
 const QUESTIONS_BUREAUTIQUE = [
@@ -103,7 +111,6 @@ export default function FormulaireDiagnostic() {
   const isModeQCMClassic = typeQuestionnaire === "Initial" || typeQuestionnaire === "Final";
   const isModeCollecteTech = typeQuestionnaire === "CollecteTech";
 
-  // Calcul ultra-sécurisé du nombre total de questions selon le mode choisi
   let totalQuestions = 0;
   if (isModeQCMClassic) totalQuestions = QUESTIONS_BUREAUTIQUE.length;
   if (isModeCollecteTech) totalQuestions = QUESTIONS_COLLECTE_TECH.length;
@@ -118,13 +125,20 @@ export default function FormulaireDiagnostic() {
       ? reponsesCollecte[QUESTIONS_COLLECTE_TECH[currentQuestionIndex]?.id] !== undefined
       : false;
 
-  // Fonction de démarrage pour réinitialiser les index proprement
   const handleDemarrer = () => {
     setCurrentQuestionIndex(0);
     if (isModeCollecteTech) setReponsesCollecte({});
     if (isModeQCMClassic) setReponsesQCM({});
     setCommentairesPerso("");
     setEtape(2);
+  };
+
+  const handleAnnulerOuRetour = () => {
+    if (idUsager) {
+      router.push(`/liste-beneficiaires/${idUsager}`);
+    } else {
+      router.push("/liste-beneficiaires");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -220,32 +234,66 @@ export default function FormulaireDiagnostic() {
     }
   };
 
-  if (!idUsager) return <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center text-xs">Erreur : Aucun bénéficiaire fourni dans l'URL.</div>;
-  if (!usager) return <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center text-xs">Chargement du profil usager...</div>;
+  if (!idUsager) {
+    return (
+      <div className={`${quicksand.className} min-h-screen bg-[#00383d] flex items-center justify-center text-[#F9C44E] font-bold tracking-widest text-xs uppercase antialiased`}>
+        Erreur : Aucun bénéficiaire fourni dans l'URL.
+      </div>
+    );
+  }
+
+  if (!usager) {
+    return (
+      <div className={`${quicksand.className} min-h-screen bg-[#00383d] flex items-center justify-center text-[#F9C44E] font-bold animate-pulse tracking-widest text-xs uppercase antialiased`}>
+        Chargement du profil usager...
+      </div>
+    );
+  }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 font-sans antialiased">
-      <div className="max-w-xl mx-auto">
-        
-        {/* EN-TÊTE */}
-        <div className="mb-6">
-          <Link href={`/liste-beneficiaires/${idUsager}`} className="inline-flex items-center gap-2 text-xs text-slate-400 hover:text-white transition-colors mb-4">
-            <ArrowLeftIcon className="w-3.5 h-3.5" />
-            <span>Retour au profil</span>
-          </Link>
+    <main className={`${quicksand.className} min-h-screen bg-[#00383d] text-slate-100 p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
+      
+      {/* HALO LUMINEUX AMBIANT */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#F9C44E]/5 blur-[120px] rounded-full pointer-events-none"></div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl flex justify-between items-center">
-            <div>
-              <span className="text-[9px] font-bold text-purple-400 uppercase tracking-widest bg-purple-950/40 border border-purple-900 px-2 py-0.5 rounded">
-                {typeQuestionnaire ? `Type : ${typeQuestionnaire}` : "Évaluation"}
-              </span>
-              <h1 className="text-base font-bold mt-1 text-white">
-                {usager.prenom} {usager.nom}
-              </h1>
+      <div className="max-w-xl mx-auto relative z-10">
+        
+        {/* EN-TÊTE DE NAVIGATION & INFORMATIONS USAGER */}
+        <div className="mb-6 space-y-4">
+          <div className="flex justify-between items-center">
+            <Link 
+              href={`/liste-beneficiaires/${idUsager}`}
+              className="inline-flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-[#F9C44E] transition-colors cursor-pointer uppercase tracking-wider"
+            >
+              <ArrowLeftIcon className="w-4 h-4 text-[#F9C44E]" />
+              <span>Retour au profil</span>
+            </Link>
+
+            <button 
+              type="button"
+              onClick={handleAnnulerOuRetour}
+              className="text-slate-400 hover:text-[#EF736A] p-1.5 rounded-xl bg-[#005259] hover:bg-[#005259]/80 border border-white/10 transition-all cursor-pointer"
+              title="Annuler et quitter"
+            >
+              <XMarkIcon className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="bg-[#005259] border border-[#404040]/40 rounded-2xl p-5 shadow-xl flex justify-between items-center">
+            <div className="flex items-center gap-4">
+              <div className="h-10 w-1 bg-[#F9C44E] rounded-full shadow-[0_0_15px_rgba(249,196,78,0.5)]"></div>
+              <div>
+                <span className="text-[10px] font-bold text-[#F9C44E] uppercase tracking-widest bg-[#00383d] border border-[#F9C44E]/30 px-2.5 py-0.5 rounded-full">
+                  {typeQuestionnaire ? `Type : ${typeQuestionnaire}` : "Évaluation Colombbus"}
+                </span>
+                <h1 className="text-lg font-bold mt-1 text-white uppercase tracking-tight">
+                  {usager.prenom} <span className="text-[#F9C44E]">{usager.nom}</span>
+                </h1>
+              </div>
             </div>
             {(isModeQCMClassic || isModeCollecteTech) && etape === 2 && totalQuestions > 0 && (
               <div className="text-right">
-                <span className="text-xs font-mono text-purple-400 font-bold bg-slate-950 px-2.5 py-1 rounded-md border border-slate-800">
+                <span className="text-xs font-bold text-[#00383d] bg-[#F9C44E] px-3 py-1 rounded-xl shadow-md">
                   {currentQuestionIndex + 1} / {totalQuestions}
                 </span>
               </div>
@@ -256,13 +304,14 @@ export default function FormulaireDiagnostic() {
         {/* FORMULAIRE ÉTAPE PAR ÉTAPE */}
         <form onSubmit={handleSubmit} className="space-y-4">
           
-          {/* ÉTAPE 1 : SÉLECTION DU QUESTIONNAIRE */}
+          {/* ÉTAPE 1 : CHOIX DU TYPE DE QUESTIONNAIRE */}
           {etape === 1 && (
-            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">
+            <div className="bg-[#005259] border border-[#404040]/40 rounded-2xl p-6 space-y-5 shadow-xl">
+              <label className="block text-xs font-bold uppercase tracking-widest text-[#F9C44E]">
                 Sélectionner le type d'évaluation
               </label>
-              <div className="grid grid-cols-1 gap-2.5">
+              
+              <div className="grid grid-cols-1 gap-3">
                 {[
                   { id: "Initial", label: "Auto-diagnostic initial (Début)", desc: "Évaluer le niveau initial de l'usager.", icon: AcademicCapIcon },
                   { id: "Final", label: "Auto-diagnostic final (Fin)", desc: "Mesurer les compétences acquises.", icon: ClipboardDocumentCheckIcon },
@@ -273,27 +322,35 @@ export default function FormulaireDiagnostic() {
                     key={t.id}
                     type="button"
                     onClick={() => setTypeQuestionnaire(t.id)}
-                    className={`flex items-center gap-3 p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    className={`flex items-center gap-3.5 p-4 rounded-xl border text-left transition-all cursor-pointer ${
                       typeQuestionnaire === t.id 
-                        ? "bg-purple-950/30 border-purple-600 ring-1 ring-purple-600" 
-                        : "bg-slate-950/40 border-slate-800 hover:border-slate-700"
+                        ? "bg-[#00383d] border-[#F9C44E] shadow-md ring-1 ring-[#F9C44E]/50" 
+                        : "bg-[#005259] border-white/10 hover:border-white/30 hover:bg-[#00383d]/40"
                     }`}
                   >
-                    <t.icon className={`w-5 h-5 ${typeQuestionnaire === t.id ? "text-purple-400" : "text-slate-500"}`} />
+                    <t.icon className={`w-5 h-5 ${typeQuestionnaire === t.id ? "text-[#F9C44E]" : "text-slate-400"}`} />
                     <div>
-                      <div className="text-xs font-bold text-slate-200">{t.label}</div>
-                      <div className="text-[10px] text-slate-500">{t.desc}</div>
+                      <div className={`text-xs font-bold uppercase tracking-wider ${typeQuestionnaire === t.id ? "text-[#F9C44E]" : "text-slate-200"}`}>{t.label}</div>
+                      <div className="text-[11px] text-slate-300 font-medium">{t.desc}</div>
                     </div>
                   </button>
                 ))}
               </div>
 
-              <div className="pt-2 flex justify-end">
+              <div className="pt-3 flex justify-between items-center border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={handleAnnulerOuRetour}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white border border-white/10 hover:bg-[#00383d] transition-all cursor-pointer uppercase tracking-wider"
+                >
+                  Annuler
+                </button>
+
                 <button
                   type="button"
                   disabled={!typeQuestionnaire}
                   onClick={handleDemarrer}
-                  className="bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all cursor-pointer"
+                  className="bg-[#F9945D] hover:bg-[#EF736A] text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all cursor-pointer shadow-lg disabled:opacity-30 uppercase tracking-wider"
                 >
                   Démarrer
                 </button>
@@ -301,14 +358,15 @@ export default function FormulaireDiagnostic() {
             </div>
           )}
 
-          {/* ÉTAPE 2 : QUESTIONNAIRE EN COURS */}
+          {/* ÉTAPE 2 : QUESTIONNAIRE EN ACTION */}
           {etape === 2 && (
             <div className="space-y-4">
               
+              {/* BARRE DE PROGRESSION */}
               {(isModeQCMClassic || isModeCollecteTech) && totalQuestions > 0 && (
-                <div className="w-full bg-slate-900 rounded-full h-1.5 border border-slate-800 overflow-hidden">
+                <div className="w-full bg-[#00383d] rounded-full h-2.5 border border-white/10 p-0.5 overflow-hidden shadow-inner">
                   <div 
-                    className="bg-gradient-to-r from-purple-600 to-indigo-500 h-1.5 transition-all duration-300" 
+                    className="bg-[#F9C44E] h-full transition-all duration-300 rounded-full shadow-[0_0_10px_rgba(249,196,78,0.5)]" 
                     style={{ width: `${progressionPourcentage}%` }}
                   />
                 </div>
@@ -321,22 +379,24 @@ export default function FormulaireDiagnostic() {
                     if (qIndex !== currentQuestionIndex) return null;
 
                     return (
-                      <div key={q.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl min-h-[250px] flex flex-col justify-between">
-                        <div className="space-y-3">
-                          <span className="text-[10px] font-bold text-purple-400 uppercase tracking-widest">Question en cours</span>
-                          <h2 className="text-sm font-bold text-white leading-relaxed">{q.question}</h2>
+                      <div key={q.id} className="bg-[#005259] border border-[#404040]/40 rounded-2xl p-6 space-y-5 shadow-xl min-h-[260px] flex flex-col justify-between">
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-bold text-[#F9C44E] uppercase tracking-widest bg-[#00383d] px-2.5 py-1 rounded border border-[#F9C44E]/30">
+                            Question en cours
+                          </span>
+                          <h2 className="text-sm font-bold text-white leading-relaxed pt-2">{q.question}</h2>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-2 pt-2">
+                        <div className="grid grid-cols-1 gap-2.5 pt-2">
                           {q.options.map((option) => {
                             const isSelected = reponsesQCM[q.id] === option;
                             return (
                               <label 
                                 key={option} 
-                                className={`flex items-center gap-3 p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                                className={`flex items-center gap-3 p-3.5 rounded-xl border text-xs cursor-pointer transition-all ${
                                   isSelected 
-                                    ? "bg-purple-950/20 border-purple-500 text-white font-semibold ring-1 ring-purple-500" 
-                                    : "bg-slate-950 border-slate-850 hover:bg-slate-900 text-slate-400"
+                                    ? "bg-[#00383d] border-[#F9C44E] text-[#F9C44E] font-bold ring-1 ring-[#F9C44E]/50 shadow-md" 
+                                    : "bg-[#005259] border-white/10 hover:bg-[#00383d]/40 text-slate-200"
                                 }`}
                               >
                                 <input 
@@ -344,7 +404,7 @@ export default function FormulaireDiagnostic() {
                                   name={q.id} 
                                   checked={isSelected}
                                   onChange={() => setReponsesQCM(prev => ({ ...prev, [q.id]: option }))}
-                                  className="text-purple-600 focus:ring-0 bg-slate-950 border-slate-800 w-4 h-4"
+                                  className="text-[#F9C44E] focus:ring-0 bg-[#00383d] border-white/20 w-4 h-4 accent-[#F9C44E]"
                                 />
                                 <span>{option}</span>
                               </label>
@@ -364,22 +424,24 @@ export default function FormulaireDiagnostic() {
                     if (qIndex !== currentQuestionIndex) return null;
 
                     return (
-                      <div key={q.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl min-h-[250px] flex flex-col justify-between">
-                        <div className="space-y-3">
-                          <span className="text-[10px] font-bold text-purple-400 uppercase tracking-widest">Évaluation Collect.Tech</span>
-                          <h2 className="text-sm font-bold text-white leading-relaxed">{q.question}</h2>
+                      <div key={q.id} className="bg-[#005259] border border-[#404040]/40 rounded-2xl p-6 space-y-5 shadow-xl min-h-[260px] flex flex-col justify-between">
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-bold text-[#F9C44E] uppercase tracking-widest bg-[#00383d] px-2.5 py-1 rounded border border-[#F9C44E]/30">
+                            Évaluation Collect.Tech
+                          </span>
+                          <h2 className="text-sm font-bold text-white leading-relaxed pt-2">{q.question}</h2>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-2 pt-2">
+                        <div className="grid grid-cols-1 gap-2.5 pt-2">
                           {q.options.map((option, idx) => {
                             const isSelected = reponsesCollecte[q.id] === option.points;
                             return (
                               <label 
                                 key={idx} 
-                                className={`flex items-center gap-3 p-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                                className={`flex items-center gap-3 p-3.5 rounded-xl border text-xs cursor-pointer transition-all ${
                                   isSelected 
-                                    ? "bg-purple-950/20 border-purple-500 text-white font-semibold ring-1 ring-purple-500" 
-                                    : "bg-slate-950 border-slate-850 hover:bg-slate-900 text-slate-400"
+                                    ? "bg-[#00383d] border-[#F9C44E] text-[#F9C44E] font-bold ring-1 ring-[#F9C44E]/50 shadow-md" 
+                                    : "bg-[#005259] border-white/10 hover:bg-[#00383d]/40 text-slate-200"
                                 }`}
                               >
                                 <input 
@@ -387,7 +449,7 @@ export default function FormulaireDiagnostic() {
                                   name={q.id} 
                                   checked={isSelected}
                                   onChange={() => setReponsesCollecte(prev => ({ ...prev, [q.id]: option.points }))}
-                                  className="text-purple-600 focus:ring-0 bg-slate-950 border-slate-800 w-4 h-4"
+                                  className="text-[#F9C44E] focus:ring-0 bg-[#00383d] border-white/20 w-4 h-4 accent-[#F9C44E]"
                                 />
                                 <span>{option.text}</span>
                               </label>
@@ -400,10 +462,10 @@ export default function FormulaireDiagnostic() {
                 </div>
               )}
 
-              {/* TEXTAREA DES OBSERVATIONS : CONDITION SÉCURISÉE AU MAXIMUM */}
+              {/* OBSERVATIONS DE FIN DE PARCOURS */}
               {(isModeQCMClassic || isModeCollecteTech) && totalQuestions > 0 && currentQuestionIndex === (totalQuestions - 1) && (
-                <div className="w-full bg-slate-900/40 border border-slate-800 rounded-xl p-4 mt-2 space-y-3">
-                  <label className="text-xs font-bold text-slate-300 block">
+                <div className="w-full bg-[#005259] border border-[#404040]/40 rounded-2xl p-5 space-y-3 shadow-xl">
+                  <label className="text-xs font-bold text-[#F9C44E] uppercase tracking-wider block">
                     Observations du conseiller (Optionnel)
                   </label>
                   <textarea
@@ -411,21 +473,21 @@ export default function FormulaireDiagnostic() {
                     onChange={(e) => setCommentairesPerso(e.target.value)}
                     placeholder="Ajoutez vos notes de suivi ici..."
                     rows={3}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-purple-600 transition-colors resize-none"
+                    className="w-full px-4 py-3 bg-[#00383d] border border-white/20 rounded-xl text-xs text-white placeholder-slate-400 outline-none focus:border-[#F9C44E] focus:ring-1 focus:ring-[#F9C44E] transition-all resize-none font-medium"
                   />
                 </div>
               )}
 
-              {/* BARRE DE NAVIGATION PRÉCÉDENT / SUIVANT */}
+              {/* CONTRÔLES DE NAVIGATION */}
               {(isModeQCMClassic || isModeCollecteTech) && totalQuestions > 0 && (
                 <div className="flex justify-between items-center pt-2">
                   <button
                     type="button"
                     disabled={currentQuestionIndex === 0}
                     onClick={() => setCurrentQuestionIndex(prev => prev - 1)}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white disabled:opacity-20 transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 text-xs font-bold text-slate-300 hover:text-[#F9C44E] disabled:opacity-30 transition-colors cursor-pointer uppercase tracking-wider"
                   >
-                    <ChevronLeftIcon className="w-4 h-4" />
+                    <ChevronLeftIcon className="w-4 h-4 text-[#F9C44E]" />
                     Précédent
                   </button>
 
@@ -434,7 +496,7 @@ export default function FormulaireDiagnostic() {
                       type="button"
                       disabled={!questionEnCoursA_Reponse}
                       onClick={() => setCurrentQuestionIndex(prev => prev + 1)}
-                      className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 hover:border-slate-700 text-white text-xs font-bold px-4 py-2 rounded-xl disabled:opacity-40 transition-all cursor-pointer shadow"
+                      className="flex items-center gap-1.5 bg-[#F9945D] hover:bg-[#EF736A] text-white text-xs font-bold px-5 py-2.5 rounded-xl disabled:opacity-30 transition-all cursor-pointer shadow-lg uppercase tracking-wider"
                     >
                       Suivant
                       <ChevronRightIcon className="w-4 h-4" />
@@ -443,19 +505,21 @@ export default function FormulaireDiagnostic() {
                 </div>
               )}
 
-              {/* BLOCK ENQUÊTE DE SATISFACTION */}
+              {/* SATISFACTION */}
               {typeQuestionnaire === "Satisfaction" && (
-                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 space-y-4 shadow-xl">
+                <div className="bg-[#005259] border border-[#404040]/40 rounded-2xl p-6 space-y-5 shadow-xl">
                   <div>
-                    <label className="text-xs font-bold text-slate-200 block">Appréciation globale des ateliers</label>
-                    <div className="flex gap-1.5 pt-2 justify-center">
+                    <label className="text-xs font-bold text-[#F9C44E] uppercase tracking-wider block">Appréciation globale des ateliers</label>
+                    <div className="flex gap-2 pt-3 justify-center">
                       {[1, 2, 3, 4, 5].map((num) => (
                         <button
                           key={num}
                           type="button"
                           onClick={() => setSatisfactionGlobale(num)}
-                          className={`w-9 h-9 rounded-xl border text-xs font-black transition-all ${
-                            satisfactionGlobale === num ? "bg-purple-600 border-purple-500 text-white" : "bg-slate-950 border-slate-850 text-slate-400"
+                          className={`w-10 h-10 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                            satisfactionGlobale === num 
+                              ? "bg-[#F9C44E] border-[#F9C44E] text-[#00383d] shadow-md" 
+                              : "bg-[#00383d] border-white/10 text-slate-200 hover:border-[#F9C44E]"
                           }`}
                         >
                           {num}
@@ -465,15 +529,17 @@ export default function FormulaireDiagnostic() {
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-200 block">Clarté des supports mémo</label>
-                    <div className="flex gap-1.5 pt-2 justify-center">
+                    <label className="text-xs font-bold text-[#F9C44E] uppercase tracking-wider block">Clarté des supports mémo</label>
+                    <div className="flex gap-2 pt-3 justify-center">
                       {[1, 2, 3, 4, 5].map((num) => (
                         <button
                           key={num}
                           type="button"
                           onClick={() => setSatisfactionSupports(num)}
-                          className={`w-9 h-9 rounded-xl border text-xs font-black transition-all ${
-                            satisfactionSupports === num ? "bg-purple-600 border-purple-500 text-white" : "bg-slate-950 border-slate-850 text-slate-400"
+                          className={`w-10 h-10 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                            satisfactionSupports === num 
+                              ? "bg-[#F9C44E] border-[#F9C44E] text-[#00383d] shadow-md" 
+                              : "bg-[#00383d] border-white/10 text-slate-200 hover:border-[#F9C44E]"
                           }`}
                         >
                           {num}
@@ -483,37 +549,47 @@ export default function FormulaireDiagnostic() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-200 block">Des suggestions ?</label>
+                    <label className="text-xs font-bold text-[#F9C44E] uppercase tracking-wider block">Des suggestions ?</label>
                     <textarea
                       value={suggestions}
                       onChange={(e) => setSuggestions(e.target.value)}
                       placeholder="Vos suggestions..."
                       rows={2}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none focus:border-slate-700 transition-colors resize-none"
+                      className="w-full px-4 py-3 bg-[#00383d] border border-white/20 rounded-xl text-xs text-white placeholder-slate-400 outline-none focus:border-[#F9C44E] focus:ring-1 focus:ring-[#F9C44E] transition-all resize-none font-medium"
                     />
                   </div>
                 </div>
               )}
 
-              {/* BOUTON D'ENREGISTREMENT FINAL : ENTIÈREMENT SÉCURISÉ */}
+              {/* BOUTON D'ENREGISTREMENT FINAL */}
               {(typeQuestionnaire === "Satisfaction" || (totalQuestions > 0 && currentQuestionIndex === (totalQuestions - 1))) && (
-                <div className="pt-4 border-t border-slate-900 flex justify-between items-center">
+                <div className="pt-4 border-t border-white/10 flex justify-between items-center">
                   <button
                     type="button"
                     onClick={() => { setEtape(1); setTypeQuestionnaire(""); }}
-                    className="text-xs font-medium text-slate-500 hover:text-white transition-colors cursor-pointer"
+                    className="text-xs font-bold text-slate-300 hover:text-[#F9C44E] transition-colors cursor-pointer uppercase tracking-wider"
                   >
                     Changer de type
                   </button>
                   
-                  <button
-                    type="submit"
-                    disabled={loading || ((isModeQCMClassic || isModeCollecteTech) && !questionEnCoursA_Reponse)}
-                    className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-emerald-950/20"
-                  >
-                    <CheckCircleIcon className="w-4 h-4" />
-                    <span>{loading ? "Enregistrement..." : "Terminer et Enregistrer"}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleAnnulerOuRetour}
+                      className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white border border-white/10 hover:bg-[#00383d] transition-all cursor-pointer uppercase tracking-wider"
+                    >
+                      Annuler
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={loading || ((isModeQCMClassic || isModeCollecteTech) && !questionEnCoursA_Reponse)}
+                      className="bg-[#F9945D] hover:bg-[#EF736A] disabled:opacity-30 text-white text-xs font-bold px-6 py-2.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-lg uppercase tracking-wider"
+                    >
+                      <CheckCircleIcon className="w-4 h-4" />
+                      <span>{loading ? "Enregistrement..." : "Terminer et Enregistrer"}</span>
+                    </button>
+                  </div>
                 </div>
               )}
 

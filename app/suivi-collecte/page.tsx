@@ -3,8 +3,14 @@
 import React, { useEffect, useState } from "react";
 import { db } from "../../lib/firebase";
 import { collection, onSnapshot, doc, updateDoc, getDocs, addDoc } from "firebase/firestore";
-import { ChevronLeftIcon, ArrowDownTrayIcon, UserGroupIcon } from "@heroicons/react/24/outline";
+import { ChevronLeftIcon, ArrowDownTrayIcon, UserGroupIcon, HomeIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
+import { Quicksand } from "next/font/google";
+
+const quicksand = Quicksand({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
 
 interface BeneficiaireCollecte {
   id: string;
@@ -185,71 +191,81 @@ export default function SuiviCollecteTech() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-slate-100 p-4 md:p-6 font-sans selection:bg-purple-500/30">
-      <div className="w-full max-w-[1600px] mx-auto">
+    <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
+      
+      {/* HALO LUMINEUX AMBIANT */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
+
+      <div className="w-full max-w-[1600px] mx-auto space-y-6 relative z-10">
         
-        {/* BARRE HAUTE */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 border-b border-slate-900 pb-4">
+        {/* BARRE HAUTE / ENTÊTE */}
+        <div className="bg-white p-5 rounded-2xl border border-[#404040]/10 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <Link href="/" className="inline-flex items-center gap-2 text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-widest mb-1 transition-colors">
-              <ChevronLeftIcon className="w-3.5 h-3.5" /> Tableau de bord
+            <Link 
+              href="/" 
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#F3F3F2] hover:bg-[#005259] hover:text-white text-[#005259] border border-[#404040]/15 rounded-xl transition-all text-xs font-bold uppercase tracking-wider mb-3 shadow-sm"
+            >
+              <HomeIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Tableau de bord</span>
             </Link>
-            <h1 className="text-lg md:text-xl font-black uppercase text-white tracking-tight">
-              Suivi <span className="bg-gradient-to-r from-teal-400 to-emerald-500 bg-clip-text text-transparent">IdF — 92 Collecte Tech</span>
+            <h1 className="text-xl md:text-2xl font-extrabold uppercase text-[#005259] tracking-tight flex items-center gap-2">
+              Suivi <span className="text-[#EA601F]">IdF — 92 Collecte Tech</span>
             </h1>
-            <p className="text-[11px] text-slate-500 font-medium">Tableau opérationnel filtré exclusivement sur la Collecte Tech (92)</p>
+            <p className="text-xs text-[#404040]/70 mt-1">Tableau opérationnel filtré exclusivement sur la Collecte Tech (92)</p>
           </div>
 
           <button 
             onClick={exportToCSV}
             disabled={beneficiaires.length === 0}
-            className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all shadow-lg cursor-pointer"
+            className="inline-flex items-center gap-2 bg-[#EA601F] hover:bg-[#005259] disabled:opacity-40 text-white font-bold text-xs uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-sm cursor-pointer disabled:cursor-not-allowed"
           >
-            <ArrowDownTrayIcon className="w-4 h-4 text-emerald-400" />
+            <ArrowDownTrayIcon className="w-4 h-4 text-white" />
             <span>Exporter au format Excel</span>
           </button>
         </div>
 
-        {/* AFFICHAGE DE LA GRILLE */}
+        {/* AFFICHAGE DE LA GRILLE DE SUIVI */}
         {loading ? (
-          <div className="text-center py-24 text-emerald-400 font-bold tracking-widest animate-pulse uppercase text-xs">Analyse des actions en cours...</div>
+          <div className="text-center py-24 text-[#005259] font-bold tracking-widest animate-pulse uppercase text-xs">
+            Analyse des actions en cours...
+          </div>
         ) : beneficiaires.length === 0 ? (
-          <div className="text-center py-16 border-2 border-dashed border-slate-900 rounded-2xl bg-slate-950/20 max-w-4xl mx-auto">
-            <UserGroupIcon className="w-8 h-8 text-slate-700 mx-auto mb-3" />
-            <p className="text-slate-500 text-xs font-mono">Aucun bénéficiaire avec une action enregistrée à "92 - Collecte Tech".</p>
+          <div className="text-center py-16 border-2 border-dashed border-[#404040]/20 rounded-2xl bg-white max-w-4xl mx-auto shadow-sm">
+            <UserGroupIcon className="w-8 h-8 text-[#404040]/40 mx-auto mb-3" />
+            <p className="text-[#404040]/70 text-xs font-bold">Aucun bénéficiaire avec une action enregistrée à "92 - Collecte Tech".</p>
           </div>
         ) : (
-          <div className="w-full bg-slate-950/40 border border-slate-900 rounded-2xl overflow-hidden shadow-2xl">
+          <div className="w-full bg-white border border-[#404040]/10 rounded-2xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse table-fixed min-w-[1500px]">
                 <thead>
-                  <tr className="bg-slate-900/60 text-[10px] font-black uppercase text-slate-400 border-b border-slate-800 tracking-wider">
+                  <tr className="bg-[#F3F3F2] text-[10px] font-bold uppercase text-[#005259] border-b border-[#404040]/10 tracking-wider">
                     <th className="p-3 w-24 pl-5">Année</th>
                     <th className="p-3 w-40">Nom</th>
                     <th className="p-3 w-40">Prénom</th>
                     <th className="p-3 w-44">Téléphone personnel</th>
                     <th className="p-3 w-52">Mail contact</th>
                     
-                    <th className="p-2 w-28 text-center text-[9px] bg-teal-950/20 border-l border-slate-900">Création Dossier DRIVE</th>
-                    <th className="p-2 w-24 text-center text-[9px] bg-teal-950/20">Test entrée Google Form</th>
-                    <th className="p-2 w-24 text-center text-[9px] bg-teal-950/20">Test sortie PIX</th>
-                    <th className="p-2 w-24 text-center text-[9px] bg-teal-950/20">Remise Attestation</th>
-                    <th className="p-2 w-20 text-center text-[9px] bg-orange-950/20 border-l border-slate-900">Devis</th>
-                    <th className="p-2 w-20 text-center text-[9px] bg-teal-950/20 border-l border-slate-900">Facture</th>
-                    <th className="p-2 w-24 text-center text-[9px] bg-teal-950/20">Décharge matériel</th>
-                    <th className="p-2 w-24 text-center text-[9px] bg-teal-950/20">Scan & Archivage</th>
+                    <th className="p-2 w-28 text-center text-[9px] border-l border-[#404040]/10">Création Dossier DRIVE</th>
+                    <th className="p-2 w-24 text-center text-[9px]">Test entrée Google Form</th>
+                    <th className="p-2 w-24 text-center text-[9px]">Test sortie PIX</th>
+                    <th className="p-2 w-24 text-center text-[9px]">Remise Attestation</th>
+                    <th className="p-2 w-20 text-center text-[9px] bg-[#EA601F]/10 text-[#EA601F] border-l border-[#404040]/10">Devis</th>
+                    <th className="p-2 w-20 text-center text-[9px] border-l border-[#404040]/10">Facture</th>
+                    <th className="p-2 w-24 text-center text-[9px]">Décharge matériel</th>
+                    <th className="p-2 w-24 text-center text-[9px]">Scan & Archivage</th>
                     
-                    <th className="p-3 w-80 border-l border-slate-900">Commentaires</th>
+                    <th className="p-3 w-80 border-l border-[#404040]/10">Commentaires</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-900 text-[12px] text-slate-300 font-medium">
+                <tbody className="divide-y divide-[#404040]/10 text-[12px] text-[#404040] font-medium">
                   {beneficiaires.map((b) => (
-                    <tr key={b.id} className="hover:bg-slate-900/30 transition-colors group">
-                      <td className="p-3 pl-5 font-mono text-xs text-slate-400">
+                    <tr key={b.id} className="hover:bg-[#F3F3F2]/60 transition-colors group">
+                      <td className="p-3 pl-5 text-xs">
                         <select
                           value={b.annee}
                           onChange={(e) => handleAnneeChange(b.id, e.target.value)}
-                          className="bg-slate-900/80 border border-slate-800 rounded px-1.5 py-0.5 text-slate-300 text-[11px] font-mono outline-none focus:border-teal-500 cursor-pointer"
+                          className="bg-[#F3F3F2] border border-[#404040]/15 rounded-lg px-2 py-1 text-[#005259] text-[11px] font-bold outline-none focus:border-[#005259] cursor-pointer"
                         >
                           <option value="2024">2024</option>
                           <option value="2025">2025</option>
@@ -258,44 +274,44 @@ export default function SuiviCollecteTech() {
                         </select>
                       </td>
 
-                      <td className="p-3 font-bold text-teal-400 uppercase truncate">
-                        <Link href={`/liste-beneficiaires/${b.id}`} className="hover:underline">
+                      <td className="p-3 font-bold text-[#005259] uppercase truncate">
+                        <Link href={`/liste-beneficiaires/${b.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
                           {b.nom}
                         </Link>
                       </td>
-                      <td className="p-3 text-white truncate">{b.prenom}</td>
-                      <td className="p-3 text-slate-400 font-mono text-xs">{b.telephone}</td>
-                      <td className="p-3 text-slate-400 truncate text-xs">{b.email}</td>
+                      <td className="p-3 text-[#404040] font-bold capitalize truncate">{b.prenom}</td>
+                      <td className="p-3 text-[#404040]/80 text-xs">{b.telephone}</td>
+                      <td className="p-3 text-[#404040]/80 truncate text-xs">{b.email}</td>
                       
                       {[
-                        { field: "creationDossier", color: "accent-teal-500", bg: "bg-teal-950/10" },
-                        { field: "testEntreeForm", color: "accent-teal-500", bg: "bg-teal-950/10" },
-                        { field: "testSortiePix", color: "accent-teal-500", bg: "bg-teal-950/10" },
-                        { field: "remiseAttestation", color: "accent-teal-500", bg: "bg-teal-950/10" },
-                        { field: "devis", color: "accent-orange-500", bg: "bg-orange-950/10" },
-                        { field: "facture", color: "accent-teal-500", bg: "bg-teal-950/10" },
-                        { field: "dechargeMateriel", color: "accent-teal-500", bg: "bg-teal-950/10" },
-                        { field: "scanArchivage", color: "accent-teal-500", bg: "bg-teal-950/10" }
+                        { field: "creationDossier", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
+                        { field: "testEntreeForm", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
+                        { field: "testSortiePix", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
+                        { field: "remiseAttestation", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
+                        { field: "devis", color: "accent-[#EA601F]", bg: "bg-[#EA601F]/5" },
+                        { field: "facture", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
+                        { field: "dechargeMateriel", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
+                        { field: "scanArchivage", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" }
                       ].map((cell) => {
                         const isChecked = b[cell.field as keyof BeneficiaireCollecte] as boolean;
                         return (
                           <td 
                             key={cell.field} 
-                            className={`p-2 text-center border-l border-slate-900/60 ${cell.bg} ${isChecked ? 'bg-emerald-500/5' : ''}`}
+                            className={`p-2 text-center border-l border-[#404040]/10 ${cell.bg} ${isChecked ? 'bg-[#A9E0C9]/30' : ''}`}
                           >
                             <label className="flex items-center justify-center w-full h-full cursor-pointer py-1">
                               <input 
                                 type="checkbox"
                                 checked={isChecked}
                                 onChange={() => handleToggleStep(b.id, cell.field as keyof BeneficiaireCollecte, isChecked)}
-                                className={`w-4 h-4 rounded border-slate-800 bg-slate-950 ${cell.color} transition-all cursor-pointer`}
+                                className={`w-4 h-4 rounded border-[#404040]/30 bg-white ${cell.color} transition-all cursor-pointer`}
                               />
                             </label>
                           </td>
                         );
                       })}
 
-                      <td className="p-2 border-l border-slate-900 text-[11px]" onClick={() => {
+                      <td className="p-2 border-l border-[#404040]/10 text-[11px]" onClick={() => {
                         if (editingCommentId !== b.id) {
                           setEditingCommentId(b.id);
                           setCommentValue(b.commentaires);
@@ -313,11 +329,11 @@ export default function SuiviCollecteTech() {
                                 handleSaveComment(b.id);
                               }
                             }}
-                            className="w-full bg-black border border-slate-700 text-white rounded p-2 text-[11px] outline-none min-h-[80px] font-mono focus:border-teal-500 resize-y"
+                            className="w-full bg-[#F3F3F2] border border-[#005259] text-[#404040] rounded-lg p-2 text-[11px] outline-none min-h-[80px] focus:ring-1 focus:ring-[#005259] resize-y"
                           />
                         ) : (
-                          <div className="w-full h-full min-h-[32px] cursor-pointer text-slate-400 font-sans whitespace-pre-wrap break-words hover:text-white transition-colors p-1">
-                            {b.commentaires || <span className="text-slate-700 font-light italic">Ajouter une note...</span>}
+                          <div className="w-full h-full min-h-[32px] cursor-pointer text-[#404040]/80 whitespace-pre-wrap break-words hover:text-[#005259] transition-colors p-1">
+                            {b.commentaires || <span className="text-[#404040]/40 italic">Ajouter une note...</span>}
                           </div>
                         )}
                       </td>

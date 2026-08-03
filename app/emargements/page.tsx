@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { db } from "../../lib/firebase";
 import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc } from "firebase/firestore";
 import Link from "next/link";
+import { Quicksand } from "next/font/google";
 import { 
   ArrowLeftIcon, 
   MapPinIcon, 
@@ -11,6 +12,11 @@ import {
   PlusIcon,
   TrashIcon
 } from "@heroicons/react/24/outline";
+
+const quicksand = Quicksand({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
 
 export default function EmargementsPage() {
   const [sites, setSites] = useState<any[]>([]);
@@ -68,32 +74,35 @@ export default function EmargementsPage() {
     }
   };
 
-  const inputClass = "w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white placeholder-slate-600 focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/60 outline-none transition-all";
+  const inputClass = "w-full bg-[#F3F3F2] text-[#404040] border border-[#404040]/15 rounded-xl p-3 text-xs font-bold placeholder-[#404040]/40 focus:border-[#005259] outline-none transition-all";
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans antialiased relative overflow-hidden">
+    <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
       
-      {/* EFFET LUMINEUX AMBIANT */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-cyan-500/5 blur-[100px] rounded-full pointer-events-none"></div>
+      {/* HALO LUMINEUX AMBIANT */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
 
-      <div className="max-w-3xl mx-auto relative z-10">
+      <div className="max-w-3xl mx-auto relative z-10 space-y-6">
         
         {/* EN-TÊTE AVEC RETOUR ACCUEIL & BOUTON AJOUTER */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-4">
             <Link 
               href="/" 
-              className="p-2.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:text-white rounded-xl text-slate-400 transition-all active:scale-95 shadow-md"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/15 rounded-xl text-[#005259] transition-all shadow-sm active:scale-95 text-xs font-bold uppercase tracking-wider"
+              title="Retour au Dashboard"
             >
-              <ArrowLeftIcon className="w-4 h-4" />
+              <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Retour</span>
             </Link>
+            
             <div className="flex items-center gap-3">
-              <div className="h-8 w-1 bg-cyan-500 rounded-full shadow-[0_0_15px_rgba(6,182,212,0.5)]"></div>
+              <div className="h-8 w-1 bg-[#EA601F] rounded-full"></div>
               <div>
-                <h1 className="text-2xl font-black text-white uppercase italic tracking-tight">
-                  Emargements <span className="text-cyan-400 not-italic font-light">et autres documents</span>
+                <h1 className="text-xl font-extrabold text-[#005259] uppercase tracking-tight">
+                  Émargements <span className="text-[#EA601F] font-light">et autres documents</span>
                 </h1>
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+                <p className="text-[10px] text-[#404040]/70 font-bold uppercase tracking-widest mt-0.5">
                   Accès direct aux registres Google Docs par structure
                 </p>
               </div>
@@ -102,37 +111,37 @@ export default function EmargementsPage() {
 
           <button
             onClick={() => setShowForm(!showForm)}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 border border-slate-800 hover:border-cyan-500/50 text-slate-300 hover:text-cyan-400 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md self-start sm:self-auto"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#005259] hover:bg-[#005259]/90 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-sm self-start sm:self-auto"
           >
-            <PlusIcon className="w-4 h-4" />
+            <PlusIcon className="w-4 h-4 text-[#EA601F]" />
             <span>{showForm ? "Fermer" : "Ajouter un document"}</span>
           </button>
         </div>
 
         {/* FORMULAIRE D'AJOUT DYNAMIQUE */}
         {showForm && (
-          <form onSubmit={handleAddSite} className="mb-8 p-5 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl space-y-4 animate-in fade-in slide-in-from-top-4 duration-200">
-            <h2 className="text-xs font-black uppercase tracking-widest text-cyan-400">Nouveau point d'émargement</h2>
+          <form onSubmit={handleAddSite} className="p-6 bg-white border border-[#404040]/10 rounded-3xl shadow-sm space-y-4 animate-in fade-in slide-in-from-top-4 duration-200">
+            <h2 className="text-xs font-extrabold uppercase tracking-widest text-[#005259]">Nouveau point d'émargement</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-tighter mb-1">Nom du Site *</label>
+                <label className="block text-[10px] font-bold text-[#005259] uppercase mb-1">Nom du Site *</label>
                 <input type="text" placeholder="Ex: Suresnes — Centre Principal" value={nomSite} onChange={(e) => setNomSite(e.target.value)} required className={inputClass} />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-tighter mb-1">Description / Précision</label>
+                <label className="block text-[10px] font-bold text-[#005259] uppercase mb-1">Description / Précision</label>
                 <input type="text" placeholder="Ex: Atelier numérique de l'après-midi" value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
               </div>
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-tighter mb-1">Lien Google Doc / Google Sheet *</label>
+              <label className="block text-[10px] font-bold text-[#005259] uppercase mb-1">Lien Google Doc / Google Sheet *</label>
               <input type="url" placeholder="https://docs.google.com/..." value={googleDocUrl} onChange={(e) => setGoogleDocUrl(e.target.value)} required className={inputClass} />
             </div>
 
             <div className="flex items-center justify-between pt-2">
-              <span className="text-[10px] text-slate-500 font-bold uppercase">{status}</span>
-              <button type="submit" className="bg-cyan-600 hover:bg-cyan-500 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer">
+              <span className="text-[10px] text-[#EA601F] font-bold uppercase">{status}</span>
+              <button type="submit" className="bg-[#EA601F] hover:bg-[#005259] text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm">
                 Enregistrer le document
               </button>
             </div>
@@ -144,18 +153,18 @@ export default function EmargementsPage() {
           {sites.map((site) => (
             <div 
               key={site.id}
-              className="p-5 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between gap-4 shadow-xl hover:border-cyan-500/20 transition-all duration-200 group"
+              className="p-5 bg-white border border-[#404040]/10 rounded-2xl flex items-center justify-between gap-4 shadow-sm hover:border-[#005259]/30 transition-all duration-200 group"
             >
               <div className="flex items-start gap-4 min-w-0">
-                <div className="p-2.5 bg-slate-950 border border-slate-800/80 rounded-xl text-cyan-400 shrink-0 group-hover:border-cyan-500/30 group-hover:shadow-[0_0_10px_rgba(6,182,212,0.2)] transition-all">
+                <div className="p-2.5 bg-[#F3F3F2] border border-[#404040]/10 rounded-xl text-[#005259] shrink-0 group-hover:bg-[#005259] group-hover:text-white transition-all">
                   <MapPinIcon className="w-5 h-5" />
                 </div>
                 
                 <div className="min-w-0">
-                  <h3 className="font-black text-base text-white uppercase italic tracking-tight group-hover:text-cyan-400 transition-colors truncate">
+                  <h3 className="font-extrabold text-base text-[#005259] uppercase tracking-tight truncate">
                     {site.nomSite}
                   </h3>
-                  <p className="text-xs text-slate-500 font-medium mt-1 leading-relaxed">
+                  <p className="text-xs text-[#404040]/70 font-medium mt-0.5 leading-relaxed">
                     {site.description}
                   </p>
                 </div>
@@ -165,7 +174,7 @@ export default function EmargementsPage() {
               <div className="flex items-center gap-2 shrink-0">
                 <button 
                   onClick={() => handleDeleteSite(site.id)}
-                  className="p-2 bg-slate-950 border border-slate-800 text-slate-600 hover:text-red-400 hover:border-red-950 rounded-xl transition-colors cursor-pointer"
+                  className="p-2.5 bg-[#F3F3F2] border border-[#404040]/10 text-[#404040]/50 hover:text-red-500 hover:border-red-200 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
                   title="Supprimer ce document"
                 >
                   <TrashIcon className="w-4 h-4" />
@@ -175,7 +184,7 @@ export default function EmargementsPage() {
                   href={site.googleDocUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-950 group-hover:bg-cyan-600 text-slate-400 group-hover:text-white text-[10px] font-black uppercase tracking-wider rounded-xl border border-slate-800 group-hover:border-cyan-500 transition-all shadow-sm"
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#F3F3F2] group-hover:bg-[#EA601F] text-[#005259] group-hover:text-white text-[10px] font-bold uppercase tracking-wider rounded-xl border border-[#404040]/15 group-hover:border-[#EA601F] transition-all shadow-sm"
                 >
                   <span className="hidden sm:inline">Ouvrir</span>
                   <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
@@ -186,7 +195,7 @@ export default function EmargementsPage() {
 
           {/* MESSAGE SI LISTE VIDE */}
           {sites.length === 0 && !status.includes("Ajout") && (
-            <div className="text-center py-16 border border-dashed border-slate-800 rounded-2xl text-xs font-bold uppercase tracking-widest text-slate-600">
+            <div className="text-center py-16 border border-dashed border-[#404040]/20 rounded-2xl text-xs font-bold uppercase tracking-widest text-[#404040]/50 bg-white/50">
               🔍 Aucun document configuré. Cliquez sur "Ajouter un document" ci-dessus.
             </div>
           )}

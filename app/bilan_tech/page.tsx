@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { db } from "../../lib/firebase";
 import Link from "next/link";
+import { Quicksand } from "next/font/google";
 import { 
   collection, 
   getDocs, 
@@ -32,8 +33,14 @@ import {
   TrashIcon,
   XMarkIcon,
   FolderOpenIcon,
-  ChevronLeftIcon
+  HomeIcon
 } from "@heroicons/react/24/outline";
+
+// Police Quicksand pour l'ensemble de la page
+const quicksand = Quicksand({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
 
 interface CompetencePix {
   id: string;
@@ -106,11 +113,10 @@ function RapportDiagnosticPixContent() {
     }
   }, [formData.commentaireDiag]);
 
-  // Récupérer l'historique (Firestore + Fallback LocalStorage si hors ligne / dev local)
+  // Récupérer l'historique
   const chargerHistoriqueFiches = async (userId: string) => {
     let docs: any[] = [];
     
-    // 1. Essai Firestore
     try {
       const fichesRef = collection(db, "utilisateurs", userId, "fiches_bilan");
       const q = query(fichesRef, orderBy("dateMiseAJour", "desc"));
@@ -120,12 +126,10 @@ function RapportDiagnosticPixContent() {
       console.warn("Firestore non accessible, chargement depuis le LocalStorage local.");
     }
 
-    // 2. Repli / Fusion avec LocalStorage pour le dev local
     const localData = localStorage.getItem(`fiches_bilan_${userId}`);
     if (localData) {
       try {
         const parsedLocal = JSON.parse(localData);
-        // On fusionne les fiches locales si elles n'existent pas déjà
         parsedLocal.forEach((lf: any) => {
           if (!docs.some(d => d.id === lf.id)) {
             docs.push(lf);
@@ -211,7 +215,6 @@ function RapportDiagnosticPixContent() {
     }
   };
 
-  // Sauvegarder dans Firestore + LocalStorage
   const handleSaveFiche = async () => {
     if (!selectedBeneficiaireId) {
       alert("Veuillez d'abord sélectionner un bénéficiaire.");
@@ -228,7 +231,6 @@ function RapportDiagnosticPixContent() {
       titre: `Bilan du ${formData.dateAbcPix || new Date().toISOString().split("T")[0]}`
     };
 
-    // 1. Sauvegarde LocalStorage
     try {
       const localKey = `fiches_bilan_${selectedBeneficiaireId}`;
       const localExistants = JSON.parse(localStorage.getItem(localKey) || "[]");
@@ -243,7 +245,6 @@ function RapportDiagnosticPixContent() {
       console.error("Erreur d'enregistrement local", e);
     }
 
-    // 2. Sauvegarde Firestore
     try {
       const fichesRef = collection(db, "utilisateurs", selectedBeneficiaireId, "fiches_bilan");
       if (selectedFicheId && !selectedFicheId.startsWith("fiche_local_")) {
@@ -267,13 +268,11 @@ function RapportDiagnosticPixContent() {
   const handleSupprimerFiche = async (ficheId: string) => {
     if (!confirm("Voulez-vous vraiment supprimer cette fiche de l'historique ?")) return;
 
-    // Supprimer du LocalStorage
     const localKey = `fiches_bilan_${selectedBeneficiaireId}`;
     const localExistants = JSON.parse(localStorage.getItem(localKey) || "[]");
     const filtrés = localExistants.filter((f: any) => f.id !== ficheId);
     localStorage.setItem(localKey, JSON.stringify(filtrés));
 
-    // Réactualiser l'historique
     await chargerHistoriqueFiches(selectedBeneficiaireId);
     if (selectedFicheId === ficheId) {
       setSelectedFicheId("");
@@ -368,16 +367,19 @@ function RapportDiagnosticPixContent() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans print:bg-white print:text-black print:p-0">
+    <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased print:bg-white print:text-black print:p-0 relative overflow-hidden`}>
       
+      {/* HALO LUMINEUX AMBIANT */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none print:hidden"></div>
+
       {/* BARRE D'ACTIONS & SÉLECTEURS DYNAMIQUES */}
-      <div className="max-w-5xl mx-auto mb-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-slate-900/80 p-4 rounded-2xl border border-slate-800 print:hidden">
+      <div className="max-w-5xl mx-auto mb-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-[#404040]/10 shadow-sm print:hidden relative z-10">
         <div>
-          <h1 className="text-lg font-black uppercase text-white flex items-center gap-2">
-            <DocumentCheckIcon className="w-5 h-5 text-emerald-500" />
+          <h1 className="text-base font-bold uppercase text-[#005259] flex items-center gap-2">
+            <DocumentCheckIcon className="w-5 h-5 text-[#EA601F]" />
             Fiche de Diagnostic & ABC PIX
           </h1>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-[#404040]/70">
             Sélectionnez un bénéficiaire et gérez l'historique de ses bilans.
           </p>
         </div>
@@ -386,12 +388,12 @@ function RapportDiagnosticPixContent() {
           
           {/* Sélection du bénéficiaire */}
           <div className="relative flex items-center">
-            <UserGroupIcon className="w-4 h-4 text-emerald-400 absolute left-3 pointer-events-none" />
+            <UserGroupIcon className="w-4 h-4 text-[#EA601F] absolute left-3 pointer-events-none" />
             <select
               value={selectedBeneficiaireId}
               onChange={handleSelectBeneficiaire}
               disabled={loadingBeneficiaires}
-              className="bg-slate-950 text-slate-200 border border-slate-700 text-xs font-bold rounded-xl pl-9 pr-4 py-2.5 outline-none focus:border-emerald-500 transition-all cursor-pointer"
+              className="bg-[#F3F3F2] text-[#005259] border border-[#404040]/15 text-xs font-bold rounded-xl pl-9 pr-4 py-2.5 outline-none focus:border-[#005259] focus:ring-1 focus:ring-[#005259] transition-all cursor-pointer"
             >
               <option value="">
                 {loadingBeneficiaires ? "Chargement..." : "-- Choisir un bénéficiaire --"}
@@ -406,11 +408,11 @@ function RapportDiagnosticPixContent() {
 
           {/* Sélection du lieu */}
           <div className="relative flex items-center">
-            <BuildingOfficeIcon className="w-4 h-4 text-emerald-400 absolute left-3 pointer-events-none" />
+            <BuildingOfficeIcon className="w-4 h-4 text-[#EA601F] absolute left-3 pointer-events-none" />
             <select
               value={selectedLieuId}
               onChange={handleSelectLieu}
-              className="bg-slate-950 text-slate-200 border border-slate-700 text-xs font-bold rounded-xl pl-9 pr-4 py-2.5 outline-none focus:border-emerald-500 transition-all cursor-pointer max-w-[160px] truncate"
+              className="bg-[#F3F3F2] text-[#005259] border border-[#404040]/15 text-xs font-bold rounded-xl pl-9 pr-4 py-2.5 outline-none focus:border-[#005259] focus:ring-1 focus:ring-[#005259] transition-all cursor-pointer max-w-[160px] truncate"
             >
               <option value="">-- Lieu --</option>
               {listeLieux.map(l => (
@@ -425,9 +427,9 @@ function RapportDiagnosticPixContent() {
           {selectedBeneficiaireId && (
             <button
               onClick={() => setShowHistoryModal(true)}
-              className="flex items-center gap-2 bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-300 px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer relative"
+              className="flex items-center gap-2 bg-[#F3F3F2] hover:bg-[#005259] hover:text-white border border-[#404040]/15 text-[#005259] px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer relative"
             >
-              <ClockIcon className="w-4 h-4 text-indigo-400" />
+              <ClockIcon className="w-4 h-4 text-[#EA601F]" />
               <span>Historique ({historiqueFiches.length})</span>
             </button>
           )}
@@ -436,61 +438,61 @@ function RapportDiagnosticPixContent() {
           <button
             onClick={handleSaveFiche}
             disabled={saving || !selectedBeneficiaireId}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-sm ${
               saveSuccess 
-                ? "bg-emerald-600 text-white" 
-                : "bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40"
+                ? "bg-[#A9E0C9]/40 text-[#005259] border border-[#A9E0C9]" 
+                : "bg-[#EA601F] hover:bg-[#005259] text-white disabled:opacity-40"
             }`}
           >
-            {saveSuccess ? <CheckIcon className="w-4 h-4" /> : <PlusIcon className="w-4 h-4" />}
+            {saveSuccess ? <CheckIcon className="w-4 h-4 text-[#005259]" /> : <PlusIcon className="w-4 h-4" />}
             <span>{saving ? "Sauvegarde..." : saveSuccess ? "Enregistré !" : "Enregistrer la fiche"}</span>
           </button>
 
           {/* BOUTON IMPRIMER */}
           <button
             onClick={handlePrint}
-            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-3.5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer border border-slate-700"
+            className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white text-[#404040] px-3.5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer border border-[#404040]/15 shadow-sm"
           >
-            <PrinterIcon className="w-4 h-4 text-emerald-400" />
+            <PrinterIcon className="w-4 h-4 text-[#EA601F]" />
             <span>Imprimer</span>
           </button>
 
           {/* BOUTON RETOUR TABLEAU DE BORD */}
           <Link 
             href="/" 
-            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-3.5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer border border-slate-700"
+            className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white text-[#005259] px-3.5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer border border-[#404040]/15 shadow-sm"
           >
-            <ChevronLeftIcon className="w-4 h-4 text-emerald-400" />
-            <span>Tableau de bord</span>
+            <HomeIcon className="w-4 h-4 text-[#EA601F]" />
+            <span>Accueil</span>
           </Link>
         </div>
       </div>
 
       {/* MODALE D'HISTORIQUE DE COMPÉTENCES */}
       {showHistoryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl relative space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-sm font-black uppercase text-white flex items-center gap-2">
-                <ClockIcon className="w-5 h-5 text-indigo-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-['Quicksand']">
+          <div className="bg-white border border-[#404040]/15 rounded-3xl p-6 max-w-lg w-full shadow-2xl relative space-y-4 text-[#404040]">
+            <div className="flex items-center justify-between border-b border-[#404040]/10 pb-3">
+              <h3 className="text-sm font-bold uppercase text-[#005259] flex items-center gap-2">
+                <ClockIcon className="w-5 h-5 text-[#EA601F]" />
                 Historique des fiches bilans
               </h3>
               <button 
                 onClick={() => setShowHistoryModal(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+                className="text-[#404040]/50 hover:text-[#404040] p-1 rounded-lg"
               >
                 <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="flex justify-between items-center bg-slate-950 p-3 rounded-xl border border-slate-800">
-              <span className="text-xs text-slate-400">Bénéficiaire : <strong className="text-white">{formData.prenom} {formData.nom}</strong></span>
+            <div className="flex justify-between items-center bg-[#F3F3F2] p-3 rounded-xl border border-[#404040]/10">
+              <span className="text-xs text-[#404040]/70">Bénéficiaire : <strong className="text-[#005259]">{formData.prenom} {formData.nom}</strong></span>
               <button
                 onClick={() => {
                   handleNouvelleFiche();
                   setShowHistoryModal(false);
                 }}
-                className="text-xs font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                className="text-xs font-bold text-[#EA601F] hover:underline flex items-center gap-1"
               >
                 <PlusIcon className="w-3.5 h-3.5" /> Nouvelle fiche vierge
               </button>
@@ -498,15 +500,15 @@ function RapportDiagnosticPixContent() {
 
             <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
               {historiqueFiches.length === 0 ? (
-                <p className="text-xs text-slate-500 text-center py-6">Aucune fiche enregistrée pour le moment.</p>
+                <p className="text-xs text-[#404040]/60 text-center py-6">Aucune fiche enregistrée pour le moment.</p>
               ) : (
                 historiqueFiches.map((f) => (
                   <div 
                     key={f.id} 
                     className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
                       selectedFicheId === f.id 
-                        ? "bg-indigo-950/60 border-indigo-500/80 text-white" 
-                        : "bg-slate-950/40 border-slate-800 hover:border-slate-700 text-slate-300"
+                        ? "bg-[#005259]/10 border-[#005259] text-[#005259]" 
+                        : "bg-[#F3F3F2]/50 border-[#404040]/10 hover:border-[#005259]/30 text-[#404040]"
                     }`}
                   >
                     <div 
@@ -517,17 +519,17 @@ function RapportDiagnosticPixContent() {
                       }}
                     >
                       <div className="text-xs font-bold flex items-center gap-2">
-                        <FolderOpenIcon className="w-4 h-4 text-indigo-400" />
+                        <FolderOpenIcon className="w-4 h-4 text-[#EA601F]" />
                         {f.titre || "Fiche Bilan"}
                       </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">
+                      <div className="text-[10px] text-[#404040]/60 mt-0.5">
                         Mis à jour le : {new Date(f.dateMiseAJour).toLocaleString("fr-FR")}
                       </div>
                     </div>
 
                     <button
                       onClick={() => handleSupprimerFiche(f.id)}
-                      className="text-slate-600 hover:text-rose-400 p-1.5 transition-colors"
+                      className="text-[#404040]/40 hover:text-[#EF736A] p-1.5 transition-colors"
                       title="Supprimer la fiche"
                     >
                       <TrashIcon className="w-4 h-4" />
@@ -540,7 +542,7 @@ function RapportDiagnosticPixContent() {
             <div className="pt-2 text-right">
               <button
                 onClick={() => setShowHistoryModal(false)}
-                className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2 rounded-xl"
+                className="bg-[#F3F3F2] hover:bg-[#005259] hover:text-white text-[#005259] text-xs font-bold px-4 py-2 rounded-xl transition-colors border border-[#404040]/10"
               >
                 Fermer
               </button>
@@ -550,17 +552,17 @@ function RapportDiagnosticPixContent() {
       )}
 
       {/* DOCUMENT IMPRIMABLE */}
-      <div className="max-w-5xl mx-auto bg-slate-900 border-2 border-slate-800 rounded-3xl p-6 md:p-10 shadow-2xl space-y-8 print:bg-white print:text-black print:border-none print:shadow-none print:p-0">
+      <div className="max-w-5xl mx-auto bg-white border border-[#404040]/10 rounded-3xl p-6 md:p-10 shadow-sm space-y-8 relative z-10 print:bg-white print:text-black print:border-none print:shadow-none print:p-0">
         
         {/* EN-TÊTE DU DOCUMENT AVEC LOGOS */}
-        <div className="border-b-2 border-slate-800 print:border-slate-300 pb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-4 bg-white/95 p-2.5 rounded-2xl shadow-sm print:bg-transparent print:p-0 print:shadow-none">
+        <div className="border-b-2 border-[#005259] pb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-4 bg-white p-2 rounded-2xl print:bg-transparent print:p-0">
             <img 
               src="/logos/colombbus.png" 
               alt="Logo Colombbus" 
               className="h-12 w-auto object-contain"
             />
-            <div className="h-10 w-[1px] bg-slate-300" />
+            <div className="h-10 w-[1px] bg-[#404040]/20" />
             <img 
               src="/logos/suresnes.png" 
               alt="Ville de Suresnes" 
@@ -569,45 +571,45 @@ function RapportDiagnosticPixContent() {
           </div>
 
           <div className="text-center sm:text-right">
-            <h2 className="text-2xl font-black uppercase tracking-tight text-white print:text-black">
+            <h2 className="text-xl md:text-2xl font-extrabold uppercase tracking-tight text-[#005259]">
               Bilan de Compétences Numériques
             </h2>
-            <p className="text-xs text-emerald-400 print:text-emerald-700 font-bold uppercase tracking-wider mt-1">
+            <p className="text-xs text-[#EA601F] font-bold uppercase tracking-wider mt-1">
               Diagnostic Initial & Test Final ABC PIX
             </p>
           </div>
         </div>
 
         {/* SECTION 1 : INFORMATIONS PARTICIPANT & LOGISTIQUE */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-950/60 print:bg-slate-50 p-5 rounded-2xl border border-slate-800/80 print:border-slate-200">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#F3F3F2] print:bg-slate-50 p-5 rounded-2xl border border-[#404040]/10 print:border-slate-200">
           
           <div className="space-y-3 text-xs">
-            <div className="flex items-center gap-2 font-bold text-slate-300 print:text-slate-700">
-              <UserIcon className="w-4 h-4 text-emerald-400 print:hidden" />
+            <div className="flex items-center gap-2 font-bold text-[#005259] uppercase tracking-wide">
+              <UserIcon className="w-4 h-4 text-[#EA601F] print:hidden" />
               <span>Participant</span>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] uppercase font-black text-slate-500 print:text-slate-600">Nom</label>
-                <div className="w-full bg-slate-900/50 print:bg-transparent border border-slate-800/60 print:border-b print:border-slate-400 print:rounded-none px-2.5 py-1.5 rounded-lg text-white print:text-black font-bold uppercase min-h-[30px] flex items-center">
+                <label className="block text-[10px] uppercase font-bold text-[#404040]/70">Nom</label>
+                <div className="w-full bg-white print:bg-transparent border border-[#404040]/15 print:border-b print:border-[#005259] print:rounded-none px-2.5 py-1.5 rounded-lg text-[#005259] print:text-black font-bold uppercase min-h-[30px] flex items-center shadow-sm print:shadow-none">
                   {formData.nom || "—"}
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] uppercase font-black text-slate-500 print:text-slate-600">Prénom</label>
-                <div className="w-full bg-slate-900/50 print:bg-transparent border border-slate-800/60 print:border-b print:border-slate-400 print:rounded-none px-2.5 py-1.5 rounded-lg text-white print:text-black font-bold capitalize min-h-[30px] flex items-center">
+                <label className="block text-[10px] uppercase font-bold text-[#404040]/70">Prénom</label>
+                <div className="w-full bg-white print:bg-transparent border border-[#404040]/15 print:border-b print:border-[#005259] print:rounded-none px-2.5 py-1.5 rounded-lg text-[#005259] print:text-black font-bold capitalize min-h-[30px] flex items-center shadow-sm print:shadow-none">
                   {formData.prenom || "—"}
                 </div>
               </div>
             </div>
 
             <div>
-              <label className="block text-[10px] uppercase font-black text-slate-500 print:text-slate-600 flex items-center gap-1">
-                <MapPinIcon className="w-3 h-3 text-slate-400 print:hidden" /> Lieu d'intervention
+              <label className="block text-[10px] uppercase font-bold text-[#404040]/70 flex items-center gap-1">
+                <MapPinIcon className="w-3 h-3 text-[#EA601F] print:hidden" /> Lieu d'intervention
               </label>
               <input
                 type="text"
-                className="w-full bg-slate-900 print:bg-transparent border border-slate-800 print:border-b print:border-slate-400 print:rounded-none px-2.5 py-1.5 rounded-lg text-slate-300 print:text-black outline-none focus:border-emerald-500"
+                className="w-full bg-white print:bg-transparent border border-[#404040]/15 print:border-b print:border-[#005259] print:rounded-none px-2.5 py-1.5 rounded-lg text-[#404040] font-medium outline-none focus:border-[#005259] shadow-sm print:shadow-none"
                 value={formData.lieu}
                 onChange={e => setFormData({ ...formData, lieu: e.target.value })}
               />
@@ -615,25 +617,25 @@ function RapportDiagnosticPixContent() {
           </div>
 
           <div className="space-y-3 text-xs">
-            <div className="flex items-center gap-2 font-bold text-slate-300 print:text-slate-700">
-              <CalendarIcon className="w-4 h-4 text-emerald-400 print:hidden" />
+            <div className="flex items-center gap-2 font-bold text-[#005259] uppercase tracking-wide">
+              <CalendarIcon className="w-4 h-4 text-[#EA601F] print:hidden" />
               <span>Dates & Équipement</span>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] uppercase font-black text-slate-500 print:text-slate-600">Date du diagnostic</label>
+                <label className="block text-[10px] uppercase font-bold text-[#404040]/70">Date du diagnostic</label>
                 <input
                   type="date"
-                  className="w-full bg-slate-900 print:bg-transparent border border-slate-800 print:border-b print:border-slate-400 print:rounded-none px-2.5 py-1.5 rounded-lg text-slate-300 print:text-black outline-none focus:border-emerald-500"
+                  className="w-full bg-white print:bg-transparent border border-[#404040]/15 print:border-b print:border-[#005259] print:rounded-none px-2.5 py-1.5 rounded-lg text-[#404040] font-medium outline-none focus:border-[#005259] shadow-sm print:shadow-none"
                   value={formData.dateDiagnostic}
                   onChange={e => setFormData({ ...formData, dateDiagnostic: e.target.value })}
                 />
               </div>
               <div>
-                <label className="block text-[10px] uppercase font-black text-slate-500 print:text-slate-600">Date de l'ABC PIX</label>
+                <label className="block text-[10px] uppercase font-bold text-[#404040]/70">Date de l'ABC PIX</label>
                 <input
                   type="date"
-                  className="w-full bg-slate-900 print:bg-transparent border border-slate-800 print:border-b print:border-slate-400 print:rounded-none px-2.5 py-1.5 rounded-lg text-slate-300 print:text-black outline-none focus:border-emerald-500"
+                  className="w-full bg-white print:bg-transparent border border-[#404040]/15 print:border-b print:border-[#005259] print:rounded-none px-2.5 py-1.5 rounded-lg text-[#404040] font-medium outline-none focus:border-[#005259] shadow-sm print:shadow-none"
                   value={formData.dateAbcPix}
                   onChange={e => setFormData({ ...formData, dateAbcPix: e.target.value })}
                 />
@@ -642,19 +644,19 @@ function RapportDiagnosticPixContent() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] uppercase font-black text-slate-500 print:text-slate-600">Équipement</label>
+                <label className="block text-[10px] uppercase font-bold text-[#404040]/70">Équipement</label>
                 <input
                   type="text"
-                  className="w-full bg-slate-900 print:bg-transparent border border-slate-800 print:border-b print:border-slate-400 print:rounded-none px-2.5 py-1.5 rounded-lg text-slate-300 print:text-black outline-none focus:border-emerald-500"
+                  className="w-full bg-white print:bg-transparent border border-[#404040]/15 print:border-b print:border-[#005259] print:rounded-none px-2.5 py-1.5 rounded-lg text-[#404040] font-medium outline-none focus:border-[#005259] shadow-sm print:shadow-none"
                   value={formData.equipement}
                   onChange={e => setFormData({ ...formData, equipement: e.target.value })}
                 />
               </div>
               <div>
-                <label className="block text-[10px] uppercase font-black text-slate-500 print:text-slate-600">Maîtrise initiale</label>
+                <label className="block text-[10px] uppercase font-bold text-[#404040]/70">Maîtrise initiale</label>
                 <input
                   type="text"
-                  className="w-full bg-slate-900 print:bg-transparent border border-slate-800 print:border-b print:border-slate-400 print:rounded-none px-2.5 py-1.5 rounded-lg text-slate-300 print:text-black outline-none focus:border-emerald-500"
+                  className="w-full bg-white print:bg-transparent border border-[#404040]/15 print:border-b print:border-[#005259] print:rounded-none px-2.5 py-1.5 rounded-lg text-[#404040] font-medium outline-none focus:border-[#005259] shadow-sm print:shadow-none"
                   value={formData.niveauMaitrise}
                   onChange={e => setFormData({ ...formData, niveauMaitrise: e.target.value })}
                 />
@@ -665,27 +667,27 @@ function RapportDiagnosticPixContent() {
         </div>
 
         {/* SECTION 2 : RESULTAT DIAGNOSTIC INITIAL */}
-        <div className="bg-slate-950/40 print:bg-slate-50/50 p-5 rounded-2xl border border-slate-800/60 print:border-slate-200 space-y-3">
-          <h3 className="text-xs font-black uppercase text-emerald-400 print:text-emerald-800 flex items-center gap-2">
-            <AcademicCapIcon className="w-4 h-4" />
+        <div className="bg-[#F3F3F2]/60 print:bg-slate-50 p-5 rounded-2xl border border-[#404040]/10 print:border-slate-200 space-y-3">
+          <h3 className="text-xs font-bold uppercase text-[#005259] flex items-center gap-2">
+            <AcademicCapIcon className="w-4 h-4 text-[#EA601F]" />
             Résultat du test d’entrée - Diagnostic Initial
           </h3>
           
           <div className="flex flex-col gap-3 text-xs">
-            <div className="flex items-center gap-2 bg-slate-900 print:bg-white p-3 rounded-xl border border-slate-800 print:border-slate-300 self-start">
-              <span className="text-[10px] font-black uppercase text-slate-500 print:text-slate-600">Score :</span>
+            <div className="flex items-center gap-2 bg-white print:bg-white p-3 rounded-xl border border-[#404040]/10 print:border-slate-300 self-start shadow-sm print:shadow-none">
+              <span className="text-[10px] font-bold uppercase text-[#404040]/70">Score :</span>
               <input
                 type="number"
-                className="w-12 bg-slate-950 print:bg-transparent border border-slate-800 print:border-b print:border-slate-400 text-center font-black text-emerald-400 print:text-black rounded py-0.5 outline-none"
+                className="w-12 bg-[#F3F3F2] print:bg-transparent border border-[#404040]/15 print:border-b print:border-[#005259] text-center font-bold text-[#EA601F] print:text-[#005259] rounded py-0.5 outline-none"
                 value={formData.bonnesReponsesDiag}
                 onChange={e => setFormData({ ...formData, bonnesReponsesDiag: Number(e.target.value) })}
               />
-              <span className="font-bold text-slate-400 print:text-slate-700">/ {formData.totalQuestionsDiag} bonnes réponses</span>
+              <span className="font-bold text-[#005259] print:text-black">/ {formData.totalQuestionsDiag} bonnes réponses</span>
             </div>
 
             <textarea
               ref={textareaRef}
-              className="print:hidden w-full overflow-hidden bg-slate-900 border border-slate-800 p-3 rounded-xl text-slate-300 outline-none focus:border-emerald-500 text-xs leading-relaxed resize-none transition-all"
+              className="print:hidden w-full overflow-hidden bg-white border border-[#404040]/15 p-3 rounded-xl text-[#404040] outline-none focus:border-[#005259] text-xs leading-relaxed resize-none transition-all shadow-sm"
               value={formData.commentaireDiag}
               onChange={e => setFormData({ ...formData, commentaireDiag: e.target.value })}
               placeholder="Synthèse ou remarques du diagnostic..."
@@ -699,14 +701,14 @@ function RapportDiagnosticPixContent() {
 
         {/* SECTION 3 : CONTEXTE DU TEST ABC PIX */}
         <div className="space-y-3">
-          <h3 className="text-xs font-black uppercase text-indigo-400 print:text-indigo-900 flex items-center gap-2">
-            <ClipboardDocumentCheckIcon className="w-4 h-4" />
+          <h3 className="text-xs font-bold uppercase text-[#EA601F] flex items-center gap-2">
+            <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#EA601F]" />
             Résultat de l’ABC PIX - Test Final
           </h3>
-          <p className="text-xs text-slate-400 print:text-slate-700">
+          <p className="text-xs text-[#404040]/80">
             Réalisation d’un test sur PIX sur une campagne ABC PIX concernant la maîtrise de compétences numériques de base :
           </p>
-          <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-[11px] text-slate-300 print:text-slate-800 list-disc list-inside bg-slate-950/20 print:bg-transparent p-3 rounded-xl border border-slate-800/40 print:border-none">
+          <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-[11px] text-[#005259] print:text-slate-800 list-disc list-inside bg-[#F3F3F2] print:bg-transparent p-3 rounded-xl border border-[#404040]/10 print:border-none font-semibold">
             <li>La connaissance des outils numériques</li>
             <li>La maîtrise de la navigation Internet</li>
             <li>Les services administratifs en ligne</li>
@@ -715,44 +717,45 @@ function RapportDiagnosticPixContent() {
             <li>La sécurisation de sa pratique</li>
           </ul>
 
-          <div className="flex flex-wrap items-center gap-6 text-xs bg-indigo-950/30 print:bg-indigo-50 p-3 rounded-xl border border-indigo-900/40 print:border-indigo-200">
-            <div><strong className="text-slate-400 print:text-slate-600">Temps :</strong> <span className="font-bold text-white print:text-black">{formData.tempsTest}</span></div>
-            <div><strong className="text-slate-400 print:text-slate-600">Sujets :</strong> <span className="font-bold text-white print:text-black">{formData.nombreSujets}</span></div>
-            <div><strong className="text-slate-400 print:text-slate-600">Résultats thématiques :</strong> <span className="font-bold text-white print:text-black">{formData.resultatsThematiques}</span></div>
+          <div className="flex flex-wrap items-center gap-6 text-xs bg-[#EA601F]/10 print:bg-orange-50 p-3.5 rounded-xl border border-[#EA601F]/20 print:border-orange-200">
+            <div><strong className="text-[#404040]/70">Temps :</strong> <span className="font-bold text-[#005259] print:text-[#EA601F]">{formData.tempsTest}</span></div>
+            <div><strong className="text-[#404040]/70">Sujets :</strong> <span className="font-bold text-[#005259] print:text-[#EA601F]">{formData.nombreSujets}</span></div>
+            <div><strong className="text-[#404040]/70">Résultats thématiques :</strong> <span className="font-bold text-[#005259] print:text-[#EA601F]">{formData.resultatsThematiques}</span></div>
           </div>
         </div>
 
         {/* SECTION 4 : TABLEAU DES COMPÉTENCES */}
-        <div className="space-y-4 pt-4 print:pt-0 print:break-before-page">
-          <div className="flex items-center justify-between border-b border-slate-800 print:border-slate-300 pb-2">
-            <h4 className="text-xs font-black uppercase tracking-wider text-slate-300 print:text-black">
+        <div className="space-y-4 pt-2 print:pt-0 print:break-before-page">
+          <div className="flex items-center justify-between border-b border-[#404040]/10 print:border-slate-300 pb-2">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#005259]">
               Résultats de {formData.nom || "NOM"} {formData.prenom || "Prénom"}
             </h4>
-            <span className="text-[10px] font-mono text-slate-500 print:text-slate-600">Compétences ({competences.length})</span>
+            <span className="text-[10px] font-bold text-[#404040]/60 uppercase">Compétences ({competences.length})</span>
           </div>
 
           <div className="space-y-3">
             {competences.map((c) => (
-              <div key={c.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs py-1 border-b border-slate-900/50 print:border-slate-100">
-                <span className="sm:w-1/3 font-semibold text-slate-300 print:text-slate-800 text-[11px]">
+              <div key={c.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs py-1.5 border-b border-[#404040]/5 print:border-slate-100">
+                <span className="sm:w-1/3 font-semibold text-[#404040] text-[11px]">
                   {c.label}
                 </span>
 
                 <div className="flex-1 flex items-center gap-3">
-                  <div className="w-12 text-right font-mono font-bold text-indigo-400 print:text-indigo-700 text-xs">
+                  <div className="w-12 text-right font-bold text-[#EA601F] text-xs">
                     <input
                       type="number"
                       min={0}
                       max={100}
-                      className="w-10 bg-transparent text-right outline-none border-b border-transparent hover:border-slate-700 print:hover:border-transparent font-mono"
+                      className="w-10 bg-transparent text-right outline-none border-b border-transparent hover:border-[#005259] print:hover:border-transparent"
                       value={c.score}
                       onChange={e => handleCompetenceChange(c.id, Number(e.target.value))}
                     />%
                   </div>
 
-                  <div className="flex-1 bg-slate-950 print:bg-slate-200 h-2.5 rounded-full overflow-hidden border border-slate-800/80 print:border-none">
+                  {/* Barre de progression */}
+                  <div className="flex-1 bg-[#F3F3F2] print:bg-slate-200 h-3 rounded-full overflow-hidden border border-[#404040]/10 print:border-none">
                     <div
-                      className="bg-indigo-600 print:bg-indigo-600 h-full transition-all duration-300"
+                      className="bg-gradient-to-r from-[#EA601F] via-[#F9945D] to-[#A9E0C9] h-full transition-all duration-300 rounded-full"
                       style={{ width: `${c.score}%` }}
                     />
                   </div>
@@ -763,28 +766,28 @@ function RapportDiagnosticPixContent() {
         </div>
 
         {/* SECTION 5 : OBSERVATIONS ET SIGNATURE */}
-        <div className="space-y-4 pt-4 border-t-2 border-slate-800 print:border-slate-300">
-          <h3 className="text-xs font-black uppercase text-amber-400 print:text-amber-800 flex items-center gap-2">
+        <div className="space-y-4 pt-4 border-t-2 border-[#005259]">
+          <h3 className="text-xs font-bold uppercase text-[#EA601F] flex items-center gap-2">
             <PencilSquareIcon className="w-4 h-4" />
             OBSERVATIONS à compléter par le / la médiateur.rice Colombbus
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
             <div>
-              <label className="block text-[10px] uppercase font-black text-slate-500 print:text-slate-600 mb-1">Niveau observé</label>
+              <label className="block text-[10px] uppercase font-bold text-[#404040]/70 mb-1">Niveau observé</label>
               <input
                 type="text"
-                className="w-full bg-slate-950 print:bg-transparent border border-slate-800 print:border-b print:border-slate-400 px-3 py-2 rounded-xl text-amber-300 print:text-black font-bold outline-none focus:border-amber-500"
+                className="w-full bg-[#F3F3F2] print:bg-transparent border border-[#404040]/15 print:border-b print:border-[#005259] px-3 py-2 rounded-xl text-[#005259] print:text-black font-bold outline-none focus:border-[#005259]"
                 value={formData.niveauObserve}
                 onChange={e => setFormData({ ...formData, niveauObserve: e.target.value })}
               />
             </div>
 
             <div>
-              <label className="block text-[10px] uppercase font-black text-slate-500 print:text-slate-600 mb-1">Commentaires</label>
+              <label className="block text-[10px] uppercase font-bold text-[#404040]/70 mb-1">Commentaires</label>
               <textarea
                 rows={2}
-                className="w-full bg-slate-950 print:bg-transparent border border-slate-800 print:border-b print:border-slate-400 px-3 py-2 rounded-xl text-slate-300 print:text-black outline-none focus:border-amber-500 resize-none"
+                className="w-full bg-[#F3F3F2] print:bg-transparent border border-[#404040]/15 print:border-b print:border-[#005259] px-3 py-2 rounded-xl text-[#404040] font-medium outline-none focus:border-[#005259] resize-none"
                 value={formData.commentaireObservations}
                 onChange={e => setFormData({ ...formData, commentaireObservations: e.target.value })}
               />
@@ -793,10 +796,10 @@ function RapportDiagnosticPixContent() {
 
           <div className="pt-8 flex justify-end">
             <div className="w-64 text-right space-y-12">
-              <p className="text-xs font-bold text-slate-400 print:text-slate-800">
+              <p className="text-xs font-bold text-[#005259] print:text-slate-800">
                 Signature du médiateur.rice {formData.nomMédiateur} :
               </p>
-              <div className="border-b border-dashed border-slate-700 print:border-slate-400 h-8" />
+              <div className="border-b border-dashed border-[#404040]/30 print:border-slate-400 h-8" />
             </div>
           </div>
         </div>
@@ -808,7 +811,7 @@ function RapportDiagnosticPixContent() {
 
 export default function RapportDiagnosticPix() {
   return (
-    <Suspense fallback={<div className="p-8 text-white text-center">Chargement du rapport...</div>}>
+    <Suspense fallback={<div className="p-8 text-[#005259] text-center font-['Quicksand'] font-bold">Chargement du rapport...</div>}>
       <RapportDiagnosticPixContent />
     </Suspense>
   );

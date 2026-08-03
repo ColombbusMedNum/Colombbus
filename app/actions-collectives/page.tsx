@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { db } from "../../lib/firebase";
 import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import Link from "next/link";
+import { Quicksand } from "next/font/google";
 import { 
   ArrowLeftIcon, 
   PlusIcon, 
@@ -15,6 +16,11 @@ import {
   CheckIcon,
   XMarkIcon
 } from "@heroicons/react/24/outline";
+
+const quicksand = Quicksand({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
 
 // Interfaces pour la structure Lieu > Trimestre
 interface TrimestreStats {
@@ -198,33 +204,36 @@ export default function ActionsCollectivesPage() {
   const totalH = actions.reduce((acc, curr) => acc + (curr.nbHommes || 0), 0);
   const totalF = actions.reduce((acc, curr) => acc + (curr.nbFemmes || 0), 0);
 
-  const inputClass = "w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white placeholder-slate-600 focus:border-fuchsia-500/60 focus:ring-1 focus:ring-fuchsia-500/60 outline-none transition-all appearance-none";
-  const inlineInputClass = "bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-xs text-white focus:border-fuchsia-500/60 outline-none transition-all";
+  const inputClass = "w-full bg-[#F3F3F2] text-[#404040] border border-[#404040]/15 rounded-xl p-3 text-xs font-bold placeholder-[#404040]/40 focus:border-[#005259] outline-none transition-all appearance-none";
+  const inlineInputClass = "bg-[#F3F3F2] text-[#404040] border border-[#404040]/15 rounded-lg p-2 text-xs font-bold focus:border-[#005259] outline-none transition-all";
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans antialiased relative overflow-hidden">
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-fuchsia-500/5 blur-[100px] rounded-full pointer-events-none"></div>
+    <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
+      
+      {/* HALO LUMINEUX AMBIANT */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
 
-      <div className="max-w-4xl mx-auto relative z-10">
+      <div className="max-w-4xl mx-auto relative z-10 space-y-6">
         
         {/* EN-TÊTE */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#404040]/10">
           <div className="flex items-center gap-4">
             <Link 
               href="/" 
-              className="inline-flex items-center gap-2 px-3 py-2.5 bg-slate-900 border border-slate-700 hover:border-slate-500 rounded-xl text-slate-200 hover:text-white transition-all shadow-md text-xs font-bold uppercase tracking-wider active:scale-95"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/15 rounded-xl text-[#005259] transition-all shadow-sm active:scale-95 text-xs font-bold uppercase tracking-wider"
+              title="Retour au Dashboard"
             >
-              <ArrowLeftIcon className="w-4 h-4 stroke-[2.5]" />
-              <span className="hidden sm:inline">Retour</span>
+              <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Retour</span>
             </Link>
 
             <div className="flex items-center gap-3">
-              <div className="h-8 w-1 bg-fuchsia-500 rounded-full shadow-[0_0_15px_rgba(217,70,239,0.5)]"></div>
+              <div className="h-8 w-1 bg-[#EA601F] rounded-full"></div>
               <div>
-                <h1 className="text-2xl font-black text-white uppercase italic tracking-tight">
+                <h1 className="text-xl md:text-2xl font-extrabold uppercase text-[#005259] tracking-tight">
                   Actions Collectives
                 </h1>
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+                <p className="text-xs text-[#404040]/70 mt-0.5">
                   Suivi des présences anonymes et ateliers de groupe
                 </p>
               </div>
@@ -241,79 +250,79 @@ export default function ActionsCollectivesPage() {
                 setIsNouveauLieu(true);
               }
             }}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 border border-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-[0_0_20px_rgba(16,185,129,0.2)] active:scale-95"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#EA601F] hover:bg-[#005259] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-sm active:scale-95 self-start sm:self-auto"
           >
-            <PlusIcon className="w-4 h-4 stroke-[3]" />
+            <PlusIcon className="w-4 h-4 text-white stroke-[3]" />
             <span>{showForm ? "Fermer" : "Saisir un rapport"}</span>
           </button>
         </div>
 
-        {/* COMPTEURS GENERAUX */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
-          <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl">
-            <span className="block text-[9px] uppercase font-black tracking-widest text-slate-500">Total Hommes</span>
-            <span className="text-2xl font-mono font-black text-white">{totalH}</span>
+        {/* COMPTEURS GÉNÉRAUX */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="p-5 bg-white border border-[#404040]/10 rounded-2xl shadow-sm">
+            <span className="block text-[10px] uppercase font-bold tracking-wider text-[#005259]">Total Hommes</span>
+            <span className="text-2xl font-extrabold text-[#404040]">{totalH}</span>
           </div>
-          <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl">
-            <span className="block text-[9px] uppercase font-black tracking-widest text-slate-500">Total Femmes</span>
-            <span className="text-2xl font-mono font-black text-fuchsia-400">{totalF}</span>
+          <div className="p-5 bg-white border border-[#404040]/10 rounded-2xl shadow-sm">
+            <span className="block text-[10px] uppercase font-bold tracking-wider text-[#005259]">Total Femmes</span>
+            <span className="text-2xl font-extrabold text-[#EA601F]">{totalF}</span>
           </div>
-          <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl bg-gradient-to-br from-slate-900 to-fuchsia-950/20">
-            <span className="block text-[9px] uppercase font-black tracking-widest text-slate-400">Impact Global</span>
-            <span className="text-2xl font-mono font-black text-white">{totalH + totalF} <span className="text-xs font-sans font-light text-slate-400">pers.</span></span>
+          <div className="p-5 bg-white border border-[#005259]/20 rounded-2xl shadow-sm bg-gradient-to-br from-white to-[#005259]/5">
+            <span className="block text-[10px] uppercase font-bold tracking-wider text-[#005259]">Impact Global</span>
+            <span className="text-2xl font-extrabold text-[#005259]">{totalH + totalF} <span className="text-xs font-normal text-[#404040]/70">pers.</span></span>
           </div>
         </div>
 
         {/* FORMULAIRE DE SAISIE */}
         {showForm && (
-          <form onSubmit={handleSubmit} className="mb-8 p-5 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl space-y-4 animate-in fade-in slide-in-from-top-4 duration-200">
-            <h2 className="text-xs font-black uppercase tracking-widest text-fuchsia-400">Nouvel enregistrement collectif</h2>
+          <form onSubmit={handleSubmit} className="p-6 bg-white border border-[#404040]/10 rounded-3xl shadow-sm space-y-4 animate-in fade-in slide-in-from-top-4 duration-200">
+            <h2 className="text-xs font-extrabold uppercase tracking-widest text-[#005259]">Nouvel enregistrement collectif</h2>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="relative">
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-tighter mb-1">Lieu d'intervention *</label>
+                <label className="block text-[10px] font-bold text-[#005259] uppercase tracking-wider mb-1">Lieu d'intervention *</label>
                 {listeLieuxExistants.length > 0 && !isNouveauLieu ? (
                   <select 
                     value={lieuSelectionne} 
                     onChange={handleLieuChange} 
                     required
                     className={`${inputClass} pr-8 cursor-pointer`}
-                    style={{ backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='rgba(156,163,175,1)' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/></svg>")`, backgroundSize: '1rem', backgroundPosition: 'calc(100% - 0.75rem) center', backgroundRepeat: 'no-repeat' }}
+                    style={{ backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23005259' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/></svg>")`, backgroundSize: '1rem', backgroundPosition: 'calc(100% - 0.75rem) center', backgroundRepeat: 'no-repeat' }}
                   >
                     {listeLieuxExistants.map((l) => (
-                      <option key={l} value={l} className="bg-slate-900 text-white">{l}</option>
+                      <option key={l} value={l} className="bg-white text-[#404040]">{l}</option>
                     ))}
-                    <option value="__NEW__" className="bg-slate-900 text-fuchsia-400 font-bold">➕ Créer un nouveau lieu...</option>
+                    <option value="__NEW__" className="bg-white text-[#EA601F] font-bold">➕ Créer un nouveau lieu...</option>
                   </select>
                 ) : (
                   <div className="space-y-2">
                     <input type="text" placeholder="Nom du nouveau lieu" value={nouveauLieu} onChange={(e) => setNouveauLieu(e.target.value)} required className={inputClass} autoFocus />
                     {listeLieuxExistants.length > 0 && (
-                      <button type="button" onClick={() => setIsNouveauLieu(false)} className="text-[10px] text-slate-500 hover:text-white underline block">Choisir un lieu existant</button>
+                      <button type="button" onClick={() => setIsNouveauLieu(false)} className="text-[10px] text-[#005259] hover:underline font-bold block">Choisir un lieu existant</button>
                     )}
                   </div>
                 )}
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-tighter mb-1">Thématique *</label>
+                <label className="block text-[10px] font-bold text-[#005259] uppercase tracking-wider mb-1">Thématique *</label>
                 <input type="text" placeholder="Ex: Atelier CV Connecté" value={thematique} onChange={(e) => setThematique(e.target.value)} required className={inputClass} />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-tighter mb-1">Nombre d'hommes</label>
+                <label className="block text-[10px] font-bold text-[#005259] uppercase tracking-wider mb-1">Nombre d'hommes</label>
                 <input type="number" min="0" placeholder="0" value={nbHommes} onChange={(e) => setNbHommes(e.target.value === "" ? "" : Number(e.target.value))} className={inputClass} />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-tighter mb-1">Nombre de femmes</label>
+                <label className="block text-[10px] font-bold text-[#005259] uppercase tracking-wider mb-1">Nombre de femmes</label>
                 <input type="number" min="0" placeholder="0" value={nbFemmes} onChange={(e) => setNbFemmes(e.target.value === "" ? "" : Number(e.target.value))} className={inputClass} />
               </div>
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-tighter mb-1">Commentaires / Notes sur la séance</label>
+              <label className="block text-[10px] font-bold text-[#005259] uppercase tracking-wider mb-1">Commentaires / Notes sur la séance</label>
               <textarea 
                 rows={4} 
                 placeholder="Ajoutez ici le déroulé, retours des usagers, observations particulières..." 
@@ -324,40 +333,40 @@ export default function ActionsCollectivesPage() {
             </div>
 
             <div className="flex items-center justify-between pt-2">
-              <span className="text-[10px] text-slate-500 font-bold uppercase">{status}</span>
-              <button type="submit" className="bg-fuchsia-600 hover:bg-fuchsia-500 text-white px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer">Valider l'action</button>
+              <span className="text-xs text-[#EA601F] font-bold">{status}</span>
+              <button type="submit" className="bg-[#EA601F] hover:bg-[#005259] text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm">Valider l'action</button>
             </div>
           </form>
         )}
 
         {/* SYNTHÈSE D'ACTIVITÉ PAR LIEU & TRIMESTRE */}
-        <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl shadow-xl mb-8">
-          <h2 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
-            <ChartBarIcon className="w-4 h-4 text-fuchsia-400" />
+        <div className="bg-white border border-[#404040]/10 p-6 rounded-3xl shadow-sm">
+          <h2 className="font-extrabold text-xs uppercase tracking-wider text-[#005259] mb-4 flex items-center gap-2">
+            <ChartBarIcon className="w-4 h-4 text-[#EA601F]" />
             Synthèse d'activité par Lieu et Trimestre
           </h2>
           
           {Object.keys(statsParLieu).length === 0 ? (
-            <p className="text-xs text-slate-600 font-bold uppercase py-2 text-center">Aucune statistique disponible.</p>
+            <p className="text-xs text-[#404040]/60 font-bold uppercase py-2 text-center">Aucune statistique disponible.</p>
           ) : (
             <div className="flex flex-col gap-6">
               {Object.entries(statsParLieu).map(([nomLieu, dataLieu]) => (
-                <div key={nomLieu} className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-4">
+                <div key={nomLieu} className="bg-[#F3F3F2] border border-[#404040]/10 p-4 rounded-2xl space-y-4">
                   
-                  <div className="flex justify-between items-center border-b border-slate-900 pb-2">
-                    <span className="font-black text-xs text-white uppercase italic tracking-tight truncate max-w-[70%]">{nomLieu}</span>
-                    <span className="bg-fuchsia-950 border border-fuchsia-900 text-fuchsia-400 font-mono text-[10px] font-bold px-2 py-0.5 rounded-md">Total : {dataLieu.totalGlobal} p.</span>
+                  <div className="flex justify-between items-center border-b border-[#404040]/10 pb-2">
+                    <span className="font-extrabold text-xs text-[#005259] uppercase tracking-tight truncate max-w-[70%]">{nomLieu}</span>
+                    <span className="bg-white border border-[#404040]/10 text-[#EA601F] text-[10px] font-bold px-2.5 py-1 rounded-lg shadow-sm">Total : {dataLieu.totalGlobal} p.</span>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="grid grid-cols-2 gap-2 md:col-span-2">
                       {Object.entries(dataLieu.trimestres).map(([trimestre, dataTri]) => (
-                        <div key={trimestre} className="bg-slate-900 p-2 rounded-lg border border-slate-800/40 flex flex-col justify-between">
+                        <div key={trimestre} className="bg-white p-2.5 rounded-xl border border-[#404040]/10 flex flex-col justify-between shadow-sm">
                           <div className="flex justify-between items-center text-[10px] mb-0.5">
-                            <span className="font-black text-slate-500">{trimestre}</span>
-                            <span className="font-mono font-black text-white">{dataTri.total} <span className="text-[8px] font-sans text-slate-600">p.</span></span>
+                            <span className="font-bold text-[#005259]">{trimestre}</span>
+                            <span className="font-extrabold text-[#404040]">{dataTri.total} <span className="text-[8px] text-[#404040]/60 font-normal">p.</span></span>
                           </div>
-                          <div className="flex justify-between text-[9px] text-slate-600 border-t border-slate-950/80 pt-0.5 mt-0.5">
+                          <div className="flex justify-between text-[9px] text-[#404040]/70 border-t border-[#404040]/10 pt-1 mt-1 font-medium">
                             <span>H: {dataTri.hommes}</span>
                             <span>F: {dataTri.femmes}</span>
                           </div>
@@ -365,17 +374,17 @@ export default function ActionsCollectivesPage() {
                       ))}
                     </div>
 
-                    <div className="bg-slate-900 p-3 rounded-lg border border-slate-800/40 flex flex-col">
-                      <span className="text-[9px] uppercase font-black tracking-wider text-slate-500 mb-2 flex items-center gap-1">
-                        <ChatBubbleBottomCenterTextIcon className="w-3 h-3 text-fuchsia-500" />
+                    <div className="bg-white p-3 rounded-xl border border-[#404040]/10 flex flex-col shadow-sm">
+                      <span className="text-[9px] uppercase font-bold tracking-wider text-[#005259] mb-2 flex items-center gap-1">
+                        <ChatBubbleBottomCenterTextIcon className="w-3 h-3 text-[#EA601F]" />
                         Historique ({nomLieu})
                       </span>
                       <div className="flex-1 overflow-y-auto max-h-[110px] space-y-1.5 pr-1 scrollbar-thin">
                         {dataLieu.commentaires.length === 0 ? (
-                          <p className="text-[9px] text-slate-700 italic">Aucun commentaire enregistré.</p>
+                          <p className="text-[9px] text-[#404040]/50 italic">Aucun commentaire enregistré.</p>
                         ) : (
                           dataLieu.commentaires.map((com, index) => (
-                            <div key={index} className="text-[10px] text-slate-400 bg-slate-950/60 p-1.5 rounded border border-slate-850 text-left leading-relaxed break-words">
+                            <div key={index} className="text-[10px] text-[#404040] bg-[#F3F3F2] p-2 rounded-lg border border-[#404040]/10 text-left leading-relaxed break-words font-medium">
                               {com}
                             </div>
                           ))
@@ -390,25 +399,25 @@ export default function ActionsCollectivesPage() {
           )}
         </div>
 
-        {/* HISTORIQUE / LISTING DES ENREGISTREMENTS AVEC MODE EDITION INTEGRÉ */}
+        {/* HISTORIQUE / LISTING DES ENREGISTREMENTS AVEC MODE ÉDITION INTÉGRÉ */}
         <div className="space-y-3">
-          <h2 className="font-black text-xs uppercase tracking-widest text-slate-500 pl-1">Dernières saisies</h2>
+          <h2 className="font-extrabold text-xs uppercase tracking-wider text-[#005259] pl-1">Dernières saisies</h2>
           {actions.map((act) => {
             const isEditing = editingId === act.id;
 
             return (
-              <div key={act.id} className="p-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-md transition-colors">
+              <div key={act.id} className="p-5 bg-white border border-[#404040]/10 rounded-2xl shadow-sm transition-colors">
                 
                 {isEditing ? (
                   /* Formulaire d'édition à la place de l'affichage textuel standard */
                   <div className="space-y-3 animate-in fade-in duration-100">
-                    <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-1">
-                      <span className="text-[10px] font-black uppercase text-amber-500 tracking-wider">Mode Modification en ligne</span>
+                    <div className="flex items-center justify-between border-b border-[#404040]/10 pb-2 mb-1">
+                      <span className="text-[10px] font-bold uppercase text-[#EA601F] tracking-wider">Mode Modification en ligne</span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[9px] font-black text-slate-500 uppercase mb-0.5">Thématique</label>
+                        <label className="block text-[9px] font-bold text-[#005259] uppercase mb-0.5">Thématique</label>
                         <input 
                           type="text" 
                           value={editThematique} 
@@ -417,7 +426,7 @@ export default function ActionsCollectivesPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-[9px] font-black text-slate-500 uppercase mb-0.5">Lieu d'intervention</label>
+                        <label className="block text-[9px] font-bold text-[#005259] uppercase mb-0.5">Lieu d'intervention</label>
                         <input 
                           type="text" 
                           value={editLieu} 
@@ -429,29 +438,29 @@ export default function ActionsCollectivesPage() {
 
                     <div className="grid grid-cols-2 gap-3 w-full sm:w-1/2">
                       <div>
-                        <label className="block text-[9px] font-black text-slate-500 uppercase mb-0.5">Nombre d'hommes</label>
+                        <label className="block text-[9px] font-bold text-[#005259] uppercase mb-0.5">Nombre d'hommes</label>
                         <input 
                           type="number" 
                           min="0"
                           value={editNbHommes} 
                           onChange={(e) => setEditNbHommes(Number(e.target.value))} 
-                          className={`${inlineInputClass} w-full font-mono`}
+                          className={`${inlineInputClass} w-full`}
                         />
                       </div>
                       <div>
-                        <label className="block text-[9px] font-black text-slate-500 uppercase mb-0.5">Nombre de femmes</label>
+                        <label className="block text-[9px] font-bold text-[#005259] uppercase mb-0.5">Nombre de femmes</label>
                         <input 
                           type="number" 
                           min="0"
                           value={editNbFemmes} 
                           onChange={(e) => setEditNbFemmes(Number(e.target.value))} 
-                          className={`${inlineInputClass} w-full font-mono`}
+                          className={`${inlineInputClass} w-full`}
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-[9px] font-black text-slate-500 uppercase mb-0.5">Commentaires / Notes</label>
+                      <label className="block text-[9px] font-bold text-[#005259] uppercase mb-0.5">Commentaires / Notes</label>
                       <textarea 
                         rows={2}
                         value={editCommentaire} 
@@ -460,17 +469,17 @@ export default function ActionsCollectivesPage() {
                       />
                     </div>
 
-                    <div className="flex justify-end gap-2 pt-1 border-t border-slate-800/50">
+                    <div className="flex justify-end gap-2 pt-2 border-t border-[#404040]/10">
                       <button 
                         onClick={() => setEditingId(null)}
-                        className="inline-flex items-center gap-1 bg-slate-950 border border-slate-800 text-slate-400 hover:text-white px-3 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-wider cursor-pointer transition-all"
+                        className="inline-flex items-center gap-1 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] hover:bg-[#404040] hover:text-white px-3 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-wider cursor-pointer transition-all"
                       >
                         <XMarkIcon className="w-3.5 h-3.5" />
                         <span>Annuler</span>
                       </button>
                       <button 
                         onClick={() => handleSaveEdit(act.id)}
-                        className="inline-flex items-center gap-1 bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider cursor-pointer transition-all shadow-md"
+                        className="inline-flex items-center gap-1 bg-[#EA601F] hover:bg-[#005259] text-white px-3 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-wider cursor-pointer transition-all shadow-sm"
                       >
                         <CheckIcon className="w-3.5 h-3.5" />
                         <span>Enregistrer</span>
@@ -482,22 +491,22 @@ export default function ActionsCollectivesPage() {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 group">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <h3 className="font-black text-sm text-white uppercase italic tracking-tight">{act.thematique}</h3>
-                        <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-slate-950 px-2 py-0.5 rounded-md border border-slate-800/60">
-                          <MapPinIcon className="w-3 h-3 text-fuchsia-400" /> {act.lieu}
+                        <h3 className="font-extrabold text-sm text-[#005259] uppercase tracking-tight">{act.thematique}</h3>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#005259] bg-[#F3F3F2] px-2.5 py-1 rounded-lg border border-[#404040]/10">
+                          <MapPinIcon className="w-3 h-3 text-[#EA601F]" /> {act.lieu}
                         </span>
                       </div>
                       
                       {act.commentaire && (
-                        <p className="text-xs text-slate-400 bg-slate-950/40 border border-slate-950/80 p-2 rounded-xl mt-2 italic font-sans line-clamp-2">
+                        <p className="text-xs text-[#404040]/80 bg-[#F3F3F2] border border-[#404040]/10 p-2.5 rounded-xl mt-2 italic line-clamp-2">
                           « {act.commentaire} »
                         </p>
                       )}
 
-                      <div className="flex gap-4 mt-2 text-xs font-medium text-slate-500">
-                        <div>Hommes : <span className="font-mono font-bold text-slate-300">{act.nbHommes || 0}</span></div>
-                        <div>Femmes : <span className="font-mono font-bold text-fuchsia-400/80">{act.nbFemmes || 0}</span></div>
-                        <div className="border-l border-slate-800 pl-4">Total : <span className="font-mono font-bold text-white">{(act.nbHommes || 0) + (act.nbFemmes || 0)}</span></div>
+                      <div className="flex gap-4 mt-2 text-xs font-bold text-[#404040]/70">
+                        <div>Hommes : <span className="font-extrabold text-[#005259]">{act.nbHommes || 0}</span></div>
+                        <div>Femmes : <span className="font-extrabold text-[#EA601F]">{act.nbFemmes || 0}</span></div>
+                        <div className="border-l border-[#404040]/15 pl-4">Total : <span className="font-extrabold text-[#005259]">{(act.nbHommes || 0) + (act.nbFemmes || 0)}</span></div>
                       </div>
                     </div>
 
@@ -506,14 +515,14 @@ export default function ActionsCollectivesPage() {
                       <button 
                         onClick={() => startEditing(act)} 
                         title="Modifier cette saisie"
-                        className="p-2 bg-slate-950 border border-slate-800 text-slate-500 hover:text-amber-400 hover:border-amber-950 rounded-xl transition-colors cursor-pointer"
+                        className="p-2 bg-[#F3F3F2] border border-[#404040]/10 text-[#005259] hover:bg-[#005259] hover:text-white rounded-xl transition-all cursor-pointer"
                       >
                         <PencilSquareIcon className="w-4 h-4" />
                       </button>
                       <button 
                         onClick={() => handleDelete(act.id)} 
                         title="Supprimer cette saisie"
-                        className="p-2 bg-slate-950 border border-slate-800 text-slate-600 hover:text-red-400 hover:border-red-950 rounded-xl transition-colors cursor-pointer"
+                        className="p-2 bg-[#F3F3F2] border border-[#404040]/10 text-[#404040]/50 hover:text-red-500 hover:border-red-200 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
                       >
                         <TrashIcon className="w-4 h-4" />
                       </button>
@@ -526,7 +535,7 @@ export default function ActionsCollectivesPage() {
           })}
 
           {actions.length === 0 && !status.includes("Enreg") && (
-            <div className="text-center py-16 border border-dashed border-slate-800 rounded-2xl text-xs font-bold uppercase tracking-widest text-slate-600">📭 Aucun enregistrement.</div>
+            <div className="text-center py-16 border border-dashed border-[#404040]/20 rounded-2xl text-xs font-bold uppercase tracking-wider text-[#404040]/50 bg-white/50">📭 Aucun enregistrement.</div>
           )}
         </div>
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { db } from "../../lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import Link from "next/link";
+import { Quicksand } from "next/font/google";
 import { 
   HomeIcon,
   ArrowLeftIcon,
@@ -11,6 +12,12 @@ import {
   UserGroupIcon, 
   CalendarDaysIcon 
 } from "@heroicons/react/24/outline";
+
+// Police Quicksand pour toute la page
+const quicksand = Quicksand({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
 
 interface GrandTotal {
   hommes: number;
@@ -60,7 +67,7 @@ export default function BilanSuresnesPage() {
           };
         });
 
-        // DEBUG LOG : Permet de voir instantanément dans la console F12 comment sont écrits vos genres dans Firestore
+        // DEBUG LOG
         if (listeUsagers.length > 0) {
           console.log("Exemple de genres détectés dans Firestore :", listeUsagers.slice(0, 5).map(u => ({ nom: u.nom, genreBrut: u.genreBrut })));
         }
@@ -83,26 +90,23 @@ export default function BilanSuresnesPage() {
             return nomUsagerAgenda === combinPrenomNom || nomUsagerAgenda === combinNomPrenom;
           });
 
-          // Extraction et sécurité sur la date du créneau (ex: "2026-06-15")
+          // Extraction et sécurité sur la date du créneau
           if (!rdvData.date) return;
           const rdvDate = new Date(rdvData.date);
 
-          // Normalisation à spectre très large pour attraper toutes les écritures de genre possibles
+          // Normalisation du genre
           let genreFinal = "non_specifie";
           if (ficheUsager && ficheUsager.genreBrut) {
             const g = ficheUsager.genreBrut;
             
-            // Tests pour HOMME (gère: "homme", "h", "monsieur", "mr", "m.", "1")
             if (g.startsWith("h") || g.includes("monsieur") || g === "m" || g.startsWith("mr") || g === "1") {
               genreFinal = "homme";
             } 
-            // Tests pour FEMME (gère: "femme", "f", "madame", "mme", "2")
             else if (g.startsWith("f") || g.includes("madame") || g.startsWith("mme") || g === "2") {
               genreFinal = "femme";
             }
           }
 
-          // La clé unique reste le nom nettoyé de l'usager pour éliminer les doublons de rendez-vous
           const cleUnique = nomUsagerAgenda;
 
           if (!cohorteUniques[cleUnique]) {
@@ -126,14 +130,12 @@ export default function BilanSuresnesPage() {
         // 5. Ventilation finale sans doublon
         Object.values(cohorteUniques).forEach(({ date, genre }) => {
           totalCompteur++;
-          const mois = date.getMonth(); // 0 = Janvier, 5 = Juin, etc.
+          const mois = date.getMonth();
 
-          // Remplissage de la grille mensuelle globale
           structureMois[mois].total += 1;
           if (genre === "homme") structureMois[mois].hommes += 1;
           if (genre === "femme") structureMois[mois].femmes += 1;
 
-          // Calcul du trimestre correspondant
           let triKey = "T1";
           if (mois >= 3 && mois <= 5) triKey = "T2";
           else if (mois >= 6 && mois <= 8) triKey = "T3";
@@ -173,25 +175,29 @@ export default function BilanSuresnesPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-emerald-500 font-bold animate-pulse tracking-widest text-xs uppercase">
+      <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex items-center justify-center text-[#005259] font-bold animate-pulse tracking-widest text-xs uppercase`}>
         Génération du bilan d'impact Suresnes (Agenda Global)...
       </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans antialiased">
-      <div className="max-w-5xl mx-auto">
+    <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
+      
+      {/* HALO LUMINEUX AMBIANT */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
+
+      <div className="max-w-5xl mx-auto relative z-10 space-y-6">
         
-        {/* EN-TÊTE */}
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-4">
+        {/* EN-TÊTE & NAVIGATION */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center pb-4 border-b border-[#404040]/10 gap-4">
           <div className="flex items-center gap-4">
-            <div className="h-10 w-1 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.6)]"></div>
+            <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
             <div>
-              <h1 className="text-2xl font-black text-white uppercase italic tracking-tight">
-                Bilan Territorial <span className="text-emerald-400 not-italic font-light">Suresnes</span>
+              <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
+                Bilan Territorial <span className="text-[#EA601F] font-semibold">Suresnes</span>
               </h1>
-              <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mt-0.5">
+              <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
                 Cohorte Unique basée sur le planning global — Sans Doublons
               </p>
             </div>
@@ -200,81 +206,85 @@ export default function BilanSuresnesPage() {
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
             <Link 
               href="/" 
-              className="inline-flex items-center gap-2 bg-slate-900 border border-slate-800 hover:border-slate-700 px-4 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all text-xs font-bold uppercase tracking-wider shadow-md active:scale-95"
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >
-              <HomeIcon className="w-4 h-4" />
+              <HomeIcon className="w-4 h-4 text-[#EA601F]" />
               <span>Accueil</span>
             </Link>
 
             <Link 
               href="/suresnes" 
-              className="inline-flex items-center gap-2 bg-slate-900 border border-slate-800 hover:border-slate-700 px-4 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all text-xs font-bold uppercase tracking-wider shadow-md active:scale-95"
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >
-              <ArrowLeftIcon className="w-4 h-4" />
+              <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
               <span>Planning</span>
             </Link>
           </div>
         </div>
 
         {/* INDICATEUR MAÎTRE */}
-        <div className="p-6 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-between mb-8 shadow-xl">
+        <div className="p-6 bg-white border border-[#404040]/10 rounded-2xl flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-emerald-950/40 border border-emerald-900/60 rounded-xl text-emerald-400">
+            <div className="p-3 bg-[#005259]/10 rounded-xl text-[#005259] border border-[#005259]/20">
               <BuildingOfficeIcon className="w-6 h-6" />
             </div>
             <div>
-              <span className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Bénéficiaires Distincts de l'Agenda</span>
-              <span className="text-xs text-slate-400 mt-0.5 block">Chaque personne inscrite dans le planning n'est comptée qu'une fois</span>
+              <span className="block text-xs font-bold uppercase tracking-wider text-[#005259]">Bénéficiaires Distincts de l'Agenda</span>
+              <span className="text-xs text-[#404040]/70 mt-0.5 block font-medium">Chaque personne inscrite dans le planning n'est comptée qu'une fois</span>
             </div>
           </div>
-          <span className="text-4xl font-mono font-black text-white">{totalSuresnes}</span>
+          <span className="text-4xl font-mono font-black text-[#EA601F]">{totalSuresnes}</span>
         </div>
 
         {/* VUE TRIMESTRIELLE */}
-        <h2 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2 px-1">
-          <UserGroupIcon className="w-4 h-4 text-emerald-400" />
-          Synthèse par Trimestre de premier rendez-vous
-        </h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {Object.entries(trimestres).map(([tri, data]) => (
-            <div key={tri} className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-md">
-              <div className="flex justify-between items-center mb-2 border-b border-slate-950 pb-1.5">
-                <span className="font-black text-xs text-emerald-400 uppercase tracking-widest">{tri}</span>
-                <span className="font-mono font-black text-white text-lg">{data.total}</span>
-              </div>
-              <div className="flex justify-between text-[11px] font-medium text-slate-500 font-mono">
-                <span>H: <strong className="text-slate-300">{data.hommes}</strong></span>
-                <span>F: <strong className="text-emerald-400/80">{data.femmes}</strong></span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* VUE MENSUELLE */}
-        <h2 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2 px-1">
-          <CalendarDaysIcon className="w-4 h-4 text-emerald-400" />
-          Ventilation Mensuelle Réelle
-        </h2>
-        
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-          <div className="grid grid-cols-4 bg-slate-950/80 border-b border-slate-800 p-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">
-            <div className="text-left pl-4">Mois de visite</div>
-            <div>Hommes</div>
-            <div>Femmes</div>
-            <div className="text-emerald-400">Total Unique</div>
-          </div>
-          
-          <div className="divide-y divide-slate-800/60">
-            {moisDetail.map((m) => (
-              <div key={m.nom} className="grid grid-cols-4 p-3.5 text-center text-xs font-semibold items-center hover:bg-slate-950/20 transition-colors">
-                <div className="text-left font-black text-slate-300 uppercase tracking-wider pl-4">{m.nom}</div>
-                <div className="font-mono text-slate-400">{m.hommes}</div>
-                <div className="font-mono text-slate-400">{m.femmes}</div>
-                <div className="font-mono font-black text-white bg-slate-950/60 py-1 rounded-lg border border-slate-800/60 max-w-[80px] mx-auto w-full">
-                  {m.total}
+        <div className="space-y-3">
+          <h2 className="font-bold text-xs uppercase tracking-wider text-[#005259] flex items-center gap-2 px-1">
+            <UserGroupIcon className="w-4 h-4 text-[#EA601F]" />
+            Synthèse par Trimestre de premier rendez-vous
+          </h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {Object.entries(trimestres).map(([tri, data]) => (
+              <div key={tri} className="bg-white border border-[#404040]/10 p-4 rounded-2xl shadow-sm">
+                <div className="flex justify-between items-center mb-2 border-b border-[#404040]/10 pb-2">
+                  <span className="font-bold text-xs text-[#EA601F] uppercase tracking-wider">{tri}</span>
+                  <span className="font-mono font-black text-[#005259] text-lg">{data.total}</span>
+                </div>
+                <div className="flex justify-between text-xs font-medium text-[#404040]/80 font-mono">
+                  <span>H: <strong className="text-[#005259]">{data.hommes}</strong></span>
+                  <span>F: <strong className="text-[#EA601F]">{data.femmes}</strong></span>
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* VUE MENSUELLE */}
+        <div className="space-y-3">
+          <h2 className="font-bold text-xs uppercase tracking-wider text-[#005259] flex items-center gap-2 px-1">
+            <CalendarDaysIcon className="w-4 h-4 text-[#EA601F]" />
+            Ventilation Mensuelle Réelle
+          </h2>
+          
+          <div className="bg-white border border-[#404040]/10 rounded-2xl overflow-hidden shadow-sm">
+            <div className="grid grid-cols-4 bg-[#F3F3F2] border-b border-[#404040]/10 p-3 text-[10px] font-bold uppercase tracking-widest text-[#005259] text-center">
+              <div className="text-left pl-4">Mois de visite</div>
+              <div>Hommes</div>
+              <div>Femmes</div>
+              <div className="text-[#EA601F]">Total Unique</div>
+            </div>
+            
+            <div className="divide-y divide-[#404040]/10">
+              {moisDetail.map((m) => (
+                <div key={m.nom} className="grid grid-cols-4 p-3.5 text-center text-xs font-medium items-center hover:bg-[#F3F3F2]/50 transition-colors">
+                  <div className="text-left font-bold text-[#005259] uppercase tracking-wider pl-4">{m.nom}</div>
+                  <div className="font-mono text-[#404040]">{m.hommes}</div>
+                  <div className="font-mono text-[#EA601F] font-semibold">{m.femmes}</div>
+                  <div className="font-mono font-bold text-[#005259] bg-[#005259]/10 py-1 rounded-lg border border-[#005259]/20 max-w-[80px] mx-auto w-full">
+                    {m.total}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 

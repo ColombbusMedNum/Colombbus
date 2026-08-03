@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { db } from "../../lib/firebase";
 import { collection, onSnapshot, addDoc, doc, updateDoc, setDoc } from "firebase/firestore";
+import { Quicksand } from "next/font/google";
 import { 
   UserPlusIcon, 
   PencilSquareIcon, 
@@ -24,6 +25,11 @@ import {
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 
+const quicksand = Quicksand({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
+
 const JOURS_SEMAINE = [
   { key: "lundi", label: "Lundi" },
   { key: "mardi", label: "Mardi" },
@@ -43,36 +49,34 @@ const HORAIRES_PAR_DEFAUT = {
 // Fonction utilitaire pour formater le numéro sous la forme 00 00 00 00 00
 const formatPhoneNumber = (phoneStr: string) => {
   if (!phoneStr) return "";
-  // On ne garde que les chiffres
   const cleaned = phoneStr.replace(/\D/g, "");
-  // On découpe par groupe de 2 chiffres
   const match = cleaned.match(/.{1,2}/g);
   return match ? match.join(" ") : phoneStr;
 };
 
+// Couleurs autorisées adaptées à la charte graphique principale
 const getTerritoryColor = (territory: string) => {
+  if (!territory) return "bg-[#005259]/10 border-[#005259]/30 text-[#005259]";
   const t = territory.toLowerCase().trim();
-  if (t === "paris") return "bg-blue-950/40 border-blue-800/60 text-blue-400";
-  if (t === "massy") return "bg-orange-950/40 border-orange-800/60 text-orange-400";
+  if (t === "paris") return "bg-[#005259]/10 border-[#005259]/30 text-[#005259]";
+  if (t === "massy") return "bg-[#EA601F]/10 border-[#EA601F]/30 text-[#EA601F]";
   
-  const hash = t.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const colors = [
-    "bg-emerald-950/40 border-emerald-800/60 text-emerald-400",
-    "bg-purple-950/40 border-purple-800/60 text-purple-400",
-    "bg-cyan-950/40 border-cyan-800/60 text-cyan-400",
-    "bg-pink-950/40 border-pink-800/60 text-pink-400",
-    "bg-amber-950/40 border-amber-800/60 text-amber-400",
-    "bg-indigo-950/40 border-indigo-800/60 text-indigo-400",
+    "bg-[#A9E0C9]/30 border-[#A9E0C9] text-[#005259]",
+    "bg-[#F9945D]/15 border-[#F9945D]/40 text-[#EA601F]",
+    "bg-[#EF736A]/15 border-[#EF736A]/40 text-[#EF736A]",
+    "bg-[#005259]/10 border-[#005259]/30 text-[#005259]"
   ];
+  const hash = t.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return colors[hash % colors.length];
 };
 
 const getRoleTextColor = (role: string) => {
   switch (role) {
-    case 'Admin': return 'text-amber-400';
-    case 'Lecteur': return 'text-blue-400';
-        case 'CoordinateurProjet': return 'text-purple-400';
-    default: return 'text-slate-400';
+    case 'Admin': return 'text-[#EA601F] font-bold';
+    case 'Lecteur': return 'text-[#005259]/70';
+    case 'CoordinateurProjet': return 'text-[#005259] font-bold';
+    default: return 'text-[#404040]/80';
   }
 };
 
@@ -81,7 +85,6 @@ const getRoleLabel = (role: string) => {
     case 'Mediateur': return 'Médiateur';
     case 'Admin': return 'Admin';
     case 'Lecteur': return 'Lecteur';
-    
     case 'CoordinateurProjet': return 'Coordinateur de projet';
     default: return role;
   }
@@ -352,469 +355,503 @@ export default function GestionEquipe() {
     .sort((a, b) => (a.nom || "").localeCompare(b.nom || ""));
 
   return (
-    <div className="min-h-screen bg-black text-slate-100 p-4 md:p-8 font-sans selection:bg-emerald-500/30">
+    <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
       
-      {/* HEADER */}
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8 border-b border-slate-900 pb-6">
-        <div className="flex items-center gap-3">
-          <Link 
-            href="/" 
-            className="p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white rounded-xl transition-all cursor-pointer flex items-center justify-center"
-            title="Retour à l'accueil"
-          >
-            <ChevronLeftIcon className="w-4 h-4" />
-          </Link>
-          <div>
-            <h1 className="text-xl md:text-2xl font-black uppercase bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-              Gestion de l'Équipe & Territoires
-            </h1>
-            <p className="text-xs text-slate-500 font-medium">Configurez vos territoires, rôles applicatifs et grilles horaires</p>
-          </div>
-        </div>
+      {/* HALO LUMINEUX AMBIANT */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto shrink-0">
-          <Link 
-            href="/competences" 
-            className="flex items-center justify-center gap-2 bg-blue-900 hover:bg-blue-800 border border-blue-700 text-white px-5 py-3 rounded-xl font-black uppercase text-xs tracking-widest transition-all cursor-pointer flex-1 md:flex-none"
-          >
-            <AcademicCapIcon className="w-5 h-5 text-blue-400" /> 
-            <span>Suivi des Qualités</span>
-          </Link>
+      <div className="max-w-6xl mx-auto relative z-10 space-y-6">
 
-          <Link 
-            href="/agenda" 
-            className="flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-500 text-white px-5 py-3 rounded-xl font-black uppercase text-xs tracking-widest transition-all cursor-pointer flex-1 md:flex-none"
-          >
-            <CalendarDaysIcon className="w-5 h-5" /> 
-            <span>Agenda Médiateurs</span>
-          </Link>
-
-          <button 
-            onClick={() => openModal()} 
-            className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-3 rounded-xl font-black uppercase text-xs tracking-widest transition-all cursor-pointer flex-1 md:flex-none"
-          >
-            <UserPlusIcon className="w-5 h-5" /> 
-            <span>Ajouter un membre</span>
-          </button>
-        </div>
-      </div>
-
-      {/* REFERENTIEL DES TERRITOIRES */}
-      <div className="max-w-7xl mx-auto mb-8 p-5 bg-slate-950/40 border border-slate-900 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <MapPinIcon className="w-5 h-5 text-emerald-400" />
-          <div>
-            <span className="text-xs font-black uppercase text-slate-300 block">Référentiel des Territoires</span>
-            <div className="flex flex-wrap gap-1.5 mt-1">
-              {listeTerritoires.map(t => (
-                <span key={t} className={`inline-flex items-center gap-1.5 px-2.5 py-1 border rounded-lg text-[11px] font-bold ${getTerritoryColor(t)}`}>
-                  {t}
-                  {t !== "Paris" && t !== "Massy" && (
-                    <button type="button" onClick={() => handleSupprimerTerritoire(t)} className="opacity-60 hover:opacity-100 font-normal ml-0.5 cursor-pointer">×</button>
-                  )}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <form onSubmit={handleAddTerritoire} className="flex items-center gap-2 w-full md:w-auto shrink-0">
-          <input 
-            type="text" 
-            placeholder="Nouveau territoire (ex: Lyon, Lille)..." 
-            className="p-2.5 bg-black border border-slate-800 focus:border-emerald-500 text-white rounded-xl text-xs font-bold outline-none w-full md:w-56"
-            value={nouveauTerritoireInput}
-            onChange={e => setNouveauTerritoireInput(e.target.value)}
-          />
-          <button type="submit" className="p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 cursor-pointer">
-            <PlusIcon className="w-4 h-4 text-emerald-500" /> Créer
-          </button>
-        </form>
-      </div>
-
-      {/* GRILLES HORAIRES */}
-      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
-        {(["Paris", "Massy"] as const).map(site => {
-          const isOpen = accordionOpen[site];
-          return (
-            <div key={site} className="bg-slate-950/40 border border-slate-900 rounded-2xl overflow-hidden shadow-xl">
-              <div 
-                onClick={() => setAccordionOpen(prev => ({ ...prev, [site]: !prev[site] }))}
-                className="p-4 bg-slate-900/20 hover:bg-slate-900/40 cursor-pointer flex items-center justify-between transition-all select-none"
-              >
-                <div className="flex items-center gap-2.5">
-                  <ClockIcon className="w-4 h-4 text-orange-400" />
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-200">
-                    Grille Horaires ACI — {site}
-                  </h3>
-                </div>
-                <ChevronDownIcon className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isOpen ? "rotate-180 text-orange-400" : ""}`} />
+        {/* HEADER & NAVIGATION */}
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-[#404040]/10">
+          <div className="flex items-center gap-4">
+            <Link 
+              href="/" 
+              className="p-2.5 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 text-[#005259] rounded-xl transition-all cursor-pointer flex items-center justify-center shadow-sm"
+              title="Retour à l'accueil"
+            >
+              <ChevronLeftIcon className="w-4 h-4" />
+            </Link>
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
+              <div>
+                <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
+                  Gestion de l'Équipe <span className="text-[#EA601F] font-normal">& Territoires</span>
+                </h1>
+                <p className="text-xs text-[#404040]/70 mt-0.5">
+                  Configurez vos territoires, rôles applicatifs et grilles horaires
+                </p>
               </div>
-
-              {isOpen && (
-                <div className="p-5 border-t border-slate-900/60 space-y-2.5 bg-black/10">
-                  {JOURS_SEMAINE.map(j => (
-                    <div key={j.key} className="flex items-center justify-between p-2 bg-slate-900/30 border border-slate-900/60 rounded-xl">
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide pl-1">{j.label}</span>
-                      <div className="flex items-center gap-2">
-                        <input 
-                          type="time" 
-                          className="p-1.5 bg-black border border-slate-800 text-white font-mono text-xs rounded text-center w-20 outline-none focus:border-orange-500/80"
-                          value={grillesHorairesACI[site]?.[j.key]?.debut || "09:30"}
-                          onChange={e => handleGlobalHoraireChange(site, j.key, "debut", e.target.value)}
-                        />
-                        <span className="text-slate-600 text-[10px] font-bold uppercase">à</span>
-                        <input 
-                          type="time" 
-                          className="p-1.5 bg-black border border-slate-800 text-white font-mono text-xs rounded text-center w-20 outline-none focus:border-orange-500/80"
-                          value={grillesHorairesACI[site]?.[j.key]?.fin || "17:00"}
-                          onChange={e => handleGlobalHoraireChange(site, j.key, "fin", e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
-          );
-        })}
-      </div>
-
-      {/* FILTRES */}
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 mb-6 bg-slate-950/40 p-1.5 rounded-xl border border-slate-900/60">
-        <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-900">
-          <button onClick={() => setCurrentTab("actifs")} className={`px-4 py-2 rounded-md font-bold text-xs uppercase tracking-wider transition-all cursor-pointer ${currentTab === "actifs" ? "bg-slate-900 text-emerald-400" : "text-slate-500"}`}>
-            Membres actifs ({filteredMediateurs.length})
-          </button>
-          <button onClick={() => setCurrentTab("archives")} className={`px-4 py-2 rounded-md font-bold text-xs uppercase tracking-wider transition-all cursor-pointer ${currentTab === "archives" ? "bg-slate-900 text-orange-400" : "text-slate-500"}`}>
-            Archives
-          </button>
-        </div>
-        <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-900">
-          <button onClick={() => setDisplayMode("cartes")} className={`p-2 rounded-md cursor-pointer ${displayMode === "cartes" ? "bg-slate-900 text-white" : "text-slate-600"}`}><Squares2X2Icon className="w-4 h-4" /></button>
-          <button onClick={() => setDisplayMode("liste")} className={`p-2 rounded-md cursor-pointer ${displayMode === "liste" ? "bg-slate-900 text-white" : "text-slate-600"}`}><ListBulletIcon className="w-4 h-4" /></button>
-        </div>
-      </div>
-
-      {/* LISTING COLLABORATEURS */}
-      <div className="max-w-7xl mx-auto">
-        {filteredMediateurs.length === 0 ? (
-          <div className="text-center py-12 border-2 border-dashed border-slate-800 rounded-2xl bg-slate-950/20">
-            <p className="text-slate-500 text-sm font-medium">Aucun collaborateur trouvé.</p>
           </div>
-        ) : displayMode === "cartes" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredMediateurs.map((m) => {
-              const localSites = m.sites || [];
-              const userRole = m.role || "Mediateur";
-              return (
-                <div key={m.id} className="group relative bg-slate-950/90 border-2 border-slate-700 hover:border-emerald-500/50 rounded-2xl p-5 shadow-2xl flex flex-col justify-between min-h-[190px] transition-all duration-200">
-                  <div className="absolute top-0 right-0 flex divide-x-2 divide-slate-700 rounded-bl-xl rounded-tr-2xl border-l-2 border-b-2 border-slate-700 bg-slate-900 text-[10px] font-black uppercase">
-                    <span className="px-3 py-1.5 text-slate-300">{m.statut}</span>
-                    <span className={`px-3 py-1.5 ${getRoleTextColor(userRole)}`}>
-                      {getRoleLabel(userRole)}
-                    </span>
+
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0">
+            <Link 
+              href="/competences" 
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+            >
+              <AcademicCapIcon className="w-4 h-4 text-[#EA601F]" /> 
+              <span>Qualités</span>
+            </Link>
+
+            <Link 
+              href="/agenda" 
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+            >
+              <CalendarDaysIcon className="w-4 h-4 text-[#EA601F]" /> 
+              <span>Agenda</span>
+            </Link>
+
+            <button 
+              onClick={() => openModal()} 
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md active:scale-95 group"
+            >
+              <UserPlusIcon className="w-4 h-4 transition-transform group-hover:scale-110" /> 
+              <span>Nouveau membre</span>
+            </button>
+          </div>
+        </div>
+
+        {/* REFERENTIEL DES TERRITOIRES */}
+        <div className="p-4 bg-white border border-[#404040]/10 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <MapPinIcon className="w-5 h-5 text-[#EA601F]" />
+            <div>
+              <span className="text-xs font-bold uppercase text-[#005259] block">Référentiel des Territoires</span>
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {listeTerritoires.map(t => (
+                  <span key={t} className={`inline-flex items-center gap-1.5 px-2.5 py-1 border rounded-lg text-[11px] font-bold ${getTerritoryColor(t)}`}>
+                    {t}
+                    {t !== "Paris" && t !== "Massy" && (
+                      <button type="button" onClick={() => handleSupprimerTerritoire(t)} className="opacity-60 hover:opacity-100 font-normal ml-0.5 cursor-pointer">×</button>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <form onSubmit={handleAddTerritoire} className="flex items-center gap-2 w-full md:w-auto shrink-0">
+            <input 
+              type="text" 
+              placeholder="Nouveau territoire (ex: Lyon, Lille)..." 
+              className="p-2.5 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:ring-1 focus:ring-[#005259] text-[#404040] placeholder-[#404040]/40 rounded-xl text-xs font-medium outline-none w-full md:w-56 transition-all"
+              value={nouveauTerritoireInput}
+              onChange={e => setNouveauTerritoireInput(e.target.value)}
+            />
+            <button type="submit" className="px-3.5 py-2.5 bg-[#005259] hover:bg-[#EA601F] text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1 shrink-0 cursor-pointer transition-all shadow-sm">
+              <PlusIcon className="w-4 h-4" /> Créer
+            </button>
+          </form>
+        </div>
+
+        {/* GRILLES HORAIRES */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {(["Paris", "Massy"] as const).map(site => {
+            const isOpen = accordionOpen[site];
+            return (
+              <div key={site} className="bg-white border border-[#404040]/10 rounded-2xl overflow-hidden shadow-sm">
+                <div 
+                  onClick={() => setAccordionOpen(prev => ({ ...prev, [site]: !prev[site] }))}
+                  className="p-4 bg-white hover:bg-[#F3F3F2]/60 cursor-pointer flex items-center justify-between transition-all select-none"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <ClockIcon className="w-4 h-4 text-[#EA601F]" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#005259]">
+                      Grille Horaires ACI — {site}
+                    </h3>
                   </div>
-                  <div className="mt-4">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 font-black text-xs">
-                        {m.trigramme || `${m.prenom?.[0] || ""}${m.nom?.[0] || ""}`}
+                  <ChevronDownIcon className={`w-4 h-4 text-[#404040]/50 transition-transform duration-200 ${isOpen ? "rotate-180 text-[#EA601F]" : ""}`} />
+                </div>
+
+                {isOpen && (
+                  <div className="p-4 border-t border-[#404040]/10 space-y-2 bg-[#F3F3F2]/40">
+                    {JOURS_SEMAINE.map(j => (
+                      <div key={j.key} className="flex items-center justify-between p-2 bg-white border border-[#404040]/10 rounded-xl shadow-xs">
+                        <span className="text-[11px] font-bold text-[#005259] uppercase tracking-wide pl-1">{j.label}</span>
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="time" 
+                            className="p-1 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] font-mono text-xs rounded text-center w-20 outline-none focus:border-[#005259]"
+                            value={grillesHorairesACI[site]?.[j.key]?.debut || "09:30"}
+                            onChange={e => handleGlobalHoraireChange(site, j.key, "debut", e.target.value)}
+                          />
+                          <span className="text-[#404040]/50 text-[10px] font-bold uppercase">à</span>
+                          <input 
+                            type="time" 
+                            className="p-1 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] font-mono text-xs rounded text-center w-20 outline-none focus:border-[#005259]"
+                            value={grillesHorairesACI[site]?.[j.key]?.fin || "17:00"}
+                            onChange={e => handleGlobalHoraireChange(site, j.key, "fin", e.target.value)}
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-bold text-sm text-white">{m.prenom} <span className="uppercase text-slate-300 font-extrabold">{m.nom}</span></h3>
-                        <p className="text-[11px] text-slate-500 font-semibold">{m.poste}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* FILTRES & VUES */}
+        <div className="flex items-center justify-between gap-4 bg-white p-2 rounded-2xl border border-[#404040]/10 shadow-sm">
+          <div className="flex items-center gap-1.5">
+            <button 
+              onClick={() => setCurrentTab("actifs")} 
+              className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                currentTab === "actifs" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/70 hover:text-[#005259] hover:bg-[#F3F3F2]"
+              }`}
+            >
+              Membres actifs ({filteredMediateurs.length})
+            </button>
+            <button 
+              onClick={() => setCurrentTab("archives")} 
+              className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                currentTab === "archives" ? "bg-[#EF736A] text-white shadow-sm" : "text-[#404040]/70 hover:text-[#EF736A] hover:bg-[#F3F3F2]"
+              }`}
+            >
+              Archives
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1 bg-[#F3F3F2] p-1 rounded-xl border border-[#404040]/10">
+            <button 
+              onClick={() => setDisplayMode("cartes")} 
+              className={`p-1.5 rounded-lg cursor-pointer transition-all ${displayMode === "cartes" ? "bg-white text-[#005259] shadow-xs font-bold" : "text-[#404040]/50 hover:text-[#404040]"}`}
+            >
+              <Squares2X2Icon className="w-4 h-4" />
+            </button>
+            <button 
+              onClick={() => setDisplayMode("liste")} 
+              className={`p-1.5 rounded-lg cursor-pointer transition-all ${displayMode === "liste" ? "bg-white text-[#005259] shadow-xs font-bold" : "text-[#404040]/50 hover:text-[#404040]"}`}
+            >
+              <ListBulletIcon className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* LISTING COLLABORATEURS */}
+        <div>
+          {filteredMediateurs.length === 0 ? (
+            <div className="text-center py-16 border border-[#404040]/10 rounded-2xl bg-white shadow-sm">
+              <p className="text-[#404040]/60 text-xs font-bold uppercase tracking-wider">Aucun collaborateur trouvé.</p>
+            </div>
+          ) : displayMode === "cartes" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredMediateurs.map((m) => {
+                const localSites = m.sites || [];
+                const userRole = m.role || "Mediateur";
+                return (
+                  <div key={m.id} className="group relative bg-white border border-[#404040]/10 hover:border-[#005259]/30 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between min-h-[200px]">
+                    <div className="absolute top-0 right-0 flex divide-x divide-[#404040]/10 rounded-bl-xl rounded-tr-2xl border-l border-b border-[#404040]/10 bg-[#F3F3F2] text-[10px] font-bold uppercase">
+                      <span className="px-2.5 py-1 text-[#404040]">{m.statut}</span>
+                      <span className={`px-2.5 py-1 ${getRoleTextColor(userRole)}`}>
+                        {getRoleLabel(userRole)}
+                      </span>
+                    </div>
+
+                    <div className="mt-3">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#005259]/10 border border-[#005259]/20 flex items-center justify-center text-[#005259] font-bold text-xs">
+                          {m.trigramme || `${m.prenom?.[0] || ""}${m.nom?.[0] || ""}`}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-sm text-[#005259] group-hover:text-[#EA601F] transition-colors">{m.prenom} <span className="uppercase">{m.nom}</span></h3>
+                          <p className="text-[11px] text-[#404040]/70 font-medium">{m.poste}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-1.5 border-t border-[#404040]/10 pt-3 text-[11px] text-[#404040]/80">
+                        {m.email && <p className="truncate"><EnvelopeIcon className="w-3.5 h-3.5 inline mr-1 text-[#EA601F]" /> {m.email}</p>}
+                        {m.telephone && (
+                          <p className="truncate">
+                            <PhoneIcon className="w-3.5 h-3.5 inline mr-1 text-[#EA601F]" /> {formatPhoneNumber(m.telephone)}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          <MapPinIcon className="w-3.5 h-3.5 text-[#EA601F] shrink-0" />
+                          {localSites.length === 0 ? (
+                            <span className="text-[10px] italic text-[#404040]/40">Aucun territoire affecté</span>
+                          ) : (
+                            localSites.map((s: string) => (
+                              <span key={s} className={`px-2 py-0.5 border text-[10px] font-bold rounded-md ${getTerritoryColor(s)}`}>
+                                {s}
+                              </span>
+                            ))
+                          )}
+                        </div>
                       </div>
                     </div>
-                    
-                    <div className="space-y-1.5 border-t border-slate-900/60 pt-3 text-[11px] text-slate-400">
-                      {m.email && <p className="truncate"><EnvelopeIcon className="w-3.5 h-3.5 inline mr-1 text-slate-600" /> {m.email}</p>}
-                      {/* Affichage du téléphone avec l'utilitaire de formatage (00 00 00 00 00) */}
-                      {m.telephone && (
-                        <p className="truncate">
-                          <PhoneIcon className="w-3.5 h-3.5 inline mr-1 text-slate-600" /> {formatPhoneNumber(m.telephone)}
-                        </p>
-                      )}
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <MapPinIcon className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-                        {localSites.length === 0 ? (
-                          <span className="text-[10px] italic text-slate-600">Aucun territoire affecté</span>
-                        ) : (
-                          localSites.map((s: string) => (
-                            <span key={s} className={`px-2 py-0.5 border text-[10px] font-bold rounded-md transition-colors ${getTerritoryColor(s)}`}>
-                              {s}
-                            </span>
-                          ))
+
+                    <div className="flex items-center justify-between border-t border-[#404040]/10 pt-3 mt-4">
+                      <div className="text-[10px] text-[#404040]/70 font-bold uppercase flex items-center gap-2">
+                        <span className="bg-[#F3F3F2] px-2 py-1 rounded border border-[#404040]/10 text-[#005259]">Taux : {m.taux || 0}€</span>
+                        {m.statut === "ACI" && (
+                          <span className="text-[#EA601F] bg-[#F9945D]/15 border border-[#F9945D]/30 px-2 py-1 rounded flex items-center gap-1">
+                            <ClockIcon className="w-3.5 h-3.5" /> Réf : {m.rattachementHoraireACI || "Paris"}
+                          </span>
                         )}
                       </div>
+                      <div className="flex gap-1.5">
+                        <button onClick={() => openModal(m)} title="Modifier" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#005259] hover:bg-[#005259]/10 transition-colors cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
+                        <button onClick={() => toggleArchive(m)} title="Archiver" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#EF736A] hover:bg-[#EF736A]/10 transition-colors cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between border-t border-slate-900/60 pt-3 mt-4">
-                    <div className="text-[10px] text-slate-500 font-bold uppercase flex items-center gap-2">
-                      <span className="bg-slate-900 px-2 py-1 rounded border border-slate-800 text-slate-300">Taux : {m.taux || 0}€</span>
-                      {m.statut === "ACI" && (
-                        <span className="text-orange-400 bg-orange-950/20 border border-orange-900/30 px-2 py-1 rounded flex items-center gap-1">
-                          <ClockIcon className="w-3.5 h-3.5" /> Réf : {m.rattachementHoraireACI || "Paris"}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex gap-1.5">
-                      <button onClick={() => openModal(m)} className="p-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-400 hover:text-white cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
-                      <button onClick={() => toggleArchive(m)} className="p-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-400 cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          /* VERSION TABLEAU */
-          <div className="w-full bg-slate-950/40 border-2 border-slate-700 rounded-2xl overflow-hidden shadow-xl">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-950 text-[10px] font-black uppercase text-slate-500 border-b-2 border-slate-700">
-                  <th className="p-4 pl-6">Collaborateur</th>
-                  <th className="p-4">Email Login</th>
-                  <th className="p-4">Rôle Applicatif</th>
-                  <th className="p-4">Territoire(s) affecté(s)</th>
-                  <th className="p-4 pr-6 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-900 text-xs text-slate-300">
-                {filteredMediateurs.map((m) => {
-                  const userRole = m.role || "Mediateur";
-                  return (
-                    <tr key={m.id} className="hover:bg-slate-950/50">
-                      <td className="p-4 pl-6 font-bold text-white">{m.prenom} <span className="uppercase text-slate-400 ml-0.5">{m.nom}</span></td>
-                      <td className="p-4 text-slate-400 font-mono text-[11px]">{m.email || "-"}</td>
-                      <td className="p-4">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border border-slate-800 bg-slate-900 ${getRoleTextColor(userRole)}`}>
-                          {getRoleLabel(userRole)}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex flex-wrap gap-1">
-                          {(m.sites || []).map((s: string) => (
-                            <span key={s} className={`px-2 py-0.5 border text-[10px] font-semibold rounded ${getTerritoryColor(s)}`}>{s}</span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="p-4 pr-6 text-right">
-                        <button onClick={() => openModal(m)} className="p-1 text-slate-500 hover:text-white mr-2 cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
-                        <button onClick={() => toggleArchive(m)} className="p-1 text-slate-500 cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* MODALE RECRUTEMENT / EDITION */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-950 border-2 border-slate-700 w-full max-w-lg rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-900 pb-4 mb-5">
-              <h2 className="text-base font-black uppercase text-white flex items-center gap-2">
-                <UserIcon className="w-5 h-5 text-emerald-500" />
-                {editingMed ? "Modifier la fiche" : "Nouveau membre de l'équipe"}
-              </h2>
-              <button onClick={closeModal} className="p-1.5 bg-slate-900 border border-slate-800 text-slate-500 hover:text-white rounded-lg cursor-pointer"><XMarkIcon className="w-4 h-4" /></button>
+                );
+              })}
             </div>
-            
-            <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Prénom *</label>
-                  <input type="text" required className="w-full p-3 bg-slate-900/50 border border-slate-800 text-white rounded-lg outline-none" value={formData.prenom} onChange={e => setFormData({...formData, prenom: e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Nom *</label>
-                  <input type="text" required className="w-full p-3 bg-slate-900/50 border border-slate-800 text-white rounded-lg outline-none uppercase" value={formData.nom} onChange={e => setFormData({...formData, nom: e.target.value})} />
-                </div>
+          ) : (
+            /* VERSION TABLEAU */
+            <div className="w-full bg-white border border-[#404040]/10 rounded-2xl overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
+                      <th className="px-6 py-4">Collaborateur</th>
+                      <th className="px-6 py-4">Email Login</th>
+                      <th className="px-6 py-4">Rôle Applicatif</th>
+                      <th className="px-6 py-4">Territoire(s) affecté(s)</th>
+                      <th className="px-6 py-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#404040]/5 text-xs text-[#404040]">
+                    {filteredMediateurs.map((m) => {
+                      const userRole = m.role || "Mediateur";
+                      return (
+                        <tr key={m.id} className="hover:bg-[#F3F3F2]/60 transition-colors">
+                          <td className="px-6 py-4 font-bold text-[#005259] uppercase">{m.prenom} <span className="text-[#404040]">{m.nom}</span></td>
+                          <td className="px-6 py-4 text-[#404040]/80 font-mono text-[11px]">{m.email || "-"}</td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border border-[#404040]/10 bg-[#F3F3F2] ${getRoleTextColor(userRole)}`}>
+                              {getRoleLabel(userRole)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-wrap gap-1">
+                              {(m.sites || []).map((s: string) => (
+                                <span key={s} className={`px-2 py-0.5 border text-[10px] font-semibold rounded ${getTerritoryColor(s)}`}>{s}</span>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button onClick={() => openModal(m)} className="p-1.5 text-[#404040]/60 hover:text-[#005259] mr-1 cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
+                            <button onClick={() => toggleArchive(m)} className="p-1.5 text-[#404040]/60 hover:text-[#EF736A] cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
+            </div>
+          )}
+        </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Trigramme</label>
-                  <input type="text" maxLength={3} className="w-full p-3 bg-slate-900/50 border border-slate-800 text-white rounded-lg text-center uppercase" value={formData.trigramme} onChange={e => setFormData({...formData, trigramme: e.target.value})} />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Email *</label>
-                  <input type="email" required placeholder="nom@colombbus.org" className="w-full p-3 bg-slate-900/50 border border-slate-800 text-white rounded-lg font-mono" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-                </div>
+        {/* MODALE RECRUTEMENT / EDITION */}
+        {isModalOpen && (
+          <div className="fixed inset-0 bg-[#005259]/20 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <div className="bg-white border border-[#404040]/10 w-full max-w-lg rounded-2xl p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-[#404040]/10 pb-4 mb-5">
+                <h2 className="text-base font-bold uppercase text-[#005259] flex items-center gap-2">
+                  <UserIcon className="w-5 h-5 text-[#EA601F]" />
+                  {editingMed ? "Modifier la fiche" : "Nouveau membre de l'équipe"}
+                </h2>
+                <button onClick={closeModal} className="p-1.5 bg-[#F3F3F2] border border-[#404040]/10 text-[#404040]/60 hover:text-[#404040] rounded-lg cursor-pointer"><XMarkIcon className="w-4 h-4" /></button>
               </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Poste</label>
-                  <input type="text" className="w-full p-3 bg-slate-900/50 border border-slate-800 text-white rounded-lg" value={formData.poste} onChange={e => setFormData({...formData, poste: e.target.value})} />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Téléphone (Optionnel)</label>
-                  <input type="tel" placeholder="06..." className="w-full p-3 bg-slate-900/50 border border-slate-800 text-white rounded-lg" value={formData.telephone} onChange={e => setFormData({...formData, telephone: e.target.value})} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3 border-t border-slate-900/60 pt-4">
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Type Contrat</label>
-                  <select className="w-full p-3 bg-slate-900 border border-slate-800 text-white rounded-lg outline-none font-bold" value={formData.statut} onChange={e => setFormData({...formData, statut: e.target.value})}>
-                    <option value="Permanent">Permanent</option>
-                    <option value="Cadre">Cadre</option>
-                    <option value="Stagiaire">Stagiaire</option>
-                    <option value="ACI">ACI</option>
-                  </select>
+              
+              <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-[#005259] mb-1.5">Prénom *</label>
+                    <input type="text" required className="w-full p-3 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl outline-none focus:border-[#005259] focus:ring-1 focus:ring-[#005259]" value={formData.prenom} onChange={e => setFormData({...formData, prenom: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-[#005259] mb-1.5">Nom *</label>
+                    <input type="text" required className="w-full p-3 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl outline-none uppercase focus:border-[#005259] focus:ring-1 focus:ring-[#005259]" value={formData.nom} onChange={e => setFormData({...formData, nom: e.target.value})} />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-amber-500 mb-1.5 flex items-center gap-1">
-                    <ShieldCheckIcon className="w-3.5 h-3.5" /> Droits / Rôle
-                  </label>
-                  <select className="w-full p-3 bg-slate-900 border border-amber-900/30 text-amber-400 rounded-lg outline-none font-bold" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
-                    <option value="Mediateur">Médiateur</option>
-                    
-                    <option value="CoordinateurProjet">Coordinateur de projet</option>
-                    <option value="Admin">Admin</option>
-                    <option value="Lecteur">Lecteur</option>
-                  </select>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-[#005259] mb-1.5">Trigramme</label>
+                    <input type="text" maxLength={3} className="w-full p-3 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl text-center uppercase outline-none focus:border-[#005259] focus:ring-1 focus:ring-[#005259]" value={formData.trigramme} onChange={e => setFormData({...formData, trigramme: e.target.value})} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold uppercase text-[#005259] mb-1.5">Email *</label>
+                    <input type="email" required placeholder="nom@colombbus.org" className="w-full p-3 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] placeholder-[#404040]/40 rounded-xl font-mono outline-none focus:border-[#005259] focus:ring-1 focus:ring-[#005259]" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5">Coût Horaire (€)</label>
-                  <input 
-                    type="number" 
-                    step="0.01"
-                    className="w-full p-3 bg-slate-900/50 border border-slate-800 text-white rounded-lg text-center font-bold" 
-                    value={formData.taux || ""} 
-                    placeholder="0"
-                    onChange={e => setFormData({...formData, taux: e.target.value === "" ? 0 : Number(e.target.value)})} 
-                  />
-                </div>
-              </div>
-
-              {formData.statut === "ACI" && (
-                <div className="p-3.5 bg-orange-950/20 border border-orange-900/40 rounded-xl">
-                  <label className="block text-[10px] font-black uppercase text-orange-400 mb-1.5 flex items-center gap-1">
-                    <ClockIcon className="w-3.5 h-3.5" /> Grille de référence ACI
-                  </label>
-                  <select 
-                    className="w-full p-2.5 bg-black border border-orange-900/40 text-white rounded-lg outline-none font-bold text-xs"
-                    value={formData.rattachementHoraireACI}
-                    onChange={e => setFormData({...formData, rattachementHoraireACI: e.target.value})}
-                  >
-                    <option value="Paris">Suivre la grille de Paris</option>
-                    <option value="Massy">Suivre la grille de Massy</option>
-                  </select>
-                </div>
-              )}
-
-              {/* SECTION GESTION DES QUALITÉS */}
-              <div className="border-t border-slate-900/60 pt-4">
-                <label className="block text-[10px] font-black uppercase text-blue-400 mb-1.5 flex items-center gap-1">
-                  <AcademicCapIcon className="w-4 h-4" /> Qualités & Compétences (Excel, Word...)
-                </label>
-                
-                <div className="flex gap-2 mb-3">
-                  <input 
-                    type="text"
-                    placeholder="Saisir ou choisir une qualité ci-dessous..."
-                    value={competenceInput}
-                    onChange={e => setCompetenceInput(e.target.value)}
-                    onKeyDown={e => {
-                      if(e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddCompetence();
-                      }
-                    }}
-                    className="flex-1 p-2.5 bg-slate-900/50 border border-slate-800 text-white rounded-lg outline-none focus:border-blue-500"
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => handleAddCompetence()}
-                    className="px-3 bg-blue-950 border border-blue-800 hover:bg-blue-900 text-blue-400 font-bold rounded-lg transition-colors cursor-pointer"
-                  >
-                    +
-                  </button>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold uppercase text-[#005259] mb-1.5">Poste</label>
+                    <input type="text" className="w-full p-3 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl outline-none focus:border-[#005259] focus:ring-1 focus:ring-[#005259]" value={formData.poste} onChange={e => setFormData({...formData, poste: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-[#005259] mb-1.5">Téléphone</label>
+                    <input type="tel" placeholder="06..." className="w-full p-3 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] placeholder-[#404040]/40 rounded-xl outline-none focus:border-[#005259] focus:ring-1 focus:ring-[#005259]" value={formData.telephone} onChange={e => setFormData({...formData, telephone: e.target.value})} />
+                  </div>
                 </div>
 
-                {listeQualitesGlobales.length > 0 && (
-                  <div className="mb-3">
-                    <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Qualités enregistrées dans la base (cliquer pour ajouter) :</p>
-                    <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1.5 bg-black/40 rounded-lg border border-slate-900">
-                      {listeQualitesGlobales.map((qualite) => {
-                        const dejàAttribuee = formData.competences.includes(qualite);
-                        return (
-                          <button
-                            key={qualite}
-                            type="button"
-                            disabled={dejàAttribuee}
-                            onClick={() => handleAddCompetence(qualite)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all ${
-                              dejàAttribuee 
-                              ? "bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed" 
-                              : "bg-slate-950 border-slate-800 text-slate-400 hover:border-blue-700 hover:text-blue-400 cursor-pointer"
-                            }`}
-                          >
-                            {qualite}
-                          </button>
-                        );
-                      })}
-                    </div>
+                <div className="grid grid-cols-3 gap-3 border-t border-[#404040]/10 pt-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-[#005259] mb-1.5">Type Contrat</label>
+                    <select className="w-full p-3 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl outline-none font-bold" value={formData.statut} onChange={e => setFormData({...formData, statut: e.target.value})}>
+                      <option value="Permanent">Permanent</option>
+                      <option value="Cadre">Cadre</option>
+                      <option value="Stagiaire">Stagiaire</option>
+                      <option value="ACI">ACI</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-[#EA601F] mb-1.5 flex items-center gap-1">
+                      <ShieldCheckIcon className="w-3.5 h-3.5" /> Droits / Rôle
+                    </label>
+                    <select className="w-full p-3 bg-[#F3F3F2] border border-[#EA601F]/30 text-[#EA601F] rounded-xl outline-none font-bold" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}>
+                      <option value="Mediateur">Médiateur</option>
+                      <option value="CoordinateurProjet">Coordinateur de projet</option>
+                      <option value="Admin">Admin</option>
+                      <option value="Lecteur">Lecteur</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-[#005259] mb-1.5">Coût Horaire (€)</label>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      className="w-full p-3 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl text-center font-bold outline-none focus:border-[#005259] focus:ring-1 focus:ring-[#005259]" 
+                      value={formData.taux || ""} 
+                      placeholder="0"
+                      onChange={e => setFormData({...formData, taux: e.target.value === "" ? 0 : Number(e.target.value)})} 
+                    />
+                  </div>
+                </div>
+
+                {formData.statut === "ACI" && (
+                  <div className="p-3.5 bg-[#F9945D]/10 border border-[#F9945D]/30 rounded-xl">
+                    <label className="block text-[10px] font-bold uppercase text-[#EA601F] mb-1.5 flex items-center gap-1">
+                      <ClockIcon className="w-3.5 h-3.5" /> Grille de référence ACI
+                    </label>
+                    <select 
+                      className="w-full p-2.5 bg-white border border-[#F9945D]/40 text-[#404040] rounded-lg outline-none font-bold text-xs"
+                      value={formData.rattachementHoraireACI}
+                      onChange={e => setFormData({...formData, rattachementHoraireACI: e.target.value})}
+                    >
+                      <option value="Paris">Suivre la grille de Paris</option>
+                      <option value="Massy">Suivre la grille de Massy</option>
+                    </select>
                   </div>
                 )}
 
-                <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Qualités retenues pour ce profil :</p>
-                <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 bg-black/20 border border-slate-900 rounded-lg">
-                  {formData.competences.length === 0 ? (
-                    <span className="text-[10px] text-slate-600 italic self-center">Aucune qualité sélectionnée</span>
-                  ) : (
-                    formData.competences.map((comp, idx) => (
-                      <span key={idx} className="inline-flex items-center gap-1 bg-blue-950/60 border border-blue-900/50 text-blue-400 px-2 py-0.5 rounded-md font-medium text-[11px]">
-                        {comp}
-                        <button 
-                          type="button" 
-                          onClick={() => handleRemoveCompetence(idx)}
-                          className="text-slate-500 hover:text-red-400 font-bold ml-1 cursor-pointer"
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))
+                {/* SECTION GESTION DES QUALITÉS */}
+                <div className="border-t border-[#404040]/10 pt-4">
+                  <label className="block text-[10px] font-bold uppercase text-[#005259] mb-1.5 flex items-center gap-1">
+                    <AcademicCapIcon className="w-4 h-4 text-[#EA601F]" /> Qualités & Compétences (Excel, Word...)
+                  </label>
+                  
+                  <div className="flex gap-2 mb-3">
+                    <input 
+                      type="text"
+                      placeholder="Saisir ou choisir une qualité ci-dessous..."
+                      value={competenceInput}
+                      onChange={e => setCompetenceInput(e.target.value)}
+                      onKeyDown={e => {
+                        if(e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCompetence();
+                        }
+                      }}
+                      className="flex-1 p-2.5 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] placeholder-[#404040]/40 rounded-xl outline-none focus:border-[#005259] focus:ring-1 focus:ring-[#005259]"
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => handleAddCompetence()}
+                      className="px-3 bg-[#005259] hover:bg-[#EA601F] text-white font-bold rounded-xl transition-colors cursor-pointer"
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  {listeQualitesGlobales.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-[10px] text-[#404040]/70 uppercase font-bold mb-1">Qualités enregistrées (cliquer pour ajouter) :</p>
+                      <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1.5 bg-[#F3F3F2] rounded-xl border border-[#404040]/10">
+                        {listeQualitesGlobales.map((qualite) => {
+                          const dejàAttribuee = formData.competences.includes(qualite);
+                          return (
+                            <button
+                              key={qualite}
+                              type="button"
+                              disabled={dejàAttribuee}
+                              onClick={() => handleAddCompetence(qualite)}
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all ${
+                                dejàAttribuee 
+                                ? "bg-white border-[#404040]/10 text-[#404040]/30 cursor-not-allowed" 
+                                : "bg-white border-[#005259]/20 text-[#005259] hover:border-[#005259] cursor-pointer"
+                              }`}
+                            >
+                              {qualite}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
-                </div>
-              </div>
 
-              <div className="border-t border-slate-900/60 pt-4">
-                <label className="block text-[10px] font-black uppercase text-slate-400 mb-2">Affectation Territoire(s)</label>
-                <div className="bg-slate-900/30 border border-slate-850 rounded-xl p-2.5 grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
-                  {listeTerritoires.map(t => {
-                    const estCoche = formData.sites.includes(t);
-                    return (
-                      <label key={t} className="flex items-center gap-2.5 p-2 bg-black/40 hover:bg-black border border-slate-800 rounded-lg cursor-pointer transition-colors select-none">
-                        <input 
-                          type="checkbox" 
-                          className="w-4 h-4 rounded accent-emerald-500 bg-slate-950 border-slate-800 cursor-pointer"
-                          checked={estCoche}
-                          onChange={() => handleCheckboxTerritoireChange(t)}
-                        />
-                        <span className={`text-xs ${estCoche ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>{t}</span>
-                      </label>
-                    );
-                  })}
+                  <p className="text-[10px] text-[#404040]/70 uppercase font-bold mb-1">Qualités retenues pour ce profil :</p>
+                  <div className="flex flex-wrap gap-1.5 min-h-[32px] p-2 bg-[#F3F3F2] border border-[#404040]/10 rounded-xl">
+                    {formData.competences.length === 0 ? (
+                      <span className="text-[10px] text-[#404040]/40 italic self-center">Aucune qualité sélectionnée</span>
+                    ) : (
+                      formData.competences.map((comp, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-1 bg-[#005259]/10 border border-[#005259]/20 text-[#005259] px-2 py-0.5 rounded-md font-medium text-[11px]">
+                          {comp}
+                          <button 
+                            type="button" 
+                            onClick={() => handleRemoveCompetence(idx)}
+                            className="text-[#404040]/50 hover:text-[#EF736A] font-bold ml-1 cursor-pointer"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex justify-end gap-3 border-t border-slate-800/60 pt-5 mt-6">
-                <button type="button" onClick={closeModal} className="px-5 py-3 rounded-xl border border-slate-800 text-slate-400 hover:text-white cursor-pointer">Annuler</button>
-                <button type="submit" className="px-6 py-3 rounded-xl bg-emerald-600 text-white font-black uppercase cursor-pointer">Enregistrer</button>
-              </div>
-            </form>
+                <div className="border-t border-[#404040]/10 pt-4">
+                  <label className="block text-[10px] font-bold uppercase text-[#005259] mb-2">Affectation Territoire(s)</label>
+                  <div className="bg-[#F3F3F2] border border-[#404040]/10 rounded-xl p-2.5 grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                    {listeTerritoires.map(t => {
+                      const estCoche = formData.sites.includes(t);
+                      return (
+                        <label key={t} className="flex items-center gap-2.5 p-2 bg-white hover:bg-[#F3F3F2]/60 border border-[#404040]/10 rounded-lg cursor-pointer transition-colors select-none">
+                          <input 
+                            type="checkbox" 
+                            className="w-4 h-4 rounded accent-[#005259] bg-[#F3F3F2] border-[#404040]/20 cursor-pointer"
+                            checked={estCoche}
+                            onChange={() => handleCheckboxTerritoireChange(t)}
+                          />
+                          <span className={`text-xs ${estCoche ? 'text-[#005259] font-bold' : 'text-[#404040]/70'}`}>{t}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 border-t border-[#404040]/10 pt-4 mt-6">
+                  <button type="button" onClick={closeModal} className="px-4 py-2.5 rounded-xl border border-[#404040]/10 text-[#404040]/70 hover:text-[#404040] cursor-pointer font-bold uppercase text-xs">Annuler</button>
+                  <button type="submit" className="px-5 py-2.5 rounded-xl bg-[#EA601F] hover:bg-[#EF736A] text-white font-bold uppercase tracking-wider cursor-pointer transition-all shadow-md text-xs">Enregistrer</button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+
+      </div>
+    </main>
   );
 }

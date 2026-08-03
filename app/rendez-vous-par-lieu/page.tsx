@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collectionGroup, onSnapshot, doc, getDoc } from "firebase/firestore";
 import Link from "next/link";
+import { Quicksand } from "next/font/google";
 import { 
   ChevronLeftIcon, 
   MapPinIcon, 
@@ -12,8 +13,18 @@ import {
   DocumentTextIcon,
   BuildingOffice2Icon,
   MagnifyingGlassIcon,
-  FunnelIcon
+  FunnelIcon,
+  TagIcon,
+  HomeIcon,
+  CheckCircleIcon,
+  XCircleIcon
 } from "@heroicons/react/24/outline";
+
+// Police Quicksand pour l'ensemble de la page
+const quicksand = Quicksand({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
 
 // --- TYPES ---
 interface VisiteComplet {
@@ -159,63 +170,77 @@ export default function RendezVousParLieuPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-emerald-500 font-bold animate-pulse">
+      <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex items-center justify-center text-[#005259] font-bold animate-pulse tracking-widest text-xs uppercase antialiased`}>
         Chargement des rendez-vous par lieux...
       </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans antialiased">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
+      
+      {/* HALO LUMINEUX AMBIANT */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
+
+      <div className="max-w-7xl mx-auto relative z-10 space-y-6">
         
         {/* EN-TÊTE & RETOUR */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-6">
-          <div>
-            <Link 
-              href="/" 
-              className="inline-flex items-center gap-2 text-slate-400 hover:text-emerald-400 transition-colors group text-xs font-bold uppercase tracking-widest mb-2"
-            >
-              <ChevronLeftIcon className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-              <span>Retour à l'accueil</span>
-            </Link>
-            <h1 className="text-3xl font-black tracking-tight text-white uppercase italic flex items-center gap-3">
-              <BuildingOffice2Icon className="w-8 h-8 text-emerald-500 not-italic" />
-              <span>Rendez-vous <span className="text-emerald-500 not-italic">Par Lieux</span></span>
-            </h1>
-            <p className="text-xs text-slate-400 mt-1">
-              Vue synthétique de tous les entretiens individuels classés par emplacement géographique.
-            </p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-4 border-b border-[#404040]/10">
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
+            <div>
+              <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight flex items-center gap-2">
+                <BuildingOffice2Icon className="w-7 h-7 text-[#EA601F] hidden sm:block" />
+                <span>Rendez-vous <span className="text-[#EA601F] font-normal">Par Lieux</span></span>
+              </h1>
+              <p className="text-xs text-[#404040]/70 mt-0.5">
+                Vue synthétique de tous les entretiens individuels classés par emplacement géographique
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3 bg-slate-900 p-3 rounded-2xl border border-slate-800">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total :</span>
-            <span className="text-lg font-black text-emerald-400 font-mono">{visitesFiltrees.length}</span>
-            <span className="text-xs text-slate-500">RDV(s)</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link 
+              href="/" 
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+            >
+              <HomeIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Accueil</span>
+            </Link>
+
+            <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-[#404040]/10 shadow-sm">
+              <span className="text-xs font-bold text-[#404040]/70 uppercase tracking-wider">Total :</span>
+              <span className="text-lg font-bold text-[#005259]">{visitesFiltrees.length}</span>
+              <span className="text-xs text-[#404040]/70 font-medium">RDV(s)</span>
+            </div>
           </div>
         </div>
 
         {/* BARRE DE FILTRES ET RECHERCHE */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-xl">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Recherche textuelle */}
-          <div className="relative md:col-span-2">
-            <MagnifyingGlassIcon className="w-5 h-5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+          <div className="relative md:col-span-2 group">
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+              <MagnifyingGlassIcon className="w-5 h-5 text-[#404040]/40 group-focus-within:text-[#005259] transition-colors" />
+            </div>
             <input
               type="text"
               placeholder="Rechercher un bénéficiaire, un détail, une thématique..."
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/60 outline-none transition-all"
+              className="w-full bg-white border border-[#404040]/15 rounded-2xl pl-11 pr-4 py-3 text-xs font-medium text-[#404040] placeholder-[#404040]/40 focus:border-[#005259] focus:ring-1 focus:ring-[#005259] outline-none transition-all shadow-sm"
             />
           </div>
 
           {/* Sélecteur de lieu */}
           <div className="relative">
-            <FunnelIcon className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+              <FunnelIcon className="w-4 h-4 text-[#404040]/40" />
+            </div>
             <select
               value={lieuFiltre}
               onChange={(e) => setLieuFiltre(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/60 outline-none transition-all appearance-none"
+              className="w-full bg-white border border-[#404040]/15 rounded-2xl pl-10 pr-8 py-3 text-xs font-bold text-[#005259] focus:border-[#005259] focus:ring-1 focus:ring-[#005259] outline-none transition-all appearance-none cursor-pointer shadow-sm"
             >
               <option value="Tous">📍 Tous les lieux ({tousLesLieux.length})</option>
               {tousLesLieux.map((lieu) => (
@@ -229,41 +254,41 @@ export default function RendezVousParLieuPage() {
 
         {/* AFFICHAGE DES RDV GROUPÉS PAR LIEU */}
         {Object.keys(rdvsParLieu).length === 0 ? (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center text-slate-500 font-mono text-xs">
-            Aucun rendez-vous trouvé pour ces critères.
+          <div className="bg-white border border-[#404040]/10 rounded-2xl p-12 text-center text-[#404040]/60 text-xs font-bold uppercase tracking-wider shadow-sm">
+            🔍 Aucun rendez-vous trouvé pour ces critères.
           </div>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-6">
             {Object.entries(rdvsParLieu).map(([lieu, listeRdv]) => (
               <section 
                 key={lieu} 
-                className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl"
+                className="bg-white border border-[#404040]/10 rounded-2xl overflow-hidden shadow-sm"
               >
                 {/* Entête du Lieu */}
-                <div className="bg-slate-950/80 border-b border-slate-800 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="bg-[#F3F3F2] border-b border-[#404040]/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400">
+                    <div className="p-2 bg-white border border-[#404040]/10 rounded-xl text-[#EA601F] shadow-sm">
                       <MapPinIcon className="w-5 h-5" />
                     </div>
                     <div>
-                      <h2 className="text-base font-black text-white uppercase tracking-wide">
+                      <h2 className="text-base font-bold text-[#005259] uppercase tracking-wide">
                         {lieu}
                       </h2>
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-[11px] text-[#404040]/70 font-medium">
                         {listeRdv.length} rendez-vous répertorié{listeRdv.length > 1 ? "s" : ""}
                       </p>
                     </div>
                   </div>
-                  <span className="self-start sm:self-auto px-3 py-1 rounded-full text-[10px] font-mono font-bold bg-slate-900 border border-slate-800 text-slate-400">
+                  <span className="self-start sm:self-auto px-3 py-1 rounded-xl text-[10px] font-bold bg-[#A9E0C9]/30 text-[#005259] border border-[#A9E0C9] uppercase tracking-wider">
                     {listeRdv.filter(r => r.statut === "Présent").length} Présent(s)
                   </span>
                 </div>
 
                 {/* Tableau des rendez-vous du lieu */}
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
+                  <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="border-b border-slate-800/80 text-slate-500 uppercase tracking-wider text-[10px] font-bold bg-slate-950/30">
+                      <tr className="bg-[#F3F3F2]/50 border-b border-[#404040]/10 text-[#005259] uppercase tracking-widest text-[10px] font-bold">
                         <th className="py-3 px-4">Date & Moment</th>
                         <th className="py-3 px-4">Bénéficiaire</th>
                         <th className="py-3 px-4">Axe / Médiateur</th>
@@ -271,55 +296,75 @@ export default function RendezVousParLieuPage() {
                         <th className="py-3 px-4 text-center">Statut</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/50">
+                    <tbody className="divide-y divide-[#404040]/5">
                       {listeRdv.map((rdv) => (
-                        <tr key={rdv.id} className="hover:bg-slate-950/40 transition-colors">
+                        <tr key={rdv.id} className="hover:bg-[#F3F3F2]/60 transition-colors group">
                           {/* Date */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <div className="flex items-center gap-2">
-                              <CalendarIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                              <CalendarIcon className="w-4 h-4 text-[#EA601F] shrink-0" />
                               <div>
-                                <p className="font-mono font-bold text-white">
+                                <p className="font-bold text-[#404040] text-xs">
                                   {rdv.date ? new Date(rdv.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : "—"}
                                 </p>
                                 {rdv.moment && (
-                                  <p className="text-[10px] text-slate-500 uppercase tracking-tight">{rdv.moment}</p>
+                                  <p className="text-[10px] text-[#404040]/60 uppercase tracking-wider font-bold">{rdv.moment}</p>
                                 )}
                               </div>
                             </div>
                           </td>
 
                           {/* Nom / Prénom du Bénéficiaire */}
-<td className="py-3.5 px-4 whitespace-nowrap">
-  {rdv.userId ? (
-    <Link 
-      href={`/liste-beneficiaires/${rdv.userId}`}
-      className="group inline-flex items-center gap-2 hover:text-emerald-400 transition-colors"
-    >
-      <UserIcon className="w-4 h-4 text-slate-500 group-hover:text-emerald-400 transition-colors" />
-      <span className="font-bold text-slate-200 uppercase tracking-wide group-hover:underline">
-        {rdv.nomBeneficiaire} <span className="text-emerald-400 capitalize">{rdv.prenomBeneficiaire}</span>
-      </span>
-    </Link>
-  ) : (
-    <div className="inline-flex items-center gap-2 text-slate-400">
-      <UserIcon className="w-4 h-4 text-slate-600" />
-      <span className="font-bold uppercase tracking-wide">
-        {rdv.nomBeneficiaire} <span className="capitalize">{rdv.prenomBeneficiaire}</span>
-      </span>
-    </div>
-  )}
-</td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            {rdv.userId ? (
+                              <Link 
+                                href={`/liste-beneficiaires/${rdv.userId}`}
+                                className="inline-flex items-center gap-2 text-[#005259] hover:text-[#EA601F] transition-colors"
+                              >
+                                <UserIcon className="w-4 h-4 text-[#005259]/60 group-hover:text-[#EA601F] transition-colors" />
+                                <span className="font-bold uppercase text-xs tracking-tight group-hover:underline">
+                                  <span className="text-[#404040]/60 normal-case font-normal mr-1">{rdv.prenomBeneficiaire}</span>
+                                  {rdv.nomBeneficiaire}
+                                </span>
+                              </Link>
+                            ) : (
+                              <div className="inline-flex items-center gap-2 text-[#404040]">
+                                <UserIcon className="w-4 h-4 text-[#404040]/40" />
+                                <span className="font-bold uppercase text-xs tracking-tight">
+                                  <span className="text-[#404040]/60 normal-case font-normal mr-1">{rdv.prenomBeneficiaire}</span>
+                                  {rdv.nomBeneficiaire}
+                                </span>
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Axe / Médiateur */}
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <div className="space-y-1">
+                              {rdv.thematique && (
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-[#005259]/10 text-[#005259] border border-[#005259]/20 uppercase tracking-wider">
+                                  <TagIcon className="w-3 h-3 text-[#EA601F]" />
+                                  <span>{rdv.thematique}</span>
+                                </div>
+                              )}
+                              {rdv.mediateur && (
+                                <p className="text-[10px] text-[#404040]/70 italic">Par : {rdv.mediateur}</p>
+                              )}
+                              {!rdv.thematique && !rdv.mediateur && (
+                                <span className="text-[#404040]/30 italic text-xs">—</span>
+                              )}
+                            </div>
+                          </td>
 
                           {/* Détails de ce qui a été fait */}
                           <td className="py-3.5 px-4 min-w-[280px]">
                             <div className="flex items-start gap-2">
-                              <DocumentTextIcon className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
-                              <p className="text-slate-300 leading-relaxed text-[11px] whitespace-pre-wrap">
+                              <DocumentTextIcon className="w-4 h-4 text-[#404040]/40 shrink-0 mt-0.5" />
+                              <p className="text-[#404040] leading-relaxed text-xs whitespace-pre-wrap font-medium">
                                 {rdv.statut === "Absent" ? (
-                                  <span className="italic text-slate-500">— Bénéficiaire absent —</span>
+                                  <span className="italic text-[#EF736A] font-medium">— Bénéficiaire absent —</span>
                                 ) : (
-                                  rdv.details || <span className="italic text-slate-600">Aucun détail rédigé.</span>
+                                  rdv.details || <span className="italic text-[#404040]/40">Aucun détail rédigé.</span>
                                 )}
                               </p>
                             </div>
@@ -328,11 +373,13 @@ export default function RendezVousParLieuPage() {
                           {/* Statut */}
                           <td className="py-3.5 px-4 text-center whitespace-nowrap">
                             {rdv.statut === "Présent" ? (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider bg-[#A9E0C9]/30 text-[#005259] border border-[#A9E0C9]">
+                                <CheckCircleIcon className="w-3.5 h-3.5 text-[#005259]" />
                                 Présent
                               </span>
                             ) : (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider bg-[#EF736A]/15 text-[#EF736A] border border-[#EF736A]/30">
+                                <XCircleIcon className="w-3.5 h-3.5" />
                                 Absent
                               </span>
                             )}

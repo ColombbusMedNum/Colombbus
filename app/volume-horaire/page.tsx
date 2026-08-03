@@ -4,13 +4,20 @@ import { useEffect, useState } from "react";
 import { db } from "../../lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import Link from "next/link";
+import { Quicksand } from "next/font/google";
 import { 
-  ChevronLeftIcon, 
+  ArrowLeftIcon,
   ClockIcon, 
   CurrencyEuroIcon, 
   UserGroupIcon, 
   BriefcaseIcon 
 } from "@heroicons/react/24/outline";
+
+// Police Quicksand pour toute la page
+const quicksand = Quicksand({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
 
 export default function VolumeHoraireComplet() {
   const [mediateursRaw, setMediateursRaw] = useState<Record<string, any>>({});
@@ -32,7 +39,6 @@ export default function VolumeHoraireComplet() {
 
   // 2. MOTEUR DE CALCUL DES HEURES ET DÉBORDEMENTS ACI
   const calculerAnalyseAction = (action: any, medInfo: any) => {
-    // Si l'action n'a pas d'horaires définis, on applique 3.5h (équivalent d'une demi-journée standard)
     if (!action.debut || !action.fin) {
       return { total: 3.5, comp: 0 };
     }
@@ -81,7 +87,6 @@ export default function VolumeHoraireComplet() {
     const unsub = onSnapshot(collection(db, "liste_mediateurs"), (snap) => {
       const meds = snap.docs.reduce((acc: any, d) => {
         const data = d.data();
-        // Indexation par ID et par Nom Complet pour sécuriser le croisement
         const nomComplet = `${data.prenom || ""} ${data.nom || ""}`.trim();
         acc[d.id] = data;
         if (nomComplet) acc[nomComplet] = data;
@@ -111,7 +116,6 @@ export default function VolumeHoraireComplet() {
     let grandTotal = 0;
 
     planningRaw.forEach((action: any) => {
-      // Recherche du médiateur par son ID ou à défaut par son Nom complet écrit dans l'action
       const identifiantMed = action.mediateurId || action.mediateurNom || action.mediateur;
       if (!identifiantMed) return;
 
@@ -160,98 +164,117 @@ export default function VolumeHoraireComplet() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-blue-500 font-bold animate-pulse text-xs uppercase tracking-widest">
+      <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex items-center justify-center text-[#EA601F] font-bold animate-pulse text-xs uppercase tracking-widest`}>
         Analyse des plannings d'équipe en cours...
       </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans antialiased">
-      <div className="max-w-6xl mx-auto">
-        
-        {/* BOUTON RETOUR DESIGN COHÉRENT */}
-        <Link 
-          href="/" 
-          className="inline-flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all text-xs font-bold uppercase tracking-wider shadow-md mb-8"
-        >
-          <ChevronLeftIcon className="w-4 h-4" /> 
-          <span>Retour à l'Agenda</span>
-        </Link>
+    <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
+      
+      {/* HALO LUMINEUX AMBIANT */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
 
-        {/* COMPOSANT EN-TÊTE ET CHIFFRES MASSIFS */}
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl mb-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+      <div className="max-w-6xl mx-auto relative z-10 space-y-6">
+        
+        {/* EN-TÊTE ET BOUTON RETOUR */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#404040]/10">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-1 bg-blue-500 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.6)]"></div>
+            <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
             <div>
-              <h1 className="text-3xl font-black text-white uppercase italic tracking-tight">
-                Analyse Volumétrique
+              <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
+                Analyse <span className="text-[#EA601F] font-semibold">Volumétrique</span>
               </h1>
-              <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mt-0.5">
+              <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
                 Calcul automatisé des heures et coûts RH à partir de l'agenda pro
               </p>
             </div>
           </div>
-          
-          <div className="flex gap-4 w-full sm:w-auto">
-             <div className="flex-1 sm:flex-initial bg-slate-950 border border-slate-800 px-6 py-3 rounded-2xl text-center min-w-[140px]">
-                <div className="text-2xl font-black font-mono text-blue-400">{totalGeneral.toFixed(1)}h</div>
-                <div className="text-[9px] uppercase font-black text-slate-500 mt-0.5 tracking-wider">Cumul Heures</div>
-             </div>
-             <div className="flex-1 sm:flex-initial bg-gradient-to-br from-emerald-600 to-teal-600 px-6 py-3 rounded-2xl text-center min-w-[140px] shadow-lg shadow-emerald-950/20">
-                <div className="text-2xl font-black font-mono text-white">
-                  {statsMediateurs.reduce((acc, curr) => acc + curr.cout, 0).toFixed(2)}€
-                </div>
-                <div className="text-[9px] uppercase font-black text-emerald-100 mt-0.5 tracking-wider">Budget Engagé</div>
-             </div>
+
+          <Link 
+            href="/" 
+            className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm w-fit"
+          >
+            <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" /> 
+            <span>Accueil</span>
+          </Link>
+        </div>
+
+        {/* CARTES DE SYNTHÈSE DES CHIFFRES KIS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm flex items-center justify-between">
+            <div>
+              <span className="text-[10px] uppercase font-bold text-[#005259] tracking-widest block">Cumul Heures Globales</span>
+              <div className="text-3xl font-bold font-mono text-[#005259] mt-1">{totalGeneral.toFixed(1)}h</div>
+            </div>
+            <div className="p-3 bg-[#F3F3F2] border border-[#404040]/10 rounded-xl text-[#EA601F]">
+              <ClockIcon className="w-6 h-6" />
+            </div>
+          </div>
+
+          <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm flex items-center justify-between">
+            <div>
+              <span className="text-[10px] uppercase font-bold text-[#005259] tracking-widest block">Budget Engagé Estimé</span>
+              <div className="text-3xl font-bold font-mono text-[#EA601F] mt-1">
+                {statsMediateurs.reduce((acc, curr) => acc + curr.cout, 0).toFixed(2)}€
+              </div>
+            </div>
+            <div className="p-3 bg-[#EA601F]/10 border border-[#EA601F]/20 rounded-xl text-[#EA601F]">
+              <CurrencyEuroIcon className="w-6 h-6" />
+            </div>
           </div>
         </div>
 
-        {/* GRID DE REPARTITION DES COMMISSIONS SALARIÉS */}
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl mb-10">
-          <h2 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-6 pb-3 border-b border-slate-800 flex items-center gap-2">
-            <UserGroupIcon className="w-4 h-4 text-blue-400" />
-            Suivi Individuel du Temps de Travail par Collaborateur
-          </h2>
+        {/* TABLEAU DE REPARTITION COLLABORATEURS */}
+        <div className="bg-white border border-[#404040]/10 rounded-2xl overflow-hidden shadow-sm">
+          <div className="p-4 border-b border-[#404040]/10 flex items-center gap-3 bg-[#F3F3F2]/60">
+            <div className="p-2.5 rounded-xl border border-[#005259]/20 bg-white text-[#EA601F]">
+              <UserGroupIcon className="w-5 h-5" />
+            </div>
+            <h2 className="text-sm font-bold uppercase text-[#005259] tracking-tight">
+              Suivi Individuel du Temps de Travail par Collaborateur
+            </h2>
+          </div>
           
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs table-fixed min-w-[600px]">
-              <thead className="bg-slate-950 text-[10px] font-black uppercase text-slate-500 tracking-wider">
-                <tr>
-                  <th className="p-4 rounded-l-xl w-[220px]">Collaborateur</th>
-                  <th className="p-4">Volume Total</th>
-                  <th className="p-4 text-amber-400">Heures Complémentaires (ACI)</th>
-                  <th className="p-4 text-right rounded-r-xl">Coût Estimé</th>
+            <table className="w-full text-left border-collapse min-w-[600px]">
+              <thead>
+                <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
+                  <th className="py-3 px-6">Collaborateur</th>
+                  <th className="py-3 px-4">Volume Total</th>
+                  <th className="py-3 px-4">Heures Complémentaires (ACI)</th>
+                  <th className="py-3 px-6 text-right">Coût Estimé</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/40">
+              <tbody className="divide-y divide-[#404040]/10">
                 {statsMediateurs.map((m, i) => (
-                  <tr key={i} className="hover:bg-slate-950/40 transition-colors group">
-                    <td className="p-4">
-                      <div className="font-black text-white uppercase text-[13px] tracking-tight truncate">{m.nom}</div>
-                      <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full ${m.statut === 'ACI' ? 'bg-amber-500' : 'bg-blue-500'}`}></span>
+                  <tr key={i} className="hover:bg-[#F3F3F2]/50 transition-colors">
+                    <td className="py-3.5 px-6">
+                      <div className="font-bold text-xs text-[#005259] uppercase">{m.nom}</div>
+                      <div className="text-[11px] text-[#404040]/70 mt-0.5 flex items-center gap-1.5 font-medium">
+                        <span className={`w-1.5 h-1.5 rounded-full ${m.statut === 'ACI' ? 'bg-[#EA601F]' : 'bg-[#005259]'}`}></span>
                         {m.poste}
                       </div>
                     </td>
-                    <td className="p-4 font-bold text-blue-400 font-mono text-sm">{m.h.toFixed(1)}h</td>
-                    <td className="p-4">
-                      <span className={`inline-flex px-3 py-1 rounded-md text-[10px] font-mono font-black border ${
+                    <td className="py-3.5 px-4 font-bold text-[#005259] font-mono text-xs">{m.h.toFixed(1)}h</td>
+                    <td className="py-3.5 px-4">
+                      <span className={`inline-flex px-2.5 py-1 rounded-md text-[10px] font-mono font-bold border ${
                         m.comp > 0 
-                          ? 'bg-amber-950/40 border-amber-800/60 text-amber-400' 
-                          : 'bg-slate-950 border-slate-800 text-slate-600'
+                          ? 'bg-[#EA601F]/15 border-[#EA601F]/40 text-[#EA601F]' 
+                          : 'bg-[#F3F3F2] border-[#404040]/10 text-[#404040]/50'
                       }`}>
                         +{m.comp.toFixed(1)}h
                       </span>
                     </td>
-                    <td className="p-4 text-right font-black text-emerald-400 font-mono text-sm">{m.cout.toFixed(2)}€</td>
+                    <td className="py-3.5 px-6 text-right font-bold text-[#EA601F] font-mono text-xs">{m.cout.toFixed(2)}€</td>
                   </tr>
                 ))}
                 {statsMediateurs.length === 0 && (
                   <tr>
-                     <td colSpan={4} className="p-12 text-center text-slate-600 font-bold uppercase text-xs italic tracking-widest">
-                       Aucune action enregistrée pour le moment dans l'agenda.
-                     </td>
+                    <td colSpan={4} className="p-12 text-center text-[#404040]/60 font-bold uppercase text-xs italic tracking-widest">
+                      Aucune action enregistrée pour le moment dans l'agenda.
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -260,34 +283,40 @@ export default function VolumeHoraireComplet() {
         </div>
 
         {/* CARTES PAR THÉMATIQUE DE LIEU ET DE TERRAIN */}
-        <h2 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
-          <BriefcaseIcon className="w-4 h-4 text-emerald-400" />
-          Ventilation Financière et Horaire par Activité / Lieu
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {statsActions.map((a, i) => (
-            <div key={i} className="bg-slate-900 border border-slate-800 p-5 rounded-3xl flex flex-col justify-between hover:border-slate-700 transition-all shadow-xl group">
-              <div className="flex justify-between items-start mb-4 border-b border-slate-800/50 pb-3">
-                <div>
-                  <div className="font-black uppercase text-white tracking-tight text-sm group-hover:text-blue-400 transition-colors">{a.titre}</div>
-                  <div className="text-[10px] text-slate-500 font-mono mt-0.5">Volume Global : {a.h.toFixed(1)}h</div>
-                </div>
-                <div className="font-mono font-black text-emerald-400 bg-emerald-950/40 border border-emerald-900/40 px-3 py-1 rounded-xl text-xs">
-                  {a.cout.toFixed(2)}€
-                </div>
-              </div>
-              
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(a.details).map(([nom, d]: any) => (
-                  <span key={nom} className="bg-slate-950 border border-slate-800 px-2.5 py-1 rounded-lg text-[10px] font-bold text-slate-400 flex items-center gap-1.5">
-                    <span className="text-slate-200 uppercase text-[9px]">{nom}</span>
-                    <span className="text-blue-400 font-mono font-black">{d.h.toFixed(1)}h</span>
-                  </span>
-                ))}
-              </div>
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-lg bg-[#005259] text-white">
+              <BriefcaseIcon className="w-4 h-4" />
             </div>
-          ))}
+            <h2 className="font-bold text-xs uppercase tracking-wider text-[#005259]">
+              Ventilation Financière et Horaire par Activité / Lieu
+            </h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {statsActions.map((a, i) => (
+              <div key={i} className="bg-white border border-[#404040]/10 p-5 rounded-2xl flex flex-col justify-between hover:border-[#EA601F]/40 transition-all shadow-sm">
+                <div className="flex justify-between items-start mb-4 border-b border-[#404040]/10 pb-3">
+                  <div>
+                    <div className="font-bold uppercase text-[#005259] tracking-tight text-xs">{a.titre}</div>
+                    <div className="text-[11px] text-[#404040]/70 font-mono mt-0.5">Volume Global : {a.h.toFixed(1)}h</div>
+                  </div>
+                  <div className="font-mono font-bold text-[#EA601F] bg-[#EA601F]/10 border border-[#EA601F]/20 px-2.5 py-1 rounded-lg text-xs">
+                    {a.cout.toFixed(2)}€
+                  </div>
+                </div>
+                
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(a.details).map(([nom, d]: any) => (
+                    <span key={nom} className="bg-[#F3F3F2] border border-[#404040]/10 px-2.5 py-1 rounded-lg text-xs font-bold text-[#404040] flex items-center gap-1.5">
+                      <span className="text-[#005259] uppercase text-[10px]">{nom}</span>
+                      <span className="text-[#EA601F] font-mono">{d.h.toFixed(1)}h</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
       </div>

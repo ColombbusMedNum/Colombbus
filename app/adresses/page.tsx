@@ -3,8 +3,21 @@
 import React, { useState, useEffect } from "react";
 import { db } from "../../lib/firebase";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
-import { MapPinIcon, ArrowLeftIcon, ClockIcon, CalendarDaysIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
+import { Quicksand } from "next/font/google";
+import { 
+  MapPinIcon, 
+  ArrowLeftIcon, 
+  ClockIcon, 
+  CalendarDaysIcon, 
+  ArrowTopRightOnSquareIcon 
+} from "@heroicons/react/24/outline";
 import Link from "next/link";
+
+// Initialisation de la police Quicksand
+const quicksand = Quicksand({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
 
 export default function ListeAdresses() {
   const [lieuxSemaine, setLieuxSemaine] = useState<any[]>([]);
@@ -78,40 +91,45 @@ export default function ListeAdresses() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans antialiased">
-      <div className="max-w-3xl mx-auto">
+    <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
+      
+      {/* HALO LUMINEUX AMBIANT */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
+
+      <div className="max-w-3xl mx-auto relative z-10 space-y-6">
         
-        {/* EN-TÊTE AVEC RETOUR VERS LE PLANNING EXPERT */}
-        <div className="flex items-center gap-4 mb-10">
-          <Link 
-            href="/agenda" 
-            className="p-2.5 bg-slate-900 border border-slate-800 hover:border-slate-700 hover:text-white rounded-xl text-slate-400 transition-all active:scale-95 shadow-md"
-          >
-            <ArrowLeftIcon className="w-4 h-4" />
-          </Link>
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-1 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)]"></div>
+        {/* EN-TÊTE AVEC RETOUR VERS L'AGENDA */}
+        <div className="flex items-center justify-between pb-4 border-b border-[#404040]/10 gap-4">
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-1 bg-[#EA601F] rounded-full shadow-[0_0_15px_rgba(234,96,31,0.3)]"></div>
             <div>
-              <h1 className="text-2xl font-black text-white uppercase italic tracking-tight">
-                Lieux de la <span className="text-emerald-400 not-italic font-light">semaine</span>
+              <h1 className="text-xl md:text-3xl font-black uppercase text-[#005259] tracking-tight">
+                Lieux de la <span className="text-[#EA601F] font-bold">semaine</span>
               </h1>
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5 flex items-center gap-1.5">
-                <CalendarDaysIcon className="w-3.5 h-3.5 text-slate-500" />
+              <p className="text-xs text-[#404040]/70 mt-0.5 flex items-center gap-1.5 font-medium">
+                <CalendarDaysIcon className="w-3.5 h-3.5 text-[#EA601F]" />
                 Adresses des activités planifiées sur le planning général cette semaine
               </p>
             </div>
           </div>
+
+          <Link 
+            href="/agenda" 
+            className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/15 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm group"
+          >
+            <ArrowLeftIcon className="w-4 h-4 text-[#EA601F] group-hover:text-white transition-colors" />
+            <span className="hidden sm:inline">Agenda</span>
+          </Link>
         </div>
 
         {/* LISTE DES LIEUX FILTRÉS */}
         {loading ? (
-          <div className="text-center py-16 text-emerald-500 font-mono text-xs animate-pulse">
+          <div className="text-center py-16 text-[#EA601F] font-bold text-xs animate-pulse uppercase tracking-widest">
             Chargement des adresses de la semaine...
           </div>
         ) : (
           <div className="grid gap-4">
             {lieuxSemaine.map((act) => {
-              const hexColor = act.couleur || "#10b981";
               const aUneAdresseValide = act.adresse && act.adresse !== "-";
               
               const googleMapsUrl = aUneAdresseValide
@@ -121,7 +139,7 @@ export default function ListeAdresses() {
               return (
                 <div 
                   key={act.id} 
-                  className="p-5 bg-slate-900 border border-slate-800 rounded-2xl flex items-start gap-4 shadow-xl hover:border-slate-700/80 transition-colors group"
+                  className="p-5 bg-white border border-[#404040]/10 rounded-2xl flex items-start gap-4 shadow-sm hover:border-[#005259] transition-all group"
                 >
                   {/* ICON ÉPINGLE UNIQUE OU CLIQUABLE GOOGLE MAPS */}
                   {googleMapsUrl ? (
@@ -129,20 +147,18 @@ export default function ListeAdresses() {
                       href={googleMapsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{ color: hexColor }}
                       title="Ouvrir dans Google Maps"
-                      className="p-2.5 bg-slate-950 border border-slate-800/80 hover:border-white/20 rounded-xl shrink-0 transition-all active:scale-90 relative group/icon shadow-inner cursor-pointer"
+                      className="p-3 bg-[#F3F3F2] border border-[#404040]/10 hover:border-[#EA601F] rounded-xl text-[#EA601F] shrink-0 transition-all active:scale-95 relative group/icon shadow-inner cursor-pointer"
                     >
-                      <MapPinIcon className="w-6 h-6 shrink-0 group-hover/icon:scale-105 transition-transform" />
+                      <MapPinIcon className="w-6 h-6 shrink-0 group-hover/icon:scale-110 transition-transform" />
                       {/* Petit badge d'indication au survol de l'icône */}
-                      <span className="absolute -top-1 -right-1 bg-slate-900 border border-slate-700 text-white p-0.5 rounded-md opacity-0 group-hover/icon:opacity-100 transition-opacity scale-75">
-                        <ArrowTopRightOnSquareIcon className="w-2.5 h-2.5" />
+                      <span className="absolute -top-1 -right-1 bg-white border border-[#404040]/15 text-[#005259] p-0.5 rounded-md opacity-0 group-hover/icon:opacity-100 transition-opacity scale-75 shadow-sm">
+                        <ArrowTopRightOnSquareIcon className="w-2.5 h-2.5 text-[#EA601F]" />
                       </span>
                     </a>
                   ) : (
                     <div 
-                      style={{ color: hexColor }}
-                      className="p-2.5 bg-slate-950 border border-slate-800/80 rounded-xl shrink-0 opacity-50"
+                      className="p-3 bg-[#F3F3F2] border border-[#404040]/10 text-[#404040]/40 rounded-xl shrink-0"
                     >
                       <MapPinIcon className="w-6 h-6 shrink-0" />
                     </div>
@@ -151,24 +167,24 @@ export default function ListeAdresses() {
                   {/* TEXTES ET INFOS */}
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <h3 className="font-black text-base text-white uppercase italic tracking-tight group-hover:text-emerald-400 transition-colors truncate">
+                      <h3 className="font-extrabold text-base text-[#005259] uppercase tracking-wide group-hover:text-[#EA601F] transition-colors truncate">
                         {act.lieu}
                         {act.territoire && (
-                          <span className="ml-2 not-italic text-[10px] lowercase font-mono bg-slate-950 border border-slate-800 px-1.5 py-0.5 rounded text-slate-400">
+                          <span className="ml-2 font-bold text-[10px] lowercase bg-[#F3F3F2] border border-[#404040]/10 px-2 py-0.5 rounded-lg text-[#404040]/70">
                             dept {act.territoire}
                           </span>
                         )}
                       </h3>
                       
                       {act.debut && (
-                        <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-bold text-slate-400 bg-slate-950 border border-slate-800 px-2.5 py-1 rounded-lg uppercase tracking-wider self-start sm:self-center">
-                          <ClockIcon className="w-4 h-4 text-emerald-500 shrink-0" /> 
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#EA601F] bg-[#F3F3F2] border border-[#404040]/10 px-2.5 py-1 rounded-lg uppercase tracking-wider self-start sm:self-center font-mono">
+                          <ClockIcon className="w-3.5 h-3.5 text-[#EA601F] shrink-0" /> 
                           <span>{act.debut} — {act.fin}</span>
                         </span>
                       )}
                     </div>
                     
-                    <p className="text-xs text-slate-400 font-medium mt-1.5 leading-relaxed selection:bg-emerald-500/20">
+                    <p className="text-xs text-[#404040]/70 font-medium mt-1.5 leading-relaxed">
                       {aUneAdresseValide ? act.adresse : "Aucune adresse postale enregistrée pour ce modèle"}
                     </p>
                   </div>
@@ -179,7 +195,7 @@ export default function ListeAdresses() {
 
             {/* CAS VIDE : AUCUN LIEU CETTE SEMAINE */}
             {lieuxSemaine.length === 0 && (
-              <div className="text-center py-16 border border-dashed border-slate-800 rounded-2xl text-xs font-bold uppercase tracking-widest text-slate-600">
+              <div className="text-center py-16 border border-dashed border-[#404040]/15 rounded-2xl text-xs font-bold uppercase tracking-wider text-[#404040]/60 bg-white shadow-sm">
                 🔍 Aucun lieu d'activité n'est assigné dans le planning pour la semaine en cours.
               </div>
             )}

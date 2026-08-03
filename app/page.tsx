@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { db } from "../lib/firebase"; // Assurez-vous que ce chemin pointe bien vers votre fichier de config Firebase
+import Image from "next/image";
+import { Quicksand } from "next/font/google";
+import { db } from "../lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import {   
   UsersIcon,   
@@ -18,11 +20,15 @@ import {
   FolderIcon,
   XMarkIcon,
   ArrowLeftStartOnRectangleIcon,
-  ShieldCheckIcon,
-  LockClosedIcon, // Importation du cadenas pour les vues restreintes
-  WrenchScrewdriverIcon, // Icône pour Bilan Tech
-  MapPinIcon // Importation de l'icône pour Rendez-vous par lieu
+  LockClosedIcon,
+  WrenchScrewdriverIcon,
+  MapPinIcon
 } from "@heroicons/react/24/outline";
+
+const quicksand = Quicksand({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
 
 export default function HomePage() {
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -40,11 +46,9 @@ export default function HomePage() {
       return null;
     };
 
-    // Récupération globale du rôle avec nettoyage de la casse
     const role = (getCookie("user_role") || localStorage.getItem("user_role"))?.toLowerCase() || null;
     setUserRole(role);
 
-    // ÉCOUTE EN TEMPS RÉEL DE LA CONFIGURATION DES DROITS
     const unsub = onSnapshot(collection(db, "configuration_droits"), (snap) => {
       const dataDroits: Record<string, any> = {};
       snap.docs.forEach(d => {
@@ -58,10 +62,8 @@ export default function HomePage() {
 
   // 2. FONCTION CLÉ : Comprend si l'ID d'action est coché pour le rôle actuel
   const aLeDroit = (actionId: string) => {
-    if (!userRole) return true; // Pendant le chargement initial, on ne bloque pas
-    if (userRole === "admin") return true; // L'administrateur a toujours tous les droits pass-partout
-    
-    // Regarde dans le document Firestore de cette action, si la clé du rôle est à true
+    if (!userRole) return true;
+    if (userRole === "admin") return true;
     return !!droitsMaitres[actionId]?.[userRole];
   };
 
@@ -75,34 +77,55 @@ export default function HomePage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4 md:p-8 font-sans antialiased relative overflow-hidden">
+    <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] flex flex-col items-center justify-center p-4 md:p-8 relative overflow-hidden font-medium antialiased`}>
       
-      {/* Background Glow Effect */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-emerald-500/5 blur-[120px] rounded-full pointer-events-none"></div>
+      {/* HALO LUMINEUX AMBIANT */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#005259]/5 blur-[140px] rounded-full pointer-events-none"></div>
 
       {/* BOUTON DÉCONNEXION */}
       <div className="absolute top-4 right-4 md:top-8 md:right-8 z-20">
         <button 
           onClick={handleLogout}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-900/50 rounded-xl text-red-400 text-xs font-black uppercase tracking-widest transition-all shadow-md active:scale-95 group cursor-pointer"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-[#EA601F] hover:text-white border border-[#404040]/15 rounded-xl text-[#EA601F] text-xs font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95 group cursor-pointer"
         >
-          <ArrowLeftStartOnRectangleIcon className="w-4 h-4 text-red-500 group-hover:text-red-400 transition-colors" />
+          <ArrowLeftStartOnRectangleIcon className="w-4 h-4 text-[#EA601F] group-hover:text-white transition-colors" />
           <span>Déconnexion</span>
         </button>
       </div>
 
       <div className="max-w-7xl w-full relative z-10 flex flex-col items-center justify-center min-h-[80vh]">
         
-        {/* EN-TÊTE */}
-        <div className="text-center mb-12">
-          <div className="flex items-center justify-center gap-3 mb-3">
-            <div className="h-8 w-1 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.6)]"></div>
-            <h1 className="text-5xl font-black text-white tracking-tighter uppercase italic">
-              Colombbus
-            </h1>
+        {/* EN-TÊTE AVEC LOGO, TITRE COLOMBBUS ET SOUS-TITRE C.O.S.M.O.S. */}
+        <div className="text-center mb-10 flex flex-col items-center">
+          
+          {/* LOGO COLOMBBUS DEPUIS /PUBLIC/LOGOS */}
+<div className="mb-3 relative w-16 h-16 md:w-20 md:h-20">
+  <Image 
+    src="/logos/Logo_Colombbus_noir_trans.png" 
+    alt="Logo Colombbus" 
+    fill
+    className="object-contain"
+    priority
+  />
+</div>
+
+          {/* NOM COLOMBBUS EN GROS */}
+          <h1 className="text-4xl md:text-5xl font-black tracking-tight uppercase text-[#005259]">
+            Colombbus
+          </h1>
+
+          {/* C.O.S.M.O.S. ET SON ACRONYME PLUS DISCRETS */}
+          <div className="mt-2 flex flex-col items-center gap-1">
+            <span className="inline-block px-3 py-1 rounded-full bg-[#EA601F]/10 border border-[#EA601F]/20 text-[#EA601F] text-xs font-black uppercase tracking-widest">
+              Plateforme C.O.S.M.O.S.
+            </span>
+            <p className="text-[11px] md:text-xs text-[#404040]/70 font-semibold tracking-wide max-w-lg mt-0.5">
+              Colombbus Outil de Suivi et de Médiation Organisée et Solidaire
+            </p>
           </div>
-          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">
-            Plateforme de gestion des bénéficiaires — 2026
+
+          <p className="text-[#404040]/50 text-[10px] font-bold uppercase tracking-widest mt-2">
+            Gestion des bénéficiaires — 2026
           </p>
         </div>
 
@@ -115,27 +138,29 @@ export default function HomePage() {
               
               {/* AGENDA DES MÉDIATEURS CONDITIONNEL */}
               {aLeDroit("consulter_agenda_mediateurs") ? (
-                <Link href="/agenda" className="group bg-slate-900 border border-slate-800 rounded-3xl p-6 hover:border-amber-500/50 shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px]">
-                  <div className="bg-slate-950 border border-slate-800 w-16 h-16 rounded-2xl flex items-center justify-center mb-5 group-hover:bg-amber-600 group-hover:border-amber-500 group-hover:shadow-[0_0_20px_rgba(245,158,11,0.4)] transition-all duration-300">
-                    <CalendarDaysIcon className="w-7 h-7 text-amber-400 group-hover:text-white" />
+                <Link 
+                  href="/agenda" 
+                  className="group bg-white border border-[#404040]/10 hover:border-[#005259] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px]"
+                >
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-all duration-300 shadow-sm bg-[#F3F3F2] border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white">
+                    <CalendarDaysIcon className="w-7 h-7 transition-colors" />
                   </div>
-                  <h2 className="text-sm font-black uppercase tracking-wide text-white group-hover:text-amber-400 transition-colors">
+                  <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F] transition-colors">
                     Agenda des Médiateurs
                   </h2>
-                  <p className="text-xs text-slate-500 font-medium mt-2 leading-relaxed max-w-[200px]">
+                  <p className="text-xs text-[#404040]/70 font-medium mt-2 leading-relaxed max-w-[200px]">
                     Gérer l'équipe et le planning des actions
                   </p>
                 </Link>
               ) : (
-                /* VERSION BLOQUÉE : S'affiche en grisé avec un cadenas si décoché */
-                <div className="group bg-slate-900/30 opacity-40 border border-slate-900/60 rounded-3xl p-6 shadow-xl flex flex-col items-center justify-center text-center min-h-[240px] pointer-events-none select-none">
-                  <div className="bg-slate-950 border border-slate-900/40 w-16 h-16 rounded-2xl flex items-center justify-center mb-5 text-slate-600">
+                <div className="group bg-white/60 border border-[#404040]/10 rounded-3xl p-6 shadow-sm flex flex-col items-center justify-center text-center min-h-[240px] pointer-events-none select-none opacity-60">
+                  <div className="bg-[#F3F3F2] w-16 h-16 rounded-2xl flex items-center justify-center mb-5 text-[#404040]/40 border border-[#404040]/10">
                     <LockClosedIcon className="w-7 h-7" />
                   </div>
-                  <h2 className="text-sm font-black uppercase tracking-wide text-slate-500">
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-[#404040]/50">
                     Agenda des Médiateurs
                   </h2>
-                  <p className="text-xs text-slate-600 font-medium mt-2 leading-relaxed max-w-[200px]">
+                  <p className="text-xs text-[#404040]/40 font-medium mt-2 leading-relaxed max-w-[200px]">
                     Accès restreint par l'administrateur
                   </p>
                 </div>
@@ -144,62 +169,59 @@ export default function HomePage() {
               {/* RENCONTRES NUMÉRIQUES */}
               <button 
                 onClick={() => setActiveFolder("rencontres")}
-                className="group bg-slate-900 border border-slate-800 rounded-3xl p-6 hover:border-indigo-500/50 shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px]"
+                className="group bg-white border border-[#404040]/10 hover:border-[#EA601F] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px] cursor-pointer"
               >
-                <div className="bg-slate-950 border border-slate-800 w-16 h-16 rounded-2xl flex items-center justify-center mb-5 group-hover:bg-indigo-600 group-hover:border-indigo-500 group-hover:shadow-[0_0_20px_rgba(79,70,229,0.4)] transition-all duration-300">
-                  <FolderIcon className="w-7 h-7 text-indigo-400 group-hover:text-white" />
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-all duration-300 shadow-sm bg-[#F3F3F2] border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white">
+                  <FolderIcon className="w-7 h-7 transition-colors" />
                 </div>
-                <h2 className="text-sm font-black uppercase tracking-wide text-white group-hover:text-indigo-400 transition-colors">
+                <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F] transition-colors">
                   Rencontres Numériques
                 </h2>
-                <p className="text-xs text-slate-500 font-medium mt-2 leading-relaxed">
+                <p className="text-xs text-[#404040]/70 font-medium mt-2 leading-relaxed">
                   Bénéficiaires, émargements et ateliers
                 </p>
-                <div className="mt-4 grid grid-cols-3 gap-1 bg-slate-950/60 p-1.5 rounded-lg border border-slate-800/50 w-14">
-                  <div className="w-1.5 h-1.5 rounded-sm bg-indigo-500/40"></div>
-                  <div className="w-1.5 h-1.5 rounded-sm bg-teal-500/40"></div>
-                  <div className="w-1.5 h-1.5 rounded-sm bg-cyan-500/40"></div>
-                  <div className="w-1.5 h-1.5 rounded-sm bg-emerald-500/40"></div>
-                  <div className="w-1.5 h-1.5 rounded-sm bg-fuchsia-500/40"></div>
-                  <div className="w-1.5 h-1.5 rounded-sm bg-blue-500/40"></div>
+                <div className="mt-4 flex gap-1.5 p-1.5 rounded-lg bg-[#F3F3F2] border border-[#404040]/10">
+                  <div className="w-2 h-2 rounded-full bg-[#005259]"></div>
+                  <div className="w-2 h-2 rounded-full bg-[#EA601F]"></div>
+                  <div className="w-2 h-2 rounded-full bg-[#005259]/40"></div>
                 </div>
               </button>
 
               {/* STATISTIQUES & BILANS */}
               <button 
                 onClick={() => setActiveFolder("stats")}
-                className="group bg-slate-900 border border-slate-800 rounded-3xl p-6 hover:border-purple-500/50 shadow-xl transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px]"
+                className="group bg-white border border-[#404040]/10 hover:border-[#005259] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px] cursor-pointer"
               >
-                <div className="bg-slate-950 border border-slate-800 w-16 h-16 rounded-2xl flex items-center justify-center mb-5 group-hover:bg-purple-600 group-hover:border-purple-500 group-hover:shadow-[0_0_20px_rgba(147,51,234,0.4)] transition-all duration-300">
-                  <ChartBarIcon className="w-7 h-7 text-purple-400 group-hover:text-white" />
+                <div className="bg-[#F3F3F2] border border-[#404040]/10 w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-all duration-300 shadow-sm text-[#005259] group-hover:bg-[#005259] group-hover:text-white">
+                  <ChartBarIcon className="w-7 h-7 transition-colors" />
                 </div>
-                <h2 className="text-sm font-black uppercase tracking-wide text-white group-hover:text-purple-400 transition-colors">
+                <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F] transition-colors">
                   Statistiques & Bilans
                 </h2>
-                <p className="text-xs text-slate-500 font-medium mt-2 leading-relaxed">
+                <p className="text-xs text-[#404040]/70 font-medium mt-2 leading-relaxed">
                   Rapports globaux et impact Suresnes
                 </p>
-                <div className="mt-4 flex gap-1 bg-slate-950/60 p-1.5 rounded-lg border border-slate-800/50">
-                  <div className="w-2 h-2 rounded-full bg-purple-500/50"></div>
-                  <div className="w-2 h-2 rounded-full bg-emerald-500/50"></div>
+                <div className="mt-4 flex gap-1.5 p-1.5 rounded-lg bg-[#F3F3F2] border border-[#404040]/10">
+                  <div className="w-2 h-2 rounded-full bg-[#EA601F]"></div>
+                  <div className="w-2 h-2 rounded-full bg-[#005259]"></div>
                 </div>
               </button>
 
             </div>
           ) : activeFolder === "rencontres" ? (
             /* ================= VUE AGRANDIE : RENCONTRES NUMÉRIQUES ================= */
-            <div className="bg-slate-900/90 border border-indigo-500/40 rounded-[2.5rem] p-6 md:p-8 shadow-2xl transition-all duration-300 backdrop-blur-md animate-in fade-in zoom-in-95 duration-200 w-full max-w-4xl mx-auto">
+            <div className="bg-white border-2 border-[#EA601F] rounded-[2.5rem] p-6 md:p-8 shadow-md transition-all duration-300 animate-in fade-in zoom-in-95 duration-200 w-full max-w-4xl mx-auto">
               
-              <div className="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
+              <div className="flex justify-between items-center mb-8 border-b border-[#404040]/10 pb-4">
                 <div className="flex items-center gap-2">
-                  <FolderIcon className="w-5 h-5 text-indigo-400" />
-                  <span className="text-sm font-black uppercase tracking-wider text-white">
+                  <FolderIcon className="w-5 h-5 text-[#EA601F]" />
+                  <span className="text-sm font-extrabold uppercase tracking-wider text-[#EA601F]">
                     Rencontres Numériques
                   </span>
                 </div>
                 <button 
                   onClick={() => setActiveFolder(null)}
-                  className="text-slate-400 hover:text-white bg-slate-950 hover:bg-slate-800 p-2 rounded-xl border border-slate-800 transition-colors flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-3"
+                  className="text-[#404040] hover:bg-[#005259] hover:text-white bg-[#F3F3F2] p-2 rounded-xl border border-[#404040]/10 transition-all flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-3 cursor-pointer"
                 >
                   <XMarkIcon className="w-4 h-4" /> Fermer
                 </button>
@@ -208,132 +230,132 @@ export default function HomePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 
                 {/* LISTE DES BÉNÉFICIAIRES */}
-                <Link href="/liste-beneficiaires" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-indigo-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-indigo-600 transition-all">
-                    <UsersIcon className="w-4 h-4 text-indigo-400 group-hover:text-white" />
+                <Link href="/liste-beneficiaires" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
+                    <UsersIcon className="w-4 h-4" />
                   </div>
-                  <h2 className="text-[11px] font-black uppercase tracking-wide text-white group-hover:text-indigo-400 transition-colors">
+                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259]">
                     Liste des bénéficiaires
                   </h2>
-                  <p className="text-[9px] text-slate-500 font-medium mt-1 leading-relaxed">
+                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
                     Consulter et modifier les fiches existantes
                   </p>
                 </Link>
 
                 {/* RENDEZ-VOUS PAR LIEUX */}
-                <Link href="/rendez-vous-par-lieu" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-rose-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95 bg-gradient-to-b from-slate-950 to-rose-950/10">
-                  <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-rose-600 transition-all">
-                    <MapPinIcon className="w-4 h-4 text-rose-400 group-hover:text-white" />
+                <Link href="/rendez-vous-par-lieu" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
+                    <MapPinIcon className="w-4 h-4" />
                   </div>
-                  <h2 className="text-[11px] font-black uppercase tracking-wide text-white group-hover:text-rose-400 transition-colors">
+                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
                     Rendez-vous par lieu
                   </h2>
-                  <p className="text-[9px] text-slate-400 font-medium mt-1 leading-relaxed">
+                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
                     Consulter et planifier les rendez-vous selon les lieux
                   </p>
                 </Link>
 
                 {/* FICHE BILAN */}
-                <Link href="/fiches-bilans" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-blue-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95 bg-gradient-to-b from-slate-950 to-blue-950/10">
-                  <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-blue-600 transition-all">
-                    <ClipboardDocumentCheckIcon className="w-4 h-4 text-blue-400 group-hover:text-white" />
+                <Link href="/fiches-bilans" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
+                    <ClipboardDocumentCheckIcon className="w-4 h-4" />
                   </div>
-                  <h2 className="text-[11px] font-black uppercase tracking-wide text-white group-hover:text-blue-400 transition-colors">
+                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259]">
                     Fiche Bilan
                   </h2>
-                  <p className="text-[9px] text-slate-400 font-medium mt-1 leading-relaxed">
+                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
                     Accéder aux fiches de synthèses et bilans
                   </p>
                 </Link>
 
                 {/* BILAN TECH */}
-                <Link href="/bilan_tech" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-amber-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95 bg-gradient-to-b from-slate-950 to-amber-950/10">
-                  <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-amber-600 transition-all">
-                    <WrenchScrewdriverIcon className="w-4 h-4 text-amber-400 group-hover:text-white" />
+                <Link href="/bilan_tech" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
+                    <WrenchScrewdriverIcon className="w-4 h-4" />
                   </div>
-                  <h2 className="text-[11px] font-black uppercase tracking-wide text-white group-hover:text-amber-400 transition-colors">
+                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
                     Bilan Tech
                   </h2>
-                  <p className="text-[9px] text-slate-400 font-medium mt-1 leading-relaxed">
+                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
                     Effectuer et suivre les bilans techniques
                   </p>
                 </Link>
 
                 {/* SUIVI DES COLLECTES TECH */}
-                <Link href="/suivi-collecte" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-purple-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95 bg-gradient-to-b from-slate-950 to-purple-950/10">
-                  <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-purple-600 transition-all">
-                    <CpuChipIcon className="w-4 h-4 text-purple-400 group-hover:text-white" />
+                <Link href="/suivi-collecte" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
+                    <CpuChipIcon className="w-4 h-4" />
                   </div>
-                  <h2 className="text-[11px] font-black uppercase tracking-wide text-white group-hover:text-purple-400 transition-colors">
+                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259]">
                     Suivi Collectes Tech
                   </h2>
-                  <p className="text-[9px] text-slate-400 font-medium mt-1.5 leading-relaxed">
+                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1.5 leading-relaxed">
                     Tableau d'activité synchrone type Excel / IdF
                   </p>
                 </Link>
 
                 {/* AGENDA SURESNES INTERACTIF */}
                 {aLeDroit("consulter_agenda_suresnes") ? (
-                  <Link href="/suresnes" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-teal-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                    <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-teal-600 transition-all">
-                      <CalendarIcon className="w-4 h-4 text-teal-400 group-hover:text-white" />
+                  <Link href="/suresnes" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
+                      <CalendarIcon className="w-4 h-4" />
                     </div>
-                    <h2 className="text-[11px] font-black uppercase tracking-wide text-white group-hover:text-teal-400 transition-colors">
+                    <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
                       Agenda Suresnes
                     </h2>
-                    <p className="text-[9px] text-slate-500 font-medium mt-1 leading-relaxed">
+                    <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
                       Consulter l'agenda du Relais Numérique
                     </p>
                   </Link>
                 ) : (
-                  <div className="group bg-slate-950/40 opacity-40 border border-slate-900 rounded-2xl p-4 flex flex-col items-center text-center pointer-events-none select-none">
-                    <div className="bg-slate-900 border border-slate-850/50 w-10 h-10 rounded-xl flex items-center justify-center mb-3 text-slate-600">
+                  <div className="bg-[#F3F3F2]/50 border border-[#404040]/10 rounded-2xl p-4 flex flex-col items-center text-center pointer-events-none select-none opacity-50">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white text-[#404040]/40">
                       <LockClosedIcon className="w-4 h-4" />
                     </div>
-                    <h2 className="text-[11px] font-black uppercase tracking-wide text-slate-500">
+                    <h2 className="text-[11px] font-bold uppercase tracking-wide text-[#404040]/50">
                       Agenda Suresnes
                     </h2>
-                    <p className="text-[9px] text-slate-650 font-medium mt-1 leading-relaxed">
+                    <p className="text-[9px] text-[#404040]/40 font-medium mt-1 leading-relaxed">
                       Accès restreint
                     </p>
                   </div>
                 )}
 
                 {/* ÉMARGEMENTS & DOC. INTERNES */}
-                <Link href="/emargements" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-cyan-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-cyan-600 transition-all">
-                    <ClipboardDocumentCheckIcon className="w-4 h-4 text-cyan-400 group-hover:text-white" />
+                <Link href="/emargements" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
+                    <ClipboardDocumentCheckIcon className="w-4 h-4" />
                   </div>
-                  <h2 className="text-[11px] font-black uppercase tracking-wide text-white group-hover:text-cyan-400 transition-colors">
+                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259]">
                     Émargements & Doc. internes
                   </h2>
-                  <p className="text-[9px] text-slate-500 font-medium mt-1 leading-relaxed">
+                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
                     Accéder aux feuilles archivées
                   </p>
                 </Link>
 
                 {/* GÉNÉRATEUR D'ÉMARGEMENTS */}
-                <Link href="/emargement" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-emerald-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95 bg-gradient-to-b from-slate-950 to-emerald-950/10">
-                  <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-emerald-600 transition-all">
-                    <DocumentPlusIcon className="w-4 h-4 text-emerald-400 group-hover:text-white" />
+                <Link href="/emargement" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
+                    <DocumentPlusIcon className="w-4 h-4" />
                   </div>
-                  <h2 className="text-[11px] font-black uppercase tracking-wide text-white group-hover:text-emerald-400 transition-colors">
+                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
                     Générateur d'Émargements
                   </h2>
-                  <p className="text-[9px] text-slate-400 font-medium mt-1 leading-relaxed">
+                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
                     Éditer de nouvelles feuilles A4 prêtes à imprimer
                   </p>
                 </Link>
 
                 {/* ACTIONS COLLECTIVES */}
-                <Link href="/actions-collectives" className="group bg-slate-950 border border-slate-850 rounded-2xl p-4 hover:border-fuchsia-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="bg-slate-900 border border-slate-800 w-10 h-10 rounded-xl flex items-center justify-center mb-3 group-hover:bg-fuchsia-600 transition-all">
-                    <UserGroupIcon className="w-4 h-4 text-fuchsia-400 group-hover:text-white" />
+                <Link href="/actions-collectives" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
+                    <UserGroupIcon className="w-4 h-4" />
                   </div>
-                  <h2 className="text-[11px] font-black uppercase tracking-wide text-white group-hover:text-fuchsia-400 transition-colors">
+                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259]">
                     Actions Collectives
                   </h2>
-                  <p className="text-[9px] text-slate-500 font-medium mt-1 leading-relaxed">
+                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
                     Saisir les bilans simplifiés d'ateliers
                   </p>
                 </Link>
@@ -342,17 +364,17 @@ export default function HomePage() {
             </div>
           ) : (
             /* ================= VUE AGRANDIE : STATISTIQUES & BILANS ================= */
-            <div className="bg-slate-900/90 border border-purple-500/40 rounded-[2.5rem] p-6 md:p-8 shadow-2xl transition-all duration-300 backdrop-blur-md animate-in fade-in zoom-in-95 duration-200 max-w-4xl mx-auto w-full">
-              <div className="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
+            <div className="bg-white border-2 border-[#005259] rounded-[2.5rem] p-6 md:p-8 shadow-md transition-all duration-300 animate-in fade-in zoom-in-95 duration-200 max-w-4xl mx-auto w-full">
+              <div className="flex justify-between items-center mb-8 border-b border-[#404040]/10 pb-4">
                 <div className="flex items-center gap-2">
-                  <ChartBarIcon className="w-5 h-5 text-purple-400" />
-                  <span className="text-sm font-black uppercase tracking-wider text-white">
+                  <ChartBarIcon className="w-5 h-5 text-[#005259]" />
+                  <span className="text-sm font-extrabold uppercase tracking-wider text-[#005259]">
                     Statistiques & Analyses d'Impact
                   </span>
                 </div>
                 <button 
                   onClick={() => setActiveFolder(null)}
-                  className="text-slate-400 hover:text-white bg-slate-950 hover:bg-slate-800 p-2 rounded-xl border border-slate-800 transition-colors flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-3"
+                  className="text-[#404040] hover:bg-[#005259] hover:text-white bg-[#F3F3F2] p-2 rounded-xl border border-[#404040]/10 transition-all flex items-center gap-1 text-xs font-bold uppercase tracking-wider px-3 cursor-pointer"
                 >
                   <XMarkIcon className="w-4 h-4" /> Fermer
                 </button>
@@ -360,54 +382,54 @@ export default function HomePage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* STATS GLOBALES */}
-                <Link href="/statistiques" className="group bg-slate-950 border border-slate-850 rounded-2xl p-5 hover:border-purple-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="bg-slate-900 border border-slate-800 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:bg-purple-600 transition-all">
-                    <ChartBarIcon className="w-5 h-5 text-purple-400" />
+                <Link href="/statistiques" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                  <div className="bg-white border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
+                    <ChartBarIcon className="w-5 h-5" />
                   </div>
-                  <h2 className="text-xs font-black uppercase tracking-wide text-white group-hover:text-purple-400 transition-colors">
+                  <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
                     Bilan & Stats Globaux
                   </h2>
-                  <p className="text-[10px] text-slate-500 font-medium mt-1.5 leading-relaxed">
+                  <p className="text-[10px] text-[#404040]/70 font-medium mt-1.5 leading-relaxed">
                     Consulter les rapports et indicateurs transversaux de la plateforme
                   </p>
                 </Link>
 
                 {/* STATS SURESNES */}
-                <Link href="/bilan-suresnes" className="group bg-slate-950 border border-slate-850 rounded-2xl p-5 hover:border-emerald-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95 bg-gradient-to-b from-slate-950 to-emerald-950/10">
-                  <div className="bg-slate-900 border border-slate-800 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:bg-emerald-600 transition-all">
-                    <BuildingOfficeIcon className="w-5 h-5 text-emerald-400 group-hover:text-white" />
+                <Link href="/bilan-suresnes" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                  <div className="bg-white border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
+                    <BuildingOfficeIcon className="w-5 h-5" />
                   </div>
-                  <h2 className="text-xs font-black uppercase tracking-wide text-white group-hover:text-emerald-400 transition-colors">
+                  <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">
                     Analyse Actions Suresnes
                   </h2>
-                  <p className="text-[10px] text-slate-500 font-medium mt-1.5 leading-relaxed">
+                  <p className="text-[10px] text-[#404040]/70 font-medium mt-1.5 leading-relaxed">
                     Édition et étude du bilan d'impact annuel du Relais Numérique
                   </p>
                 </Link>
 
                 {/* VOLUME HORAIRE */}
-                <Link href="/volume-horaire" className="group bg-slate-950 border border-slate-850 rounded-2xl p-5 hover:border-blue-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="bg-slate-900 border border-slate-800 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:bg-blue-600 transition-all">
-                    <ClockIcon className="w-5 h-5 text-blue-400 group-hover:text-white" />
+                <Link href="/volume-horaire" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                  <div className="bg-white border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
+                    <ClockIcon className="w-5 h-5" />
                   </div>
-                  <h2 className="text-xs font-black uppercase tracking-wide text-white group-hover:text-blue-400 transition-colors">
+                  <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
                     Volume Horaire
                   </h2>
-                  <p className="text-[10px] text-slate-500 font-medium mt-1.5 leading-relaxed">
+                  <p className="text-[10px] text-[#404040]/70 font-medium mt-1.5 leading-relaxed">
                     Analyser le temps de travail et coûts RH
                   </p>
                 </Link>
 
                 {/* GESTION DES DROITS (Visible uniquement par l'admin) */}
                 {userRole === "admin" && (
-                  <Link href="/admin/droits" className="group bg-slate-950 border border-slate-850 rounded-2xl p-5 hover:border-rose-500/50 shadow-xl transition-all duration-300 flex flex-col items-center text-center active:scale-95 bg-gradient-to-b from-slate-950 to-rose-950/10 animate-in fade-in duration-300">
-                    <div className="bg-slate-900 border border-slate-800 w-12 h-12 rounded-xl flex items-center justify-center mb-4 group-hover:bg-rose-600 transition-all">
-                      <ShieldCheckIcon className="w-5 h-5 text-rose-400 group-hover:text-white" />
+                  <Link href="/analyse" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                    <div className="bg-white border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
+                      <CpuChipIcon className="w-5 h-5" />
                     </div>
-                    <h2 className="text-xs font-black uppercase tracking-wide text-white group-hover:text-rose-400 transition-colors">
+                    <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">
                       Gérer les Droits
                     </h2>
-                    <p className="text-[10px] text-slate-500 font-medium mt-1.5 leading-relaxed">
+                    <p className="text-[10px] text-[#404040]/70 font-medium mt-1.5 leading-relaxed">
                       Matrice de sécurité et modification des rôles de l'équipe
                     </p>
                   </Link>
@@ -419,24 +441,24 @@ export default function HomePage() {
         </div>
 
         {/* FOOTER CLOUD SYSTEM */}
-        <footer className="mt-12 w-full max-w-4xl bg-gradient-to-r from-slate-900 to-slate-900/40 border border-slate-800/80 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-2xl">
+        <footer className="mt-12 w-full max-w-4xl bg-white border border-[#404040]/10 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
           <div className="flex items-center gap-4 text-center sm:text-left">
-            <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 hidden sm:block">
-              <CpuChipIcon className="w-6 h-6 text-slate-500" />
+            <div className="p-3 bg-[#F3F3F2] rounded-2xl border border-[#404040]/10 hidden sm:block text-[#005259]">
+              <CpuChipIcon className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-sm font-black uppercase tracking-wider text-white">Infrastructure Cloud</h3>
-              <p className="text-xs text-slate-500 font-medium mt-0.5">
+              <h3 className="text-sm font-extrabold uppercase tracking-wider text-[#005259]">Infrastructure Cloud C.O.S.M.O.S.</h3>
+              <p className="text-xs text-[#404040]/70 font-medium mt-0.5">
                 Les données sont stockées de manière sécurisée et synchronisées en direct.
               </p>
             </div>
           </div>
-          <div className="flex items-center bg-slate-950 px-5 py-3 rounded-2xl border border-slate-800">
+          <div className="flex items-center bg-[#F3F3F2] px-5 py-3 rounded-2xl border border-[#404040]/10">
             <div className="text-center sm:text-right">
-              <span className="block text-sm font-black uppercase tracking-tighter italic text-white">
+              <span className="block text-sm font-black uppercase tracking-tight italic text-[#005259]">
                 Colombbus
               </span>
-              <span className="text-[9px] uppercase tracking-widest font-black text-slate-600 block mt-0.5">
+              <span className="text-[9px] uppercase tracking-widest font-bold text-[#EA601F] block mt-0.5">
                 Médiation Numérique
               </span>
             </div>
