@@ -13,7 +13,7 @@ import {
   UsersIcon, MapPinIcon, EyeIcon, EyeSlashIcon,
   CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon,
   CheckCircleIcon, LockClosedIcon, BellIcon,
-  ChatBubbleLeftRightIcon
+  ChatBubbleLeftRightIcon, ExclamationTriangleIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
@@ -93,9 +93,8 @@ function isLightColor(hex: string): boolean {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
-  // Formule standard de luminance relative (WCAG)
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.6; // Si > 0.6, la couleur est considérée comme claire
+  return luminance > 0.6;
 }
 
 function getWeekIdentifier(date: Date) {
@@ -127,6 +126,24 @@ export default function PlanningExpertMix() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [filtrePersoUniquement] = useState(true);
+  const [showNotifDeleteConfirm, setShowNotifDeleteConfirm] = useState(false);
+
+  // Modale de confirmation de suppression d'une action
+  const [deleteConfirmModalData, setDeleteConfirmModalData] = useState<{
+    id: string;
+    lieu: string;
+    mediateurNom: string;
+  } | null>(null);
+
+  // État de la modale d'ajout d'action
+  const [promptModalData, setPromptModalData] = useState<{
+    mediatId: string;
+    prenom: string;
+    nom: string;
+    moment: string;
+    dateStr: string;
+  } | null>(null);
+  const [promptLieuInput, setPromptLieuInput] = useState("");
 
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -142,13 +159,14 @@ export default function PlanningExpertMix() {
   const [editingMed, setEditingMed] = useState<Mediateur | null>(null);
   
   const [editingActivite, setEditingActivite] = useState<ActiviteType | null>(null);
+  const [selectedLieuPredefini, setSelectedLieuPredefini] = useState("");
   const [newActivite, setNewActivite] = useState<ActiviteType>({
     lieu: "",
     debut: "09:00",
     fin: "17:00",
     adresse: "",
     territoire: "",
-    couleur: "#005259", // Bleu canard (Couleur Principale)
+    couleur: "#005259",
     codeAnalytique: "",
     dateDebut: "",
     dateFin: ""
@@ -169,6 +187,7 @@ export default function PlanningExpertMix() {
     function handleClickOutside(event: MouseEvent) {
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
         setIsNotifOpen(false);
+        setShowNotifDeleteConfirm(false);
       }
     }
     if (isNotifOpen) document.addEventListener("mousedown", handleClickOutside);
@@ -213,7 +232,6 @@ export default function PlanningExpertMix() {
     const unsubActs = onSnapshot(query(collection(db, "activites_types"), orderBy("lieu", "asc")), (snap) => {
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as ActiviteType));
       if (docs.length === 0 && snap.metadata.fromCache === false) {
-        // Exemples aux couleurs exactes de la charte
         const initiales = [
           { lieu: "Atelier Numérique", debut: "10:00", fin: "12:00", adresse: "Centre social", territoire: "92", couleur: "#EA601F", codeAnalytique: "", dateDebut: "", dateFin: "" },
           { lieu: "RN Suresnes", debut: "10:00", fin: "17:00", adresse: "Hôtel de Ville, Suresnes", territoire: "92", couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "" },
@@ -255,10 +273,10 @@ export default function PlanningExpertMix() {
   };
 
   const effacerNotifications = async () => {
-    if (!window.confirm("Effacer tout l'historique des notifications ?")) return;
     const batch = writeBatch(db);
     notifications.forEach(n => batch.delete(doc(db, "notifications", n.id)));
     await batch.commit();
+    setShowNotifDeleteConfirm(false);
     setIsNotifOpen(false);
   };
 
@@ -314,6 +332,7 @@ export default function PlanningExpertMix() {
       
       setNewActivite({ lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "", couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "" });
       setEditingActivite(null);
+      setSelectedLieuPredefini("");
       setIsActiviteModalOpen(false);
     } catch (error) {
       console.error("Erreur sauvegarde modèle :", error);
@@ -334,12 +353,12 @@ export default function PlanningExpertMix() {
       dateDebut: type.dateDebut || "",
       dateFin: type.dateFin || ""
     });
+    setSelectedLieuPredefini("");
     setIsActiviteModalOpen(true);
   };
 
   const handleDeleteActiviteType = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation(); 
-    if (!window.confirm("Supprimer ce modèle ?")) return;
     await deleteDoc(doc(db, "activites_types", id));
     if (selectedModel?.id === id) setSelectedModel(null);
   };
@@ -361,13 +380,15 @@ export default function PlanningExpertMix() {
     return d;
   });
 
-  const handleCaseClick = async (mediatId: string, prenom: string, nom: string, moment: string, dateStr: string) => {
-    if (estSemaineValidee) {
-      alert("🔒 Semaine validée et verrouillée.");
-      return;
-    }
-
-    let lieu = selectedModel ? selectedModel.lieu : window.prompt(`Nouvelle action pour ${prenom} ${nom} (${moment}) :`);
+  const processActionCreation = async (
+    mediatId: string, 
+    prenom: string, 
+    nom: string, 
+    moment: string, 
+    dateStr: string, 
+    lieuInput: string
+  ) => {
+    let lieu = lieuInput;
     if (!lieu) return;
 
     const upperLieu = lieu.toUpperCase();
@@ -390,24 +411,8 @@ export default function PlanningExpertMix() {
     const hasUsagers = snapSuresnes.docs.some(d => d.data().usager && d.data().usager.trim() !== "");
 
     if (hasUsagers && !isSuresnesAction) {
-      const nouveauNom = window.prompt(
-        `⚠️ TRANSFERT OBLIGATOIRE : ${prenom} ${nom} a des usagers inscrits à Suresnes.\n\nEntrez le nom du médiateur receveur :`
-      );
-
-      if (nouveauNom) {
-        const transfers = snapSuresnes.docs.map(d => 
-          updateDoc(doc(db, "planning_suresnes", d.id), { mediateurNom: nouveauNom })
-        );
-        await Promise.all(transfers);
-        await addDoc(collection(db, "notifications"), {
-          destinataireId: mediatId,
-          message: `🔄 RDV Suresnes transférés : Les usagers du ${dateFormatee} (${moment}) ont été réaffectés à ${nouveauNom}.`,
-          createdAt: Date.now(),
-          lue: false
-        });
-      } else {
-        return;
-      }
+      alert(`⚠️ IMPOSSIBLE DE SUPPRIMER/DÉPLACER : ${prenom} ${nom} a des usagers inscrits à Suresnes.`);
+      return;
     }
 
     const deletes = snapSuresnes.docs.map(d => (!d.data().usager ? deleteDoc(doc(db, "planning_suresnes", d.id)) : Promise.resolve()));
@@ -456,6 +461,33 @@ export default function PlanningExpertMix() {
     }
   };
 
+  const handleCaseClick = async (mediatId: string, prenom: string, nom: string, moment: string, dateStr: string) => {
+    if (estSemaineValidee) {
+      alert("🔒 Semaine validée et verrouillée.");
+      return;
+    }
+
+    if (selectedModel) {
+      await processActionCreation(mediatId, prenom, nom, moment, dateStr, selectedModel.lieu);
+    } else {
+      setPromptLieuInput("");
+      setPromptModalData({ mediatId, prenom, nom, moment, dateStr });
+    }
+  };
+
+  const handleConfirmActionModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promptModalData || !promptLieuInput.trim()) return;
+
+    const { mediatId, prenom, nom, moment, dateStr } = promptModalData;
+    const lieu = promptLieuInput.trim();
+    
+    setPromptModalData(null);
+    setPromptLieuInput("");
+
+    await processActionCreation(mediatId, prenom, nom, moment, dateStr, lieu);
+  };
+
   const handleEditCommentaire = (actionId: string, currentCommentaire: string) => {
     setActiveCommentModal({
       actionId,
@@ -467,7 +499,7 @@ export default function PlanningExpertMix() {
 
   const handleSaveCommentaire = async (supprimer = false) => {
     if (!activeCommentModal || activeCommentModal.readOnly) return;
-    const { actionId, currentText, inputText } = activeCommentModal;
+    const { actionId, inputText } = activeCommentModal;
     
     try {
       const texteFinal = supprimer ? "" : inputText.trim();
@@ -506,16 +538,30 @@ export default function PlanningExpertMix() {
     }
   };
 
-  const deleteAction = async (id: string) => {
+  const onRequestDeleteAction = (id: string) => {
     if (estSemaineValidee) {
       alert("🔒 Semaine verrouillée.");
       return;
     }
-
-    if (!window.confirm("Supprimer cette action ?")) return;
-
     const actionDoc = actions.find(a => a.id === id);
     if (!actionDoc) return;
+
+    setDeleteConfirmModalData({
+      id: actionDoc.id,
+      lieu: actionDoc.lieu,
+      mediateurNom: actionDoc.mediateurNom
+    });
+  };
+
+  const confirmDeleteAction = async () => {
+    if (!deleteConfirmModalData) return;
+    const id = deleteConfirmModalData.id;
+
+    const actionDoc = actions.find(a => a.id === id);
+    if (!actionDoc) {
+      setDeleteConfirmModalData(null);
+      return;
+    }
 
     const qSuresnes = query(collection(db, "planning_suresnes"), where("date", "==", actionDoc.date), where("moment", "==", actionDoc.moment));
     const snapSuresnes = await getDocs(qSuresnes);
@@ -527,11 +573,13 @@ export default function PlanningExpertMix() {
 
     if (docsDuMediateur.some(d => d.data().usager && d.data().usager.trim() !== "")) {
       alert("⚠️ Suppression impossible : Des usagers sont inscrits à Suresnes.");
+      setDeleteConfirmModalData(null);
       return; 
     }
 
     await Promise.all(docsDuMediateur.map(d => deleteDoc(doc(db, "planning_suresnes", d.id))));
     await deleteDoc(doc(db, "planning_mediateurs", id));
+    setDeleteConfirmModalData(null);
   };
 
   const startOfWeekStr = weekDays[0].toLocaleDateString('en-CA');
@@ -540,7 +588,7 @@ export default function PlanningExpertMix() {
   return (
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] pl-4 pt-[60px]`}>
       
-      {/* HEADER : Couleur Principale #005259 */}
+      {/* HEADER */}
       <header className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-5 py-2.5 border-b border-[#003d42] bg-[#005259] text-white shadow-md">
         <div className="flex items-center gap-3">
           <button 
@@ -557,7 +605,7 @@ export default function PlanningExpertMix() {
           <span className="text-[#88ACEA]">/</span>
           <span className="text-white/90 font-medium">Agenda des médiateurs</span>
 
-          {/* BOUTON VALIDATION SEMAINE : Jaune #F9C44E / Vert pastel #A9E0C9 */}
+          {/* BOUTON VALIDATION SEMAINE */}
           <button
             onClick={toggleValidationSemaine}
             className={`px-3 py-1 rounded-md text-xs transition-all border flex items-center gap-1.5 cursor-pointer font-bold ${
@@ -576,7 +624,7 @@ export default function PlanningExpertMix() {
 
         <div className="flex items-center gap-3">
           
-          {/* CLOCHE NOTIFICATION : Rouge corail #EF736A pour les badges */}
+          {/* CLOCHE NOTIFICATION */}
           <div className="relative" ref={notifRef}>
             <button 
               onClick={() => setIsNotifOpen(!isNotifOpen)} 
@@ -591,6 +639,7 @@ export default function PlanningExpertMix() {
               )}
             </button>
 
+            {/* PANNEAU DES NOTIFICATIONS : Modale aperçu (5 plus récentes + lien complet) */}
             {isNotifOpen && (
               <div className="absolute right-0 mt-2 w-80 bg-white border border-[#404040]/10 rounded-xl shadow-xl z-50 p-3 space-y-2 text-[#404040]">
                 <div className="flex justify-between items-center border-b border-[#F3F3F2] pb-2">
@@ -600,11 +649,23 @@ export default function PlanningExpertMix() {
                       <button onClick={marquerToutCommeLu} className="text-[10px] text-[#88ACEA] font-bold hover:underline">Tout lire</button>
                     )}
                     {notifications.length > 0 && (
-                      <button onClick={effacerNotifications} className="text-[10px] text-[#EF736A] font-bold hover:underline">Effacer</button>
+                      <button onClick={() => setShowNotifDeleteConfirm(!showNotifDeleteConfirm)} className="text-[10px] text-[#EF736A] font-bold hover:underline">Effacer</button>
                     )}
                   </div>
                 </div>
-                <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5">
+
+                {showNotifDeleteConfirm && (
+                  <div className="p-2 bg-[#EF736A]/10 border border-[#EF736A] rounded-lg text-xs space-y-1.5 text-center">
+                    <p className="text-[11px] font-bold text-[#EF736A]">Tout effacer ?</p>
+                    <div className="flex justify-center gap-2">
+                      <button onClick={effacerNotifications} className="bg-[#EF736A] text-white text-[10px] px-2 py-0.5 rounded font-bold">Oui</button>
+                      <button onClick={() => setShowNotifDeleteConfirm(false)} className="bg-[#F3F3F2] text-[#404040] text-[10px] px-2 py-0.5 rounded font-bold">Non</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Liste des 5 notifications les plus récentes */}
+                <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
                   {notifications.length === 0 ? (
                     <div className="text-center py-5 text-[#404040]/60 text-[11px]">Aucune notification récente</div>
                   ) : (
@@ -614,6 +675,17 @@ export default function PlanningExpertMix() {
                       </div>
                     ))
                   )}
+                </div>
+
+                {/* Lien vers la page complète de gestion des notifications */}
+                <div className="border-t border-[#F3F3F2] pt-2 text-center">
+                  <Link 
+                    href="/notifications" 
+                    onClick={() => setIsNotifOpen(false)}
+                    className="text-[11px] font-bold text-[#005259] hover:text-[#EA601F] transition-colors inline-block w-full py-1"
+                  >
+                    Voir toutes les notifications →
+                  </Link>
                 </div>
               </div>
             )}
@@ -626,7 +698,7 @@ export default function PlanningExpertMix() {
             <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate()+7); setCurrentDate(d); }} className="text-white hover:text-[#F9C44E] transition-colors cursor-pointer text-xs font-bold">→</button>
           </div>
 
-          {/* MODÈLE SELECTIONNÉ : Orange #EA601F */}
+          {/* MODÈLE SÉLECTIONNÉ */}
           {selectedModel && (
             <div className="bg-[#EA601F] text-white px-2.5 py-1 rounded-md text-xs flex items-center gap-2 animate-pulse h-9 font-semibold">
               <span>Injection : {selectedModel.lieu}</span>
@@ -636,7 +708,7 @@ export default function PlanningExpertMix() {
             </div>
           )}
 
-          {/* BOUTON SAMEDI : Peche/Saumon #F9945D */}
+          {/* BOUTON SAMEDI */}
           <button
             onClick={() => setVoirSamedi(!voirSamedi)}
             className={`px-3 h-9 rounded-md text-xs transition-colors border flex items-center gap-1.5 cursor-pointer font-bold ${
@@ -647,7 +719,7 @@ export default function PlanningExpertMix() {
             {voirSamedi ? "Masquer Samedi" : "+ Samedi"}
           </button>
 
-          {/* BOUTON MASQUÉS : Coral #EF736A */}
+          {/* BOUTON MASQUÉS */}
           <button
             onClick={() => setVoirMasques(!voirMasques)}
             className={`px-3 h-9 rounded-md text-xs transition-colors border flex items-center gap-1.5 cursor-pointer font-bold ${
@@ -684,14 +756,13 @@ export default function PlanningExpertMix() {
               <DocumentDuplicateIcon className="w-4 h-4 text-[#EA601F]" /> Modèles
             </div>
             <button 
-              onClick={() => { setEditingActivite(null); setNewActivite({ lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "", couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "" }); setIsActiviteModalOpen(true); }} 
+              onClick={() => { setEditingActivite(null); setNewActivite({ lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "", couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "" }); setSelectedLieuPredefini(""); setIsActiviteModalOpen(true); }} 
               className="p-1 bg-[#F3F3F2] hover:bg-[#005259] text-[#005259] hover:text-white rounded-md transition-colors cursor-pointer"
             >
               <PlusIcon className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          {/* PALETTE DES MODÈLES D'ACTIVITÉS */}
           <div className="space-y-1.5">
             {activitesTypes
               .filter(type => {
@@ -703,7 +774,6 @@ export default function PlanningExpertMix() {
                 const colorTheme = type.couleur || "#005259";
                 const isSelected = selectedModel?.id === type.id;
 
-                // Calcul de lisibilité
                 const isLight = isLightColor(colorTheme);
                 const textColor = isLight ? "#1A1A1A" : colorTheme;
                 const bgColor = hexToRgba(colorTheme, isLight ? 0.35 : (isSelected ? 0.2 : 0.08));
@@ -793,7 +863,6 @@ export default function PlanningExpertMix() {
                           </div>
                         </div>
                         
-                        {/* BADGE STATUT ACI : Bleu Ciel #88ACEA */}
                         {m.statut === 'ACI' && (
                           <div className="mt-1">
                             <span className="inline-block text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#88ACEA]/20 text-[#005259] border border-[#88ACEA]">
@@ -808,8 +877,8 @@ export default function PlanningExpertMix() {
                         return (
                           <td key={dateStr} className="p-1 border-l border-[#F3F3F2] align-top">
                             <div className="grid grid-cols-2 gap-1 min-h-[38px]">
-                              <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={deleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} />
-                              <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={deleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} />
+                              <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} />
+                              <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} />
                             </div>
                           </td>
                         );
@@ -821,6 +890,99 @@ export default function PlanningExpertMix() {
           </table>
         </div>
       </div>
+
+      {/* POP-UP SUR-MESURE DE CONFIRMATION DE SUPPRESSION */}
+      {deleteConfirmModalData && (
+        <div className="fixed inset-0 bg-[#005259]/40 backdrop-blur-xs flex items-center justify-center z-[140] p-4">
+          <div className="bg-white border border-[#404040]/10 p-5 rounded-xl w-full max-w-sm space-y-4 shadow-2xl text-[#404040] animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3 text-[#EF736A]">
+              <div className="p-2 bg-[#EF736A]/10 rounded-full">
+                <ExclamationTriangleIcon className="w-6 h-6 text-[#EF736A]" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-[#005259]">Confirmer la suppression</h3>
+                <p className="text-xs text-[#404040]/70">Cette action est irréversible.</p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-[#F3F3F2] rounded-lg border border-[#404040]/10 text-xs">
+              Voulez-vous vraiment supprimer l'action <span className="font-bold text-[#005259]">"{deleteConfirmModalData.lieu}"</span> de <span className="font-bold text-[#005259]">{deleteConfirmModalData.mediateurNom}</span> ?
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-[#F3F3F2]">
+              <button 
+                type="button" 
+                onClick={() => setDeleteConfirmModalData(null)} 
+                className="px-3 py-1.5 text-xs font-bold text-[#404040]/70 hover:bg-[#F3F3F2] rounded-md transition-colors"
+              >
+                Annuler
+              </button>
+              <button 
+                type="button" 
+                onClick={confirmDeleteAction} 
+                className="px-4 py-1.5 bg-[#EF736A] hover:bg-[#d95d54] text-white text-xs font-bold rounded-md shadow-sm transition-colors"
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODALE SAISIE DE NOUVELLE ACTION */}
+      {promptModalData && (
+        <div className="fixed inset-0 bg-[#005259]/40 backdrop-blur-xs flex items-center justify-center z-[130] p-4">
+          <form 
+            onSubmit={handleConfirmActionModal} 
+            className="bg-white border border-[#404040]/10 p-5 rounded-xl w-full max-w-xs space-y-3 shadow-2xl text-[#404040]"
+          >
+            <div className="flex justify-between items-center border-b border-[#F3F3F2] pb-2">
+              <h3 className="font-bold text-sm text-[#005259]">
+                Nouvelle action
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => setPromptModalData(null)} 
+                className="text-[#404040]/50 hover:text-[#404040]"
+              >
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-[#404040]/80">
+              Pour <span className="font-bold text-[#005259]">{promptModalData.prenom} {promptModalData.nom}</span> ({promptModalData.moment}) :
+            </p>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] text-[#404040] font-bold uppercase">Nom ou lieu de l'action</label>
+              <input 
+                autoFocus
+                required
+                placeholder="Ex: Permanence, RN Suresnes..." 
+                value={promptLieuInput} 
+                onChange={(e) => setPromptLieuInput(e.target.value)}
+                className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none font-semibold focus:border-[#005259]" 
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-[#F3F3F2]">
+              <button 
+                type="button" 
+                onClick={() => setPromptModalData(null)} 
+                className="text-[#404040]/60 text-xs px-2 font-bold"
+              >
+                Annuler
+              </button>
+              <button 
+                type="submit" 
+                className="bg-[#005259] hover:bg-[#003d42] text-white px-4 py-1.5 rounded-lg text-xs font-bold"
+              >
+                Valider
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* MODALE COMMENTAIRES */}
       {activeCommentModal && (
@@ -946,9 +1108,10 @@ export default function PlanningExpertMix() {
                 <label className="text-[10px] text-[#404040]/70 font-semibold">Adresse prédéfinie (Optionnel)</label>
                 <select 
                   className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none"
-                  value=""
+                  value={selectedLieuPredefini}
                   onChange={(e) => {
                     const selectedLieuNom = e.target.value;
+                    setSelectedLieuPredefini(selectedLieuNom);
                     if (!selectedLieuNom) return;
                     const locFound = localisations?.find(l => l.nomRaccourci === selectedLieuNom || l.nomComplet === selectedLieuNom);
                     if (locFound) {
@@ -996,7 +1159,7 @@ export default function PlanningExpertMix() {
 
             <div className="flex gap-2 pt-2">
               <button type="submit" className="flex-1 bg-[#005259] text-white py-1.5 rounded-md text-xs font-bold">Valider</button>
-              <button type="button" onClick={() => { setIsActiviteModalOpen(false); setEditingActivite(null); }} className="text-[#404040]/60 text-xs px-2 font-bold">Annuler</button>
+              <button type="button" onClick={() => { setIsActiviteModalOpen(false); setEditingActivite(null); setSelectedLieuPredefini(""); }} className="text-[#404040]/60 text-xs px-2 font-bold">Annuler</button>
             </div>
           </form>
         </div>
@@ -1028,7 +1191,6 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
         const hexColor = a.couleur || "#005259";
         const hasCommentaire = !!a.commentaire;
 
-        // Adaptation de lisibilité selon le fond
         const isLight = isLightColor(hexColor);
         const textColor = isLight ? "#1A1A1A" : hexColor;
         const cardBg = hexToRgba(hexColor, isLight ? 0.35 : 0.12);

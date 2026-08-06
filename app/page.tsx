@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Quicksand } from "next/font/google";
-import { db } from "../lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
+import { PermissionGuard } from "@/components/PermissionGuard";
 import {   
   UsersIcon,   
   ChartBarIcon,   
@@ -31,13 +30,10 @@ const quicksand = Quicksand({
 });
 
 export default function HomePage() {
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string>("lecteur");
   const [activeFolder, setActiveFolder] = useState<"rencontres" | "stats" | null>(null);
-  
-  // ÉTAT POUR STOCKER LA MATRICE DE SÉCURITÉ EN DIRECT
-  const [droitsMaitres, setDroitsMaitres] = useState<Record<string, any>>({});
 
-  // 1. Synchronisation du rôle et écoute de la base de données de sécurité
+  // Synchronisation du rôle utilisateur
   useEffect(() => {
     const getCookie = (name: string) => {
       const value = `; ${document.cookie}`;
@@ -46,26 +42,9 @@ export default function HomePage() {
       return null;
     };
 
-    const role = (getCookie("user_role") || localStorage.getItem("user_role"))?.toLowerCase() || null;
+    const role = (getCookie("user_role") || localStorage.getItem("user_role"))?.toLowerCase() || "lecteur";
     setUserRole(role);
-
-    const unsub = onSnapshot(collection(db, "configuration_droits"), (snap) => {
-      const dataDroits: Record<string, any> = {};
-      snap.docs.forEach(d => {
-        dataDroits[d.id] = d.data();
-      });
-      setDroitsMaitres(dataDroits);
-    });
-
-    return () => unsub();
   }, []);
-
-  // 2. FONCTION CLÉ : Comprend si l'ID d'action est coché pour le rôle actuel
-  const aLeDroit = (actionId: string) => {
-    if (!userRole) return true;
-    if (userRole === "admin") return true;
-    return !!droitsMaitres[actionId]?.[userRole];
-  };
 
   // FONCTION DE DÉCONNEXION
   const handleLogout = () => {
@@ -95,26 +74,22 @@ export default function HomePage() {
 
       <div className="max-w-7xl w-full relative z-10 flex flex-col items-center justify-center min-h-[80vh]">
         
-        {/* EN-TÊTE AVEC LOGO, TITRE COLOMBBUS ET SOUS-TITRE C.O.S.M.O.S. */}
+        {/* EN-TÊTE AVEC LOGO ET TITRE */}
         <div className="text-center mb-10 flex flex-col items-center">
-          
-          {/* LOGO COLOMBBUS DEPUIS /PUBLIC/LOGOS */}
-<div className="mb-3 relative w-16 h-16 md:w-20 md:h-20">
-  <Image 
-    src="/logos/Logo_Colombbus_noir_trans.png" 
-    alt="Logo Colombbus" 
-    fill
-    className="object-contain"
-    priority
-  />
-</div>
+          <div className="mb-3 relative w-16 h-16 md:w-20 md:h-20">
+            <Image 
+              src="/logos/Logo_Colombbus_noir_trans.png" 
+              alt="Logo Colombbus" 
+              fill
+              className="object-contain"
+              priority
+            />
+          </div>
 
-          {/* NOM COLOMBBUS EN GROS */}
           <h1 className="text-4xl md:text-5xl font-black tracking-tight uppercase text-[#005259]">
             Colombbus
           </h1>
 
-          {/* C.O.S.M.O.S. ET SON ACRONYME PLUS DISCRETS */}
           <div className="mt-2 flex flex-col items-center gap-1">
             <span className="inline-block px-3 py-1 rounded-full bg-[#EA601F]/10 border border-[#EA601F]/20 text-[#EA601F] text-xs font-black uppercase tracking-widest">
               Plateforme C.O.S.M.O.S.
@@ -136,8 +111,24 @@ export default function HomePage() {
             /* ================= VUE FERMÉE ================= */
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full items-stretch">
               
-              {/* AGENDA DES MÉDIATEURS CONDITIONNEL */}
-              {aLeDroit("consulter_agenda_mediateurs") ? (
+              {/* AGENDA DES MÉDIATEURS PROTECTION */}
+              <PermissionGuard 
+                actionId="consulter_agenda_mediateurs" 
+                userRole={userRole}
+                fallback={
+                  <div className="group bg-white/60 border border-[#404040]/10 rounded-3xl p-6 shadow-sm flex flex-col items-center justify-center text-center min-h-[240px] pointer-events-none select-none opacity-60">
+                    <div className="bg-[#F3F3F2] w-16 h-16 rounded-2xl flex items-center justify-center mb-5 text-[#404040]/40 border border-[#404040]/10">
+                      <LockClosedIcon className="w-7 h-7" />
+                    </div>
+                    <h2 className="text-sm font-bold uppercase tracking-wide text-[#404040]/50">
+                      Agenda des Médiateurs
+                    </h2>
+                    <p className="text-xs text-[#404040]/40 font-medium mt-2 leading-relaxed max-w-[200px]">
+                      Accès restreint par l'administrateur
+                    </p>
+                  </div>
+                }
+              >
                 <Link 
                   href="/agenda" 
                   className="group bg-white border border-[#404040]/10 hover:border-[#005259] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px]"
@@ -152,19 +143,7 @@ export default function HomePage() {
                     Gérer l'équipe et le planning des actions
                   </p>
                 </Link>
-              ) : (
-                <div className="group bg-white/60 border border-[#404040]/10 rounded-3xl p-6 shadow-sm flex flex-col items-center justify-center text-center min-h-[240px] pointer-events-none select-none opacity-60">
-                  <div className="bg-[#F3F3F2] w-16 h-16 rounded-2xl flex items-center justify-center mb-5 text-[#404040]/40 border border-[#404040]/10">
-                    <LockClosedIcon className="w-7 h-7" />
-                  </div>
-                  <h2 className="text-sm font-bold uppercase tracking-wide text-[#404040]/50">
-                    Agenda des Médiateurs
-                  </h2>
-                  <p className="text-xs text-[#404040]/40 font-medium mt-2 leading-relaxed max-w-[200px]">
-                    Accès restreint par l'administrateur
-                  </p>
-                </div>
-              )}
+              </PermissionGuard>
 
               {/* RENCONTRES NUMÉRIQUES */}
               <button 
@@ -190,7 +169,7 @@ export default function HomePage() {
               {/* STATISTIQUES & BILANS */}
               <button 
                 onClick={() => setActiveFolder("stats")}
-                className="group bg-white border border-[#404040]/10 hover:border-[#005259] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px] cursor-pointer"
+                className="group bg-[#white] border border-[#404040]/10 hover:border-[#005259] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px] cursor-pointer"
               >
                 <div className="bg-[#F3F3F2] border border-[#404040]/10 w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-all duration-300 shadow-sm text-[#005259] group-hover:bg-[#005259] group-hover:text-white">
                   <ChartBarIcon className="w-7 h-7 transition-colors" />
@@ -294,8 +273,24 @@ export default function HomePage() {
                   </p>
                 </Link>
 
-                {/* AGENDA SURESNES INTERACTIF */}
-                {aLeDroit("consulter_agenda_suresnes") ? (
+                {/* AGENDA SURESNES INTERACTIF PROTECTION */}
+                <PermissionGuard 
+                  actionId="consulter_agenda_suresnes" 
+                  userRole={userRole}
+                  fallback={
+                    <div className="bg-[#F3F3F2]/50 border border-[#404040]/10 rounded-2xl p-4 flex flex-col items-center text-center pointer-events-none select-none opacity-50">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white text-[#404040]/40">
+                        <LockClosedIcon className="w-4 h-4" />
+                      </div>
+                      <h2 className="text-[11px] font-bold uppercase tracking-wide text-[#404040]/50">
+                        Agenda Suresnes
+                      </h2>
+                      <p className="text-[9px] text-[#404040]/40 font-medium mt-1 leading-relaxed">
+                        Accès restreint
+                      </p>
+                    </div>
+                  }
+                >
                   <Link href="/suresnes" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
                       <CalendarIcon className="w-4 h-4" />
@@ -307,19 +302,7 @@ export default function HomePage() {
                       Consulter l'agenda du Relais Numérique
                     </p>
                   </Link>
-                ) : (
-                  <div className="bg-[#F3F3F2]/50 border border-[#404040]/10 rounded-2xl p-4 flex flex-col items-center text-center pointer-events-none select-none opacity-50">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white text-[#404040]/40">
-                      <LockClosedIcon className="w-4 h-4" />
-                    </div>
-                    <h2 className="text-[11px] font-bold uppercase tracking-wide text-[#404040]/50">
-                      Agenda Suresnes
-                    </h2>
-                    <p className="text-[9px] text-[#404040]/40 font-medium mt-1 leading-relaxed">
-                      Accès restreint
-                    </p>
-                  </div>
-                )}
+                </PermissionGuard>
 
                 {/* ÉMARGEMENTS & DOC. INTERNES */}
                 <Link href="/emargements" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
@@ -396,7 +379,7 @@ export default function HomePage() {
 
                 {/* STATS SURESNES */}
                 <Link href="/bilan-suresnes" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="bg-white border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
+                  <div className="bg-[#white] border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
                     <BuildingOfficeIcon className="w-5 h-5" />
                   </div>
                   <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">
@@ -420,8 +403,8 @@ export default function HomePage() {
                   </p>
                 </Link>
 
-                {/* GESTION DES DROITS (Visible uniquement par l'admin) */}
-                {userRole === "admin" && (
+                {/* GESTION DES DROITS (Reservé aux admins) */}
+                <PermissionGuard actionId="home_nav_admin_droits" userRole={userRole}>
                   <Link href="/analyse" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                     <div className="bg-white border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
                       <CpuChipIcon className="w-5 h-5" />
@@ -433,7 +416,7 @@ export default function HomePage() {
                       Matrice de sécurité et modification des rôles de l'équipe
                     </p>
                   </Link>
-                )}
+                </PermissionGuard>
               </div>
             </div>
           )}

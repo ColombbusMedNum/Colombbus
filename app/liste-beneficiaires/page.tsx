@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { db } from "../../lib/firebase";
-import { collection, getDocs, query, orderBy, where, updateDoc, doc } from "firebase/firestore";
+import { collection, getDocs, query, where, updateDoc, doc } from "firebase/firestore";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Quicksand } from "next/font/google";
+import { PermissionGuard } from "@/components/PermissionGuard";
 import { 
   MagnifyingGlassIcon, 
   UserPlusIcon, 
@@ -37,59 +38,77 @@ export default function ListeBeneficiaires() {
   const [beneficiaires, setBeneficiaires] = useState<any[]>([]);
   const [usagersDuJour, setUsagersDuJour] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filtreActif, setFiltreActif] = useState<string>("Aujourd'hui");
+  const [filtreActif, setFiltreActif] = useState<string>("Tous"); // Valeur par défaut : Tous
   const [lettreActive, setLettreActive] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<string>("lecteur");
   const router = useRouter();
 
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
+  // Synchronisation du rôle utilisateur
+  useEffect(() => {
+    const getCookie = (name: string) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop()?.split(";").shift();
+      return null;
+    };
+
+    const role = (getCookie("user_role") || localStorage.getItem("user_role"))?.toLowerCase() || "lecteur";
+    setUserRole(role);
+  }, []);
+
   const fetchData = async () => {
     try {
+      setLoading(true);
       const aujourdhuiStr = new Date().toLocaleDateString('en-CA');
 
-      const qPlanning = query(
-        collection(db, "planning_suresnes"), 
-        where("date", "==", aujourdhuiStr)
-      );
-      const planningSnapshot = await getDocs(qPlanning);
-      
-      const nomsDuJour = planningSnapshot.docs
-        .map(doc => doc.data().usager)
-        .filter(usager => usager && usager.trim() !== "")
-        .map(usager => usager.trim().toLowerCase());
-      
-      setUsagersDuJour(nomsDuJour);
-
-      if (nomsDuJour.length === 0 && filtreActif === "Aujourd'hui") {
-        setFiltreActif("Tous");
+      // 1. Planning du jour (Suresnes)
+      try {
+        const qPlanning = query(
+          collection(db, "planning_suresnes"), 
+          where("date", "==", aujourdhuiStr)
+        );
+        const planningSnapshot = await getDocs(qPlanning);
+        
+        const nomsDuJour = planningSnapshot.docs
+          .map(doc => doc.data().usager)
+          .filter(usager => usager && usager.trim() !== "")
+          .map(usager => usager.trim().toLowerCase());
+        
+        setUsagersDuJour(nomsDuJour);
+      } catch (errPlan) {
+        console.warn("Agenda Suresnes non disponible :", errPlan);
       }
 
-      const qBenef = query(collection(db, "utilisateurs"), orderBy("Nom", "asc"));
-      const querySnapshot = await getDocs(qBenef);
+      // 2. Récupération des utilisateurs dans Firestore
+      const querySnapshot = await getDocs(collection(db, "utilisateurs"));
       
-      const docsAvecVisitesEtPremierRDV = await Promise.all(
+      const docsAvecVisites = await Promise.all(
         querySnapshot.docs.map(async (docSnap) => {
           const userData = docSnap.data();
           let datePremierRDV = "—";
           let nbVisitesPresent = 0;
 
+          // Extraction tolérante aux majuscules/accents
+          const nom = userData.Nom || userData.nom || "";
+          const prenom = userData.Prénom || userData.prénom || userData.Prenom || userData.prenom || "";
+
+          // Récupération sécurisée des visites
           try {
-            const qVisites = query(
-              collection(db, "utilisateurs", docSnap.id, "visites"),
-              orderBy("date", "asc")
-            );
-            const visitesSnapshot = await getDocs(qVisites);
+            const visitesSnapshot = await getDocs(collection(db, "utilisateurs", docSnap.id, "visites"));
             
             if (!visitesSnapshot.empty) {
-              nbVisitesPresent = visitesSnapshot.docs.filter(doc => {
-                const data = doc.data();
+              const docsVisites = visitesSnapshot.docs.map(d => d.data());
+              
+              nbVisitesPresent = docsVisites.filter(data => {
                 return data.statut !== "Absent" && data.statut !== "Annulé" && data.presence !== "Absent" && data.presence !== false;
               }).length;
 
-              const rdvDateRaw = visitesSnapshot.docs[0].data().date;
-              if (rdvDateRaw) {
-                datePremierRDV = new Date(rdvDateRaw).toLocaleDateString('fr-FR', {
+              const dates = docsVisites.map(d => d.date).filter(Boolean).sort();
+              if (dates.length > 0) {
+                datePremierRDV = new Date(dates[0]).toLocaleDateString('fr-FR', {
                   day: '2-digit',
                   month: '2-digit',
                   year: 'numeric'
@@ -97,19 +116,26 @@ export default function ListeBeneficiaires() {
               }
             }
           } catch (err) {
-            console.error(`Erreur récupération visites pour ${docSnap.id}:`, err);
+            // Ne bloque pas si la sous-collection visites échoue
           }
 
           return {
             id: docSnap.id,
             ...userData,
+            nomAffiche: nom,
+            prenomAffiche: prenom,
             premierRDV: datePremierRDV,
             totalVisites: nbVisitesPresent
           };
         })
       );
 
-      setBeneficiaires(docsAvecVisitesEtPremierRDV);
+      // Tri alphabétique local en JavaScript
+      docsAvecVisites.sort((a, b) => 
+        (a.nomAffiche || "").localeCompare(b.nomAffiche || "", 'fr', { sensitivity: 'base' })
+      );
+
+      setBeneficiaires(docsAvecVisites);
 
     } catch (error) {
       console.error("Erreur lors de la récupération des données:", error);
@@ -148,11 +174,10 @@ export default function ListeBeneficiaires() {
     router.push(`/liste-beneficiaires/${nouvelId}`);
   };
 
-  const filteredBeneficiaires = GridFilter(beneficiaires);
-
+  // Filtrage robuste
   function GridFilter(liste: any[]) {
     return liste.filter((b) => {
-      const nomComplet = `${b.Prénom || ""} ${b.Nom || ""}`.toLowerCase().trim();
+      const nomComplet = `${b.prenomAffiche} ${b.nomAffiche}`.toLowerCase().trim();
       const matchesSearch = nomComplet.includes(searchTerm.toLowerCase());
 
       let matchesBadge = true;
@@ -160,7 +185,7 @@ export default function ListeBeneficiaires() {
       const statut = (b.Statut || "").toLowerCase();
 
       if (filtreActif === "Aujourd'hui") {
-        matchesBadge = usagersDuJour.includes(nomComplet);
+        matchesBadge = usagersDuJour.some(u => nomComplet.includes(u) || u.includes(nomComplet));
       } else if (filtreActif === "Suresnes") {
         matchesBadge = b.Ville?.toLowerCase() === "suresnes";
       } else if (filtreActif === "DE") {
@@ -173,7 +198,7 @@ export default function ListeBeneficiaires() {
 
       let matchesLettre = true;
       if (lettreActive) {
-        const premiereLettre = b.Nom ? b.Nom.trim().charAt(0).toUpperCase() : "";
+        const premiereLettre = b.nomAffiche ? b.nomAffiche.trim().charAt(0).toUpperCase() : "";
         matchesLettre = premiereLettre === lettreActive;
       }
 
@@ -181,9 +206,11 @@ export default function ListeBeneficiaires() {
     });
   }
 
+  const filteredBeneficiaires = GridFilter(beneficiaires);
+
   const countAujourdhui = beneficiaires.filter(b => {
-    const nomComplet = `${b.Prénom || ""} ${b.Nom || ""}`.toLowerCase().trim();
-    return usagersDuJour.includes(nomComplet);
+    const nomComplet = `${b.prenomAffiche} ${b.nomAffiche}`.toLowerCase().trim();
+    return usagersDuJour.some(u => nomComplet.includes(u) || u.includes(nomComplet));
   }).length;
   
   const countSuresnes = beneficiaires.filter(b => b.Ville?.toLowerCase() === "suresnes").length;
@@ -248,13 +275,16 @@ export default function ListeBeneficiaires() {
               <span>Accueil</span>
             </Link>
 
-            <button 
-              onClick={handleCreerNouveau} 
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md active:scale-95 group"
-            >
-              <UserPlusIcon className="w-4 h-4 transition-transform group-hover:scale-110" />
-              <span>Nouveau</span>
-            </button>
+            {/* BOUTON CRÉER BÉNÉFICIAIRE (PROTÉGÉ) */}
+            <PermissionGuard actionId="benef_create_new" userRole={userRole}>
+              <button 
+                onClick={handleCreerNouveau} 
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md active:scale-95 group"
+              >
+                <UserPlusIcon className="w-4 h-4 transition-transform group-hover:scale-110" />
+                <span>Nouveau</span>
+              </button>
+            </PermissionGuard>
           </div>
         </div>
 
@@ -286,7 +316,7 @@ export default function ListeBeneficiaires() {
           </button>
           <div className="flex flex-wrap gap-0.5 justify-center flex-1 mx-2">
             {alphabet.map((lettre) => {
-              const aDesBeneficiaires = GridFilter(beneficiaires).some(b => b.Nom?.[0]?.toUpperCase() === lettre);
+              const aDesBeneficiaires = beneficiaires.some(b => b.nomAffiche?.[0]?.toUpperCase() === lettre);
 
               return (
                 <button
@@ -314,17 +344,6 @@ export default function ListeBeneficiaires() {
           </span>
 
           <button
-            onClick={() => setFiltreActif("Aujourd'hui")}
-            className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-              filtreActif === "Aujourd'hui"
-                ? "bg-[#005259] text-white shadow-sm"
-                : "bg-white text-[#404040] border border-[#404040]/10 hover:border-[#005259] hover:text-[#005259]"
-            }`}
-          >
-            📅 Aujourd'hui ({countAujourdhui})
-          </button>
-
-          <button
             onClick={() => setFiltreActif("Tous")}
             className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
               filtreActif === "Tous"
@@ -333,6 +352,17 @@ export default function ListeBeneficiaires() {
             }`}
           >
             Tous ({beneficiaires.length})
+          </button>
+
+          <button
+            onClick={() => setFiltreActif("Aujourd'hui")}
+            className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+              filtreActif === "Aujourd'hui"
+                ? "bg-[#005259] text-white shadow-sm"
+                : "bg-white text-[#404040] border border-[#404040]/10 hover:border-[#005259] hover:text-[#005259]"
+            }`}
+          >
+            📅 Aujourd'hui ({countAujourdhui})
           </button>
 
           <button
@@ -357,7 +387,6 @@ export default function ListeBeneficiaires() {
             💼 Public France Travail ({countDE})
           </button>
 
-          {/* FILTRE RAPIDE BLACKLIST (#EF736A) */}
           <button
             onClick={() => setFiltreActif("Blacklistes")}
             className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
@@ -370,7 +399,7 @@ export default function ListeBeneficiaires() {
           </button>
         </div>
 
-        {/* TABLEAU / CARTE DES RÉSULTATS */}
+        {/* TABLEAU DES RÉSULTATS */}
         <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -396,11 +425,11 @@ export default function ListeBeneficiaires() {
                         <td className="px-6 py-4">
                           <div className={`font-bold text-base tracking-tight uppercase transition-colors ${isBlackliste ? "text-[#EF736A] line-through" : "text-[#005259] group-hover:text-[#EA601F]"}`}>
                             <span className="text-[#404040]/60 font-normal normal-case text-xs mr-1">{civilite}</span>
-                            {b.Nom || "SANS NOM"}
+                            {b.nomAffiche || "SANS NOM"}
                           </div>
                           <div className="flex flex-wrap items-center gap-2 mt-1">
                             <span className="text-xs text-[#404040] font-medium">
-                              {b.Prénom || "Sans prénom"}
+                              {b.prenomAffiche || "Sans prénom"}
                             </span>
                             {isBlackliste ? (
                               <span className="inline-flex items-center text-[9px] font-bold uppercase tracking-widest text-[#EF736A] bg-[#EF736A]/15 px-2 py-0.5 rounded border border-[#EF736A]/30">
@@ -420,10 +449,10 @@ export default function ListeBeneficiaires() {
                         
                         <td className="px-6 py-4 hidden md:table-cell">
                           <div className="text-xs font-medium text-[#404040]">
-                            {formatPhoneNumber(b.Téléphone)}
+                            {formatPhoneNumber(b.Téléphone || b.telephone)}
                           </div>
                           <div className="text-xs text-[#404040]/60 truncate max-w-[220px] mt-0.5">
-                            {b.email || "—"}
+                            {b.email || b.Email || "—"}
                           </div>
                         </td>
                         
@@ -456,18 +485,19 @@ export default function ListeBeneficiaires() {
                         
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end items-center gap-2">
-                            {/* TOGGLE BLACKLIST */}
-                            <button
-                              onClick={() => handleToggleBlacklist(b.id, b.Statut_Blacklist)}
-                              title={isBlackliste ? "Retirer de la blacklist" : "Ajouter à la blacklist"}
-                              className={`p-2 rounded-xl border transition-colors cursor-pointer ${
-                                isBlackliste 
-                                  ? "bg-[#EF736A]/20 text-[#EF736A] border-[#EF736A]/40 hover:bg-[#EF736A] hover:text-white" 
-                                  : "bg-[#F3F3F2] text-[#404040]/50 border-[#404040]/10 hover:text-[#EF736A] hover:border-[#EF736A]/40"
-                              }`}
-                            >
-                              <NoSymbolIcon className="w-4 h-4" />
-                            </button>
+                            <PermissionGuard actionId="benef_delete" userRole={userRole}>
+                              <button
+                                onClick={() => handleToggleBlacklist(b.id, b.Statut_Blacklist)}
+                                title={isBlackliste ? "Retirer de la blacklist" : "Ajouter à la blacklist"}
+                                className={`p-2 rounded-xl border transition-colors cursor-pointer ${
+                                  isBlackliste 
+                                    ? "bg-[#EF736A]/20 text-[#EF736A] border-[#EF736A]/40 hover:bg-[#EF736A] hover:text-white" 
+                                    : "bg-[#F3F3F2] text-[#404040]/50 border-[#404040]/10 hover:text-[#EF736A] hover:border-[#EF736A]/40"
+                                }`}
+                              >
+                                <NoSymbolIcon className="w-4 h-4" />
+                              </button>
+                            </PermissionGuard>
 
                             <Link
                               href={`/liste-beneficiaires/${b.id}`}

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { db } from "../../lib/firebase";
 import { 
-  collection, onSnapshot, query, orderBy, updateDoc, doc, addDoc, collectionGroup
+  collection, onSnapshot, query, orderBy, updateDoc, doc, addDoc, collectionGroup, serverTimestamp, getDocs, where
 } from "firebase/firestore";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
@@ -148,6 +148,51 @@ export default function PlanningSuresnes() {
     }
     setStatutsVisitesRealtime(etatsVisites);
   }, [creneaux, beneficiaires, rawVisites]);
+
+  // --- DÉCLENCHEMENT D'ALERTE POUR LES COLLECTES MANQUANTES DU JOUR MÊME ---
+  useEffect(() => {
+    const testerEtEnvoyerAlerteJourMeme = async () => {
+      const todayStr = new Date().toLocaleDateString('en-CA');
+
+      // Recherche des créneaux d'aujourd'hui réservés mais restés non suivis
+      const manquantsDuJour = creneaux.filter(c => {
+        if (c.date !== todayStr || !c.usager) return false;
+        const uniqueKey = `${c.id}_${c.date}`;
+        const statut = statutsVisitesRealtime[uniqueKey];
+        return !statut || statut === "Non suivi";
+      });
+
+      if (manquantsDuJour.length > 0) {
+        try {
+          // Vérification si une alerte n'a pas déjà été enregistrée aujourd'hui
+          const notifsRef = collection(db, "notifications");
+          const qNotif = query(
+            notifsRef,
+            where("type", "==", "collectes_manquantes"),
+            where("dateJour", "==", todayStr)
+          );
+          const existingNotifs = await getDocs(qNotif);
+
+          if (existingNotifs.empty) {
+            await addDoc(notifsRef, {
+              message: "Attention collectes manquantes à compléter SVP",
+              type: "collectes_manquantes",
+              dateJour: todayStr,
+              createdAt: serverTimestamp(),
+              cible: "tous_mediateurs",
+              lu: false
+            });
+          }
+        } catch (error) {
+          console.error("Erreur lors de l'envoi de l'alerte :", error);
+        }
+      }
+    };
+
+    if (creneaux.length > 0 && Object.keys(statutsVisitesRealtime).length > 0) {
+      testerEtEnvoyerAlerteJourMeme();
+    }
+  }, [creneaux, statutsVisitesRealtime]);
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
@@ -305,6 +350,16 @@ export default function PlanningSuresnes() {
               <span>Bénéficiaires</span>
             </Link>
 
+            {/* NOUVEAU BOUTON : AGENDA MÉDIATEURS */}
+            <Link 
+              href="/agenda" 
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+            >
+              <CalendarDaysIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Agenda Médiateurs</span>
+            </Link>
+
+            {/* SÉLECTEUR DE MOIS */}
             <div className="flex bg-white border border-[#404040]/10 rounded-xl p-1 items-center gap-1 shadow-sm">
               <button onClick={() => { setViewDate(new Date(year, month - 1, 1)); setFilterTodayOnly(false); }} className="p-1.5 hover:bg-[#F3F3F2] rounded-lg text-[#404040] transition-all cursor-pointer">
                 <ChevronLeftIcon className="w-4 h-4"/>
@@ -540,7 +595,7 @@ export default function PlanningSuresnes() {
                                 </div>
 
                                 <div className="xl:col-span-2 w-full">
-                                  <div className="flex items-center gap-1.5 bg-white border border-[#404040]/15 focus-within:border-[#005259] rounded-xl px-3 py-1.5 transition-all shadow-sm">
+                                  <div className="flex items-center gap-1.5 bg-[#FFFFFF] border border-[#404040]/15 focus-within:border-[#005259] rounded-xl px-3 py-1.5 transition-all shadow-sm">
                                     <ChatBubbleBottomCenterTextIcon className="w-3.5 h-3.5 text-[#404040]/40 shrink-0" />
                                     <input 
                                       type="text"
