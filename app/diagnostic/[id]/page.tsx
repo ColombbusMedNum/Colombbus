@@ -17,6 +17,7 @@ import {
   WrenchScrewdriverIcon,
   XMarkIcon
 } from "@heroicons/react/24/outline";
+import PageGuard from "@/components/PageGuard";
 
 // Police Quicksand identique à la liste bénéficiaires
 const quicksand = Quicksand({
@@ -251,6 +252,7 @@ export default function FormulaireDiagnostic() {
   }
 
   return (
+    <PageGuard pageId="page_access_diagnostic_detail">
     <main className={`${quicksand.className} min-h-screen bg-[#00383d] text-slate-100 p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
       
       {/* HALO LUMINEUX AMBIANT */}
@@ -599,5 +601,6 @@ export default function FormulaireDiagnostic() {
         </form>
       </div>
     </main>
+    </PageGuard>
   );
 }

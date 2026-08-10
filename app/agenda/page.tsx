@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { db } from "../../lib/firebase";
+import PageGuard from "../../components/PageGuard";
 import { 
   collection, onSnapshot, query, orderBy, addDoc, 
   deleteDoc, doc, getDocs, where, updateDoc, setDoc, writeBatch,
@@ -586,8 +587,9 @@ export default function PlanningExpertMix() {
   const endOfWeekStr = weekDays[weekDays.length - 1].toLocaleDateString('en-CA');
 
   return (
+    <PageGuard pageId="page_access_agenda">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] pl-4 pt-[60px]`}>
-      
+
       {/* HEADER */}
       <header className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-5 py-2.5 border-b border-[#003d42] bg-[#005259] text-white shadow-md">
         <div className="flex items-center gap-3">
@@ -1165,6 +1167,7 @@ export default function PlanningExpertMix() {
         </div>
       )}
     </main>
+    </PageGuard>
   );
 }
 

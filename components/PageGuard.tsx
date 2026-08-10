@@ -2,8 +2,13 @@
 
 import { ReactNode } from "react";
 import { LockClosedIcon } from "@heroicons/react/24/outline";
-import { usePageAccess } from "../lib/usePageAccess"; // ⚠️ adapte le chemin
+import { usePermissions } from "../lib/PermissionsProvider";
 
+// Protège l'accès à une page entière (à la place d'un simple bouton/lien) :
+// affiche un écran "Accès Refusé" si le rôle de l'utilisateur connecté n'a pas
+// le droit "pageId" dans la matrice centralisée (configuration_droits).
+// Rappel : ceci reste une couche d'UX. La sécurité réelle des données est
+// posée par les Firestore Security Rules, pas par ce composant.
 export default function PageGuard({
   pageId,
   children,
@@ -11,7 +16,7 @@ export default function PageGuard({
   pageId: string;
   children: ReactNode;
 }) {
-  const { autorise, loading } = usePageAccess(pageId);
+  const { can, loading } = usePermissions();
 
   if (loading) {
     return (
@@ -23,7 +28,7 @@ export default function PageGuard({
     );
   }
 
-  if (!autorise) {
+  if (!can(pageId)) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-3">
         <LockClosedIcon className="w-12 h-12 text-rose-500 animate-pulse" />

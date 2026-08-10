@@ -5,6 +5,7 @@ import { db } from "../../lib/firebase";
 import { collection, addDoc, onSnapshot, deleteDoc, doc } from "firebase/firestore";
 import { TrashIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
+import PageGuard from "../../components/PageGuard";
 
 export default function BibliothequeLogosGratuite() {
   const [logos, setLogos] = useState<any[]>([]);
@@ -69,6 +70,7 @@ export default function BibliothequeLogosGratuite() {
   };
 
   return (
+    <PageGuard pageId="page_access_bibliotheque_logos">
     <main className="min-h-screen bg-slate-950 text-white p-8">
       <div className="max-w-5xl mx-auto">
         <div className="flex justify-between items-center mb-8">
@@ -137,5 +139,6 @@ export default function BibliothequeLogosGratuite() {
         </div>
       </div>
     </main>
+    </PageGuard>
   );
 }

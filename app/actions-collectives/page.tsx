@@ -16,6 +16,7 @@ import {
   CheckIcon,
   XMarkIcon
 } from "@heroicons/react/24/outline";
+import PageGuard from "../../components/PageGuard";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -208,13 +209,14 @@ export default function ActionsCollectivesPage() {
   const inlineInputClass = "bg-[#F3F3F2] text-[#404040] border border-[#404040]/15 rounded-lg p-2 text-xs font-bold focus:border-[#005259] outline-none transition-all";
 
   return (
+    <PageGuard pageId="page_access_actions_collectives">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
-      
+
       {/* HALO LUMINEUX AMBIANT */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
 
       <div className="max-w-4xl mx-auto relative z-10 space-y-6">
-        
+
         {/* EN-TÊTE */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#404040]/10">
           <div className="flex items-center gap-4">
@@ -541,5 +543,6 @@ export default function ActionsCollectivesPage() {
 
       </div>
     </main>
+    </PageGuard>
   );
 }

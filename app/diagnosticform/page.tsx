@@ -16,6 +16,7 @@ import {
   WrenchScrewdriverIcon,
   XMarkIcon
 } from "@heroicons/react/24/outline";
+import PageGuard from "../../components/PageGuard";
 
 // Initialisation de la police Quicksand
 const quicksand = Quicksand({
@@ -253,8 +254,9 @@ export default function FormulaireDiagnostic() {
   }
 
   return (
+    <PageGuard pageId="page_access_diagnosticform">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
-      
+
       {/* HALO LUMINEUX AMBIANT */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
 
@@ -600,5 +602,6 @@ export default function FormulaireDiagnostic() {
         </form>
       </div>
     </main>
+    </PageGuard>
   );
 }

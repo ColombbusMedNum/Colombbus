@@ -2,6 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { db } from "@/lib/firebase";
+import PageGuard from "@/components/PageGuard";
 import { 
   collectionGroup, 
   onSnapshot, 
@@ -501,6 +502,7 @@ function FichesBilansContent() {
 
 export default function FichesBilansPage() {
   return (
+    <PageGuard pageId="page_access_fiches_bilans">
     <Suspense fallback={
       <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex items-center justify-center text-[#005259] font-bold uppercase tracking-widest text-xs`}>
         Chargement...
@@ -508,5 +510,6 @@ export default function FichesBilansPage() {
     }>
       <FichesBilansContent />
     </Suspense>
+    </PageGuard>
   );
 }

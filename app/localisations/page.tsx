@@ -28,6 +28,7 @@ import {
   ArrowPathIcon,
   ExclamationTriangleIcon
 } from "@heroicons/react/24/outline";
+import PageGuard from "@/components/PageGuard";
 
 // Initialisation de la police Quicksand
 const quicksand = Quicksand({
@@ -230,6 +231,7 @@ export default function LocalisationsPage() {
   const displayedLieux = activeTab === "actifs" ? lieuxActifs : lieuxArchives;
 
   return (
+    <PageGuard pageId="page_access_localisations">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
       
       {/* HALO LUMINEUX AMBIANT */}
@@ -764,5 +766,6 @@ export default function LocalisationsPage() {
 
       </div>
     </main>
+    </PageGuard>
   );
 }

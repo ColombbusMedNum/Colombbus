@@ -1,0 +1,93 @@
+rules_version = '2';
+
+// Verrou de sécurité réel de la plateforme Colombbus.
+//
+// Tout ce qui se passe côté React (PageGuard, PermissionGuard, middleware.ts)
+// n'est que de l'UX : ça évite d'afficher un bouton ou une page à quelqu'un
+// qui n'y a pas droit, pour éviter la confusion. Mais un utilisateur qui
+// contourne le JS (devtools, appel direct au SDK Firestore) doit être arrêté
+// ICI. C'est cette raison qui a fait migrer les documents liste_mediateurs
+// pour que leur ID Firestore soit l'UID Firebase Auth : sans ça, une règle ne
+// peut pas faire de lookup de rôle par un simple get() de document.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function myProfile() {
+      return get(/databases/$(database)/documents/liste_mediateurs/$(request.auth.uid));
+    }
+
+    // "Staff" = a un profil dans liste_mediateurs, quel que soit le rôle.
+    function isStaff() {
+      return isSignedIn() && exists(/databases/$(database)/documents/liste_mediateurs/$(request.auth.uid));
+    }
+
+    function myRole() {
+      return myProfile().data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/liste_mediateurs/$(request.auth.uid)) && myRole() == "admin";
+    }
+
+    // Profil et rôle de chaque membre du staff.
+    match /liste_mediateurs/{uid} {
+      allow read: if isSignedIn();
+      // Seul un admin peut créer/modifier des profils (l'admin exécute lui-même
+      // l'écriture depuis app/equipe/page.tsx et app/admin/droits/page.tsx).
+      allow write: if isAdmin();
+    }
+
+    // Matrice centralisée des droits par page/action (lue par
+    // PermissionsProvider, éditée uniquement depuis /analyse).
+    match /configuration_droits/{actionId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Données opérationnelles : accessibles à tout le staff authentifié
+    // (peu importe le rôle précis). C'est la même politique que celle qui
+    // prévalait de fait avant cette mise en place de rules (aucune
+    // restriction), mais restreinte au moins aux comptes du staff — un
+    // découpage plus fin par rôle/action pourra être ajouté collection par
+    // collection au fil de l'eau, en s'appuyant sur configuration_droits.
+    match /utilisateurs/{docId} {
+      allow read, write: if isStaff();
+    }
+    match /liste_lieux/{docId} {
+      allow read, write: if isStaff();
+    }
+    match /planning_mediateurs/{docId} {
+      allow read, write: if isStaff();
+    }
+    match /planning_suresnes/{docId} {
+      allow read, write: if isStaff();
+    }
+    match /semaines_validees/{docId} {
+      allow read, write: if isStaff();
+    }
+    match /activites_types/{docId} {
+      allow read, write: if isStaff();
+    }
+    match /actions_collectives/{docId} {
+      allow read, write: if isStaff();
+    }
+    match /fiches_bilans/{docId} {
+      allow read, write: if isStaff();
+    }
+    match /notifications/{docId} {
+      allow read, write: if isStaff();
+    }
+    match /lieux_emargement/{docId} {
+      allow read, write: if isStaff();
+    }
+    match /logos_emargement/{docId} {
+      allow read, write: if isStaff();
+    }
+
+    // Tout le reste est refusé par défaut.
+  }
+}

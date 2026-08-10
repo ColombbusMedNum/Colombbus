@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Quicksand } from "next/font/google";
 import { PermissionGuard } from "@/components/PermissionGuard";
+import PageGuard from "@/components/PageGuard";
 import { 
   MagnifyingGlassIcon, 
   UserPlusIcon, 
@@ -41,23 +42,9 @@ export default function ListeBeneficiaires() {
   const [filtreActif, setFiltreActif] = useState<string>("Tous"); // Valeur par défaut : Tous
   const [lettreActive, setLettreActive] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState<string>("lecteur");
   const router = useRouter();
 
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-
-  // Synchronisation du rôle utilisateur
-  useEffect(() => {
-    const getCookie = (name: string) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop()?.split(";").shift();
-      return null;
-    };
-
-    const role = (getCookie("user_role") || localStorage.getItem("user_role"))?.toLowerCase() || "lecteur";
-    setUserRole(role);
-  }, []);
 
   const fetchData = async () => {
     try {
@@ -229,8 +216,9 @@ export default function ListeBeneficiaires() {
   }
 
   return (
+    <PageGuard pageId="page_access_liste_beneficiaires">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
-      
+
       {/* HALO LUMINEUX AMBIANT */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
 
@@ -276,7 +264,7 @@ export default function ListeBeneficiaires() {
             </Link>
 
             {/* BOUTON CRÉER BÉNÉFICIAIRE (PROTÉGÉ) */}
-            <PermissionGuard actionId="benef_create_new" userRole={userRole}>
+            <PermissionGuard actionId="benef_create_new">
               <button 
                 onClick={handleCreerNouveau} 
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md active:scale-95 group"
@@ -485,7 +473,7 @@ export default function ListeBeneficiaires() {
                         
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end items-center gap-2">
-                            <PermissionGuard actionId="benef_delete" userRole={userRole}>
+                            <PermissionGuard actionId="benef_action_toggle_blacklist">
                               <button
                                 onClick={() => handleToggleBlacklist(b.id, b.Statut_Blacklist)}
                                 title={isBlackliste ? "Retirer de la blacklist" : "Ajouter à la blacklist"}
@@ -544,5 +532,6 @@ export default function ListeBeneficiaires() {
 
       </div>
     </main>
+    </PageGuard>
   );
 }

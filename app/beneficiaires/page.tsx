@@ -13,6 +13,7 @@ import {
   ArrowRightIcon,
   ListBulletIcon
 } from "@heroicons/react/24/outline";
+import PageGuard from "../../components/PageGuard";
 
 export default function BeneficiaryForm() {
   const [status, setStatus] = useState("");
@@ -70,6 +71,7 @@ export default function BeneficiaryForm() {
   const inputClass = "w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white placeholder-slate-600 focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/60 outline-none transition-all";
 
   return (
+    <PageGuard pageId="page_access_beneficiaires">
     <main className="min-h-screen bg-slate-950 text-slate-100 py-12 px-4 font-sans antialiased relative overflow-hidden">
       
       {/* EFFET LUMINEUX AMBIANT */}
@@ -236,5 +238,6 @@ export default function BeneficiaryForm() {
 
       </div>
     </main>
+    </PageGuard>
   );
 }

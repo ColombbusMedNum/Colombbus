@@ -6,6 +6,7 @@ import { collection, onSnapshot, doc, updateDoc, getDocs, addDoc } from "firebas
 import { ChevronLeftIcon, ArrowDownTrayIcon, UserGroupIcon, HomeIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
+import PageGuard from "../../components/PageGuard";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -191,8 +192,9 @@ export default function SuiviCollecteTech() {
   };
 
   return (
+    <PageGuard pageId="page_access_suivi_collecte">
     <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
-      
+
       {/* HALO LUMINEUX AMBIANT */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
 
@@ -346,5 +348,6 @@ export default function SuiviCollecteTech() {
         )}
       </div>
     </div>
+    </PageGuard>
   );
 }

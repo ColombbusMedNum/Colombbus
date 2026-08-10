@@ -6,6 +6,7 @@ import { collection, onSnapshot } from "firebase/firestore";
 import { UserIcon, ChartBarIcon, ClockIcon, ArrowLeftIcon, CalendarDaysIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
+import PageGuard from "../../components/PageGuard";
 
 // Police Quicksand pour toute la page
 const quicksand = Quicksand({
@@ -130,8 +131,9 @@ export default function StatsMediateursAnalytique() {
   const totalHeuresGlobal = analyticsSummary.reduce((acc, curr) => acc + curr.totalHeures, 0);
 
   return (
+    <PageGuard pageId="page_access_statistiques">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
-      
+
       {/* HALO LUMINEUX AMBIANT */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
 
@@ -314,5 +316,6 @@ export default function StatsMediateursAnalytique() {
         )}
       </div>
     </main>
+    </PageGuard>
   );
 }

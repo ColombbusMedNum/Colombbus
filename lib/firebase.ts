@@ -4,7 +4,7 @@ import { getAnalytics, isSupported } from "firebase/analytics";
 import { getStorage } from "firebase/storage";
 import { getAuth } from "firebase/auth"; // <-- Bien présent
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyBps0rKBEiJV0owdmDL0b6QsTqB0kGvDoE",
   authDomain: "mediation-numerique.firebaseapp.com",
   projectId: "mediation-numerique",

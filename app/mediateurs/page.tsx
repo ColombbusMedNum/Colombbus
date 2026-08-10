@@ -5,6 +5,7 @@ import { db } from "../../lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import { UserIcon, ChartBarIcon, ClockIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
+import PageGuard from "../../components/PageGuard";
 
 export default function StatsMediateursAnalytique() {
   const [actions, setActions] = useState<any[]>([]);
@@ -110,6 +111,7 @@ export default function StatsMediateursAnalytique() {
   const totalHeuresGlobal = analyticsSummary.reduce((acc, curr) => acc + curr.totalHeures, 0);
 
   return (
+    <PageGuard pageId="page_access_mediateurs">
     <main className="min-h-screen bg-slate-950 text-white p-6 pt-[75px]">
       
       <header className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-5 py-3 border-b border-slate-800 bg-slate-950">
@@ -251,5 +253,6 @@ export default function StatsMediateursAnalytique() {
         )}
       </div>
     </main>
+    </PageGuard>
   );
 }

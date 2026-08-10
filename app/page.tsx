@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Quicksand } from "next/font/google";
 import { PermissionGuard } from "@/components/PermissionGuard";
+import PageGuard from "@/components/PageGuard";
 import {   
   UsersIcon,   
   ChartBarIcon,   
@@ -30,21 +31,7 @@ const quicksand = Quicksand({
 });
 
 export default function HomePage() {
-  const [userRole, setUserRole] = useState<string>("lecteur");
   const [activeFolder, setActiveFolder] = useState<"rencontres" | "stats" | null>(null);
-
-  // Synchronisation du rôle utilisateur
-  useEffect(() => {
-    const getCookie = (name: string) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop()?.split(";").shift();
-      return null;
-    };
-
-    const role = (getCookie("user_role") || localStorage.getItem("user_role"))?.toLowerCase() || "lecteur";
-    setUserRole(role);
-  }, []);
 
   // FONCTION DE DÉCONNEXION
   const handleLogout = () => {
@@ -56,8 +43,9 @@ export default function HomePage() {
   };
 
   return (
+    <PageGuard pageId="page_access_home">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] flex flex-col items-center justify-center p-4 md:p-8 relative overflow-hidden font-medium antialiased`}>
-      
+
       {/* HALO LUMINEUX AMBIANT */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#005259]/5 blur-[140px] rounded-full pointer-events-none"></div>
 
@@ -112,9 +100,8 @@ export default function HomePage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full items-stretch">
               
               {/* AGENDA DES MÉDIATEURS PROTECTION */}
-              <PermissionGuard 
-                actionId="consulter_agenda_mediateurs" 
-                userRole={userRole}
+              <PermissionGuard
+                actionId="home_nav_agenda_med"
                 fallback={
                   <div className="group bg-white/60 border border-[#404040]/10 rounded-3xl p-6 shadow-sm flex flex-col items-center justify-center text-center min-h-[240px] pointer-events-none select-none opacity-60">
                     <div className="bg-[#F3F3F2] w-16 h-16 rounded-2xl flex items-center justify-center mb-5 text-[#404040]/40 border border-[#404040]/10">
@@ -274,9 +261,8 @@ export default function HomePage() {
                 </Link>
 
                 {/* AGENDA SURESNES INTERACTIF PROTECTION */}
-                <PermissionGuard 
-                  actionId="consulter_agenda_suresnes" 
-                  userRole={userRole}
+                <PermissionGuard
+                  actionId="home_nav_agenda_suresnes"
                   fallback={
                     <div className="bg-[#F3F3F2]/50 border border-[#404040]/10 rounded-2xl p-4 flex flex-col items-center text-center pointer-events-none select-none opacity-50">
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white text-[#404040]/40">
@@ -404,7 +390,7 @@ export default function HomePage() {
                 </Link>
 
                 {/* GESTION DES DROITS (Reservé aux admins) */}
-                <PermissionGuard actionId="home_nav_admin_droits" userRole={userRole}>
+                <PermissionGuard actionId="home_nav_admin_droits">
                   <Link href="/analyse" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                     <div className="bg-white border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
                       <CpuChipIcon className="w-5 h-5" />
@@ -450,5 +436,6 @@ export default function HomePage() {
 
       </div>
     </main>
+    </PageGuard>
   );
 }

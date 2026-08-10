@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { normalizeRole } from "./lib/roles";
 
+// IMPORTANT : ce middleware ne fait que rediriger l'UX (éviter d'afficher une
+// page inaccessible). Le cookie user_role est posé côté client et n'est pas
+// vérifié cryptographiquement ici — ce n'est PAS la barrière de sécurité.
+// La sécurité réelle est appliquée par les Firestore Security Rules
+// (voir firestore.rules), qui rejettent les lectures/écritures non
+// autorisées quel que soit ce que fait ou contourne le client.
 export function middleware(request: Request) {
   // On convertit en NextRequest pour utiliser les cookies facilement
   const req = request as NextRequest;
@@ -8,9 +15,7 @@ export function middleware(request: Request) {
 
   // 1. Récupérer le token de session et le rôle depuis les cookies
   const token = req.cookies.get("session_token")?.value;
-  
-  // Sécurité : On force le rôle en minuscules pour éviter les erreurs de majuscules (Admin vs admin)
-  const userRole = (req.cookies.get("user_role")?.value || "mediateur").toLowerCase();
+  const userRole = normalizeRole(req.cookies.get("user_role")?.value);
 
   // 2. CAS 1 : L'utilisateur n'est pas connecté
   if (!token) {
@@ -26,9 +31,9 @@ export function middleware(request: Request) {
       return NextResponse.redirect(new URL("/", req.url));
     }
 
-    // --- RESTRICTIONS DE DOSSIERS ---
-    // Si la page est /staff OU /equipe, et que l'utilisateur n'est pas admin, redirection à l'accueil
-    if ((pathname.startsWith("/equipe") || pathname.startsWith("/staff")) && userRole !== "admin") {
+    // --- RESTRICTIONS DE DOSSIERS (réservés aux administrateurs) ---
+    const adminOnlyPrefixes = ["/equipe", "/staff", "/analyse", "/admin"];
+    if (adminOnlyPrefixes.some((prefix) => pathname.startsWith(prefix)) && userRole !== "admin") {
       return NextResponse.redirect(new URL("/", req.url));
     }
   }

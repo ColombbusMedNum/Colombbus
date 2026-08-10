@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { db } from "../../lib/firebase";
+import PageGuard from "../../components/PageGuard";
 import { 
   collection, onSnapshot, query, orderBy, updateDoc, doc, addDoc, collectionGroup, serverTimestamp, getDocs, where
 } from "firebase/firestore";
@@ -300,13 +301,14 @@ export default function PlanningSuresnes() {
   };
 
   return (
+    <PageGuard pageId="page_access_suresnes">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
-      
+
       {/* HALO LUMINEUX AMBIANT */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
 
       <div className="max-w-6xl mx-auto relative z-10 space-y-6">
-        
+
         {/* EN-TÊTE & NAVIGATION */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-4 border-b border-[#404040]/10">
           <div className="flex items-center gap-4">
@@ -662,6 +664,7 @@ export default function PlanningSuresnes() {
 
       </div>
     </main>
+    </PageGuard>
   );
 }
 

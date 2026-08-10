@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { db } from "../../lib/firebase";
+import PageGuard from "../../components/PageGuard";
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, writeBatch } from "firebase/firestore";
 import { ArrowLeftIcon, TrashIcon, CheckCircleIcon, BellIcon, HomeIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
@@ -79,8 +80,9 @@ export default function AllNotificationsPage() {
   }
 
   return (
+    <PageGuard pageId="page_access_notifications">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
-      
+
       {/* HALO LUMINEUX AMBIANT */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
 
@@ -198,5 +200,6 @@ export default function AllNotificationsPage() {
 
       </div>
     </main>
+    </PageGuard>
   );
 }

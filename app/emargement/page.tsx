@@ -6,6 +6,7 @@ import { collection, onSnapshot } from "firebase/firestore";
 import { PrinterIcon, BookOpenIcon, SquaresPlusIcon, PlusIcon, MinusIcon, ArrowLeftIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
+import PageGuard from "../../components/PageGuard";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -60,8 +61,9 @@ export default function GenerateurEmargementPagesIdentiques() {
   const inputStyle = "w-full bg-[#F3F3F2] text-[#404040] border border-[#404040]/15 text-xs font-bold rounded-xl px-3 py-2.5 outline-none focus:border-[#005259] transition-all";
 
   return (
+    <PageGuard pageId="page_access_emargement">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased print:bg-white print:text-black print:p-0 relative overflow-hidden`}>
-      
+
       {/* HALO LUMINEUX AMBIANT */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none print:hidden"></div>
 
@@ -275,5 +277,6 @@ export default function GenerateurEmargementPagesIdentiques() {
         }
       `}</style>
     </main>
+    </PageGuard>
   );
 }

@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { db } from "../../lib/firebase";
-import { collection, onSnapshot, addDoc, doc, updateDoc, setDoc } from "firebase/firestore";
+import { initializeApp, deleteApp } from "firebase/app";
+import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
+import { auth, db, firebaseConfig } from "../../lib/firebase";
+import { collection, onSnapshot, doc, updateDoc, setDoc } from "firebase/firestore";
 import { Quicksand } from "next/font/google";
 import { 
   UserPlusIcon, 
@@ -24,6 +26,7 @@ import {
   AcademicCapIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
+import PageGuard from "../../components/PageGuard";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -289,11 +292,30 @@ export default function GestionEquipe() {
       if (editingMed) {
         await updateDoc(doc(db, "liste_mediateurs", editingMed.id), netPayload);
       } else {
-        await addDoc(collection(db, "liste_mediateurs"), netPayload);
+        // Le document liste_mediateurs doit être identifié par l'UID Firebase
+        // Auth (requis par les Security Rules pour vérifier le rôle de
+        // l'appelant). On crée donc le compte ici, via une instance Firebase
+        // secondaire pour ne pas remplacer la session de l'admin en cours,
+        // puis on envoie un e-mail de configuration du mot de passe.
+        const secondaryApp = initializeApp(firebaseConfig, `secondary-${Date.now()}`);
+        const secondaryAuth = getAuth(secondaryApp);
+        try {
+          const tempPassword = crypto.randomUUID();
+          const credential = await createUserWithEmailAndPassword(secondaryAuth, netPayload.email, tempPassword);
+          await setDoc(doc(db, "liste_mediateurs", credential.user.uid), netPayload);
+          await sendPasswordResetEmail(auth, netPayload.email);
+        } finally {
+          await deleteApp(secondaryApp);
+        }
       }
       closeModal();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      if (err.code === "auth/email-already-in-use") {
+        alert("Un compte existe déjà avec cette adresse email.");
+      } else {
+        alert("Une erreur est survenue lors de la création du membre.");
+      }
     }
   };
 
@@ -355,8 +377,9 @@ export default function GestionEquipe() {
     .sort((a, b) => (a.nom || "").localeCompare(b.nom || ""));
 
   return (
+    <PageGuard pageId="page_access_equipe">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
-      
+
       {/* HALO LUMINEUX AMBIANT */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
 
@@ -853,5 +876,6 @@ export default function GestionEquipe() {
 
       </div>
     </main>
+    </PageGuard>
   );
 }

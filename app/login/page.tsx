@@ -3,9 +3,10 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import { Quicksand } from "next/font/google";
-import { auth, db } from "../../lib/firebase"; 
+import { auth, db } from "../../lib/firebase";
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
+import { normalizeRole } from "../../lib/roles";
 import { useRouter } from "next/navigation";
 import { LockClosedIcon, EnvelopeIcon, ShieldExclamationIcon, ArrowRightEndOnRectangleIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 
@@ -41,17 +42,25 @@ export default function LoginPage() {
       const user = userCredential.user;
       const token = await user.getIdToken();
 
-      // 2. Récupération du rôle utilisateur dans Firestore
-      const q = query(collection(db, "liste_mediateurs"), where("email", "==", emailNettoye));
-      const querySnapshot = await getDocs(q);
-
-      let roleRaw = "mediateur"; 
-      if (!querySnapshot.empty) {
-        const medData = querySnapshot.docs[0].data();
-        roleRaw = medData.role || "mediateur";
+      // 2. Récupération du rôle utilisateur dans Firestore.
+      // Le document liste_mediateurs doit être identifié par l'UID Firebase Auth
+      // (requis par les Security Rules pour vérifier le rôle de l'appelant).
+      let roleRaw: string | null = null;
+      const uidDoc = await getDoc(doc(db, "liste_mediateurs", user.uid));
+      if (uidDoc.exists()) {
+        roleRaw = uidDoc.data().role || null;
+      } else {
+        // Repli transitoire : tant que le script de migration (voir
+        // scripts/migrate-mediateurs-to-uid.js) n'a pas été exécuté, les
+        // anciens comptes sont encore indexés par un ID Firestore aléatoire.
+        const q = query(collection(db, "liste_mediateurs"), where("email", "==", emailNettoye));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          roleRaw = querySnapshot.docs[0].data().role || null;
+        }
       }
 
-      const role = roleRaw.toLowerCase().trim() === "admin" ? "admin" : "mediateur";
+      const role = normalizeRole(roleRaw);
 
       // 3. Stockage des informations de session (Cookies + LocalStorage)
       const maxAge = 7 * 24 * 60 * 60; // Durée : 7 jours

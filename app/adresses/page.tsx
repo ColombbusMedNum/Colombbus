@@ -9,9 +9,10 @@ import {
   ArrowLeftIcon, 
   ClockIcon, 
   CalendarDaysIcon, 
-  ArrowTopRightOnSquareIcon 
+  ArrowTopRightOnSquareIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
+import PageGuard from "../../components/PageGuard";
 
 // Initialisation de la police Quicksand
 const quicksand = Quicksand({
@@ -91,13 +92,14 @@ export default function ListeAdresses() {
   }, []);
 
   return (
+    <PageGuard pageId="page_access_adresses">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
-      
+
       {/* HALO LUMINEUX AMBIANT */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
 
       <div className="max-w-3xl mx-auto relative z-10 space-y-6">
-        
+
         {/* EN-TÊTE AVEC RETOUR VERS L'AGENDA */}
         <div className="flex items-center justify-between pb-4 border-b border-[#404040]/10 gap-4">
           <div className="flex items-center gap-4">
@@ -204,5 +206,6 @@ export default function ListeAdresses() {
 
       </div>
     </main>
+    </PageGuard>
   );
 }

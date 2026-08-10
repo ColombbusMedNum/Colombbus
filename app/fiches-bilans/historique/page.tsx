@@ -2,6 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { db } from "@/lib/firebase";
+import PageGuard from "@/components/PageGuard";
 import { collection, onSnapshot } from "firebase/firestore";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -337,6 +338,7 @@ function HistoriqueContent() {
 
 export default function HistoriqueFichesBilansPage() {
   return (
+    <PageGuard pageId="page_access_fiches_bilans_historique">
     <Suspense fallback={
       <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex items-center justify-center text-[#005259] font-bold uppercase tracking-widest text-xs`}>
         Chargement...
@@ -344,5 +346,6 @@ export default function HistoriqueFichesBilansPage() {
     }>
       <HistoriqueContent />
     </Suspense>
+    </PageGuard>
   );
 }

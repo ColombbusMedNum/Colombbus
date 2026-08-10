@@ -35,6 +35,7 @@ import {
   FolderOpenIcon,
   HomeIcon
 } from "@heroicons/react/24/outline";
+import PageGuard from "../../components/PageGuard";
 
 // Police Quicksand pour l'ensemble de la page
 const quicksand = Quicksand({
@@ -811,8 +812,10 @@ function RapportDiagnosticPixContent() {
 
 export default function RapportDiagnosticPix() {
   return (
+    <PageGuard pageId="page_access_bilan_tech">
     <Suspense fallback={<div className="p-8 text-[#005259] text-center font-['Quicksand'] font-bold">Chargement du rapport...</div>}>
       <RapportDiagnosticPixContent />
     </Suspense>
+    </PageGuard>
   );
 }

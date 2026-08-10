@@ -19,6 +19,7 @@ import {
   CheckCircleIcon,
   XCircleIcon
 } from "@heroicons/react/24/outline";
+import PageGuard from "@/components/PageGuard";
 
 // Police Quicksand pour l'ensemble de la page
 const quicksand = Quicksand({
@@ -177,6 +178,7 @@ export default function RendezVousParLieuPage() {
   }
 
   return (
+    <PageGuard pageId="page_access_rdv_par_lieu">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
       
       {/* HALO LUMINEUX AMBIANT */}
@@ -395,5 +397,6 @@ export default function RendezVousParLieuPage() {
         )}
       </div>
     </main>
+    </PageGuard>
   );
 }
