@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { db } from "@/lib/firebase"; 
 import { doc, getDoc, collection, addDoc } from "firebase/firestore";
@@ -67,7 +67,7 @@ const QUESTIONS_COLLECTE_TECH: QuestionCollecte[] = [
   { id: "ct23", question: "Comment faites-vous pour supprimer un fichier inutile sur votre ordinateur ?", options: [{ text: "Je l'éteins et je l'allume.", points: 0 }, { text: "Clic droit sur le fichier puis 'Supprimer', ou je le glisse dans la Corbeille.", points: 2 }] }
 ];
 
-export default function FormulaireDiagnostic() {
+function FormulaireDiagnosticContent() {
   const router = useRouter();
   const searchParams = useSearchParams(); 
   const idUsager = searchParams.get("id") as string; 
@@ -603,5 +603,17 @@ export default function FormulaireDiagnostic() {
       </div>
     </main>
     </PageGuard>
+  );
+}
+
+export default function FormulaireDiagnostic() {
+  return (
+    <Suspense fallback={
+      <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex items-center justify-center text-[#005259] font-bold animate-pulse tracking-widest text-xs uppercase antialiased`}>
+        Chargement...
+      </div>
+    }>
+      <FormulaireDiagnosticContent />
+    </Suspense>
   );
 }
