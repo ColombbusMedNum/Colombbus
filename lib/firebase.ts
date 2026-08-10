@@ -1,7 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
-import { getStorage } from "firebase/storage";
+import type { FirebaseStorage } from "firebase/storage";
 import { getAuth } from "firebase/auth"; // <-- Bien présent
 
 export const firebaseConfig = {
@@ -19,8 +19,19 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 // Exportations stables des instances de services
 export const db = getFirestore(app);
-export const storage = getStorage(app);
 export const auth = getAuth(app); // <-- L'instance d'authentification liée à l'app
+
+// Storage n'est utilisé que par app/mediation/bibliotheque-logos/page.tsx.
+// Chargé en dynamique (import() plutôt qu'en haut de fichier) pour que le SDK
+// firebase/storage n'atterrisse pas dans le chunk partagé par toutes les
+// pages qui importent seulement `db`/`auth` depuis ce module.
+let _storagePromise: Promise<FirebaseStorage> | null = null;
+export function getFirebaseStorage(): Promise<FirebaseStorage> {
+  if (!_storagePromise) {
+    _storagePromise = import("firebase/storage").then(({ getStorage }) => getStorage(app));
+  }
+  return _storagePromise;
+}
 
 export const initAnalytics = async () => {
   if (typeof window !== "undefined" && await isSupported()) {

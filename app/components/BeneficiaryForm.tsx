@@ -148,7 +148,7 @@ export default function BeneficiaryForm() {
         </button>
 
         <div className="text-center mt-4">
-          <Link href="/liste-beneficiaires" className="text-blue-600 hover:underline text-sm">
+          <Link href="/mediation/rencontres-numeriques/liste-beneficiaires" className="text-blue-600 hover:underline text-sm">
             ← Retour à la liste
           </Link>
         </div>

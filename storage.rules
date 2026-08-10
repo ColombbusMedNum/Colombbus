@@ -1,0 +1,24 @@
+rules_version = '2';
+
+// Même politique que firestore.rules : accès réservé au staff authentifié
+// (un utilisateur avec un profil dans liste_mediateurs, indexé par son UID
+// Firebase Auth — voir scripts/migrate-mediateurs-to-uid.js).
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isStaff() {
+      return request.auth != null &&
+        firestore.exists(/databases/(default)/documents/liste_mediateurs/$(request.auth.uid));
+    }
+
+    // Logos de la bibliothèque (app/mediation/bibliotheque-logos)
+    match /logos/{fileName} {
+      allow read, write: if isStaff();
+    }
+
+    // Tout le reste est refusé par défaut.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

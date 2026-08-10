@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { db } from "../../../lib/firebase";
-import { collection, onSnapshot, updateDoc, doc } from "firebase/firestore";
+import { updateDoc, doc } from "firebase/firestore";
 import { ROLES } from "../../../lib/roles";
 import { usePermissions } from "../../../lib/PermissionsProvider";
+import { useMediateurs } from "../../../lib/MediateursProvider";
 import PageGuard from "../../../components/PageGuard";
+import { Quicksand } from "next/font/google";
 import {
   ShieldCheckIcon,
   UserGroupIcon,
@@ -15,24 +17,24 @@ import {
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 
-// La matrice de droits par action/page a été fusionnée dans /analyse, qui est
+const quicksand = Quicksand({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
+
+// La matrice de droits par action/page a été fusionnée dans /mediation/analyse, qui est
 // désormais la seule source éditée et lue (collection Firestore
 // configuration_droits). Cette page ne garde que la gestion individuelle des
 // rôles des membres du staff, qui est une préoccupation distincte.
 export default function GestionDroitsPage() {
   const { role: userRole, loading } = usePermissions();
-  const [mediateurs, setMediateurs] = useState<any[]>([]);
+  const { mediateurs: mediateursBruts } = useMediateurs();
 
-  React.useEffect(() => {
-    const unsubStaff = onSnapshot(collection(db, "liste_mediateurs"), (snap) => {
-      setMediateurs(
-        snap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((m) => m.id !== "parametres_configuration" && m.id !== "parametres_horaires")
-      );
-    });
-    return () => unsubStaff();
-  }, []);
+  const mediateurs = React.useMemo(() => {
+    return mediateursBruts.filter(
+      (m: any) => m.id !== "parametres_configuration" && m.id !== "parametres_horaires"
+    );
+  }, [mediateursBruts]);
 
   const handleChangeRole = async (userId: string, newRole: string) => {
     if (userRole !== "admin") {
@@ -49,22 +51,22 @@ export default function GestionDroitsPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
-        <p className="text-xs text-slate-500 animate-pulse">Vérification des droits d'accès...</p>
+      <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] flex items-center justify-center font-medium antialiased`}>
+        <p className="text-xs text-[#404040]/50 font-bold uppercase tracking-widest animate-pulse">Vérification des droits d'accès...</p>
       </main>
     );
   }
 
   if (userRole !== "admin") {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center p-4">
-        <div className="bg-slate-900 border border-red-950 p-8 rounded-3xl max-w-md text-center shadow-2xl">
-          <LockClosedIcon className="w-12 h-12 text-red-500 mx-auto mb-4 animate-pulse" />
-          <h1 className="text-xl font-black text-white uppercase tracking-tight">Accès Refusé</h1>
-          <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+      <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] flex flex-col items-center justify-center p-4 font-medium antialiased`}>
+        <div className="bg-white border border-[#404040]/10 p-8 rounded-3xl max-w-md text-center shadow-sm">
+          <LockClosedIcon className="w-12 h-12 text-[#EA601F] mx-auto mb-4" />
+          <h1 className="text-xl font-bold uppercase text-[#005259] tracking-tight">Accès Refusé</h1>
+          <p className="text-xs text-[#404040]/60 mt-2 leading-relaxed">
             Cette interface de sécurité maîtresse est réservée exclusivement aux administrateurs de la plateforme Colombbus.
           </p>
-          <Link href="/" className="mt-6 inline-block text-xs bg-slate-950 hover:bg-slate-850 px-4 py-2 rounded-xl border border-slate-800 transition-colors font-bold text-slate-300">
+          <Link href="/" className="mt-6 inline-block text-xs bg-[#F3F3F2] hover:bg-[#005259] hover:text-white px-4 py-2 rounded-xl border border-[#404040]/10 transition-colors font-bold uppercase tracking-wider text-[#005259]">
             Retourner à l'accueil
           </Link>
         </div>
@@ -74,43 +76,41 @@ export default function GestionDroitsPage() {
 
   return (
     <PageGuard pageId="page_access_admin_droits">
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans antialiased relative overflow-hidden">
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-rose-500/5 blur-[120px] rounded-full pointer-events-none"></div>
+    <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
 
       <div className="max-w-4xl w-full mx-auto relative z-10">
 
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 border-b border-slate-900 pb-6">
-          <div className="flex items-center gap-3">
-            <div className="bg-rose-950 border border-rose-900/50 p-2.5 rounded-xl shadow-[0_0_15px_rgba(244,63,94,0.1)]">
-              <ShieldCheckIcon className="w-5 h-5 text-rose-400" />
-            </div>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 border-b border-[#404040]/10 pb-6">
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
             <div>
-              <h1 className="text-xl font-black uppercase tracking-tight text-white">Gestion des Droits</h1>
-              <p className="text-[11px] text-slate-500 font-medium">Rôle par membre du staff</p>
+              <h1 className="text-xl md:text-2xl font-bold uppercase tracking-tight text-[#005259]">Gestion des Droits</h1>
+              <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">Rôle par membre du staff</p>
             </div>
           </div>
-          <Link href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-400 text-xs font-bold transition-all shadow-md active:scale-95">
+          <Link href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 rounded-xl text-[#005259] text-xs font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95">
             <ArrowLeftIcon className="w-3.5 h-3.5" />
             <span>Retour Dashboard</span>
           </Link>
         </div>
 
         <Link
-          href="/analyse"
-          className="mb-6 flex items-center gap-3 bg-slate-900 border border-slate-850 hover:border-rose-900/50 rounded-2xl p-4 transition-colors group"
+          href="/mediation/analyse"
+          className="mb-6 flex items-center gap-3 bg-white border border-[#404040]/10 hover:border-[#005259] rounded-2xl p-4 transition-colors group shadow-sm"
         >
-          <div className="bg-slate-950 border border-slate-850 p-2.5 rounded-xl text-rose-400 group-hover:bg-rose-950/40">
+          <div className="bg-[#F3F3F2] border border-[#404040]/10 p-2.5 rounded-xl text-[#EA601F] group-hover:bg-[#EA601F]/10">
             <Cog6ToothIcon className="w-5 h-5" />
           </div>
           <div>
-            <div className="text-sm font-bold text-white">Matrice des droits par page et par action</div>
-            <div className="text-[11px] text-slate-500">Configurer précisément ce que chaque rôle peut voir/faire → /analyse</div>
+            <div className="text-sm font-bold text-[#005259]">Matrice des droits par page et par action</div>
+            <div className="text-[11px] text-[#404040]/60">Configurer précisément ce que chaque rôle peut voir/faire → /mediation/analyse</div>
           </div>
         </Link>
 
-        <div className="bg-slate-900 border border-slate-850 rounded-3xl p-6 shadow-2xl">
-          <h2 className="text-sm font-black uppercase tracking-wider text-white mb-4 flex items-center gap-2">
-            <UserGroupIcon className="w-4 h-4 text-blue-400" />
+        <div className="bg-white border border-[#404040]/10 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-[#005259] mb-4 flex items-center gap-2">
+            <UserGroupIcon className="w-4 h-4 text-[#EA601F]" />
             <span>Membres du Staff ({mediateurs.length})</span>
           </h2>
 
@@ -118,16 +118,16 @@ export default function GestionDroitsPage() {
             {mediateurs.map((m) => {
               const currentRole = m.role || "mediateur";
               return (
-                <div key={m.id} className="p-3 bg-slate-950 border border-slate-850 rounded-2xl flex justify-between items-center gap-3 hover:border-slate-800 transition-colors">
+                <div key={m.id} className="p-3 bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl flex justify-between items-center gap-3 hover:border-[#005259]/30 transition-colors">
                   <div className="truncate mr-2">
-                    <div className="font-bold text-xs text-white truncate">{m.prenom} {m.nom}</div>
-                    <div className="text-[10px] text-slate-500 font-mono mt-0.5 truncate">{m.email || "Aucun email"}</div>
+                    <div className="font-bold text-xs text-[#404040] truncate">{m.prenom} {m.nom}</div>
+                    <div className="text-[10px] text-[#404040]/50 font-mono mt-0.5 truncate">{m.email || "Aucun email"}</div>
                   </div>
 
                   <select
                     value={currentRole}
                     onChange={(e) => handleChangeRole(m.id, e.target.value)}
-                    className="px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-slate-900 border border-slate-850 text-slate-300 outline-none cursor-pointer shrink-0"
+                    className="px-2.5 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider bg-white border border-[#404040]/10 text-[#005259] outline-none cursor-pointer shrink-0 focus:border-[#EA601F]"
                   >
                     {ROLES.map((role) => (
                       <option key={role.id} value={role.id}>{role.nom}</option>

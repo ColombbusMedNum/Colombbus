@@ -1,7 +1,7 @@
 // Catalogue centralisé des pages et des actions (boutons/liens) de la plateforme.
-// C'est la SEULE source consommée par /analyse (édition de la matrice), par
+// C'est la SEULE source consommée par /mediation/analyse (édition de la matrice), par
 // <PageGuard> (contrôle d'accès à une page entière) et par <PermissionGuard>
-// (contrôle d'un bouton/lien précis). Avant cette centralisation, /analyse et
+// (contrôle d'un bouton/lien précis). Avant cette centralisation, /mediation/analyse et
 // /admin/droits avaient chacune leur propre catalogue divergent.
 
 export interface ActionItem {
@@ -59,8 +59,8 @@ const DETAILED_PAGES: PageEntry[] = [
   {
     pageId: "page_access_liste_beneficiaires",
     pageName: "Liste des Bénéficiaires",
-    route: "/liste-beneficiaires",
-    filePath: "app/liste-beneficiaires/page.tsx",
+    route: "/mediation/rencontres-numeriques/liste-beneficiaires",
+    filePath: "app/mediation/rencontres-numeriques/liste-beneficiaires/page.tsx",
     actions: [
       { id: "benef_search", nom: "Barre de recherche", type: "input", description: "Recherche textuelle dynamique par nom/prénom" },
       { id: "benef_nav_agenda_suresnes", nom: "Lien Agenda Suresnes", type: "Link", description: "Redirection vers l'agenda de Suresnes" },
@@ -72,29 +72,34 @@ const DETAILED_PAGES: PageEntry[] = [
       { id: "benef_filter_blacklist", nom: "Badge Filtre Blacklistés", type: "button", description: "Affiche les profils bloqués" },
       { id: "benef_action_toggle_blacklist", nom: "Bouton Blacklist/Reclasser direct", type: "button", description: "Modifie l'état de blacklistage dans la liste" },
       { id: "benef_action_open", nom: "Bouton Ouvrir Fiche", type: "Link", description: "Navigue vers le profil du bénéficiaire" },
+      { id: "benef_nav_localisations", nom: "Lien Ajouter un lieu", type: "Link", description: "Accède à la gestion des lieux (localisations)" },
     ],
   },
   {
     pageId: "page_access_fiche_beneficiaire",
     pageName: "Fiche Bénéficiaire (Détails)",
-    route: "/liste-beneficiaires/[id]",
-    filePath: "app/liste-beneficiaires/[id]/page.tsx",
+    route: "/mediation/rencontres-numeriques/liste-beneficiaires/[id]",
+    filePath: "app/mediation/rencontres-numeriques/liste-beneficiaires/[id]/page.tsx",
     actions: [
       { id: "fiche_edit_profil", nom: "Bouton Éditer/Compléter le profil", type: "button", description: "Ouvre la modale des infos personnelles" },
       { id: "fiche_nav_diagnostic", nom: "Lien Remplir un questionnaire", type: "Link", description: "Accède au formulaire d'évaluation/diagnostic" },
       { id: "fiche_add_action", nom: "Bouton Enregistrer l'action", type: "submit", description: "Ajoute une visite de suivi (formulaire)" },
-      { id: "fiche_action_change_lieu", nom: "Boutons Corriger/Ajouter un lieu", type: "button", description: "Gère les lieux de rencontre" },
+      { id: "fiche_action_change_lieu", nom: "Lien Ajouter un lieu (modale RDV)", type: "Link", description: "Accède à la gestion des lieux depuis l'ajout de RDV" },
       { id: "fiche_action_edit_rdv", nom: "Bouton Modifier RDV (ligne)", type: "button", description: "Active l'édition inline d'une visite" },
+      { id: "fiche_action_save_rdv", nom: "Bouton Confirmer RDV (ligne, ✓)", type: "submit", description: "Enregistre les modifications d'un rendez-vous en édition inline" },
       { id: "fiche_action_delete_rdv", nom: "Bouton Supprimer RDV (ligne)", type: "button", description: "Efface définitivement un rendez-vous" },
       { id: "fiche_modal_toggle_blacklist", nom: "Sélecteur Blacklist (Modale)", type: "select", description: "Bascule la blacklist dans l'édition" },
       { id: "fiche_modal_submit", nom: "Bouton Enregistrer profil (Modale)", type: "submit", description: "Sauvegarde les informations du profil" },
+      { id: "fiche_nav_bilan_tech", nom: "Lien Bilan Tech", type: "Link", description: "Accède au bilan technique du diagnostic Collecte Tech" },
+      { id: "fiche_nav_agenda_suresnes", nom: "Lien Agenda Suresnes", type: "Link", description: "Accède à l'agenda de Suresnes depuis la fiche" },
+      { id: "fiche_nav_equipe", nom: "Lien Gérer l'équipe RH", type: "Link", description: "Accède à la gestion de l'équipe depuis la fiche" },
     ],
   },
   {
     pageId: "page_access_diagnosticform",
     pageName: "Formulaire Diagnostic",
-    route: "/diagnosticform",
-    filePath: "app/diagnosticform/page.tsx",
+    route: "/mediation/rencontres-numeriques/diagnosticform",
+    filePath: "app/mediation/rencontres-numeriques/diagnosticform/page.tsx",
     actions: [
       { id: "diag_select_type", nom: "Boutons Choix Diagnostic (Initial/Final/Collecte)", type: "button", description: "Définit le type de grille de questions" },
       { id: "diag_start", nom: "Bouton Démarrer", type: "button", description: "Débute la session de questions" },
@@ -107,12 +112,13 @@ const DETAILED_PAGES: PageEntry[] = [
   {
     pageId: "page_access_actions_collectives",
     pageName: "Actions Collectives",
-    route: "/actions-collectives",
-    filePath: "app/actions-collectives/page.tsx",
+    route: "/mediation/rencontres-numeriques/actions-collectives",
+    filePath: "app/mediation/rencontres-numeriques/actions-collectives/page.tsx",
     actions: [
       { id: "coll_toggle_form", nom: "Bouton Saisir un Atelier / Fermer", type: "button", description: "Affiche/masque le formulaire de saisie" },
       { id: "coll_submit", nom: "Bouton Valider l'action (Formulaire)", type: "submit", description: "Enregistre l'atelier collectif" },
-      { id: "coll_edit", nom: "Boutons Modifier / Supprimer (Tableau)", type: "button", description: "Gère les lignes d'actions de groupe" },
+      { id: "coll_save_edit", nom: "Bouton Enregistrer les modifications (ligne)", type: "submit", description: "Sauvegarde l'édition d'une action collective" },
+      { id: "coll_delete", nom: "Bouton Supprimer (ligne)", type: "button", description: "Efface définitivement une action collective" },
     ],
   },
   {
@@ -128,15 +134,18 @@ const DETAILED_PAGES: PageEntry[] = [
       { id: "agenda_display_toggles", nom: "Boutons Filtres Affichage (Samedi, Masqués)", type: "button", description: "Modifie la structure de la grille de temps" },
       { id: "agenda_model_create", nom: "Bouton Créer un modèle", type: "button", description: "Ouvre l'éditeur d'activité type" },
       { id: "agenda_model_actions", nom: "Boutons Éditer/Supprimer Modèle", type: "button", description: "Gère les modèles dans la sidebar" },
-      { id: "agenda_grid_interaction", nom: "Clics Grille (Ajouter, Supprimer, Commenter)", type: "button", description: "Modifie directement les cases horaires" },
+      { id: "agenda_slot_create", nom: "Bouton Ajouter un créneau (case vide / + Autre)", type: "button", description: "Crée un nouveau créneau dans la grille" },
+      { id: "agenda_slot_delete", nom: "Bouton Supprimer un créneau", type: "button", description: "Efface un créneau existant de la grille" },
+      { id: "agenda_comment_view", nom: "Consulter une note/commentaire de créneau", type: "button", description: "Ouvre la note d'un créneau en lecture seule" },
+      { id: "agenda_comment_edit", nom: "Ajouter/Modifier/Supprimer une note de créneau", type: "button", description: "Écrit ou efface le commentaire d'un créneau" },
       { id: "agenda_staff_mask", nom: "Bouton Masquer/Engrenage Staff", type: "button", description: "Masque un membre ou édite ses heures ACI" },
     ],
   },
   {
     pageId: "page_access_suivi_collecte",
     pageName: "Suivi Collecte Tech",
-    route: "/suivi-collecte",
-    filePath: "app/suivi-collecte/page.tsx",
+    route: "/mediation/rencontres-numeriques/suivi-collecte",
+    filePath: "app/mediation/rencontres-numeriques/suivi-collecte/page.tsx",
     actions: [
       { id: "collecte_export", nom: "Bouton Exporter au format Excel (.csv)", type: "button", description: "Télécharge le fichier de suivi centralisé" },
       { id: "collecte_change_year", nom: "Sélecteur d'Année (Ligne)", type: "select", description: "Modifie l'année fiscale de suivi d'un dossier" },
@@ -147,26 +156,35 @@ const DETAILED_PAGES: PageEntry[] = [
   {
     pageId: "page_access_suresnes",
     pageName: "Agenda Suresnes",
-    route: "/suresnes",
-    filePath: "app/suresnes/page.tsx",
+    route: "/mediation/rencontres-numeriques/suresnes",
+    filePath: "app/mediation/rencontres-numeriques/suresnes/page.tsx",
     actions: [
       { id: "suresnes_filter_today", nom: "Bouton Aujourd'hui uniquement", type: "button", description: "Isole les rendez-vous du jour" },
       { id: "suresnes_month_nav", nom: "Boutons Mois (Précédent / Suivant)", type: "button", description: "Navigation calendaire mensuelle" },
       { id: "suresnes_reassign", nom: "Bouton Réaffecter médiateur", type: "button", description: "Attribue un créneau orphelin à un staff" },
-      { id: "suresnes_create_slot", nom: "Boutons Créer Créneau / Annuler (Modale)", type: "submit", description: "Sauvegarde un nouveau rendez-vous" },
+      { id: "suresnes_slot_assign", nom: "Autocomplétion Assigner un bénéficiaire", type: "select", description: "Affecte un bénéficiaire existant à un créneau vide" },
+      { id: "suresnes_slot_clear", nom: "Bouton Vider le créneau (✕)", type: "button", description: "Retire le bénéficiaire/thématique/demande d'un créneau" },
+      { id: "suresnes_slot_thematique_edit", nom: "Sélecteur Thématique (créneau)", type: "select", description: "Modifie la thématique associée à un rendez-vous" },
+      { id: "suresnes_slot_demande_edit", nom: "Champ Demande spécifique (créneau)", type: "input", description: "Modifie la demande spécifique associée à un rendez-vous" },
+      { id: "suresnes_create_slot", nom: "Boutons Créer / Annuler un nouveau bénéficiaire (Modale)", type: "submit", description: "Crée un profil bénéficiaire et l'assigne au créneau" },
+      { id: "suresnes_nav_beneficiaires", nom: "Lien Bénéficiaires", type: "Link", description: "Accède à la liste des bénéficiaires depuis Suresnes" },
+      { id: "suresnes_nav_agenda_med", nom: "Lien Agenda Médiateurs", type: "Link", description: "Accède à l'agenda des médiateurs depuis Suresnes" },
     ],
   },
   {
     pageId: "page_access_equipe",
     pageName: "Gestion de l'Équipe",
-    route: "/equipe",
-    filePath: "app/equipe/page.tsx",
+    route: "/mediation/equipe",
+    filePath: "app/mediation/equipe/page.tsx",
     actions: [
       { id: "equipe_add_member", nom: "Bouton Ajouter un membre", type: "button", description: "Ouvre le formulaire d'inscription RH" },
       { id: "equipe_territory_manage", nom: "Boutons Ajouter / Supprimer Territoire", type: "button", description: "Configure les zones globales" },
       { id: "equipe_display_toggles", nom: "Boutons Onglets (Actifs/Archives) & Vues (Cartes/Listes)", type: "button", description: "Gère l'affichage du personnel" },
       { id: "equipe_member_actions", nom: "Boutons Éditer / Archiver (Membre)", type: "button", description: "Actions sur les fiches de staff" },
       { id: "equipe_modal_competence", nom: "Boutons + / Qualités Rapides / X (Modale)", type: "button", description: "Gère les tags de compétences du membre" },
+      { id: "equipe_horaires_aci_edit", nom: "Grille Horaires ACI (Paris/Massy)", type: "input", description: "Modifie les horaires de référence utilisés pour la paie/planning ACI" },
+      { id: "equipe_nav_competences", nom: "Lien Qualités", type: "Link", description: "Accède à la page des compétences depuis l'équipe" },
+      { id: "equipe_nav_agenda", nom: "Lien Agenda", type: "Link", description: "Accède à l'agenda des médiateurs depuis l'équipe" },
     ],
   },
 ];
@@ -176,25 +194,25 @@ const DETAILED_PAGES: PageEntry[] = [
 // fonctionne dès aujourd'hui pour elles ; le détail des actions pourra être
 // ajouté ici au même titre que DETAILED_PAGES au fil de l'eau.
 const PAGE_ONLY_ROUTES: Omit<PageEntry, "actions">[] = [
-  { pageId: "page_access_analyse", pageName: "Matrice des droits (Analyse)", route: "/analyse", filePath: "app/analyse/page.tsx" },
+  { pageId: "page_access_analyse", pageName: "Matrice des droits (Analyse)", route: "/mediation/analyse", filePath: "app/mediation/analyse/page.tsx" },
   { pageId: "page_access_admin_droits", pageName: "Gestion des Droits (Admin)", route: "/admin/droits", filePath: "app/admin/droits/page.tsx" },
-  { pageId: "page_access_beneficiaires", pageName: "Bénéficiaires (legacy)", route: "/beneficiaires", filePath: "app/beneficiaires/page.tsx" },
-  { pageId: "page_access_mediateurs", pageName: "Médiateurs", route: "/mediateurs", filePath: "app/mediateurs/page.tsx" },
-  { pageId: "page_access_diagnostic_detail", pageName: "Diagnostic (Détail)", route: "/diagnostic/[id]", filePath: "app/diagnostic/[id]/page.tsx" },
-  { pageId: "page_access_localisations", pageName: "Localisations", route: "/localisations", filePath: "app/localisations/page.tsx" },
-  { pageId: "page_access_rdv_par_lieu", pageName: "Rendez-vous par lieu", route: "/rendez-vous-par-lieu", filePath: "app/rendez-vous-par-lieu/page.tsx" },
-  { pageId: "page_access_bilan_tech", pageName: "Bilan Tech", route: "/bilan_tech", filePath: "app/bilan_tech/page.tsx" },
-  { pageId: "page_access_emargement", pageName: "Émargement", route: "/emargement", filePath: "app/emargement/page.tsx" },
-  { pageId: "page_access_emargements", pageName: "Émargements", route: "/emargements", filePath: "app/emargements/page.tsx" },
-  { pageId: "page_access_adresses", pageName: "Adresses", route: "/adresses", filePath: "app/adresses/page.tsx" },
-  { pageId: "page_access_competences", pageName: "Compétences", route: "/competences", filePath: "app/competences/page.tsx" },
-  { pageId: "page_access_statistiques", pageName: "Statistiques", route: "/statistiques", filePath: "app/statistiques/page.tsx" },
-  { pageId: "page_access_bilan_suresnes", pageName: "Bilan Suresnes", route: "/bilan-suresnes", filePath: "app/bilan-suresnes/page.tsx" },
-  { pageId: "page_access_volume_horaire", pageName: "Volume Horaire", route: "/volume-horaire", filePath: "app/volume-horaire/page.tsx" },
-  { pageId: "page_access_fiches_bilans", pageName: "Fiches Bilans", route: "/fiches-bilans", filePath: "app/fiches-bilans/page.tsx" },
-  { pageId: "page_access_fiches_bilans_historique", pageName: "Fiches Bilans (Historique)", route: "/fiches-bilans/historique", filePath: "app/fiches-bilans/historique/page.tsx" },
-  { pageId: "page_access_notifications", pageName: "Notifications", route: "/notifications", filePath: "app/notifications/page.tsx" },
-  { pageId: "page_access_bibliotheque_logos", pageName: "Bibliothèque de logos", route: "/bibliotheque-logos", filePath: "app/bibliotheque-logos/page.tsx" },
+  { pageId: "page_access_beneficiaires", pageName: "Bénéficiaires (legacy)", route: "/mediation/beneficiaires", filePath: "app/mediation/beneficiaires/page.tsx" },
+  { pageId: "page_access_mediateurs", pageName: "Médiateurs", route: "/mediation/mediateurs", filePath: "app/mediation/mediateurs/page.tsx" },
+  { pageId: "page_access_diagnostic_detail", pageName: "Diagnostic (Détail)", route: "/mediation/rencontres-numeriques/diagnostic/[id]", filePath: "app/mediation/rencontres-numeriques/diagnostic/[id]/page.tsx" },
+  { pageId: "page_access_localisations", pageName: "Localisations", route: "/mediation/localisations", filePath: "app/mediation/localisations/page.tsx" },
+  { pageId: "page_access_rdv_par_lieu", pageName: "Rendez-vous par lieu", route: "/mediation/rencontres-numeriques/rendez-vous-par-lieu", filePath: "app/mediation/rencontres-numeriques/rendez-vous-par-lieu/page.tsx" },
+  { pageId: "page_access_bilan_tech", pageName: "Bilan Tech", route: "/mediation/rencontres-numeriques/bilan_tech", filePath: "app/mediation/rencontres-numeriques/bilan_tech/page.tsx" },
+  { pageId: "page_access_emargement", pageName: "Émargement", route: "/mediation/rencontres-numeriques/emargement", filePath: "app/mediation/rencontres-numeriques/emargement/page.tsx" },
+  { pageId: "page_access_emargements", pageName: "Émargements", route: "/mediation/rencontres-numeriques/emargements", filePath: "app/mediation/rencontres-numeriques/emargements/page.tsx" },
+  { pageId: "page_access_adresses", pageName: "Adresses", route: "/mediation/adresses", filePath: "app/mediation/adresses/page.tsx" },
+  { pageId: "page_access_competences", pageName: "Compétences", route: "/mediation/competences", filePath: "app/mediation/competences/page.tsx" },
+  { pageId: "page_access_statistiques", pageName: "Statistiques", route: "/mediation/statistiques", filePath: "app/mediation/statistiques/page.tsx" },
+  { pageId: "page_access_bilan_suresnes", pageName: "Bilan Suresnes", route: "/mediation/bilan-suresnes", filePath: "app/mediation/bilan-suresnes/page.tsx" },
+  { pageId: "page_access_volume_horaire", pageName: "Volume Horaire", route: "/mediation/volume-horaire", filePath: "app/mediation/volume-horaire/page.tsx" },
+  { pageId: "page_access_fiches_bilans", pageName: "Fiches Bilans", route: "/mediation/rencontres-numeriques/fiches-bilans", filePath: "app/mediation/rencontres-numeriques/fiches-bilans/page.tsx" },
+  { pageId: "page_access_fiches_bilans_historique", pageName: "Fiches Bilans (Historique)", route: "/mediation/rencontres-numeriques/fiches-bilans/historique", filePath: "app/mediation/rencontres-numeriques/fiches-bilans/historique/page.tsx" },
+  { pageId: "page_access_notifications", pageName: "Notifications", route: "/mediation/notifications", filePath: "app/mediation/notifications/page.tsx" },
+  { pageId: "page_access_bibliotheque_logos", pageName: "Bibliothèque de logos", route: "/mediation/bibliotheque-logos", filePath: "app/mediation/bibliotheque-logos/page.tsx" },
 ];
 
 export const PAGES_CATALOG: PageEntry[] = [
@@ -209,9 +227,26 @@ export const ALL_ACTION_IDS: string[] = PAGES_CATALOG.flatMap((page) => [
   ...page.actions.map((a) => a.id),
 ]);
 
+// Résout l'effectivité d'un droit pour un rôle donné : une valeur explicite
+// dans la matrice Firestore prime, sinon on retombe sur le catalogue par
+// défaut. Utilisé à la fois par PermissionsProvider.can() (ce qui est
+// réellement autorisé) et par /mediation/analyse (ce qui est affiché comme coché) —
+// les deux DOIVENT rester en phase, sans quoi un admin peut croire qu'un
+// droit est désactivé alors qu'il est en fait actif par défaut, ou l'inverse.
+export function resolvePermission(
+  matrix: Record<string, Record<string, boolean>>,
+  roleId: string,
+  actionId: string
+): boolean {
+  if (roleId === "admin") return true;
+  const explicit = matrix[actionId]?.[roleId];
+  if (explicit !== undefined) return explicit;
+  return !!DEFAULT_PERMISSIONS[roleId]?.[actionId];
+}
+
 // Droits par défaut, utilisés uniquement pour amorcer la matrice Firestore
 // (configuration_droits) la première fois qu'elle est vide. Une fois créée,
-// c'est la matrice Firestore qui fait foi et qui est éditable dans /analyse.
+// c'est la matrice Firestore qui fait foi et qui est éditable dans /mediation/analyse.
 export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   admin: ALL_ACTION_IDS.reduce((acc, id) => {
     acc[id] = true;
@@ -228,26 +263,19 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     login_submit: true, login_forgot_password: true,
     benef_search: true, benef_nav_agenda_suresnes: true, benef_create_new: true, benef_filter_alphabet: true,
     benef_filter_today: true, benef_filter_suresnes: true, benef_filter_de: true, benef_action_open: true,
+    benef_nav_localisations: true,
     fiche_edit_profil: true, fiche_nav_diagnostic: true, fiche_add_action: true, fiche_action_change_lieu: true,
-    fiche_action_edit_rdv: true, fiche_modal_submit: true,
+    fiche_action_edit_rdv: true, fiche_action_save_rdv: true, fiche_modal_submit: true,
+    fiche_nav_bilan_tech: true, fiche_nav_agenda_suresnes: true,
     diag_select_type: true, diag_start: true, diag_nav_questions: true, diag_choose_option: true,
     diag_rate_satisfaction: true, diag_submit: true,
-    coll_toggle_form: true, coll_submit: true, coll_edit: true,
+    coll_toggle_form: true, coll_submit: true, coll_save_edit: true, coll_delete: true,
     agenda_toggle_sidebar: true, agenda_notif_panel: true, agenda_week_nav: true, agenda_display_toggles: true,
-    agenda_grid_interaction: true,
+    agenda_slot_create: true, agenda_slot_delete: true, agenda_comment_view: true, agenda_comment_edit: true,
     collecte_change_year: true, collecte_toggle_step: true, collecte_comment_edit: true,
     suresnes_filter_today: true, suresnes_month_nav: true, suresnes_create_slot: true,
-  },
-
-  lecteur: {
-    page_access_home: true, page_access_login: true, page_access_liste_beneficiaires: true, page_access_suresnes: true,
-    home_logout: true, home_folder_rencontres: true, home_folder_stats: true, home_nav_liste_benef: true,
-    home_nav_collectes: true, home_nav_agenda_suresnes: true, home_nav_emargement_docs: true,
-    home_nav_actions_coll: true, home_nav_stats_glob: true, home_nav_bilan_suresnes: true, home_nav_volume_horaire: true,
-    login_submit: true,
-    benef_search: true, benef_nav_agenda_suresnes: true, benef_filter_alphabet: true,
-    benef_filter_today: true, benef_filter_suresnes: true, benef_filter_de: true, benef_action_open: true,
-    suresnes_filter_today: true, suresnes_month_nav: true,
+    suresnes_slot_assign: true, suresnes_slot_clear: true, suresnes_slot_thematique_edit: true, suresnes_slot_demande_edit: true,
+    suresnes_nav_beneficiaires: true, suresnes_nav_agenda_med: true,
   },
 
   coordinateur: {
@@ -261,33 +289,39 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     login_submit: true, login_forgot_password: true,
     benef_search: true, benef_nav_agenda_suresnes: true, benef_create_new: true, benef_filter_alphabet: true,
     benef_filter_today: true, benef_filter_suresnes: true, benef_filter_de: true, benef_filter_blacklist: true,
-    benef_action_toggle_blacklist: true, benef_action_open: true,
+    benef_action_toggle_blacklist: true, benef_action_open: true, benef_nav_localisations: true,
     fiche_edit_profil: true, fiche_nav_diagnostic: true, fiche_add_action: true, fiche_action_change_lieu: true,
-    fiche_action_edit_rdv: true, fiche_action_delete_rdv: true, fiche_modal_toggle_blacklist: true, fiche_modal_submit: true,
+    fiche_action_edit_rdv: true, fiche_action_save_rdv: true, fiche_action_delete_rdv: true, fiche_modal_toggle_blacklist: true, fiche_modal_submit: true,
+    fiche_nav_bilan_tech: true, fiche_nav_agenda_suresnes: true, fiche_nav_equipe: true,
     diag_select_type: true, diag_start: true, diag_nav_questions: true, diag_choose_option: true,
     diag_rate_satisfaction: true, diag_submit: true,
-    coll_toggle_form: true, coll_submit: true, coll_edit: true,
+    coll_toggle_form: true, coll_submit: true, coll_save_edit: true, coll_delete: true,
     agenda_toggle_sidebar: true, agenda_validate_week: true, agenda_notif_panel: true, agenda_week_nav: true,
-    agenda_display_toggles: true, agenda_model_create: true, agenda_model_actions: true, agenda_grid_interaction: true,
+    agenda_display_toggles: true, agenda_model_create: true, agenda_model_actions: true,
+    agenda_slot_create: true, agenda_slot_delete: true, agenda_comment_view: true, agenda_comment_edit: true,
     agenda_staff_mask: true,
     collecte_export: true, collecte_change_year: true, collecte_toggle_step: true, collecte_comment_edit: true,
     suresnes_filter_today: true, suresnes_month_nav: true, suresnes_reassign: true, suresnes_create_slot: true,
+    suresnes_slot_assign: true, suresnes_slot_clear: true, suresnes_slot_thematique_edit: true, suresnes_slot_demande_edit: true,
+    suresnes_nav_beneficiaires: true, suresnes_nav_agenda_med: true,
     equipe_add_member: true, equipe_territory_manage: true, equipe_display_toggles: true, equipe_member_actions: true, equipe_modal_competence: true,
+    equipe_horaires_aci_edit: true, equipe_nav_competences: true, equipe_nav_agenda: true,
   },
 
-  // Rôles historiquement gérés par /admin/droits : droits de départ prudents
-  // (alignés sur "lecteur"), à affiner ensuite dans /analyse.
+  // ACI reprend exactement les anciens droits du rôle "Lecteur" (fusionné),
+  // complétés par un accès en consultation (lecture seule) à l'agenda des
+  // médiateurs et à ses notes/commentaires — sans pouvoir créer/supprimer de
+  // créneau ni modifier une note.
   aci: {
-    page_access_home: true, page_access_login: true, page_access_liste_beneficiaires: true, page_access_suresnes: true, page_access_agenda: true,
-    home_logout: true, home_nav_liste_benef: true, home_nav_agenda_suresnes: true, login_submit: true,
-    benef_search: true, benef_filter_alphabet: true, benef_action_open: true,
-    suresnes_filter_today: true, suresnes_month_nav: true, agenda_week_nav: true,
-  },
-
-  charge_territoire: {
-    page_access_home: true, page_access_login: true, page_access_liste_beneficiaires: true, page_access_suresnes: true, page_access_agenda: true,
-    home_logout: true, home_nav_liste_benef: true, home_nav_agenda_suresnes: true, login_submit: true,
-    benef_search: true, benef_filter_alphabet: true, benef_filter_suresnes: true, benef_action_open: true,
-    suresnes_filter_today: true, suresnes_month_nav: true, suresnes_reassign: true, agenda_week_nav: true,
+    page_access_home: true, page_access_login: true, page_access_liste_beneficiaires: true, page_access_suresnes: true,
+    page_access_agenda: true,
+    home_logout: true, home_folder_rencontres: true, home_folder_stats: true, home_nav_liste_benef: true,
+    home_nav_collectes: true, home_nav_agenda_suresnes: true, home_nav_agenda_med: true, home_nav_emargement_docs: true,
+    home_nav_actions_coll: true, home_nav_stats_glob: true, home_nav_bilan_suresnes: true, home_nav_volume_horaire: true,
+    login_submit: true,
+    benef_search: true, benef_nav_agenda_suresnes: true, benef_filter_alphabet: true,
+    benef_filter_today: true, benef_filter_suresnes: true, benef_filter_de: true, benef_action_open: true,
+    suresnes_filter_today: true, suresnes_month_nav: true,
+    agenda_week_nav: true, agenda_comment_view: true,
   },
 };

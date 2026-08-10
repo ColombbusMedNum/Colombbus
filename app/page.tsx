@@ -83,7 +83,7 @@ export default function HomePage() {
               Plateforme C.O.S.M.O.S.
             </span>
             <p className="text-[11px] md:text-xs text-[#404040]/70 font-semibold tracking-wide max-w-lg mt-0.5">
-              Colombbus Outil de Suivi et de Médiation Organisée et Solidaire
+              Colombbus Orchestrateur de Suivi, Médiation et Orientation Solidaire
             </p>
           </div>
 
@@ -196,7 +196,7 @@ export default function HomePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 
                 {/* LISTE DES BÉNÉFICIAIRES */}
-                <Link href="/liste-beneficiaires" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                <Link href="/mediation/rencontres-numeriques/liste-beneficiaires" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
                     <UsersIcon className="w-4 h-4" />
                   </div>
@@ -209,7 +209,7 @@ export default function HomePage() {
                 </Link>
 
                 {/* RENDEZ-VOUS PAR LIEUX */}
-                <Link href="/rendez-vous-par-lieu" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                <Link href="/mediation/rencontres-numeriques/rendez-vous-par-lieu" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
                     <MapPinIcon className="w-4 h-4" />
                   </div>
@@ -222,7 +222,7 @@ export default function HomePage() {
                 </Link>
 
                 {/* FICHE BILAN */}
-                <Link href="/fiches-bilans" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                <Link href="/mediation/rencontres-numeriques/fiches-bilans" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
                     <ClipboardDocumentCheckIcon className="w-4 h-4" />
                   </div>
@@ -235,7 +235,7 @@ export default function HomePage() {
                 </Link>
 
                 {/* BILAN TECH */}
-                <Link href="/bilan_tech" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                <Link href="/mediation/rencontres-numeriques/bilan_tech" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
                     <WrenchScrewdriverIcon className="w-4 h-4" />
                   </div>
@@ -248,7 +248,7 @@ export default function HomePage() {
                 </Link>
 
                 {/* SUIVI DES COLLECTES TECH */}
-                <Link href="/suivi-collecte" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                <Link href="/mediation/rencontres-numeriques/suivi-collecte" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
                     <CpuChipIcon className="w-4 h-4" />
                   </div>
@@ -277,7 +277,7 @@ export default function HomePage() {
                     </div>
                   }
                 >
-                  <Link href="/suresnes" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                  <Link href="/mediation/rencontres-numeriques/suresnes" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
                       <CalendarIcon className="w-4 h-4" />
                     </div>
@@ -291,7 +291,7 @@ export default function HomePage() {
                 </PermissionGuard>
 
                 {/* ÉMARGEMENTS & DOC. INTERNES */}
-                <Link href="/emargements" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                <Link href="/mediation/rencontres-numeriques/emargements" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
                     <ClipboardDocumentCheckIcon className="w-4 h-4" />
                   </div>
@@ -304,7 +304,7 @@ export default function HomePage() {
                 </Link>
 
                 {/* GÉNÉRATEUR D'ÉMARGEMENTS */}
-                <Link href="/emargement" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                <Link href="/mediation/rencontres-numeriques/emargement" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
                     <DocumentPlusIcon className="w-4 h-4" />
                   </div>
@@ -317,7 +317,7 @@ export default function HomePage() {
                 </Link>
 
                 {/* ACTIONS COLLECTIVES */}
-                <Link href="/actions-collectives" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                <Link href="/mediation/rencontres-numeriques/actions-collectives" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
                     <UserGroupIcon className="w-4 h-4" />
                   </div>
@@ -351,7 +351,7 @@ export default function HomePage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* STATS GLOBALES */}
-                <Link href="/statistiques" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                <Link href="/mediation/statistiques" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                   <div className="bg-white border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
                     <ChartBarIcon className="w-5 h-5" />
                   </div>
@@ -364,7 +364,7 @@ export default function HomePage() {
                 </Link>
 
                 {/* STATS SURESNES */}
-                <Link href="/bilan-suresnes" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                <Link href="/mediation/bilan-suresnes" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                   <div className="bg-[#white] border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
                     <BuildingOfficeIcon className="w-5 h-5" />
                   </div>
@@ -377,7 +377,7 @@ export default function HomePage() {
                 </Link>
 
                 {/* VOLUME HORAIRE */}
-                <Link href="/volume-horaire" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                <Link href="/mediation/volume-horaire" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                   <div className="bg-white border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
                     <ClockIcon className="w-5 h-5" />
                   </div>
@@ -391,7 +391,7 @@ export default function HomePage() {
 
                 {/* GESTION DES DROITS (Reservé aux admins) */}
                 <PermissionGuard actionId="home_nav_admin_droits">
-                  <Link href="/analyse" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                  <Link href="/mediation/analyse" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
                     <div className="bg-white border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
                       <CpuChipIcon className="w-5 h-5" />
                     </div>

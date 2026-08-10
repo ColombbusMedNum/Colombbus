@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { db } from "../../lib/firebase";
 import PageGuard from "../../components/PageGuard";
+import { usePermissions } from "../../lib/PermissionsProvider";
+import { useMediateurs } from "../../lib/MediateursProvider";
 import { 
   collection, onSnapshot, query, orderBy, addDoc, 
   deleteDoc, doc, getDocs, where, updateDoc, setDoc, writeBatch,
@@ -18,43 +20,13 @@ import {
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
+import type { Mediateur, ActionPlanning } from "../../lib/types";
 
 // Police Quicksand conforme à la charte
-const quicksand = Quicksand({ 
-  subsets: ["latin"], 
-  weight: ["400", "500", "600", "700"] 
+const quicksand = Quicksand({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"]
 });
-
-// Interfaces
-interface Mediateur {
-  id: string;
-  prenom: string;
-  nom: string;
-  poste?: string;
-  statut?: string;
-  debutACI?: string;
-  finACI?: string;
-  masque?: boolean;
-  actif?: boolean;
-  sitePrincipal?: string;
-}
-
-interface ActionPlanning {
-  id: string;
-  mediatId: string;
-  mediateurNom: string;
-  moment: string;
-  date: string;
-  lieu: string;
-  type?: string;
-  commentaire?: string;
-  couleur?: string;
-  adresse?: string;
-  debut?: string;
-  fin?: string;
-  territoire?: string;
-  codeAnalytique?: string;
-}
 
 interface ActiviteType {
   id?: string;
@@ -109,7 +81,7 @@ function getWeekIdentifier(date: Date) {
 
 export default function PlanningExpertMix() {
   const [actions, setActions] = useState<ActionPlanning[]>([]);
-  const [mediateurs, setMediateurs] = useState<Mediateur[]>([]);
+  const { mediateurs: mediateursBruts } = useMediateurs();
   const [activitesTypes, setActivitesTypes] = useState<ActiviteType[]>([]);
   const [localisations, setLocalisations] = useState<any[]>([]);
   const [semainesValidees, setSemainesValidees] = useState<Record<string, boolean>>({});
@@ -177,6 +149,12 @@ export default function PlanningExpertMix() {
   const estSemaineValidee = !!semainesValidees[currentWeekId];
   const nonLuesCount = notifications.filter(n => !n.lue).length;
 
+  const { can } = usePermissions();
+  const canCreateSlot = can("agenda_slot_create");
+  const canDeleteSlot = can("agenda_slot_delete");
+  const canViewComment = can("agenda_comment_view");
+  const canEditComment = can("agenda_comment_edit");
+
   const getStatusPriority = (statut: string) => {
     if (statut === "Cadre") return 1;
     if (statut === "Permanent") return 2;
@@ -195,11 +173,31 @@ export default function PlanningExpertMix() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isNotifOpen]);
 
+  // Le planning n'affiche qu'une semaine à la fois : on ne charge que les
+  // actions de cette semaine (lundi à dimanche, indépendamment du toggle
+  // "voir samedi") au lieu de toute la collection depuis toujours. Effet
+  // séparé des autres écoutes ci-dessous pour ne les re-déclencher que
+  // lorsque c'est réellement nécessaire (changement de semaine uniquement).
   useEffect(() => {
-    const unsubActions = onSnapshot(collection(db, "planning_mediateurs"), (snap) => {
+    const monday = getMonday(currentDate);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const debutSemaineStr = monday.toLocaleDateString('en-CA');
+    const finSemaineStr = sunday.toLocaleDateString('en-CA');
+
+    const qActions = query(
+      collection(db, "planning_mediateurs"),
+      where("date", ">=", debutSemaineStr),
+      where("date", "<=", finSemaineStr)
+    );
+    const unsubActions = onSnapshot(qActions, (snap) => {
       setActions(snap.docs.map(d => ({ id: d.id, ...d.data() } as ActionPlanning)));
     });
 
+    return () => unsubActions();
+  }, [currentDate]);
+
+  useEffect(() => {
     const unsubSemaines = onSnapshot(collection(db, "semaines_validees"), (snap) => {
       const vMap: Record<string, boolean> = {};
       snap.docs.forEach(doc => { vMap[doc.id] = doc.data().validee || false; });
@@ -220,16 +218,6 @@ export default function PlanningExpertMix() {
       setNotifications(list.sort((a, b) => b.createdAt - a.createdAt));
     });
 
-    const unsubMed = onSnapshot(collection(db, "liste_mediateurs"), (snap) => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Mediateur));
-      const sortedData = data.sort((a, b) => {
-        const priorityA = getStatusPriority(a.statut || "Permanent");
-        const priorityB = getStatusPriority(b.statut || "Permanent");
-        return priorityA !== priorityB ? priorityA - priorityB : (a.nom || "").localeCompare(b.nom || "");
-      });
-      setMediateurs(sortedData);
-    });
-    
     const unsubActs = onSnapshot(query(collection(db, "activites_types"), orderBy("lieu", "asc")), (snap) => {
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as ActiviteType));
       if (docs.length === 0 && snap.metadata.fromCache === false) {
@@ -247,8 +235,17 @@ export default function PlanningExpertMix() {
       }
     });
 
-    return () => { unsubActions(); unsubMed(); unsubActs(); unsubSemaines(); unsubNotifs(); unsubLocs(); };
+    return () => { unsubActs(); unsubSemaines(); unsubNotifs(); unsubLocs(); };
   }, [filtrePersoUniquement, currentUserId]);
+
+  const mediateurs = React.useMemo(() => {
+    const data = mediateursBruts as Mediateur[];
+    return [...data].sort((a, b) => {
+      const priorityA = getStatusPriority(a.statut || "Permanent");
+      const priorityB = getStatusPriority(b.statut || "Permanent");
+      return priorityA !== priorityB ? priorityA - priorityB : (a.nom || "").localeCompare(b.nom || "");
+    });
+  }, [mediateursBruts]);
 
   const toggleValidationSemaine = async () => {
     try {
@@ -463,6 +460,7 @@ export default function PlanningExpertMix() {
   };
 
   const handleCaseClick = async (mediatId: string, prenom: string, nom: string, moment: string, dateStr: string) => {
+    if (!canCreateSlot) return;
     if (estSemaineValidee) {
       alert("🔒 Semaine validée et verrouillée.");
       return;
@@ -490,11 +488,12 @@ export default function PlanningExpertMix() {
   };
 
   const handleEditCommentaire = (actionId: string, currentCommentaire: string) => {
+    if (!canViewComment && !canEditComment) return;
     setActiveCommentModal({
       actionId,
       currentText: currentCommentaire || "",
       inputText: currentCommentaire || "",
-      readOnly: estSemaineValidee
+      readOnly: estSemaineValidee || !canEditComment
     });
   };
 
@@ -540,6 +539,7 @@ export default function PlanningExpertMix() {
   };
 
   const onRequestDeleteAction = (id: string) => {
+    if (!canDeleteSlot) return;
     if (estSemaineValidee) {
       alert("🔒 Semaine verrouillée.");
       return;
@@ -549,8 +549,8 @@ export default function PlanningExpertMix() {
 
     setDeleteConfirmModalData({
       id: actionDoc.id,
-      lieu: actionDoc.lieu,
-      mediateurNom: actionDoc.mediateurNom
+      lieu: actionDoc.lieu || "",
+      mediateurNom: actionDoc.mediateurNom || ""
     });
   };
 
@@ -682,7 +682,7 @@ export default function PlanningExpertMix() {
                 {/* Lien vers la page complète de gestion des notifications */}
                 <div className="border-t border-[#F3F3F2] pt-2 text-center">
                   <Link 
-                    href="/notifications" 
+                    href="/mediation/notifications" 
                     onClick={() => setIsNotifOpen(false)}
                     className="text-[11px] font-bold text-[#005259] hover:text-[#EA601F] transition-colors inline-block w-full py-1"
                   >
@@ -731,16 +731,16 @@ export default function PlanningExpertMix() {
             {voirMasques ? <><EyeIcon className="w-3.5 h-3.5"/> Vue complète</> : <><EyeSlashIcon className="w-3.5 h-3.5"/> Masqués</>}
           </button>
 
-          <Link href="/adresses" className="bg-[#003d42] hover:bg-[#002b2f] text-white border border-[#002b2f] px-3 h-9 rounded-md text-xs flex items-center gap-1.5 font-bold">
+          <Link href="/mediation/adresses" className="bg-[#003d42] hover:bg-[#002b2f] text-white border border-[#002b2f] px-3 h-9 rounded-md text-xs flex items-center gap-1.5 font-bold">
             <MapPinIcon className="w-3.5 h-3.5 text-[#A9E0C9]"/> Adresses
           </Link>
 
-          <Link href="/equipe" className="bg-[#003d42] hover:bg-[#002b2f] text-white border border-[#002b2f] px-3 h-9 rounded-md text-xs flex items-center gap-1.5 font-bold">
+          <Link href="/mediation/equipe" className="bg-[#003d42] hover:bg-[#002b2f] text-white border border-[#002b2f] px-3 h-9 rounded-md text-xs flex items-center gap-1.5 font-bold">
             <UsersIcon className="w-3.5 h-3.5 text-[#88ACEA]"/> Staff
           </Link>
 
           <Link 
-            href="/suresnes" 
+            href="/mediation/rencontres-numeriques/suresnes"
             className="bg-[#88ACEA] hover:bg-[#779cdb] text-[#005259] border border-[#88ACEA] px-3 h-9 rounded-md text-xs transition-colors flex items-center gap-1.5 font-extrabold"
           >
             <CalendarDaysIcon className="w-3.5 h-3.5 text-[#005259]"/> Suresnes
@@ -879,8 +879,8 @@ export default function PlanningExpertMix() {
                         return (
                           <td key={dateStr} className="p-1 border-l border-[#F3F3F2] align-top">
                             <div className="grid grid-cols-2 gap-1 min-h-[38px]">
-                              <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} />
-                              <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} />
+                              <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
+                              <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
                             </div>
                           </td>
                         );
@@ -1181,9 +1181,12 @@ interface DayCellProps {
   onDelete: (id: string) => void;
   onEditCommentaire: (actionId: string, currentCommentaire: string) => void;
   estSemaineValidee: boolean;
+  canCreateSlot: boolean;
+  canDeleteSlot: boolean;
+  canOpenCommentaire: boolean;
 }
 
-function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire, estSemaineValidee }: DayCellProps) {
+function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire, estSemaineValidee, canCreateSlot, canDeleteSlot, canOpenCommentaire }: DayCellProps) {
   const mNomComplet = `${m.prenom || ""} ${m.nom || ""}`.trim();
   const filtered = actions.filter((a) => (a.mediatId === m.id || a.mediateurNom === mNomComplet) && a.date === date && a.moment === moment);
   
@@ -1199,30 +1202,30 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
         const cardBg = hexToRgba(hexColor, isLight ? 0.35 : 0.12);
 
         return (
-          <div 
-            key={a.id} 
-            onClick={() => onEditCommentaire(a.id, a.commentaire || "")}
-            style={{ 
-              backgroundColor: cardBg, 
-              borderColor: hexColor, 
-              color: textColor 
+          <div
+            key={a.id}
+            onClick={canOpenCommentaire ? () => onEditCommentaire(a.id, a.commentaire || "") : undefined}
+            style={{
+              backgroundColor: cardBg,
+              borderColor: hexColor,
+              color: textColor
             }}
-            className="px-1.5 py-0.5 rounded border text-[10px] font-bold flex items-center justify-between w-full min-h-[24px] hover:shadow-sm transition-all relative cursor-pointer"
-            title={hasCommentaire ? `Note : ${a.commentaire}` : "Cliquer pour ajouter une note"}
+            className={`px-1.5 py-0.5 rounded border text-[10px] font-bold flex items-center justify-between w-full min-h-[24px] hover:shadow-sm transition-all relative ${canOpenCommentaire ? "cursor-pointer" : ""}`}
+            title={canOpenCommentaire ? (hasCommentaire ? `Note : ${a.commentaire}` : "Cliquer pour ajouter une note") : (hasCommentaire ? `Note : ${a.commentaire}` : undefined)}
           >
             <span className="truncate pr-3" title={`${moment} : ${a.lieu}`}>
               {a.lieu} {territorio && <span className="text-[8px] opacity-70">[{territorio}]</span>}
             </span>
-            
+
             {hasCommentaire && (
               <span className="absolute right-5 top-1 text-[#EA601F]">
                 <ChatBubbleLeftRightIcon className="w-2.5 h-2.5 fill-[#EA601F]/20" />
               </span>
             )}
 
-            {!estSemaineValidee && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); onDelete(a.id); }} 
+            {!estSemaineValidee && canDeleteSlot && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(a.id); }}
                 className="hover:text-[#EF736A] p-0.5 shrink-0 z-10"
                 style={{ color: isLight ? "#404040" : undefined }}
               >
@@ -1234,18 +1237,20 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
       })}
 
       {filtered.length === 0 ? (
-        <button 
-          onClick={onAdd} 
+        canCreateSlot && (
+        <button
+          onClick={onAdd}
           disabled={estSemaineValidee}
           className={`w-full h-full min-h-[26px] border border-dashed rounded flex items-center justify-center text-[10px] transition-all font-semibold ${
-            estSemaineValidee 
-              ? "border-[#404040]/10 text-[#404040]/20 cursor-not-allowed" 
+            estSemaineValidee
+              ? "border-[#404040]/10 text-[#404040]/20 cursor-not-allowed"
               : "border-[#404040]/20 hover:border-[#005259] text-[#404040]/40 hover:text-[#005259] cursor-pointer"
           }`}
         >
           {moment === "Matin" ? "AM" : "PM"}
         </button>
-      ) : !estSemaineValidee ? (
+        )
+      ) : !estSemaineValidee && canCreateSlot ? (
         <button
           onClick={onAdd}
           className="opacity-0 group-hover/cell:opacity-100 transition-opacity w-full py-0.5 bg-white border border-dashed border-[#005259] rounded flex items-center justify-center text-[#005259] text-[8px] font-bold cursor-pointer"

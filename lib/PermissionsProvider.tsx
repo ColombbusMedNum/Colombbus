@@ -2,10 +2,10 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { collection, doc, getDoc, onSnapshot } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, onSnapshot, query, where } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { normalizeRole } from "./roles";
-import { DEFAULT_PERMISSIONS } from "./permissionsCatalog";
+import { resolvePermission } from "./permissionsCatalog";
 
 interface PermissionsContextValue {
   user: User | null;
@@ -52,8 +52,22 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
       setRoleResolved(false);
       try {
-        const snap = await getDoc(doc(db, "liste_mediateurs", firebaseUser.uid));
-        setRole(normalizeRole(snap.exists() ? snap.data().role : null));
+        let roleRaw: string | null = null;
+        const uidSnap = await getDoc(doc(db, "liste_mediateurs", firebaseUser.uid));
+        if (uidSnap.exists()) {
+          roleRaw = uidSnap.data().role || null;
+        } else if (firebaseUser.email) {
+          // Repli transitoire : tant que scripts/migrate-mediateurs-to-uid.js
+          // n'a pas été exécuté, les comptes existants sont encore indexés par
+          // un ID Firestore aléatoire plutôt que par l'UID. Voir login/page.tsx
+          // qui applique le même repli.
+          const q = query(collection(db, "liste_mediateurs"), where("email", "==", firebaseUser.email.toLowerCase().trim()));
+          const legacySnap = await getDocs(q);
+          if (!legacySnap.empty) {
+            roleRaw = legacySnap.docs[0].data().role || null;
+          }
+        }
+        setRole(normalizeRole(roleRaw));
       } catch (err) {
         console.error("Impossible de lire le rôle de l'utilisateur :", err);
         setRole(normalizeRole(null));
@@ -86,15 +100,8 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   }, []);
 
   const can = (actionId: string): boolean => {
-    if (role === "admin") return true;
     if (!role) return false;
-
-    const explicit = matrix[actionId]?.[role];
-    if (explicit !== undefined) return explicit;
-
-    // Tant que la matrice Firestore n'a pas encore été renseignée pour cette
-    // action, on retombe sur les valeurs par défaut du catalogue.
-    return !!DEFAULT_PERMISSIONS[role]?.[actionId];
+    return resolvePermission(matrix, role, actionId);
   };
 
   const loading = !authResolved || !roleResolved || !matrixResolved;

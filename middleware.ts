@@ -32,7 +32,7 @@ export function middleware(request: Request) {
     }
 
     // --- RESTRICTIONS DE DOSSIERS (réservés aux administrateurs) ---
-    const adminOnlyPrefixes = ["/equipe", "/staff", "/analyse", "/admin"];
+    const adminOnlyPrefixes = ["/mediation/equipe", "/staff", "/mediation/analyse", "/admin"];
     if (adminOnlyPrefixes.some((prefix) => pathname.startsWith(prefix)) && userRole !== "admin") {
       return NextResponse.redirect(new URL("/", req.url));
     }
