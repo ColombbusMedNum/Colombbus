@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, query, where, updateDoc, doc } from "firebase/firestore";
+import { collection, collectionGroup, getDocs, query, where, updateDoc, doc } from "firebase/firestore";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Quicksand } from "next/font/google";
@@ -60,53 +60,58 @@ export default function ListeBeneficiaires() {
         console.warn("Agenda Suresnes non disponible :", errPlan);
       }
 
-      // 2. Récupération des utilisateurs dans Firestore
-      const querySnapshot = await getDocs(collection(db, "utilisateurs"));
-      
-      const docsAvecVisites = await Promise.all(
-        querySnapshot.docs.map(async (docSnap) => {
-          const userData = docSnap.data();
-          let datePremierRDV = "—";
-          let nbVisitesPresent = 0;
+      // 2. Récupération des utilisateurs + de TOUTES les visites en 2
+      // requêtes globales (collectionGroup), au lieu d'un aller-retour
+      // Firestore par bénéficiaire (1+N). Les visites ne vivent qu'à un seul
+      // endroit du schéma (utilisateurs/{id}/visites), donc collectionGroup
+      // ne peut pas remonter de documents d'une autre origine.
+      const [querySnapshot, visitesSnapshot] = await Promise.all([
+        getDocs(collection(db, "utilisateurs")),
+        getDocs(collectionGroup(db, "visites")).catch(() => null), // tolérant : la liste s'affiche même si cette requête échoue
+      ]);
 
-          // Extraction tolérante aux majuscules/accents
-          const nom = userData.Nom || userData.nom || "";
-          const prenom = userData.Prénom || userData.prénom || userData.Prenom || userData.prenom || "";
+      const visitesParUtilisateur = new Map<string, any[]>();
+      visitesSnapshot?.docs.forEach((docSnap) => {
+        const userId = docSnap.ref.parent.parent?.id;
+        if (!userId) return;
+        if (!visitesParUtilisateur.has(userId)) visitesParUtilisateur.set(userId, []);
+        visitesParUtilisateur.get(userId)!.push(docSnap.data());
+      });
 
-          // Récupération sécurisée des visites
-          try {
-            const visitesSnapshot = await getDocs(collection(db, "utilisateurs", docSnap.id, "visites"));
-            
-            if (!visitesSnapshot.empty) {
-              const docsVisites = visitesSnapshot.docs.map(d => d.data());
-              
-              nbVisitesPresent = docsVisites.filter(data => {
-                return data.statut !== "Absent" && data.statut !== "Annulé" && data.presence !== "Absent" && data.presence !== false;
-              }).length;
+      const docsAvecVisites = querySnapshot.docs.map((docSnap) => {
+        const userData = docSnap.data();
+        let datePremierRDV = "—";
+        let nbVisitesPresent = 0;
 
-              const dates = docsVisites.map(d => d.date).filter(Boolean).sort();
-              if (dates.length > 0) {
-                datePremierRDV = new Date(dates[0]).toLocaleDateString('fr-FR', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric'
-                });
-              }
-            }
-          } catch (err) {
-            // Ne bloque pas si la sous-collection visites échoue
+        // Extraction tolérante aux majuscules/accents
+        const nom = userData.Nom || userData.nom || "";
+        const prenom = userData.Prénom || userData.prénom || userData.Prenom || userData.prenom || "";
+
+        const docsVisites = visitesParUtilisateur.get(docSnap.id) || [];
+        if (docsVisites.length > 0) {
+          nbVisitesPresent = docsVisites.filter(data => {
+            return data.statut !== "Absent" && data.statut !== "Annulé" && data.presence !== "Absent" && data.presence !== false;
+          }).length;
+
+          const dates = docsVisites.map(d => d.date).filter(Boolean).sort();
+          if (dates.length > 0) {
+            datePremierRDV = new Date(dates[0]).toLocaleDateString('fr-FR', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric'
+            });
           }
+        }
 
-          return {
-            id: docSnap.id,
-            ...userData,
-            nomAffiche: nom,
-            prenomAffiche: prenom,
-            premierRDV: datePremierRDV,
-            totalVisites: nbVisitesPresent
-          };
-        })
-      );
+        return {
+          id: docSnap.id,
+          ...userData,
+          nomAffiche: nom,
+          prenomAffiche: prenom,
+          premierRDV: datePremierRDV,
+          totalVisites: nbVisitesPresent
+        };
+      });
 
       // Tri alphabétique local en JavaScript
       docsAvecVisites.sort((a, b) => 

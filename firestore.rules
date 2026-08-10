@@ -57,6 +57,19 @@ service cloud.firestore {
     match /utilisateurs/{docId} {
       allow read, write: if isStaff();
     }
+    // Sous-collections de chaque bénéficiaire (rendez-vous/diagnostics et
+    // fiches bilan technique). Sans ces règles explicites, le match ci-dessus
+    // ne couvre pas /utilisateurs/{id}/visites/... (un `match` ne descend pas
+    // automatiquement dans les sous-collections), et les pages qui lisent ou
+    // écrivent dedans (liste-beneficiaires, diagnostic, suresnes,
+    // rendez-vous-par-lieu, fiches-bilans, bilan_tech) se retrouveraient
+    // bloquées par le refus par défaut.
+    match /utilisateurs/{docId}/visites/{visiteId} {
+      allow read, write: if isStaff();
+    }
+    match /utilisateurs/{docId}/fiches_bilan/{ficheId} {
+      allow read, write: if isStaff();
+    }
     match /liste_lieux/{docId} {
       allow read, write: if isStaff();
     }

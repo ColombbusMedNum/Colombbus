@@ -196,9 +196,7 @@ const DETAILED_PAGES: PageEntry[] = [
 const PAGE_ONLY_ROUTES: Omit<PageEntry, "actions">[] = [
   { pageId: "page_access_analyse", pageName: "Matrice des droits (Analyse)", route: "/mediation/analyse", filePath: "app/mediation/analyse/page.tsx" },
   { pageId: "page_access_admin_droits", pageName: "Gestion des Droits (Admin)", route: "/admin/droits", filePath: "app/admin/droits/page.tsx" },
-  { pageId: "page_access_beneficiaires", pageName: "Bénéficiaires (legacy)", route: "/mediation/beneficiaires", filePath: "app/mediation/beneficiaires/page.tsx" },
   { pageId: "page_access_mediateurs", pageName: "Médiateurs", route: "/mediation/mediateurs", filePath: "app/mediation/mediateurs/page.tsx" },
-  { pageId: "page_access_diagnostic_detail", pageName: "Diagnostic (Détail)", route: "/mediation/rencontres-numeriques/diagnostic/[id]", filePath: "app/mediation/rencontres-numeriques/diagnostic/[id]/page.tsx" },
   { pageId: "page_access_localisations", pageName: "Localisations", route: "/mediation/localisations", filePath: "app/mediation/localisations/page.tsx" },
   { pageId: "page_access_rdv_par_lieu", pageName: "Rendez-vous par lieu", route: "/mediation/rencontres-numeriques/rendez-vous-par-lieu", filePath: "app/mediation/rencontres-numeriques/rendez-vous-par-lieu/page.tsx" },
   { pageId: "page_access_bilan_tech", pageName: "Bilan Tech", route: "/mediation/rencontres-numeriques/bilan_tech", filePath: "app/mediation/rencontres-numeriques/bilan_tech/page.tsx" },
