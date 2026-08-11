@@ -15,16 +15,18 @@
 // GOOGLE_APPLICATION_CREDENTIALS, par ex. :
 //   GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json node scripts/migrate-mediateurs-to-uid.js
 
-const admin = require("firebase-admin");
+const { initializeApp, applicationDefault } = require("firebase-admin/app");
+const { getFirestore } = require("firebase-admin/firestore");
+const { getAuth } = require("firebase-admin/auth");
 
 const APPLY = process.argv.includes("--apply");
 
-admin.initializeApp({
-  credential: admin.credential.applicationDefault(),
+initializeApp({
+  credential: applicationDefault(),
 });
 
-const db = admin.firestore();
-const auth = admin.auth();
+const db = getFirestore();
+const auth = getAuth();
 
 const IGNORED_DOC_IDS = new Set(["parametres_configuration", "parametres_horaires"]);
 

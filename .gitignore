@@ -40,4 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-.vercel
+# clé de compte de service Firebase (accès admin complet — ne jamais commiter)
+# motif large pour couvrir toute variante de nom (ex: double extension .json.json
+# laissée par un navigateur qui re-suffixe un fichier déjà nommé "...json")
+*serviceAccountKey*

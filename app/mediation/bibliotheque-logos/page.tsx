@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { db, getFirebaseStorage } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, deleteDoc, doc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { TrashIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
@@ -19,14 +18,21 @@ export default function BibliothequeLogosGratuite() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [nomLogo, setNomNomLogo] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // 1. Charger la bibliothèque depuis Firestore. Chargement unique (pas de
   // temps réel) : cette bibliothèque de logos change rarement (upload manuel
   // par un membre du staff), une écoute permanente n'apporte rien et garde
   // une connexion ouverte inutilement sur chaque page ouverte.
   const fetchLogos = async () => {
-    const snap = await getDocs(collection(db, "logos_emargement"));
-    setLogos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    try {
+      setLoadError(null);
+      const snap = await getDocs(collection(db, "logos_emargement"));
+      setLogos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (error: any) {
+      console.error("Erreur de chargement des logos :", error);
+      setLoadError(error?.message || "Erreur inconnue");
+    }
   };
 
   useEffect(() => {
@@ -47,24 +53,28 @@ export default function BibliothequeLogosGratuite() {
     }
   };
 
-  // 2. Envoyer l'image vers Firebase Storage, puis n'enregistrer que son URL
-  // de téléchargement dans Firestore (au lieu du fichier entier en base64).
+  // 2. Encoder l'image en base64 et l'enregistrer directement dans le
+  // document Firestore. Ni Firebase Storage (nécessite le forfait Blaze) ni
+  // Vercel Blob (blocage de déploiement lié à l'identité Git de ce dépôt) ne
+  // sont utilisables sur ce projet ; le fichier reste limité à 1 Mo
+  // (cf. handleFileChange), donc le coût en taille de document Firestore
+  // reste négligeable.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFile || !nomLogo) return alert("Veuillez donner un nom et choisir une image.");
 
     setUploading(true);
     try {
-      const storage = await getFirebaseStorage();
-      const storagePath = `logos/${Date.now()}-${selectedFile.name}`;
-      const storageRef = ref(storage, storagePath);
-      await uploadBytes(storageRef, selectedFile);
-      const url = await getDownloadURL(storageRef);
+      const url = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(selectedFile);
+      });
 
       await addDoc(collection(db, "logos_emargement"), {
         nom: nomLogo,
         url,
-        storagePath,
         createdAt: new Date().toISOString()
       });
 
@@ -83,18 +93,11 @@ export default function BibliothequeLogosGratuite() {
     }
   };
 
-  // 3. Supprimer le fichier Storage (s'il existe) en plus du document
-  // Firestore. Les logos historiques encore en base64 n'ont pas de
-  // storagePath : on se contente alors de supprimer le document.
+  // 3. L'image vit directement dans le document Firestore (champ `url` en
+  // base64) : la supprimer ne demande rien de plus que supprimer le document.
   const handleDelete = async (logo: any) => {
     if (!confirm("Supprimer ce logo définitivement ?")) return;
     try {
-      if (logo.storagePath) {
-        const storage = await getFirebaseStorage();
-        await deleteObject(ref(storage, logo.storagePath)).catch((err) => {
-          console.error("Erreur suppression Storage :", err);
-        });
-      }
       await deleteDoc(doc(db, "logos_emargement", logo.id));
       await fetchLogos();
     } catch (error) {
@@ -117,7 +120,7 @@ export default function BibliothequeLogosGratuite() {
           </Link>
         </div>
 
-        {/* FORMULAIRE D'AJOUT (upload vers Firebase Storage) */}
+        {/* FORMULAIRE D'AJOUT (encodage base64, stocké dans Firestore) */}
         <div className="bg-white border border-[#404040]/10 rounded-3xl p-6 mb-10 shadow-sm">
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <div>
@@ -148,6 +151,12 @@ export default function BibliothequeLogosGratuite() {
             </button>
           </form>
         </div>
+
+        {loadError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl p-4 mb-6">
+            Erreur de chargement de la bibliothèque : {loadError}
+          </div>
+        )}
 
         {/* AFFICHAGE DE LA BIBLIOTHÈQUE POUR VÉRIFICATION */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
