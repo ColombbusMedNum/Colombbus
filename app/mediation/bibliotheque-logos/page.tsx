@@ -122,7 +122,7 @@ export default function BibliothequeLogosGratuite() {
       <div className="max-w-5xl mx-auto relative z-10">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-xl md:text-2xl font-bold uppercase tracking-tight text-[#005259]">
-            Bibliothèque <span className="text-[#EA601F]">Logos</span> <span className="text-xs text-[#005259] font-bold normal-case tracking-normal bg-[#005259]/10 border border-[#005259]/20 px-2 py-0.5 rounded-full">Gratuit</span>
+            Bibliothèque <span className="text-[#EA601F]">Logos</span> 
           </h1>
           <Link href="/mediation/rencontres-numeriques/emargement" className="text-xs bg-white border border-[#404040]/10 px-4 py-2 rounded-xl text-[#005259] font-bold uppercase tracking-wider hover:bg-[#005259] hover:text-white transition-all shadow-sm">
             ← Vers le Générateur
