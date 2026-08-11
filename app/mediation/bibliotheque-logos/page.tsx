@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, deleteDoc, doc } from "firebase/firestore";
-import { TrashIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
+import { TrashIcon, CloudArrowUpIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import PageGuard from "@/components/PageGuard";
@@ -19,6 +19,7 @@ export default function BibliothequeLogosGratuite() {
   const [nomLogo, setNomNomLogo] = useState("");
   const [uploading, setUploading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // 1. Charger la bibliothèque depuis Firestore. Chargement unique (pas de
   // temps réel) : cette bibliothèque de logos change rarement (upload manuel
@@ -84,7 +85,8 @@ export default function BibliothequeLogosGratuite() {
       if (fileInput) fileInput.value = "";
 
       await fetchLogos();
-      alert("Logo enregistré avec succès dans la bibliothèque !");
+      setSuccessMessage("Logo enregistré avec succès dans la bibliothèque !");
+      setTimeout(() => setSuccessMessage(null), 4000);
     } catch (error) {
       console.error("Erreur d'enregistrement :", error);
       alert("Erreur lors de l'enregistrement.");
@@ -109,6 +111,13 @@ export default function BibliothequeLogosGratuite() {
     <PageGuard pageId="page_access_bibliotheque_logos">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
+
+      {successMessage && (
+        <div className="fixed top-6 right-6 z-50 flex items-center gap-2 bg-[#005259] text-white text-xs font-bold px-4 py-3 rounded-xl shadow-lg animate-in fade-in slide-in-from-top-2">
+          <CheckCircleIcon className="w-5 h-5 text-[#A9E0C9]" />
+          {successMessage}
+        </div>
+      )}
 
       <div className="max-w-5xl mx-auto relative z-10">
         <div className="flex justify-between items-center mb-8">

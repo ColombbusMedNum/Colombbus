@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { auth, db, firebaseConfig } from "@/lib/firebase";
-import { collection, onSnapshot, doc, updateDoc, setDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, updateDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { Quicksand } from "next/font/google";
 import { 
   UserPlusIcon, 
@@ -23,7 +23,8 @@ import {
   ChevronDownIcon,
   CalendarDaysIcon,
   ShieldCheckIcon,
-  AcademicCapIcon
+  AcademicCapIcon,
+  KeyIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import PageGuard from "@/components/PageGuard";
@@ -297,6 +298,40 @@ export default function GestionEquipe() {
       await updateDoc(doc(db, "liste_mediateurs", m.id), { actif: !m.actif });
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  // Pour une fiche créée avant l'automatisation ci-dessus (handleSubmit),
+  // encore indexée par un ID Firestore aléatoire au lieu de l'UID Firebase
+  // Auth : crée le compte manquant puis migre la fiche vers l'UID, avec la
+  // même mécanique d'app Firebase secondaire (ne remplace pas la session de
+  // l'admin en cours).
+  const handleCreateAccess = async (m: any) => {
+    if (!m.email) {
+      alert("Cette fiche n'a pas d'adresse email, impossible de créer un accès.");
+      return;
+    }
+    if (!confirm(`Créer l'accès de connexion pour ${m.prenom} ${m.nom} (${m.email}) ?`)) return;
+
+    const secondaryApp = initializeApp(firebaseConfig, `secondary-${Date.now()}`);
+    const secondaryAuth = getAuth(secondaryApp);
+    try {
+      const tempPassword = crypto.randomUUID();
+      const credential = await createUserWithEmailAndPassword(secondaryAuth, m.email, tempPassword);
+      const { id, ...data } = m;
+      await setDoc(doc(db, "liste_mediateurs", credential.user.uid), data);
+      await deleteDoc(doc(db, "liste_mediateurs", m.id));
+      await sendPasswordResetEmail(auth, m.email);
+      alert("Compte créé et e-mail de configuration envoyé avec succès.");
+    } catch (err: any) {
+      console.error(err);
+      if (err.code === "auth/email-already-in-use") {
+        alert("Un compte existe déjà avec cette adresse email.");
+      } else {
+        alert("Erreur lors de la création de l'accès.");
+      }
+    } finally {
+      await deleteApp(secondaryApp);
     }
   };
 
@@ -589,6 +624,7 @@ export default function GestionEquipe() {
                         )}
                       </div>
                       <div className="flex gap-1.5">
+                        <button onClick={() => handleCreateAccess(m)} title="Créer l'accès de connexion" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#EA601F] hover:bg-[#EA601F]/10 transition-colors cursor-pointer"><KeyIcon className="w-4 h-4" /></button>
                         <button onClick={() => openModal(m)} title="Modifier" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#005259] hover:bg-[#005259]/10 transition-colors cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
                         <button onClick={() => toggleArchive(m)} title="Archiver" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#EF736A] hover:bg-[#EF736A]/10 transition-colors cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
                       </div>
@@ -631,6 +667,7 @@ export default function GestionEquipe() {
                             </div>
                           </td>
                           <td className="px-6 py-4 text-right">
+                            <button onClick={() => handleCreateAccess(m)} title="Créer l'accès de connexion" className="p-1.5 text-[#404040]/60 hover:text-[#EA601F] mr-1 cursor-pointer"><KeyIcon className="w-4 h-4" /></button>
                             <button onClick={() => openModal(m)} className="p-1.5 text-[#404040]/60 hover:text-[#005259] mr-1 cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
                             <button onClick={() => toggleArchive(m)} className="p-1.5 text-[#404040]/60 hover:text-[#EF736A] cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
                           </td>
