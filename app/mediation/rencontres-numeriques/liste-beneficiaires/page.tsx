@@ -18,7 +18,6 @@ import {
   ArrowTopRightOnSquareIcon,
   UserGroupIcon,
   CalendarDaysIcon,
-  MapPinIcon,
   NoSymbolIcon
 } from "@heroicons/react/24/outline";
 
@@ -266,16 +265,8 @@ export default function ListeBeneficiaires() {
               <span>Agenda Suresnes</span>
             </Link>
 
-            <Link 
-              href="/mediation/localisations" 
-              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
-            >
-              <MapPinIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Ajouter un lieu</span>
-            </Link>
-
-            <Link 
-              href="/" 
+            <Link
+              href="/"
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >
               <HomeIcon className="w-4 h-4 text-[#EA601F]" />

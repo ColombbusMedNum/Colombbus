@@ -22,7 +22,8 @@ import {
   ArrowLeftStartOnRectangleIcon,
   LockClosedIcon,
   WrenchScrewdriverIcon,
-  MapPinIcon
+  MapPinIcon,
+  BuildingOffice2Icon
 } from "@heroicons/react/24/outline";
 
 const quicksand = Quicksand({
@@ -326,6 +327,19 @@ export default function HomePage() {
                   </h2>
                   <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
                     Saisir les bilans simplifiés d'ateliers
+                  </p>
+                </Link>
+
+                {/* AJOUTER UN LIEU */}
+                <Link href="/mediation/localisations" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
+                    <BuildingOffice2Icon className="w-4 h-4" />
+                  </div>
+                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
+                    Ajouter un lieu
+                  </h2>
+                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
+                    Gérer les adresses et localisations prédéfinies
                   </p>
                 </Link>
 
