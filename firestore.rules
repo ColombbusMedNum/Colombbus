@@ -25,7 +25,7 @@ service cloud.firestore {
     // ce garde-fou, exists() ci-dessous continuerait de renvoyer vrai pour
     // lui indéfiniment. `actif` absent (anciennes fiches) compte comme actif.
     function estActif() {
-      return myProfile().data.actif != false;
+      return myProfile().data.get('actif', true) != false;
     }
 
     // "Staff" = a un profil actif dans liste_mediateurs, quel que soit le rôle.
