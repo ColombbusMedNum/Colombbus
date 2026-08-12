@@ -68,14 +68,13 @@ service cloud.firestore {
     match /utilisateurs/{docId} {
       allow read, write: if isStaff();
     }
-    // Sous-collections de chaque bénéficiaire (rendez-vous/diagnostics et
-    // fiches bilan technique). Sans ces règles explicites, le match ci-dessus
-    // ne couvre pas /utilisateurs/{id}/visites/... (un `match` ne descend pas
-    // automatiquement dans les sous-collections), et les pages qui lisent ou
-    // écrivent dedans (liste-beneficiaires, diagnostic, suresnes,
-    // rendez-vous-par-lieu, fiches-bilans, bilan_tech) se retrouveraient
-    // bloquées par le refus par défaut.
-    match /utilisateurs/{docId}/visites/{visiteId} {
+    // Sous-collection "visites" de chaque bénéficiaire (rendez-vous,
+    // diagnostics...). Le joker récursif {path=**} est nécessaire — pas
+    // seulement /utilisateurs/{docId}/visites/{visiteId} — car plusieurs
+    // pages (suresnes, rendez-vous-par-lieu, fiches-bilans) interrogent
+    // "visites" via collectionGroup() plutôt qu'un accès direct, et Firestore
+    // n'autorise une requête collectionGroup que via cette syntaxe.
+    match /{path=**}/visites/{visiteId} {
       allow read, write: if isStaff();
     }
     match /utilisateurs/{docId}/fiches_bilan/{ficheId} {
