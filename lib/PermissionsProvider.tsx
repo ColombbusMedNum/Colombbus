@@ -56,10 +56,12 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       try {
         let roleRaw: string | null = null;
         let overridesRaw: string[] = [];
+        let actif = true;
         const uidSnap = await getDoc(doc(db, "liste_mediateurs", firebaseUser.uid));
         if (uidSnap.exists()) {
           roleRaw = uidSnap.data().role || null;
           overridesRaw = uidSnap.data().permissionsOverrides || [];
+          actif = uidSnap.data().actif !== false;
         } else if (firebaseUser.email) {
           // Repli transitoire : tant que scripts/migrate-mediateurs-to-uid.js
           // n'a pas été exécuté, les comptes existants sont encore indexés par
@@ -70,10 +72,14 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
           if (!legacySnap.empty) {
             roleRaw = legacySnap.docs[0].data().role || null;
             overridesRaw = legacySnap.docs[0].data().permissionsOverrides || [];
+            actif = legacySnap.docs[0].data().actif !== false;
           }
         }
-        setRole(normalizeRole(roleRaw));
-        setOverrides(overridesRaw);
+        // Un membre archivé (actif: false) n'a plus aucun droit, quel que
+        // soit son rôle enregistré — voir firestore.rules pour la barrière
+        // réelle côté serveur (isStaff()/isAdmin()).
+        setRole(actif ? normalizeRole(roleRaw) : null);
+        setOverrides(actif ? overridesRaw : []);
       } catch (err) {
         console.error("Impossible de lire le rôle de l'utilisateur :", err);
         setRole(normalizeRole(null));

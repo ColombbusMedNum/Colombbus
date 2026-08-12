@@ -20,9 +20,17 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/liste_mediateurs/$(request.auth.uid));
     }
 
-    // "Staff" = a un profil dans liste_mediateurs, quel que soit le rôle.
+    // Un membre archivé (equipe.tsx → toggleArchive, actif: false) garde son
+    // compte Firebase Auth mais ne doit plus accéder à aucune donnée — sans
+    // ce garde-fou, exists() ci-dessous continuerait de renvoyer vrai pour
+    // lui indéfiniment. `actif` absent (anciennes fiches) compte comme actif.
+    function estActif() {
+      return myProfile().data.actif != false;
+    }
+
+    // "Staff" = a un profil actif dans liste_mediateurs, quel que soit le rôle.
     function isStaff() {
-      return isSignedIn() && exists(/databases/$(database)/documents/liste_mediateurs/$(request.auth.uid));
+      return isSignedIn() && exists(/databases/$(database)/documents/liste_mediateurs/$(request.auth.uid)) && estActif();
     }
 
     function myRole() {
@@ -30,7 +38,7 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/liste_mediateurs/$(request.auth.uid)) && myRole() == "admin";
+      return isSignedIn() && exists(/databases/$(database)/documents/liste_mediateurs/$(request.auth.uid)) && estActif() && myRole() == "admin";
     }
 
     // Profil et rôle de chaque membre du staff.

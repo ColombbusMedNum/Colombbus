@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Image from "next/image";
 import { Quicksand } from "next/font/google";
 import { auth, db } from "../../lib/firebase";
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
+import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from "firebase/auth";
 import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
 import { normalizeRole } from "../../lib/roles";
 import { useRouter } from "next/navigation";
@@ -46,9 +46,11 @@ export default function LoginPage() {
       // Le document liste_mediateurs doit être identifié par l'UID Firebase Auth
       // (requis par les Security Rules pour vérifier le rôle de l'appelant).
       let roleRaw: string | null = null;
+      let actif = true;
       const uidDoc = await getDoc(doc(db, "liste_mediateurs", user.uid));
       if (uidDoc.exists()) {
         roleRaw = uidDoc.data().role || null;
+        actif = uidDoc.data().actif !== false;
       } else {
         // Repli transitoire : tant que le script de migration (voir
         // scripts/migrate-mediateurs-to-uid.js) n'a pas été exécuté, les
@@ -57,7 +59,15 @@ export default function LoginPage() {
         const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
           roleRaw = querySnapshot.docs[0].data().role || null;
+          actif = querySnapshot.docs[0].data().actif !== false;
         }
+      }
+
+      if (!actif) {
+        await signOut(auth);
+        setError("Ce compte a été désactivé. Contactez un administrateur si vous pensez qu'il s'agit d'une erreur.");
+        setLoading(false);
+        return;
       }
 
       const role = normalizeRole(roleRaw);
