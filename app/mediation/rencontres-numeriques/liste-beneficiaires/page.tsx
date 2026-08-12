@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 import { Quicksand } from "next/font/google";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import PageGuard from "@/components/PageGuard";
+import { useToast } from "@/components/ToastProvider";
+import { useConfirm } from "@/components/ConfirmProvider";
 import { formatPhoneNumber } from "@/lib/formatPhone";
 import { 
   MagnifyingGlassIcon, 
@@ -27,6 +29,8 @@ const quicksand = Quicksand({
 });
 
 export default function ListeBeneficiaires() {
+  const { showToast } = useToast();
+  const confirm = useConfirm();
   const [beneficiaires, setBeneficiaires] = useState<any[]>([]);
   const [usagersDuJour, setUsagersDuJour] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -137,17 +141,17 @@ export default function ListeBeneficiaires() {
       ? "Êtes-vous sûr de vouloir blacklister ce bénéficiaire ?" 
       : "Réactiver ce bénéficiaire ?";
       
-    if (window.confirm(message)) {
+    if (await confirm(message)) {
       try {
         const userRef = doc(db, "utilisateurs", id);
         await updateDoc(userRef, {
           Statut_Blacklist: nouveauStatut
         });
-        
+
         setBeneficiaires(prev => prev.map(b => b.id === id ? { ...b, Statut_Blacklist: nouveauStatut } : b));
       } catch (error) {
         console.error("Erreur lors de la modification de la blacklist :", error);
-        alert("Une erreur est survenue.");
+        showToast("Une erreur est survenue.", "error");
       }
     }
   };

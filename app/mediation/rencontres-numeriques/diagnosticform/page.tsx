@@ -17,6 +17,7 @@ import {
   XMarkIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
+import { useToast } from "@/components/ToastProvider";
 
 // Initialisation de la police Quicksand
 const quicksand = Quicksand({
@@ -68,6 +69,7 @@ const QUESTIONS_COLLECTE_TECH: QuestionCollecte[] = [
 ];
 
 function FormulaireDiagnosticContent() {
+  const { showToast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams(); 
   const idUsager = searchParams.get("id") as string; 
@@ -140,7 +142,7 @@ function FormulaireDiagnosticContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!idUsager) return alert("Erreur : Aucun bénéficiaire sélectionné.");
+    if (!idUsager) return showToast("Erreur : Aucun bénéficiaire sélectionné.", "error");
     setLoading(true);
 
     try {
@@ -227,11 +229,11 @@ function FormulaireDiagnosticContent() {
 
       await addDoc(collection(db, "utilisateurs", idUsager, "visites"), payload);
 
-      alert("Formulaire enregistré avec succès !");
-      router.push(`/mediation/rencontres-numeriques/liste-beneficiaires/${idUsager}`); 
+      showToast("Formulaire enregistré avec succès !");
+      router.push(`/mediation/rencontres-numeriques/liste-beneficiaires/${idUsager}`);
     } catch (error) {
       console.error("Erreur lors de la sauvegarde :", error);
-      alert("Une erreur est survenue lors de l'enregistrement.");
+      showToast("Une erreur est survenue lors de l'enregistrement.", "error");
     } finally {
       setLoading(false);
     }

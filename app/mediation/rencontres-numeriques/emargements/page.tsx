@@ -13,6 +13,7 @@ import {
   TrashIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -20,6 +21,7 @@ const quicksand = Quicksand({
 });
 
 export default function EmargementsPage() {
+  const confirm = useConfirm();
   const [sites, setSites] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [status, setStatus] = useState("");
@@ -66,7 +68,7 @@ export default function EmargementsPage() {
 
   // Suppression d'un lieu au besoin
   const handleDeleteSite = async (id: string) => {
-    if (confirm("Voulez-vous vraiment supprimer ce lieu d'émargement ?")) {
+    if (await confirm("Voulez-vous vraiment supprimer ce lieu d'émargement ?")) {
       try {
         await deleteDoc(doc(db, "lieux_emargement", id));
       } catch (error) {

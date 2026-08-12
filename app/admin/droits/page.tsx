@@ -7,6 +7,7 @@ import { ROLES } from "../../../lib/roles";
 import { usePermissions } from "../../../lib/PermissionsProvider";
 import { useMediateurs } from "../../../lib/MediateursProvider";
 import PageGuard from "../../../components/PageGuard";
+import { useToast } from "../../../components/ToastProvider";
 import { Quicksand } from "next/font/google";
 import {
   ShieldCheckIcon,
@@ -29,6 +30,7 @@ const quicksand = Quicksand({
 export default function GestionDroitsPage() {
   const { role: userRole, loading } = usePermissions();
   const { mediateurs: mediateursBruts } = useMediateurs();
+  const { showToast } = useToast();
 
   const mediateurs = React.useMemo(() => {
     return mediateursBruts.filter(
@@ -38,14 +40,14 @@ export default function GestionDroitsPage() {
 
   const handleChangeRole = async (userId: string, newRole: string) => {
     if (userRole !== "admin") {
-      alert("⛔ Action refusée : Vous devez être administrateur.");
+      showToast("⛔ Action refusée : Vous devez être administrateur.", "error");
       return;
     }
     try {
       await updateDoc(doc(db, "liste_mediateurs", userId), { role: newRole });
     } catch (err) {
       console.error("Erreur de mise à jour du rôle :", err);
-      alert("La mise à jour a échoué (droits insuffisants ou erreur réseau).");
+      showToast("La mise à jour a échoué (droits insuffisants ou erreur réseau).", "error");
     }
   };
 

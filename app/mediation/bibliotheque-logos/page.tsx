@@ -3,10 +3,12 @@
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, deleteDoc, doc } from "firebase/firestore";
-import { TrashIcon, CloudArrowUpIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
+import { TrashIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import PageGuard from "@/components/PageGuard";
+import { useToast } from "@/components/ToastProvider";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -19,7 +21,8 @@ export default function BibliothequeLogosGratuite() {
   const [nomLogo, setNomNomLogo] = useState("");
   const [uploading, setUploading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const { showToast } = useToast();
+  const confirm = useConfirm();
 
   // 1. Charger la bibliothèque depuis Firestore. Chargement unique (pas de
   // temps réel) : cette bibliothèque de logos change rarement (upload manuel
@@ -45,7 +48,7 @@ export default function BibliothequeLogosGratuite() {
       const file = e.target.files[0];
 
       if (file.size > 1024 * 1024) {
-        alert("Ce fichier est trop lourd. Merci de choisir un logo de moins de 1 Mo.");
+        showToast("Ce fichier est trop lourd. Merci de choisir un logo de moins de 1 Mo.", "error");
         e.target.value = "";
         return;
       }
@@ -62,7 +65,7 @@ export default function BibliothequeLogosGratuite() {
   // reste négligeable.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedFile || !nomLogo) return alert("Veuillez donner un nom et choisir une image.");
+    if (!selectedFile || !nomLogo) return showToast("Veuillez donner un nom et choisir une image.", "error");
 
     setUploading(true);
     try {
@@ -85,11 +88,10 @@ export default function BibliothequeLogosGratuite() {
       if (fileInput) fileInput.value = "";
 
       await fetchLogos();
-      setSuccessMessage("Logo enregistré avec succès dans la bibliothèque !");
-      setTimeout(() => setSuccessMessage(null), 4000);
+      showToast("Logo enregistré avec succès dans la bibliothèque !");
     } catch (error) {
       console.error("Erreur d'enregistrement :", error);
-      alert("Erreur lors de l'enregistrement.");
+      showToast("Erreur lors de l'enregistrement.", "error");
     } finally {
       setUploading(false);
     }
@@ -98,12 +100,13 @@ export default function BibliothequeLogosGratuite() {
   // 3. L'image vit directement dans le document Firestore (champ `url` en
   // base64) : la supprimer ne demande rien de plus que supprimer le document.
   const handleDelete = async (logo: any) => {
-    if (!confirm("Supprimer ce logo définitivement ?")) return;
+    if (!(await confirm("Supprimer ce logo définitivement ?"))) return;
     try {
       await deleteDoc(doc(db, "logos_emargement", logo.id));
       await fetchLogos();
     } catch (error) {
       console.error("Erreur lors de la suppression :", error);
+      showToast("Erreur lors de la suppression.", "error");
     }
   };
 
@@ -111,13 +114,6 @@ export default function BibliothequeLogosGratuite() {
     <PageGuard pageId="page_access_bibliotheque_logos">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
-
-      {successMessage && (
-        <div className="fixed top-6 right-6 z-50 flex items-center gap-2 bg-[#005259] text-white text-xs font-bold px-4 py-3 rounded-xl shadow-lg animate-in fade-in slide-in-from-top-2">
-          <CheckCircleIcon className="w-5 h-5 text-[#A9E0C9]" />
-          {successMessage}
-        </div>
-      )}
 
       <div className="max-w-5xl mx-auto relative z-10">
         <div className="flex justify-between items-center mb-8">

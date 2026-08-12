@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { PermissionsProvider } from "../lib/PermissionsProvider";
 import { MediateursProvider } from "../lib/MediateursProvider";
+import { ToastProvider } from "../components/ToastProvider";
+import { ConfirmProvider } from "../components/ConfirmProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -31,7 +33,11 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <PermissionsProvider>
-          <MediateursProvider>{children}</MediateursProvider>
+          <MediateursProvider>
+            <ToastProvider>
+              <ConfirmProvider>{children}</ConfirmProvider>
+            </ToastProvider>
+          </MediateursProvider>
         </PermissionsProvider>
       </body>
     </html>

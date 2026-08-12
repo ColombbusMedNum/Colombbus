@@ -28,6 +28,8 @@ import {
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import PageGuard from "@/components/PageGuard";
+import { useToast } from "@/components/ToastProvider";
+import { useConfirm } from "@/components/ConfirmProvider";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import { ROLES, normalizeRole } from "@/lib/roles";
 import { formatPhoneNumber } from "@/lib/formatPhone";
@@ -71,6 +73,8 @@ const getRoleLabel = (role: string) => {
 };
 
 export default function GestionEquipe() {
+  const { showToast } = useToast();
+  const confirm = useConfirm();
   const { mediateurs: mediateursBruts } = useMediateurs();
   const mediateurs = React.useMemo(() => {
     return mediateursBruts.filter(
@@ -158,7 +162,7 @@ export default function GestionEquipe() {
     if (!nomNettoye) return;
     
     if (listeTerritoires.some(t => t.toLowerCase() === nomNettoye.toLowerCase())) {
-      alert("Ce territoire existe déjà !");
+      showToast("Ce territoire existe déjà !", "error");
       return;
     }
 
@@ -175,10 +179,10 @@ export default function GestionEquipe() {
 
   const handleSupprimerTerritoire = async (nom: string) => {
     if (nom === "Paris" || nom === "Massy") {
-      alert("Les territoires pivots 'Paris' et 'Massy' ne peuvent pas être supprimés.");
+      showToast("Les territoires pivots 'Paris' et 'Massy' ne peuvent pas être supprimés.", "error");
       return;
     }
-    if (!confirm(`Supprimer le territoire "${nom}" ?`)) return;
+    if (!(await confirm(`Supprimer le territoire "${nom}" ?`))) return;
 
     const nouvelleListe = listeTerritoires.filter(t => t !== nom).sort();
     setListeTerritoires(nouvelleListe);
@@ -251,7 +255,7 @@ export default function GestionEquipe() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.prenom || !formData.nom || !formData.email) {
-      alert("Le prénom, le nom et l'adresse email sont obligatoires.");
+      showToast("Le prénom, le nom et l'adresse email sont obligatoires.", "error");
       return;
     }
 
@@ -276,7 +280,7 @@ export default function GestionEquipe() {
       closeModal();
     } catch (err: any) {
       console.error(err);
-      alert("Une erreur est survenue lors de la création du membre.");
+      showToast("Une erreur est survenue lors de la création du membre.", "error");
     }
   };
 
@@ -295,10 +299,10 @@ export default function GestionEquipe() {
   // l'admin en cours).
   const handleCreateAccess = async (m: any) => {
     if (!m.email) {
-      alert("Cette fiche n'a pas d'adresse email, impossible de créer un accès.");
+      showToast("Cette fiche n'a pas d'adresse email, impossible de créer un accès.", "error");
       return;
     }
-    if (!confirm(`Créer l'accès de connexion pour ${m.prenom} ${m.nom} (${m.email}) ?`)) return;
+    if (!(await confirm(`Créer l'accès de connexion pour ${m.prenom} ${m.nom} (${m.email}) ?`))) return;
 
     const secondaryApp = initializeApp(firebaseConfig, `secondary-${Date.now()}`);
     const secondaryAuth = getAuth(secondaryApp);
@@ -309,13 +313,13 @@ export default function GestionEquipe() {
       await setDoc(doc(db, "liste_mediateurs", credential.user.uid), data);
       await deleteDoc(doc(db, "liste_mediateurs", m.id));
       await sendPasswordResetEmail(auth, m.email);
-      alert("Compte créé et e-mail de configuration envoyé avec succès.");
+      showToast("Compte créé et e-mail de configuration envoyé avec succès.");
     } catch (err: any) {
       console.error(err);
       if (err.code === "auth/email-already-in-use") {
-        alert("Un compte existe déjà avec cette adresse email.");
+        showToast("Un compte existe déjà avec cette adresse email.", "error");
       } else {
-        alert("Erreur lors de la création de l'accès.");
+        showToast("Erreur lors de la création de l'accès.", "error");
       }
     } finally {
       await deleteApp(secondaryApp);

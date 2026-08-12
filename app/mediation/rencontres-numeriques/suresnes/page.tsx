@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { db } from "@/lib/firebase";
 import PageGuard from "@/components/PageGuard";
+import { useToast } from "@/components/ToastProvider";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import {
   collection, onSnapshot, query, orderBy, updateDoc, doc, addDoc, collectionGroup, serverTimestamp, getDocs, where
@@ -736,6 +737,7 @@ export default function PlanningSuresnes() {
 
 // --- COMPO INPUT RECHERCHE AVEC ALERTE DE BLACKLIST INTERNE ---
 function UsagerInput({ docId, initialValue, beneficiairesListe }: { docId: string; initialValue: string; beneficiairesListe: Beneficiaire[] }) {
+  const { showToast } = useToast();
   const [value, setValue] = useState(initialValue);
   const [suggestions, setSuggestions] = useState<Beneficiaire[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -776,7 +778,7 @@ function UsagerInput({ docId, initialValue, beneficiairesListe }: { docId: strin
 
   const handleSelect = async (b: Beneficiaire) => {
     if (b.statutBlacklist === "Oui") {
-      alert(`🚫 IMPOSSIBLE : Le bénéficiaire "${b.prenom} ${b.nom.toUpperCase()}" est actuellement BLACKLISTÉ.\nIl ne peut pas être ajouté au planning.`);
+      showToast(`🚫 IMPOSSIBLE : Le bénéficiaire "${b.prenom} ${b.nom.toUpperCase()}" est actuellement BLACKLISTÉ. Il ne peut pas être ajouté au planning.`, "error");
       setValue("");
       setShowDropdown(false);
       return;

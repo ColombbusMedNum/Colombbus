@@ -36,6 +36,8 @@ import {
   HomeIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
+import { useToast } from "@/components/ToastProvider";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 // Police Quicksand pour l'ensemble de la page
 const quicksand = Quicksand({
@@ -75,6 +77,8 @@ const DEFAULT_COMPETENCES: CompetencePix[] = [
 ];
 
 function RapportDiagnosticPixContent() {
+  const { showToast } = useToast();
+  const confirm = useConfirm();
   const searchParams = useSearchParams();
   const userIdFromUrl = searchParams.get("id");
 
@@ -227,7 +231,7 @@ function RapportDiagnosticPixContent() {
 
   const handleSaveFiche = async () => {
     if (!selectedBeneficiaireId) {
-      alert("Veuillez d'abord sélectionner un bénéficiaire.");
+      showToast("Veuillez d'abord sélectionner un bénéficiaire.", "error");
       return;
     }
 
@@ -276,7 +280,7 @@ function RapportDiagnosticPixContent() {
   };
 
   const handleSupprimerFiche = async (ficheId: string) => {
-    if (!confirm("Voulez-vous vraiment supprimer cette fiche de l'historique ?")) return;
+    if (!(await confirm("Voulez-vous vraiment supprimer cette fiche de l'historique ?"))) return;
 
     const localKey = `fiches_bilan_${selectedBeneficiaireId}`;
     const localExistants = JSON.parse(localStorage.getItem(localKey) || "[]");

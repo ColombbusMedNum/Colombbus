@@ -17,6 +17,8 @@ import {
   XMarkIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
+import { useToast } from "@/components/ToastProvider";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -47,6 +49,8 @@ interface ActionCollective {
 }
 
 export default function ActionsCollectivesPage() {
+  const { showToast } = useToast();
+  const confirm = useConfirm();
   const [actions, setActions] = useState<ActionCollective[]>([]);
   const [listeLieuxExistants, setListeLieuxExistants] = useState<string[]>([]);
   const [statsParLieu, setStatsParLieu] = useState<Record<string, LieuStats>>({});
@@ -183,7 +187,7 @@ export default function ActionsCollectivesPage() {
   // Sauvegarder les modifications d'une ligne
   const handleSaveEdit = async (id: string) => {
     if (!editThematique.trim() || !editLieu.trim()) {
-      alert("La thématique et le lieu ne peuvent pas être vides.");
+      showToast("La thématique et le lieu ne peuvent pas être vides.", "error");
       return;
     }
     try {
@@ -198,16 +202,17 @@ export default function ActionsCollectivesPage() {
       setEditingId(null);
     } catch (error) {
       console.error("Erreur de modification :", error);
-      alert("Une erreur est survenue lors de la modification.");
+      showToast("Une erreur est survenue lors de la modification.", "error");
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm("Supprimer cette action collective ?")) {
+    if (await confirm("Supprimer cette action collective ?")) {
       try {
         await deleteDoc(doc(db, "actions_collectives", id));
       } catch (error) {
         console.error(error);
+        showToast("Erreur lors de la suppression.", "error");
       }
     }
   };

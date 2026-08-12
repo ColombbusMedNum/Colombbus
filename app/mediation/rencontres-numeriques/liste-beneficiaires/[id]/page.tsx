@@ -39,6 +39,8 @@ import {
   NoSymbolIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
+import { useToast } from "@/components/ToastProvider";
+import { useConfirm } from "@/components/ConfirmProvider";
 import { formatPhoneNumber } from "@/lib/formatPhone";
 import type { Mediateur } from "@/lib/types";
 
@@ -94,6 +96,8 @@ interface LieuGlobal {
 }
 
 export default function FicheBeneficiaire() {
+  const { showToast } = useToast();
+  const confirm = useConfirm();
   const { id } = useParams();
   const userId = id as string;
   const router = useRouter();
@@ -324,7 +328,7 @@ export default function FicheBeneficiaire() {
 
   const handleSaveProfil = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profilFormData.Nom.trim() || !profilFormData.Prénom.trim()) return alert("Nom/Prénom requis");
+    if (!profilFormData.Nom.trim() || !profilFormData.Prénom.trim()) return showToast("Nom/Prénom requis", "error");
     setModalStatus("Enregistrement en cours...");
     let ageCalcule = null;
     if (profilFormData.Date_Naissance) {
@@ -351,9 +355,9 @@ export default function FicheBeneficiaire() {
 
   const handleAddRDV = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userExists) return alert("Créez d'abord le profil.");
+    if (!userExists) return showToast("Créez d'abord le profil.", "error");
 
-    if (!formData.lieu || !formData.mediateur) return alert("Champs obligatoires manquants.");
+    if (!formData.lieu || !formData.mediateur) return showToast("Champs obligatoires manquants.", "error");
 
     try {
       await addDoc(collection(db, "utilisateurs", userId, "visites"), {
@@ -381,7 +385,7 @@ export default function FicheBeneficiaire() {
         const nouveauTotal = visitesMemeThematique.length + 1;
 
         if (nouveauTotal % 5 === 0) {
-          const reponse = window.confirm(
+          const reponse = await confirm(
             `🚨 Alerte : Ce bénéficiaire vient d'atteindre ${nouveauTotal} rendez-vous sur la thématique "${formData.thematique}".\n\nSouhaitez-vous le rediriger immédiatement vers le formulaire pour passer un nouveau diagnostic ?`
           );
           if (reponse) {
@@ -416,11 +420,12 @@ export default function FicheBeneficiaire() {
   };
 
   const handleDeleteRDV = async (rdvId: string) => {
-    if (window.confirm("Êtes-vous sûr de vouloir supprimer définitivement ce rendez-vous ?")) {
+    if (await confirm("Êtes-vous sûr de vouloir supprimer définitivement ce rendez-vous ?")) {
       try {
         await deleteDoc(doc(db, "utilisateurs", userId, "visites", rdvId));
       } catch (error) {
         console.error("Erreur lors de la suppression :", error);
+        showToast("Erreur lors de la suppression.", "error");
       }
     }
   };

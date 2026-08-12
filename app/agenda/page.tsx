@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { db } from "../../lib/firebase";
 import PageGuard from "../../components/PageGuard";
+import { useToast } from "../../components/ToastProvider";
 import { usePermissions } from "../../lib/PermissionsProvider";
 import { useMediateurs } from "../../lib/MediateursProvider";
 import { 
@@ -80,6 +81,7 @@ function getWeekIdentifier(date: Date) {
 }
 
 export default function PlanningExpertMix() {
+  const { showToast } = useToast();
   const [actions, setActions] = useState<ActionPlanning[]>([]);
   const { mediateurs: mediateursBruts } = useMediateurs();
   const [activitesTypes, setActivitesTypes] = useState<ActiviteType[]>([]);
@@ -409,7 +411,7 @@ export default function PlanningExpertMix() {
     const hasUsagers = snapSuresnes.docs.some(d => d.data().usager && d.data().usager.trim() !== "");
 
     if (hasUsagers && !isSuresnesAction) {
-      alert(`⚠️ IMPOSSIBLE DE SUPPRIMER/DÉPLACER : ${prenom} ${nom} a des usagers inscrits à Suresnes.`);
+      showToast(`⚠️ IMPOSSIBLE DE SUPPRIMER/DÉPLACER : ${prenom} ${nom} a des usagers inscrits à Suresnes.`, "error");
       return;
     }
 
@@ -462,7 +464,7 @@ export default function PlanningExpertMix() {
   const handleCaseClick = async (mediatId: string, prenom: string, nom: string, moment: string, dateStr: string) => {
     if (!canCreateSlot) return;
     if (estSemaineValidee) {
-      alert("🔒 Semaine validée et verrouillée.");
+      showToast("🔒 Semaine validée et verrouillée.", "error");
       return;
     }
 
@@ -541,7 +543,7 @@ export default function PlanningExpertMix() {
   const onRequestDeleteAction = (id: string) => {
     if (!canDeleteSlot) return;
     if (estSemaineValidee) {
-      alert("🔒 Semaine verrouillée.");
+      showToast("🔒 Semaine verrouillée.", "error");
       return;
     }
     const actionDoc = actions.find(a => a.id === id);
@@ -573,7 +575,7 @@ export default function PlanningExpertMix() {
     });
 
     if (docsDuMediateur.some(d => d.data().usager && d.data().usager.trim() !== "")) {
-      alert("⚠️ Suppression impossible : Des usagers sont inscrits à Suresnes.");
+      showToast("⚠️ Suppression impossible : Des usagers sont inscrits à Suresnes.", "error");
       setDeleteConfirmModalData(null);
       return; 
     }

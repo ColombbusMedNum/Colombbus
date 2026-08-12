@@ -8,6 +8,8 @@ import { collection, doc, onSnapshot, setDoc, writeBatch } from "firebase/firest
 import { ROLES } from "@/lib/roles";
 import { PAGES_CATALOG, DEFAULT_PERMISSIONS, ALL_ACTION_IDS, ActionItem, resolvePermission } from "@/lib/permissionsCatalog";
 import PageGuard from "@/components/PageGuard";
+import { useToast } from "@/components/ToastProvider";
+import { useConfirm } from "@/components/ConfirmProvider";
 import {
   ShieldCheckIcon,
   ArrowLeftIcon,
@@ -56,6 +58,8 @@ function pageAccessRow(pageId: string): ActionItem {
 }
 
 export default function AnalyseDroitsPage() {
+  const { showToast } = useToast();
+  const confirm = useConfirm();
   const [matrix, setMatrix] = useState<Record<string, Record<string, boolean>>>({});
   const [matrixLoaded, setMatrixLoaded] = useState(false);
   const [search, setSearch] = useState("");
@@ -99,12 +103,12 @@ export default function AnalyseDroitsPage() {
       setTimeout(() => setSaveStatus(""), 2500);
     } catch (err) {
       console.error("Erreur lors de la mise à jour du droit :", err);
-      alert("La mise à jour a échoué (droits insuffisants ou erreur réseau).");
+      showToast("La mise à jour a échoué (droits insuffisants ou erreur réseau).", "error");
     }
   };
 
   const handleResetDefaults = async () => {
-    if (window.confirm("Voulez-vous réinitialiser tous les droits aux valeurs recommandées ?")) {
+    if (await confirm("Voulez-vous réinitialiser tous les droits aux valeurs recommandées ?")) {
       await writeMatrixToFirestore(DEFAULT_PERMISSIONS);
     }
   };
@@ -139,13 +143,13 @@ export default function AnalyseDroitsPage() {
             });
           });
           await writeMatrixToFirestore(byAction);
-          alert("✅ Import réussi avec succès !");
+          showToast("✅ Import réussi avec succès !");
         } else {
-          alert("❌ Format de fichier invalide.");
+          showToast("❌ Format de fichier invalide.", "error");
         }
       } catch (err) {
         console.error(err);
-        alert("❌ Erreur lors de la lecture du fichier JSON.");
+        showToast("❌ Erreur lors de la lecture du fichier JSON.", "error");
       }
     };
     reader.readAsText(file);

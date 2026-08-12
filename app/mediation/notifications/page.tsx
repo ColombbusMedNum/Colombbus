@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import PageGuard from "@/components/PageGuard";
+import { useConfirm } from "@/components/ConfirmProvider";
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, writeBatch } from "firebase/firestore";
 import { ArrowLeftIcon, TrashIcon, CheckCircleIcon, BellIcon, HomeIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
@@ -15,6 +16,7 @@ const quicksand = Quicksand({
 });
 
 export default function AllNotificationsPage() {
+  const confirm = useConfirm();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -59,7 +61,7 @@ export default function AllNotificationsPage() {
   };
 
   const effacerTout = async () => {
-    if (!confirm("Effacer définitivement tout l'historique des notifications ?")) return;
+    if (!(await confirm("Effacer définitivement tout l'historique des notifications ?"))) return;
     try {
       const batch = writeBatch(db);
       notifications.forEach(n => {
