@@ -109,6 +109,7 @@ export default function LocalisationsPage() {
         } as Lieu;
       });
 
+      liste.sort((a, b) => (a.nomCourt || "").localeCompare(b.nomCourt || "", "fr", { sensitivity: "base" }));
       setLieux(liste);
       setLoading(false);
     });
