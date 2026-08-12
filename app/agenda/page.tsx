@@ -1117,7 +1117,7 @@ export default function PlanningExpertMix() {
                     const selectedLieuNom = e.target.value;
                     setSelectedLieuPredefini(selectedLieuNom);
                     if (!selectedLieuNom) return;
-                    const locFound = localisations?.find(l => l.nomRaccourci === selectedLieuNom || l.nomComplet === selectedLieuNom);
+                    const locFound = localisations?.find(l => (l.nomCourt || l.nomRaccourci) === selectedLieuNom || l.nomComplet === selectedLieuNom);
                     if (locFound) {
                       setNewActivite(prev => ({
                         ...prev,
@@ -1129,8 +1129,8 @@ export default function PlanningExpertMix() {
                 >
                   <option value="">-- Choisir une adresse --</option>
                   {localisations.map((loc) => (
-                    <option key={loc.id} value={loc.nomRaccourci || loc.nomComplet}>
-                      {loc.nomRaccourci}
+                    <option key={loc.id} value={loc.nomCourt || loc.nomRaccourci || loc.nomComplet}>
+                      {loc.nomCourt || loc.nomRaccourci || loc.nomComplet}
                     </option>
                   ))}
                 </select>
