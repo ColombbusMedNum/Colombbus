@@ -4,8 +4,9 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import { db } from "@/lib/firebase";
-import { collection, doc, onSnapshot, setDoc, writeBatch } from "firebase/firestore";
-import { ROLES } from "@/lib/roles";
+import { collection, doc, onSnapshot, setDoc, updateDoc, writeBatch } from "firebase/firestore";
+import { ROLES, normalizeRole } from "@/lib/roles";
+import { useMediateurs } from "@/lib/MediateursProvider";
 import { PAGES_CATALOG, DEFAULT_PERMISSIONS, ALL_ACTION_IDS, ActionItem, resolvePermission } from "@/lib/permissionsCatalog";
 import PageGuard from "@/components/PageGuard";
 import { useToast } from "@/components/ToastProvider";
@@ -23,6 +24,8 @@ import {
   BuildingOfficeIcon,
   UserGroupIcon,
   Squares2X2Icon,
+  UserIcon,
+  KeyIcon,
 } from "@heroicons/react/24/outline";
 
 const quicksand = Quicksand({
@@ -60,11 +63,39 @@ function pageAccessRow(pageId: string): ActionItem {
 export default function AnalyseDroitsPage() {
   const { showToast } = useToast();
   const confirm = useConfirm();
+  const { mediateurs } = useMediateurs();
   const [matrix, setMatrix] = useState<Record<string, Record<string, boolean>>>({});
   const [matrixLoaded, setMatrixLoaded] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedPageFilter, setSelectedPageFilter] = useState("all");
   const [saveStatus, setSaveStatus] = useState("");
+
+  // Mode "Par personne" : exceptions individuelles, en plus du rôle de base
+  // (voir lib/PermissionsProvider.tsx → can()). Stockées sur la fiche du
+  // médiateur (liste_mediateurs/{uid}.permissionsOverrides), pas dans la
+  // matrice par rôle (configuration_droits) qui reste inchangée.
+  const [viewMode, setViewMode] = useState<"roles" | "personne">("roles");
+  const [selectedMediateurId, setSelectedMediateurId] = useState("");
+
+  const mediateursTries = React.useMemo(() => {
+    return [...mediateurs]
+      .filter((m: any) => m.id !== "parametres_configuration" && m.id !== "parametres_horaires")
+      .sort((a: any, b: any) => (a.nom || "").localeCompare(b.nom || "", "fr", { sensitivity: "base" }));
+  }, [mediateurs]);
+
+  const selectedMediateur = mediateursTries.find((m: any) => m.id === selectedMediateurId);
+
+  const handleTogglePersonOverride = async (actionId: string, checked: boolean) => {
+    if (!selectedMediateur) return;
+    const current: string[] = selectedMediateur.permissionsOverrides || [];
+    const updated = checked ? [...new Set([...current, actionId])] : current.filter((id) => id !== actionId);
+    try {
+      await updateDoc(doc(db, "liste_mediateurs", selectedMediateur.id), { permissionsOverrides: updated });
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors de la mise à jour des droits individuels.", "error");
+    }
+  };
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -241,7 +272,58 @@ export default function AnalyseDroitsPage() {
           </div>
         </div>
 
+        {/* BASCULE DE MODE : PAR RÔLE / PAR PERSONNE */}
+        <div className="bg-white border border-[#404040]/10 rounded-2xl p-2 flex flex-col sm:flex-row gap-2 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setViewMode("roles")}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+              viewMode === "roles" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/70 hover:bg-[#F3F3F2]"
+            }`}
+          >
+            <UserGroupIcon className="w-4 h-4" />
+            Par rôle
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("personne")}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+              viewMode === "personne" ? "bg-[#EA601F] text-white shadow-sm" : "text-[#404040]/70 hover:bg-[#F3F3F2]"
+            }`}
+          >
+            <KeyIcon className="w-4 h-4" />
+            Par personne (exceptions)
+          </button>
+        </div>
+
+        {viewMode === "personne" && (
+          <div className="bg-white border border-[#404040]/10 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-[#EA601F]/10 rounded-xl text-[#EA601F] border border-[#EA601F]/20">
+                <UserIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-[#005259]">Exceptions individuelles</h2>
+                <p className="text-[11px] text-[#404040]/70 font-medium">Accorde des droits en plus du rôle de base, à une personne précise</p>
+              </div>
+            </div>
+            <select
+              value={selectedMediateurId}
+              onChange={(e) => setSelectedMediateurId(e.target.value)}
+              className="w-full sm:w-72 px-3 py-2.5 bg-[#F3F3F2] border border-[#404040]/15 rounded-xl text-xs font-bold text-[#404040] outline-none focus:border-[#EA601F] focus:ring-1 focus:ring-[#EA601F] transition-all cursor-pointer"
+            >
+              <option value="">-- Sélectionner une personne --</option>
+              {mediateursTries.map((m: any) => (
+                <option key={m.id} value={m.id}>
+                  {m.prenom} {m.nom?.toUpperCase()} ({ROLES.find(r => r.id === normalizeRole(m.role))?.nom || m.role})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* CARTES RÔLES */}
+        {viewMode === "roles" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           {ROLES.map((role) => (
             <div key={role.id} className="bg-white border border-[#404040]/10 p-4 rounded-2xl shadow-sm">
@@ -252,6 +334,7 @@ export default function AnalyseDroitsPage() {
             </div>
           ))}
         </div>
+        )}
 
         {/* BARRE DE RECHERCHE ET FILTRES DE PAGE */}
         <div className="bg-white border border-[#404040]/10 rounded-2xl p-4 flex flex-col md:flex-row gap-4 items-center justify-between shadow-sm">
@@ -289,6 +372,10 @@ export default function AnalyseDroitsPage() {
           <div className="bg-white border border-[#404040]/10 rounded-2xl p-12 text-center text-[#404040]/70 text-xs font-bold uppercase tracking-wider shadow-sm">
             Chargement de la matrice de droits...
           </div>
+        ) : viewMode === "personne" && !selectedMediateur ? (
+          <div className="bg-white border border-[#404040]/10 rounded-2xl p-12 text-center text-[#404040]/70 text-xs font-bold uppercase tracking-wider shadow-sm">
+            👆 Sélectionnez une personne ci-dessus pour gérer ses exceptions individuelles.
+          </div>
         ) : (
           <div className="space-y-6">
             {filteredPages.length > 0 ? (
@@ -318,9 +405,15 @@ export default function AnalyseDroitsPage() {
                           <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
                             <th className="py-3 px-6 w-1/3">Élément / Action</th>
                             <th className="py-3 px-4 text-center w-28">Type</th>
-                            {ROLES.map((role) => (
-                              <th key={role.id} className="py-3 px-4 text-center w-24">{role.nom}</th>
-                            ))}
+                            {viewMode === "roles" ? (
+                              ROLES.map((role) => (
+                                <th key={role.id} className="py-3 px-4 text-center w-24">{role.nom}</th>
+                              ))
+                            ) : (
+                              <th className="py-3 px-4 text-center w-40">
+                                Exception pour {selectedMediateur?.prenom}
+                              </th>
+                            )}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#404040]/10">
@@ -338,31 +431,64 @@ export default function AnalyseDroitsPage() {
                                 </span>
                               </td>
 
-                              {ROLES.map((role) => {
-                                const estCoche = resolvePermission(matrix, role.id, action.id);
-                                return (
-                                  <td key={role.id} className="py-3.5 px-4 text-center">
-                                    <button
-                                      type="button"
-                                      disabled={role.id === "admin"}
-                                      onClick={() => handleCheckboxChange(action.id, role.id, !estCoche)}
-                                      className={`p-1.5 rounded-xl border transition-all inline-flex items-center justify-center ${
-                                        role.id === "admin" ? "cursor-not-allowed opacity-60" : "cursor-pointer"
-                                      } ${
-                                        estCoche
-                                          ? "bg-[#EA601F]/15 border-[#EA601F]/40 text-[#EA601F] hover:bg-[#EA601F]/25"
-                                          : "bg-[#F3F3F2] border-[#404040]/10 text-[#404040]/30 hover:text-[#404040]/60"
-                                      }`}
-                                    >
-                                      {estCoche ? (
-                                        <CheckCircleIcon className="w-5 h-5" />
+                              {viewMode === "roles" ? (
+                                ROLES.map((role) => {
+                                  const estCoche = resolvePermission(matrix, role.id, action.id);
+                                  return (
+                                    <td key={role.id} className="py-3.5 px-4 text-center">
+                                      <button
+                                        type="button"
+                                        disabled={role.id === "admin"}
+                                        onClick={() => handleCheckboxChange(action.id, role.id, !estCoche)}
+                                        className={`p-1.5 rounded-xl border transition-all inline-flex items-center justify-center ${
+                                          role.id === "admin" ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+                                        } ${
+                                          estCoche
+                                            ? "bg-[#EA601F]/15 border-[#EA601F]/40 text-[#EA601F] hover:bg-[#EA601F]/25"
+                                            : "bg-[#F3F3F2] border-[#404040]/10 text-[#404040]/30 hover:text-[#404040]/60"
+                                        }`}
+                                      >
+                                        {estCoche ? (
+                                          <CheckCircleIcon className="w-5 h-5" />
+                                        ) : (
+                                          <XCircleIcon className="w-5 h-5" />
+                                        )}
+                                      </button>
+                                    </td>
+                                  );
+                                })
+                              ) : selectedMediateur ? (
+                                (() => {
+                                  const dejaInclusParRole = resolvePermission(matrix, normalizeRole(selectedMediateur.role), action.id);
+                                  const exceptionActive = (selectedMediateur.permissionsOverrides || []).includes(action.id);
+                                  return (
+                                    <td className="py-3.5 px-4 text-center">
+                                      {dejaInclusParRole ? (
+                                        <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-[#005259] bg-[#005259]/10 border border-[#005259]/20 px-2 py-1 rounded-md">
+                                          Déjà inclus (rôle)
+                                        </span>
                                       ) : (
-                                        <XCircleIcon className="w-5 h-5" />
+                                        <button
+                                          type="button"
+                                          onClick={() => handleTogglePersonOverride(action.id, !exceptionActive)}
+                                          title={exceptionActive ? "Retirer cette exception" : "Accorder ce droit à cette personne uniquement"}
+                                          className={`p-1.5 rounded-xl border transition-all inline-flex items-center justify-center cursor-pointer ${
+                                            exceptionActive
+                                              ? "bg-[#EA601F]/15 border-[#EA601F]/40 text-[#EA601F] hover:bg-[#EA601F]/25"
+                                              : "bg-[#F3F3F2] border-[#404040]/10 text-[#404040]/30 hover:text-[#404040]/60"
+                                          }`}
+                                        >
+                                          {exceptionActive ? (
+                                            <CheckCircleIcon className="w-5 h-5" />
+                                          ) : (
+                                            <XCircleIcon className="w-5 h-5" />
+                                          )}
+                                        </button>
                                       )}
-                                    </button>
-                                  </td>
-                                );
-                              })}
+                                    </td>
+                                  );
+                                })()
+                              ) : null}
                             </tr>
                           ))}
                         </tbody>

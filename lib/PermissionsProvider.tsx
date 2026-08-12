@@ -34,6 +34,7 @@ const PermissionsContext = createContext<PermissionsContextValue>({
 export function PermissionsProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [overrides, setOverrides] = useState<string[]>([]);
   const [matrix, setMatrix] = useState<Record<string, Record<string, boolean>>>({});
   const [authResolved, setAuthResolved] = useState(false);
   const [roleResolved, setRoleResolved] = useState(false);
@@ -46,6 +47,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
       if (!firebaseUser) {
         setRole(null);
+        setOverrides([]);
         setRoleResolved(true);
         return;
       }
@@ -53,9 +55,11 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       setRoleResolved(false);
       try {
         let roleRaw: string | null = null;
+        let overridesRaw: string[] = [];
         const uidSnap = await getDoc(doc(db, "liste_mediateurs", firebaseUser.uid));
         if (uidSnap.exists()) {
           roleRaw = uidSnap.data().role || null;
+          overridesRaw = uidSnap.data().permissionsOverrides || [];
         } else if (firebaseUser.email) {
           // Repli transitoire : tant que scripts/migrate-mediateurs-to-uid.js
           // n'a pas été exécuté, les comptes existants sont encore indexés par
@@ -65,12 +69,15 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
           const legacySnap = await getDocs(q);
           if (!legacySnap.empty) {
             roleRaw = legacySnap.docs[0].data().role || null;
+            overridesRaw = legacySnap.docs[0].data().permissionsOverrides || [];
           }
         }
         setRole(normalizeRole(roleRaw));
+        setOverrides(overridesRaw);
       } catch (err) {
         console.error("Impossible de lire le rôle de l'utilisateur :", err);
         setRole(normalizeRole(null));
+        setOverrides([]);
       } finally {
         setRoleResolved(true);
       }
@@ -101,6 +108,10 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
   const can = (actionId: string): boolean => {
     if (!role) return false;
+    // Une exception individuelle (accordée sur la fiche du médiateur, en plus
+    // de son rôle — voir /mediation/analyse, mode "Par personne") l'emporte
+    // toujours quand elle accorde un droit que le rôle seul ne donne pas.
+    if (overrides.includes(actionId)) return true;
     return resolvePermission(matrix, role, actionId);
   };
 
