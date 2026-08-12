@@ -21,7 +21,6 @@ import {
   MapPinIcon,
   PlusIcon,
   ChevronDownIcon,
-  CalendarDaysIcon,
   ShieldCheckIcon,
   AcademicCapIcon,
   KeyIcon
@@ -416,15 +415,7 @@ export default function GestionEquipe() {
               <span>Compétences</span>
             </Link>
 
-            <Link 
-              href="/agenda" 
-              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
-            >
-              <CalendarDaysIcon className="w-4 h-4 text-[#EA601F]" /> 
-              <span>Agenda</span>
-            </Link>
-
-            <button 
+            <button
               onClick={() => openModal()} 
               className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md active:scale-95 group"
             >
