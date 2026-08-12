@@ -44,3 +44,5 @@ next-env.d.ts
 # motif large pour couvrir toute variante de nom (ex: double extension .json.json
 # laissée par un navigateur qui re-suffixe un fichier déjà nommé "...json")
 *serviceAccountKey*
+
+.vercel

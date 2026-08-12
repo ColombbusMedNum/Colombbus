@@ -266,30 +266,17 @@ export default function GestionEquipe() {
       if (editingMed) {
         await updateDoc(doc(db, "liste_mediateurs", editingMed.id), netPayload);
       } else {
-        // Le document liste_mediateurs doit être identifié par l'UID Firebase
-        // Auth (requis par les Security Rules pour vérifier le rôle de
-        // l'appelant). On crée donc le compte ici, via une instance Firebase
-        // secondaire pour ne pas remplacer la session de l'admin en cours,
-        // puis on envoie un e-mail de configuration du mot de passe.
-        const secondaryApp = initializeApp(firebaseConfig, `secondary-${Date.now()}`);
-        const secondaryAuth = getAuth(secondaryApp);
-        try {
-          const tempPassword = crypto.randomUUID();
-          const credential = await createUserWithEmailAndPassword(secondaryAuth, netPayload.email, tempPassword);
-          await setDoc(doc(db, "liste_mediateurs", credential.user.uid), netPayload);
-          await sendPasswordResetEmail(auth, netPayload.email);
-        } finally {
-          await deleteApp(secondaryApp);
-        }
+        // Créer la fiche seule, sans compte de connexion : certains
+        // médiateurs ajoutés à la plateforme n'ont pas vocation à s'y
+        // connecter. L'accès (compte Auth + email de configuration) se
+        // déclenche séparément, à la demande, via le bouton clé
+        // (handleCreateAccess) — jamais automatiquement à la création.
+        await setDoc(doc(collection(db, "liste_mediateurs")), netPayload);
       }
       closeModal();
     } catch (err: any) {
       console.error(err);
-      if (err.code === "auth/email-already-in-use") {
-        alert("Un compte existe déjà avec cette adresse email.");
-      } else {
-        alert("Une erreur est survenue lors de la création du membre.");
-      }
+      alert("Une erreur est survenue lors de la création du membre.");
     }
   };
 
