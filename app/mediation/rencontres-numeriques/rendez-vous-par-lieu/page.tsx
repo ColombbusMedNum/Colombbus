@@ -50,6 +50,7 @@ export default function RendezVousParLieuPage() {
   const [utilisateursMap, setUtilisateursMap] = useState<Record<string, { nom: string; prenom: string }>>({});
   const [loadingVisites, setLoadingVisites] = useState(true);
   const [loadingUsers, setLoadingUsers] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const loading = loadingVisites || loadingUsers;
 
   // Filtres & Recherche
@@ -105,6 +106,10 @@ export default function RendezVousParLieuPage() {
       });
 
       setVisitesBrutes(listeBrute);
+      setLoadingVisites(false);
+    }, (error) => {
+      console.error("Erreur de chargement des rendez-vous :", error);
+      setLoadError(error.message);
       setLoadingVisites(false);
     });
 
@@ -174,6 +179,17 @@ export default function RendezVousParLieuPage() {
     return (
       <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex items-center justify-center text-[#005259] font-bold animate-pulse tracking-widest text-xs uppercase antialiased`}>
         Chargement des rendez-vous par lieux...
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex items-center justify-center p-4 antialiased`}>
+        <div className="bg-white border border-red-200 rounded-2xl p-6 max-w-md text-center">
+          <p className="text-xs font-bold uppercase tracking-wider text-red-600">Erreur de chargement</p>
+          <p className="text-xs text-[#404040]/70 mt-2">{loadError}</p>
+        </div>
       </div>
     );
   }

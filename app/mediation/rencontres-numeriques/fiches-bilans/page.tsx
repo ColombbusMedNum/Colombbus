@@ -63,7 +63,8 @@ function FichesBilansContent() {
   const paramMois = searchParams.get("mois");
 
   const [loading, setLoading] = useState(true);
-  
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   const [moisSelectionne, setMoisSelectionne] = useState<string>(() => {
     if (paramMois) return paramMois;
     const d = new Date();
@@ -99,6 +100,10 @@ function FichesBilansContent() {
       });
 
       setTousLesRdvs(items);
+      setLoading(false);
+    }, (error) => {
+      console.error("Erreur de chargement des fiches bilan :", error);
+      setLoadError(error.message);
       setLoading(false);
     });
 
@@ -225,6 +230,17 @@ function FichesBilansContent() {
     return (
       <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex items-center justify-center text-[#005259] font-bold animate-pulse tracking-widest text-xs uppercase antialiased`}>
         Chargement des fiches bilans...
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex items-center justify-center p-4 antialiased`}>
+        <div className="bg-white border border-red-200 rounded-2xl p-6 max-w-md text-center">
+          <p className="text-xs font-bold uppercase tracking-wider text-red-600">Erreur de chargement</p>
+          <p className="text-xs text-[#404040]/70 mt-2">{loadError}</p>
+        </div>
       </div>
     );
   }
