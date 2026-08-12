@@ -33,8 +33,11 @@ service cloud.firestore {
       return isSignedIn() && exists(/databases/$(database)/documents/liste_mediateurs/$(request.auth.uid)) && estActif();
     }
 
+    // Insensible à la casse pour matcher la normalisation faite côté client
+    // (lib/roles.ts → normalizeRole) : une fiche peut avoir "Admin", "ADMIN"
+    // ou "admin" selon comment/quand elle a été créée.
     function myRole() {
-      return myProfile().data.role;
+      return myProfile().data.get('role', '').lower();
     }
 
     function isAdmin() {
