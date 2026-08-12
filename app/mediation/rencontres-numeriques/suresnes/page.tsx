@@ -583,16 +583,16 @@ export default function PlanningSuresnes() {
                             const trendBesoinDiagnostic = bTrouve && thématiqueMatériel && !aDejaFaitCetteThematique;
 
                             return (
-                              <div key={c.id} className={`grid grid-cols-1 xl:grid-cols-12 items-center gap-4 p-3 rounded-xl border transition-all ${isOrphan ? 'bg-[#EF736A]/10 border-[#EF736A]/30' : 'bg-[#F3F3F2]/50 border-[#404040]/10 hover:border-[#005259]/30 hover:bg-[#F3F3F2]'}`}>
-                                
+                              <div key={c.id} className={`grid grid-cols-1 xl:grid-cols-12 items-center gap-4 p-3 rounded-xl border transition-all ${isOrphan ? 'bg-[#EF736A]/10 border-[#EF736A]/30' : isRND ? 'bg-[#EA601F]/5 border-[#EA601F]/20 hover:border-[#EA601F]/40' : 'bg-[#F3F3F2]/50 border-[#404040]/10 hover:border-[#005259]/30 hover:bg-[#F3F3F2]'}`}>
+
                                 <div className="xl:col-span-2 flex items-center gap-3 min-w-0">
                                   <div className="p-2 rounded-lg bg-white border border-[#404040]/10 text-[#005259] shrink-0 shadow-sm">
                                     <UserIcon className="w-4 h-4" />
                                   </div>
-                                  <div className="truncate">
-                                    <div className="font-bold text-[#005259] text-sm truncate flex items-center gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-bold text-sm flex items-center gap-2 min-w-0">
                                       {isOrphan && <ExclamationTriangleIcon className="w-4 h-4 text-[#EF736A] shrink-0" />}
-                                      <span className={isOrphan ? "text-[#EF736A]" : "text-[#005259]"}>{nomAffiche}</span>
+                                      <span className={`truncate min-w-0 ${isOrphan ? "text-[#EF736A]" : "text-[#005259]"}`}>{nomAffiche}</span>
                                       {isRND && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#EA601F]/10 border border-[#EA601F]/30 text-[#EA601F] shrink-0">RND</span>}
                                     </div>
                                   </div>
