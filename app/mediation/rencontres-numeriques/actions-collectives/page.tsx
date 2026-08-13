@@ -52,7 +52,7 @@ export default function ActionsCollectivesPage() {
   const { showToast } = useToast();
   const confirm = useConfirm();
   const [actions, setActions] = useState<ActionCollective[]>([]);
-  const [listeLieuxExistants, setListeLieuxExistants] = useState<string[]>([]);
+  const [lieuxDisponibles, setLieuxDisponibles] = useState<string[]>([]);
   const [statsParLieu, setStatsParLieu] = useState<Record<string, LieuStats>>({});
   const [showForm, setShowForm] = useState(false);
   const [status, setStatus] = useState("");
@@ -74,6 +74,23 @@ export default function ActionsCollectivesPage() {
   const [editNbFemmes, setEditNbFemmes] = useState<number>(0);
   const [editCommentaire, setEditCommentaire] = useState("");
 
+  // Lieux prédéfinis, gérés depuis /mediation/localisations (collection
+  // liste_lieux) — proposés dans le menu déroulant du formulaire de saisie,
+  // en plus de l'option "Créer un nouveau lieu..." pour les cas non encore
+  // enregistrés dans le référentiel.
+  useEffect(() => {
+    const unsubLieux = onSnapshot(collection(db, "liste_lieux"), (snap) => {
+      const noms = snap.docs
+        .map(d => d.data())
+        .filter((l: any) => l.actif !== false)
+        .map((l: any) => l.nomCourt || l.nomRaccourci || l.nomComplet)
+        .filter(Boolean)
+        .sort((a: string, b: string) => a.localeCompare(b, "fr", { sensitivity: "base" }));
+      setLieuxDisponibles(Array.from(new Set(noms)) as string[]);
+    });
+    return () => unsubLieux();
+  }, []);
+
   // Récupération des données Firestore
   useEffect(() => {
     const q = query(collection(db, "actions_collectives"), orderBy("createdAt", "desc"));
@@ -81,17 +98,7 @@ export default function ActionsCollectivesPage() {
       const docs: ActionCollective[] = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ActionCollective));
       setActions(docs);
 
-      // 1. Extraction des lieux uniques pour le menu déroulant
-      const lieuxUniques: string[] = Array.from(
-        new Set(docs.map((d: any) => d.lieu).filter(Boolean))
-      ).sort();
-      setListeLieuxExistants(lieuxUniques);
-      
-      if (lieuxUniques.length > 0 && !lieuSelectionne) {
-        setLieuSelectionne(lieuxUniques[0]);
-      }
-
-      // 2. Calcul automatique du croisement : Lieu > Trimestre 📊 + Historique commentaires
+      // Calcul automatique du croisement : Lieu > Trimestre 📊 + Historique commentaires
       const structureStats: Record<string, LieuStats> = {};
 
       docs.forEach(act => {
@@ -260,8 +267,8 @@ export default function ActionsCollectivesPage() {
           <button
             onClick={() => {
               setShowForm(!showForm);
-              if (listeLieuxExistants.length > 0) {
-                setLieuSelectionne(listeLieuxExistants[0]);
+              if (lieuxDisponibles.length > 0) {
+                setLieuSelectionne(lieuxDisponibles[0]);
                 setIsNouveauLieu(false);
               } else {
                 setIsNouveauLieu(true);
@@ -298,15 +305,15 @@ export default function ActionsCollectivesPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="relative">
                 <label className="block text-[10px] font-bold text-[#005259] uppercase tracking-wider mb-1">Lieu d'intervention *</label>
-                {listeLieuxExistants.length > 0 && !isNouveauLieu ? (
-                  <select 
-                    value={lieuSelectionne} 
-                    onChange={handleLieuChange} 
+                {lieuxDisponibles.length > 0 && !isNouveauLieu ? (
+                  <select
+                    value={lieuSelectionne}
+                    onChange={handleLieuChange}
                     required
                     className={`${inputClass} pr-8 cursor-pointer`}
                     style={{ backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23005259' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/></svg>")`, backgroundSize: '1rem', backgroundPosition: 'calc(100% - 0.75rem) center', backgroundRepeat: 'no-repeat' }}
                   >
-                    {listeLieuxExistants.map((l) => (
+                    {lieuxDisponibles.map((l) => (
                       <option key={l} value={l} className="bg-white text-[#404040]">{l}</option>
                     ))}
                     <option value="__NEW__" className="bg-white text-[#EA601F] font-bold">➕ Créer un nouveau lieu...</option>
@@ -314,7 +321,7 @@ export default function ActionsCollectivesPage() {
                 ) : (
                   <div className="space-y-2">
                     <input type="text" placeholder="Nom du nouveau lieu" value={nouveauLieu} onChange={(e) => setNouveauLieu(e.target.value)} required className={inputClass} autoFocus />
-                    {listeLieuxExistants.length > 0 && (
+                    {lieuxDisponibles.length > 0 && (
                       <button type="button" onClick={() => setIsNouveauLieu(false)} className="text-[10px] text-[#005259] hover:underline font-bold block">Choisir un lieu existant</button>
                     )}
                   </div>
