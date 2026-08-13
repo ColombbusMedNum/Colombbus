@@ -465,6 +465,11 @@ export default function PlanningExpertMix() {
 
   const handleDeleteActiviteType = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    const cible = activitesTypes.find(t => t.id === id);
+    if ((cible?.lieu || "").toUpperCase().includes("RN")) {
+      showToast("🔒 Ce modèle est lié à Suresnes et ne peut pas être supprimé.", "error");
+      return;
+    }
     await deleteDoc(doc(db, "activites_types", id));
     if (selectedModel?.id === id) setSelectedModel(null);
   };
@@ -937,6 +942,10 @@ export default function PlanningExpertMix() {
               const renderModeleItem = (type: ActiviteType, blocColor?: string) => {
                 const colorTheme = blocColor || type.couleur || "#005259";
                 const isSelected = selectedModel?.id === type.id;
+                // Modèles fondateurs de la liaison Suresnes : leur suppression casserait
+                // la génération automatique des créneaux planning_suresnes (voir isSuresnesAction
+                // dans processActionCreation) — on les protège contre une suppression accidentelle.
+                const isModeleProtege = (type.lieu || "").toUpperCase().includes("RN");
 
                 const isLight = isLightColor(colorTheme);
                 const textColor = isLight ? "#1A1A1A" : colorTheme;
@@ -964,9 +973,15 @@ export default function PlanningExpertMix() {
                           <PencilSquareIcon className="w-3 h-3" />
                         </button>
                         {type.id && (
-                          <button onClick={(e) => handleDeleteActiviteType(type.id!, e)} className="hover:text-[#EF736A] p-0.5">
-                            <XMarkIcon className="w-3.5 h-3.5" />
-                          </button>
+                          isModeleProtege ? (
+                            <span className="p-0.5 opacity-60" title="Modèle protégé : lié à Suresnes, non supprimable">
+                              <LockClosedIcon className="w-3 h-3" />
+                            </span>
+                          ) : (
+                            <button onClick={(e) => handleDeleteActiviteType(type.id!, e)} className="hover:text-[#EF736A] p-0.5">
+                              <XMarkIcon className="w-3.5 h-3.5" />
+                            </button>
+                          )
                         )}
                       </div>
                     </div>
