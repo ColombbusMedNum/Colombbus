@@ -95,6 +95,11 @@ service cloud.firestore {
     match /activites_types/{docId} {
       allow read, write: if isStaff();
     }
+    // Couleur de chaque bloc thématique (Inclusion Numérique, Découverte
+    // Métiers, Insertion Professionnelle) — voir app/agenda/page.tsx.
+    match /blocs_config/{blocId} {
+      allow read, write: if isStaff();
+    }
     match /actions_collectives/{docId} {
       allow read, write: if isStaff();
     }

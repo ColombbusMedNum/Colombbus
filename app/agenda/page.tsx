@@ -17,7 +17,8 @@ import {
   UsersIcon, MapPinIcon, EyeIcon, EyeSlashIcon,
   CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon,
   CheckCircleIcon, LockClosedIcon, BellIcon,
-  ChatBubbleLeftRightIcon, ExclamationTriangleIcon
+  ChatBubbleLeftRightIcon, ExclamationTriangleIcon,
+  ChevronDownIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
@@ -40,7 +41,17 @@ interface ActiviteType {
   codeAnalytique: string;
   dateDebut: string;
   dateFin: string;
+  blocs?: string[];
 }
+
+// Blocs thématiques : un modèle peut être rattaché à plusieurs à la fois
+// (voir le champ "Bloc thématique" du formulaire de modèle, et la barre
+// latérale qui regroupe les modèles par bloc sous forme d'accordéons).
+const BLOCS_THEMATIQUES = [
+  { id: "inclusion", nom: "Inclusion Numérique", couleur: "#0F6B72" },
+  { id: "decouverte", nom: "Découverte Métiers", couleur: "#B8863A" },
+  { id: "insertion", nom: "Insertion Professionnelle", couleur: "#7A5A9E" },
+];
 
 interface NotificationItem {
   id: string;
@@ -85,6 +96,12 @@ export default function PlanningExpertMix() {
   const [actions, setActions] = useState<ActionPlanning[]>([]);
   const { mediateurs: mediateursBruts } = useMediateurs();
   const [activitesTypes, setActivitesTypes] = useState<ActiviteType[]>([]);
+  // Couleur réellement active de chaque bloc thématique (éditable via le
+  // sélecteur dans la barre latérale, persistée dans blocs_config/{blocId}).
+  // Initialisée avec les couleurs par défaut le temps du premier chargement.
+  const [blocsColors, setBlocsColors] = useState<Record<string, string>>(
+    () => Object.fromEntries(BLOCS_THEMATIQUES.map(b => [b.id, b.couleur]))
+  );
   const [localisations, setLocalisations] = useState<any[]>([]);
   const [semainesValidees, setSemainesValidees] = useState<Record<string, boolean>>({});
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -144,7 +161,8 @@ export default function PlanningExpertMix() {
     couleur: "#005259",
     codeAnalytique: "",
     dateDebut: "",
-    dateFin: ""
+    dateFin: "",
+    blocs: []
   });
 
   const currentWeekId = getWeekIdentifier(currentDate);
@@ -237,7 +255,22 @@ export default function PlanningExpertMix() {
       }
     });
 
-    return () => { unsubActs(); unsubSemaines(); unsubNotifs(); unsubLocs(); };
+    const unsubBlocs = onSnapshot(collection(db, "blocs_config"), (snap) => {
+      if (snap.docs.length === 0 && snap.metadata.fromCache === false) {
+        BLOCS_THEMATIQUES.forEach(b => setDoc(doc(db, "blocs_config", b.id), { nom: b.nom, couleur: b.couleur }));
+        return;
+      }
+      setBlocsColors(prev => {
+        const next = { ...prev };
+        snap.docs.forEach(d => {
+          const data = d.data();
+          if (data.couleur) next[d.id] = data.couleur;
+        });
+        return next;
+      });
+    });
+
+    return () => { unsubActs(); unsubSemaines(); unsubNotifs(); unsubLocs(); unsubBlocs(); };
   }, [filtrePersoUniquement, currentUserId]);
 
   const mediateurs = React.useMemo(() => {
@@ -302,7 +335,8 @@ export default function PlanningExpertMix() {
         couleur: newActivite.couleur,
         codeAnalytique: newActivite.codeAnalytique.trim(),
         dateDebut: newActivite.dateDebut,
-        dateFin: newActivite.dateFin
+        dateFin: newActivite.dateFin,
+        blocs: newActivite.blocs || []
       };
 
       if (editingActivite?.id) {
@@ -330,7 +364,7 @@ export default function PlanningExpertMix() {
         await addDoc(collection(db, "activites_types"), dataPayload);
       }
       
-      setNewActivite({ lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "", couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "" });
+      setNewActivite({ lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "", couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "", blocs: [] });
       setEditingActivite(null);
       setSelectedLieuPredefini("");
       setIsActiviteModalOpen(false);
@@ -351,7 +385,8 @@ export default function PlanningExpertMix() {
       couleur: type.couleur || "#005259",
       codeAnalytique: type.codeAnalytique || "",
       dateDebut: type.dateDebut || "",
-      dateFin: type.dateFin || ""
+      dateFin: type.dateFin || "",
+      blocs: type.blocs || []
     });
     // Retrouve, si possible, l'adresse prédéfinie correspondante pour que le
     // menu déroulant affiche la bonne sélection au lieu de retomber sur
@@ -364,9 +399,47 @@ export default function PlanningExpertMix() {
   };
 
   const handleDeleteActiviteType = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation(); 
+    e.stopPropagation();
     await deleteDoc(doc(db, "activites_types", id));
     if (selectedModel?.id === id) setSelectedModel(null);
+  };
+
+  // Change la couleur d'un bloc thématique et la répercute sur tous les
+  // modèles qui lui sont rattachés, ainsi que sur les créneaux déjà
+  // positionnés sur le planning pour ces modèles (passés compris) — le bloc
+  // devient la source de vérité de la couleur pour tout ce qui lui est
+  // rattaché, jusqu'à ce que la couleur du bloc change à nouveau.
+  const handleChangeBlocColor = async (blocId: string, newColor: string) => {
+    setBlocsColors(prev => ({ ...prev, [blocId]: newColor }));
+    try {
+      await setDoc(doc(db, "blocs_config", blocId), { couleur: newColor }, { merge: true });
+
+      const modelesAttaches = activitesTypes.filter(t => (t.blocs || []).includes(blocId));
+      if (modelesAttaches.length === 0) return;
+
+      const batchModeles = writeBatch(db);
+      modelesAttaches.forEach(t => {
+        if (t.id) batchModeles.update(doc(db, "activites_types", t.id), { couleur: newColor });
+      });
+      await batchModeles.commit();
+
+      const lieuxConcernes = Array.from(new Set(modelesAttaches.map(t => t.lieu).filter(Boolean)));
+      for (let i = 0; i < lieuxConcernes.length; i += 30) {
+        const chunkLieux = lieuxConcernes.slice(i, i + 30);
+        const qSlots = query(collection(db, "planning_mediateurs"), where("lieu", "in", chunkLieux));
+        const snapSlots = await getDocs(qSlots);
+        for (let j = 0; j < snapSlots.docs.length; j += 450) {
+          const batchSlots = writeBatch(db);
+          snapSlots.docs.slice(j, j + 450).forEach(d => batchSlots.update(d.ref, { couleur: newColor }));
+          await batchSlots.commit();
+        }
+      }
+
+      showToast(`Couleur mise à jour pour ${modelesAttaches.length} modèle(s) et leurs créneaux.`);
+    } catch (err) {
+      console.error("Erreur lors de la mise à jour de la couleur du bloc :", err);
+      showToast("Erreur lors de la mise à jour de la couleur du bloc.", "error");
+    }
   };
 
   const getMonday = (d: Date) => {
@@ -766,22 +839,27 @@ export default function PlanningExpertMix() {
               <DocumentDuplicateIcon className="w-4 h-4 text-[#EA601F]" /> Modèles
             </div>
             <button 
-              onClick={() => { setEditingActivite(null); setNewActivite({ lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "", couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "" }); setSelectedLieuPredefini(""); setIsActiviteModalOpen(true); }} 
+              onClick={() => { setEditingActivite(null); setNewActivite({ lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "", couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "", blocs: [] }); setSelectedLieuPredefini(""); setIsActiviteModalOpen(true); }} 
               className="p-1 bg-[#F3F3F2] hover:bg-[#005259] text-[#005259] hover:text-white rounded-md transition-colors cursor-pointer"
             >
               <PlusIcon className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          <div className="space-y-1.5">
-            {activitesTypes
-              .filter(type => {
+          <div className="space-y-2">
+            {(() => {
+              const modelesSemaine = activitesTypes.filter(type => {
                 if (type.dateDebut && endOfWeekStr < type.dateDebut) return false;
                 if (type.dateFin && startOfWeekStr > type.dateFin) return false;
                 return true;
-              })
-              .map(type => {
-                const colorTheme = type.couleur || "#005259";
+              });
+
+              // Rendu d'un modèle dans la liste. Dans un bloc thématique, la
+              // couleur du bloc prime sur la couleur propre du modèle pour
+              // ce badge (la couleur individuelle reste utilisée telle
+              // quelle sur la grille du planning, non affectée par les blocs).
+              const renderModeleItem = (type: ActiviteType, blocColor?: string) => {
+                const colorTheme = blocColor || type.couleur || "#005259";
                 const isSelected = selectedModel?.id === type.id;
 
                 const isLight = isLightColor(colorTheme);
@@ -789,7 +867,7 @@ export default function PlanningExpertMix() {
                 const bgColor = hexToRgba(colorTheme, isLight ? 0.35 : (isSelected ? 0.2 : 0.08));
 
                 return (
-                  <div 
+                  <div
                     key={type.id || type.lieu}
                     onClick={() => !estSemaineValidee && setSelectedModel(type)}
                     style={{
@@ -802,7 +880,7 @@ export default function PlanningExpertMix() {
                     <div className="w-full flex items-center justify-between font-bold">
                       <span className="truncate flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-full shrink-0 border border-black/10" style={{ backgroundColor: colorTheme }}></span>
-                        <span className="truncate">{type.lieu}</span> 
+                        <span className="truncate">{type.lieu}</span>
                         {type.territoire && <span className="text-[9px] bg-white px-1 rounded border border-current">{type.territoire}</span>}
                       </span>
                       <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
@@ -819,7 +897,64 @@ export default function PlanningExpertMix() {
                     {type.debut && <div className="text-[10px] opacity-80 font-mono mt-0.5 pl-3">{type.debut} - {type.fin}</div>}
                   </div>
                 );
-            })}
+              };
+
+              const groupes = [
+                ...BLOCS_THEMATIQUES.map(bloc => ({
+                  ...bloc,
+                  couleur: blocsColors[bloc.id] || bloc.couleur,
+                  editable: true,
+                  modeles: modelesSemaine.filter(type => (type.blocs || []).includes(bloc.id))
+                })),
+                {
+                  id: "sans-bloc",
+                  nom: "Sans bloc",
+                  editable: false,
+                  couleur: "#404040",
+                  modeles: modelesSemaine.filter(type => !(type.blocs && type.blocs.length > 0))
+                }
+              ];
+
+              return groupes.map(groupe => {
+                if (groupe.modeles.length === 0) return null;
+                return (
+                  <details key={groupe.id} className="group/bloc rounded-lg border overflow-hidden" style={{ borderColor: `${groupe.couleur}40` }} open>
+                    <summary
+                      className="list-none cursor-pointer flex items-center gap-2 px-2 py-1.5 select-none"
+                      style={{ backgroundColor: `${groupe.couleur}14` }}
+                    >
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: groupe.couleur }}></span>
+                      <span className="flex-1 text-[10px] font-extrabold uppercase tracking-wide truncate" style={{ color: groupe.couleur }}>
+                        {groupe.nom}
+                      </span>
+                      <span
+                        className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                        style={{ color: groupe.couleur, backgroundColor: `${groupe.couleur}22` }}
+                      >
+                        {groupe.modeles.length}
+                      </span>
+                      {groupe.editable && (
+                        <input
+                          type="color"
+                          value={groupe.couleur}
+                          title="Changer la couleur du bloc"
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                          onChange={(e) => handleChangeBlocColor(groupe.id, e.target.value)}
+                          className="w-4 h-4 rounded cursor-pointer border border-black/10 bg-transparent shrink-0"
+                        />
+                      )}
+                      <ChevronDownIcon
+                        className="w-3 h-3 shrink-0 transition-transform group-open/bloc:rotate-180"
+                        style={{ color: groupe.couleur }}
+                      />
+                    </summary>
+                    <div className="p-1.5 space-y-1.5">
+                      {groupe.modeles.map(type => renderModeleItem(type, groupe.id === "sans-bloc" ? undefined : groupe.couleur))}
+                    </div>
+                  </details>
+                );
+              });
+            })()}
           </div>
         </aside>
 
@@ -1165,15 +1300,54 @@ export default function PlanningExpertMix() {
             </div>
 
             <div className="flex flex-col gap-1">
+              <label className="text-[10px] text-[#404040]/70 font-semibold">Bloc thématique (Optionnel, plusieurs possibles)</label>
+              <div className="flex flex-col gap-1.5">
+                {BLOCS_THEMATIQUES.map(bloc => {
+                  const isChecked = (newActivite.blocs || []).includes(bloc.id);
+                  return (
+                    <label
+                      key={bloc.id}
+                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-md border cursor-pointer text-xs font-bold transition-all"
+                      style={{
+                        borderColor: bloc.couleur,
+                        color: bloc.couleur,
+                        backgroundColor: isChecked ? `${bloc.couleur}1F` : "transparent"
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {
+                          const current = newActivite.blocs || [];
+                          const updated = isChecked ? current.filter(b => b !== bloc.id) : [...current, bloc.id];
+                          setNewActivite({...newActivite, blocs: updated});
+                        }}
+                        className="w-3.5 h-3.5 cursor-pointer"
+                        style={{ accentColor: bloc.couleur }}
+                      />
+                      {bloc.nom}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
               <label className="text-[10px] text-[#404040] font-bold uppercase">Couleur Charte</label>
               <div className="flex items-center gap-2">
-                <input 
-                  type="color" 
-                  value={newActivite.couleur} 
+                <input
+                  type="color"
+                  value={newActivite.couleur}
                   onChange={e => setNewActivite({...newActivite, couleur: e.target.value})}
-                  className="w-8 h-8 rounded cursor-pointer border border-[#404040]/20 bg-transparent"
+                  className="w-8 h-8 rounded cursor-pointer border border-[#404040]/20 bg-transparent shrink-0"
                 />
-                <span className="text-xs font-mono font-bold text-[#005259]">{newActivite.couleur}</span>
+                <input
+                  type="text"
+                  value={newActivite.couleur}
+                  onChange={e => setNewActivite({...newActivite, couleur: e.target.value})}
+                  placeholder="#005259"
+                  className="flex-1 min-w-0 px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs font-mono font-bold text-[#005259] outline-none"
+                />
               </div>
             </div>
 
