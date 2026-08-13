@@ -92,6 +92,54 @@ function getWeekIdentifier(date: Date) {
   return `${d.getUTCFullYear()}-W${weekNo}`;
 }
 
+// Dimanche de Pâques (algorithme de Meeus/Jones/Butcher), base de calcul des
+// jours fériés mobiles (Lundi de Pâques, Ascension, Pentecôte).
+function getEasterSunday(year: number): Date {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+
+// Jours fériés français légaux pour une année donnée, au format YYYY-MM-DD
+// (comme dateStr, calculé via toLocaleDateString('en-CA') partout ailleurs
+// dans ce fichier). Le Lundi de Pentecôte est volontairement exclu : c'est
+// la seule journée travaillée dans ce planning (journée de solidarité).
+function getJoursFeries(year: number): Set<string> {
+  const addDays = (date: Date, n: number) => {
+    const copy = new Date(date);
+    copy.setDate(copy.getDate() + n);
+    return copy;
+  };
+  const toStr = (date: Date) => date.toLocaleDateString('en-CA');
+
+  const paques = getEasterSunday(year);
+
+  return new Set([
+    toStr(new Date(year, 0, 1)),      // Jour de l'An
+    toStr(addDays(paques, 1)),        // Lundi de Pâques
+    toStr(new Date(year, 4, 1)),      // Fête du Travail
+    toStr(new Date(year, 4, 8)),      // Victoire 1945
+    toStr(addDays(paques, 39)),       // Ascension
+    toStr(new Date(year, 6, 14)),     // Fête Nationale
+    toStr(new Date(year, 7, 15)),     // Assomption
+    toStr(new Date(year, 10, 1)),     // Toussaint
+    toStr(new Date(year, 10, 11)),    // Armistice
+    toStr(new Date(year, 11, 25)),    // Noël
+  ]);
+}
+
 export default function PlanningExpertMix() {
   const { showToast } = useToast();
   const [actions, setActions] = useState<ActionPlanning[]>([]);
@@ -461,6 +509,13 @@ export default function PlanningExpertMix() {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
     return d;
+  });
+
+  // Jours fériés à bloquer/griser sur la semaine affichée (une semaine peut
+  // chevaucher deux années civiles autour du 1er janvier).
+  const joursFeries = new Set<string>();
+  Array.from(new Set(weekDays.map(d => d.getFullYear()))).forEach(annee => {
+    getJoursFeries(annee).forEach(dateStr => joursFeries.add(dateStr));
   });
 
   const processActionCreation = async (
@@ -972,12 +1027,16 @@ export default function PlanningExpertMix() {
             <thead>
               <tr className="border-b-2 border-[#005259]">
                 <th className="text-left pr-2 pb-2 w-[160px] text-[#005259] font-extrabold text-xs">Médiateur</th>
-                {weekDays.map(d => (
-                  <th key={d.toString()} className="text-center pb-2 px-1">
-                    <span className="font-extrabold text-[#005259] uppercase block">{d.toLocaleDateString('fr-FR', { weekday: 'short' })}</span>
-                    <span className="text-[#404040]/70 text-[11px] font-medium">{d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</span>
-                  </th>
-                ))}
+                {weekDays.map(d => {
+                  const estFerie = joursFeries.has(d.toLocaleDateString('en-CA'));
+                  return (
+                    <th key={d.toString()} className={`text-center pb-2 px-1 ${estFerie ? "bg-[#EF736A]/10 rounded-t-md" : ""}`}>
+                      <span className={`font-extrabold uppercase block ${estFerie ? "text-[#EF736A]" : "text-[#005259]"}`}>{d.toLocaleDateString('fr-FR', { weekday: 'short' })}</span>
+                      <span className={`text-[11px] font-medium ${estFerie ? "text-[#EF736A]/80" : "text-[#404040]/70"}`}>{d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</span>
+                      {estFerie && <span className="block text-[8px] font-black uppercase tracking-widest text-[#EF736A]">Férié</span>}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F3F3F2]">
@@ -1027,11 +1086,12 @@ export default function PlanningExpertMix() {
 
                       {weekDays.map(day => {
                         const dateStr = day.toLocaleDateString('en-CA');
+                        const estFerie = joursFeries.has(dateStr);
                         return (
-                          <td key={dateStr} className="p-1 border-l border-[#F3F3F2] align-top">
+                          <td key={dateStr} className={`p-1 border-l border-[#F3F3F2] align-top ${estFerie ? "bg-[#EF736A]/5" : ""}`}>
                             <div className="grid grid-cols-2 gap-1 min-h-[38px]">
-                              <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
-                              <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
+                              <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
+                              <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
                             </div>
                           </td>
                         );
