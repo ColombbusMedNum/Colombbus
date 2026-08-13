@@ -51,6 +51,7 @@ const BLOCS_THEMATIQUES = [
   { id: "inclusion", nom: "Inclusion Numérique", couleur: "#0F6B72" },
   { id: "decouverte", nom: "Découverte Métiers", couleur: "#B8863A" },
   { id: "insertion", nom: "Insertion Professionnelle", couleur: "#7A5A9E" },
+  { id: "divers", nom: "Divers", couleur: "#5C7A8A" },
 ];
 
 interface NotificationItem {
@@ -114,7 +115,7 @@ export default function PlanningExpertMix() {
   const [isActiviteModalOpen, setIsActiviteModalOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<ActiviteType | null>(null);
   const [voirMasques, setVoirMasques] = useState(false);
-  const [openBlocs, setOpenBlocs] = useState<Record<string, boolean>>({ inclusion: false, decouverte: false, insertion: false, "sans-bloc": false }); 
+  const [openBlocs, setOpenBlocs] = useState<Record<string, boolean>>({ inclusion: false, decouverte: false, insertion: false, divers: false, "sans-bloc": false }); 
   const [voirSamedi, setVoirSamedi] = useState(false); 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -257,9 +258,11 @@ export default function PlanningExpertMix() {
     });
 
     const unsubBlocs = onSnapshot(collection(db, "blocs_config"), (snap) => {
-      if (snap.docs.length === 0 && snap.metadata.fromCache === false) {
-        BLOCS_THEMATIQUES.forEach(b => setDoc(doc(db, "blocs_config", b.id), { nom: b.nom, couleur: b.couleur }));
-        return;
+      if (snap.metadata.fromCache === false) {
+        const idsExistants = new Set(snap.docs.map(d => d.id));
+        BLOCS_THEMATIQUES
+          .filter(b => !idsExistants.has(b.id))
+          .forEach(b => setDoc(doc(db, "blocs_config", b.id), { nom: b.nom, couleur: b.couleur }));
       }
       setBlocsColors(prev => {
         const next = { ...prev };
