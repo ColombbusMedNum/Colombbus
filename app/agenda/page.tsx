@@ -1121,7 +1121,7 @@ export default function PlanningExpertMix() {
                     if (locFound) {
                       setNewActivite(prev => ({
                         ...prev,
-                        adresse: `${locFound.adresse || ""}, ${locFound.codePostal || ""} ${locFound.localisation || ""}`.trim(),
+                        adresse: `${locFound.adresse || ""}, ${locFound.codePostal || ""} ${locFound.ville || ""}`.trim(),
                         territoire: locFound.codePostal ? locFound.codePostal.substring(0, 2) : prev.territoire
                       }));
                     }
