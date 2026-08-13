@@ -114,7 +114,7 @@ export default function PlanningExpertMix() {
   const [isActiviteModalOpen, setIsActiviteModalOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<ActiviteType | null>(null);
   const [voirMasques, setVoirMasques] = useState(false);
-  const [openBlocs, setOpenBlocs] = useState<Record<string, boolean>>({ inclusion: true, decouverte: true, insertion: true, "sans-bloc": true }); 
+  const [openBlocs, setOpenBlocs] = useState<Record<string, boolean>>({ inclusion: false, decouverte: false, insertion: false, "sans-bloc": false }); 
   const [voirSamedi, setVoirSamedi] = useState(false); 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
