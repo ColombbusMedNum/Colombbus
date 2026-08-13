@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
-import { PrinterIcon, BookOpenIcon, SquaresPlusIcon, PlusIcon, MinusIcon, ArrowLeftIcon } from "@heroicons/react/24/outline";
+import { PrinterIcon, BookOpenIcon, SquaresPlusIcon, PlusIcon, MinusIcon, HomeIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import PageGuard from "@/components/PageGuard";
@@ -83,13 +83,12 @@ export default function GenerateurEmargementPagesIdentiques() {
           <div className="flex justify-between items-center flex-wrap gap-4 border-b border-[#404040]/10 pb-4">
             <div className="flex items-center gap-4">
               {/* BOUTON RETOUR DASHBOARD */}
-              <Link 
-                href="/" 
-                className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-[#F3F3F2] hover:bg-[#005259] hover:text-white border border-[#404040]/15 rounded-xl text-[#005259] transition-all shadow-sm active:scale-95 text-xs font-bold uppercase tracking-wider"
-                title="Retour au Dashboard"
+              <Link
+                href="/"
+                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
               >
-                <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
-                <span>Retour</span>
+                <HomeIcon className="w-4 h-4 text-[#EA601F]" />
+                <span>Accueil</span>
               </Link>
               
               <div>

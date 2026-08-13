@@ -13,7 +13,7 @@ import { useToast } from "@/components/ToastProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
 import {
   ShieldCheckIcon,
-  ArrowLeftIcon,
+  HomeIcon,
   ArrowDownTrayIcon,
   ArrowUpTrayIcon,
   ArrowPathIcon,
@@ -236,7 +236,7 @@ export default function AnalyseDroitsPage() {
               href="/"
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >
-              <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
+              <HomeIcon className="w-4 h-4 text-[#EA601F]" />
               <span>Accueil</span>
             </Link>
 

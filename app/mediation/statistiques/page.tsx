@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
-import { UserIcon, ArrowLeftIcon, CalendarDaysIcon } from "@heroicons/react/24/outline";
+import { UserIcon, HomeIcon, CalendarDaysIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import PageGuard from "@/components/PageGuard";
@@ -99,11 +99,11 @@ export default function StatsMediateursAnalytique() {
           </div>
           
           <div className="flex flex-wrap gap-2">
-            <Link 
-              href="/" 
+            <Link
+              href="/"
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >
-              <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
+              <HomeIcon className="w-4 h-4 text-[#EA601F]" />
               <span>Accueil</span>
             </Link>
 

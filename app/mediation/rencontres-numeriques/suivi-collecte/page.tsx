@@ -204,12 +204,12 @@ export default function SuiviCollecteTech() {
         {/* BARRE HAUTE / ENTÊTE */}
         <div className="bg-white p-5 rounded-2xl border border-[#404040]/10 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <Link 
-              href="/" 
-              className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#F3F3F2] hover:bg-[#005259] hover:text-white text-[#005259] border border-[#404040]/15 rounded-xl transition-all text-xs font-bold uppercase tracking-wider mb-3 shadow-sm"
+            <Link
+              href="/"
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm mb-3"
             >
               <HomeIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Tableau de bord</span>
+              <span>Accueil</span>
             </Link>
             <h1 className="text-xl md:text-2xl font-extrabold uppercase text-[#005259] tracking-tight flex items-center gap-2">
               Suivi <span className="text-[#EA601F]">IdF — 92 Collecte Tech</span>

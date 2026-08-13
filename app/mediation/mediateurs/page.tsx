@@ -68,8 +68,8 @@ export default function StatsMediateursAnalytique() {
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">Répartition des heures travaillées par code analytique</p>
             </div>
           </div>
-          <Link href="/agenda" className="inline-flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm">
-            <ArrowLeftIcon className="w-3.5 h-3.5" />
+          <Link href="/agenda" className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm">
+            <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
             <span>Retour à l'Agenda</span>
           </Link>
         </div>

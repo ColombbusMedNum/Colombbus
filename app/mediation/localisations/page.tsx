@@ -242,9 +242,12 @@ export default function LocalisationsPage() {
         
         {/* NAV HAUTE */}
         <div className="flex justify-between items-center mb-6">
-          <Link href="/" className="inline-flex items-center gap-2 text-[#404040]/70 hover:text-[#005259] transition-colors group">
-            <HomeIcon className="w-4 h-4" />
-            <span className="text-xs font-bold uppercase tracking-wider">Accueil</span>
+          <Link
+            href="/"
+            className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+          >
+            <HomeIcon className="w-4 h-4 text-[#EA601F]" />
+            <span>Accueil</span>
           </Link>
           
           <button 

@@ -13,9 +13,9 @@ import {
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Quicksand } from "next/font/google";
-import { 
-  ChevronLeftIcon, 
-  MapPinIcon, 
+import {
+  ArrowLeftIcon,
+  MapPinIcon,
   CalendarIcon, 
   BookmarkSquareIcon,
   DocumentTextIcon,
@@ -258,11 +258,11 @@ function FichesBilansContent() {
           <div className="flex items-center gap-4">
             <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
             <div>
-              <Link 
+              <Link
                 href="/mediation/rencontres-numeriques/liste-beneficiaires"
-                className="inline-flex items-center gap-1.5 text-[#404040]/70 hover:text-[#005259] transition-colors group text-[11px] font-bold uppercase tracking-wider mb-0.5"
+                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm mb-0.5"
               >
-                <ChevronLeftIcon className="w-3.5 h-3.5 text-[#EA601F] group-hover:-translate-x-0.5 transition-transform" />
+                <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
                 <span>Retour au tableau de bord</span>
               </Link>
               <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">

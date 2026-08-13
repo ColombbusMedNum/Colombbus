@@ -7,10 +7,10 @@ import { auth, db, firebaseConfig } from "@/lib/firebase";
 import { collection, onSnapshot, doc, updateDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { Quicksand } from "next/font/google";
 import { 
-  UserPlusIcon, 
-  PencilSquareIcon, 
+  UserPlusIcon,
+  PencilSquareIcon,
   ArchiveBoxIcon,
-  ChevronLeftIcon,
+  HomeIcon,
   ClockIcon,
   UserIcon,
   XMarkIcon,
@@ -386,12 +386,13 @@ export default function GestionEquipe() {
         {/* HEADER & NAVIGATION */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-[#404040]/10">
           <div className="flex items-center gap-4">
-            <Link 
-              href="/" 
-              className="p-2.5 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 text-[#005259] rounded-xl transition-all cursor-pointer flex items-center justify-center shadow-sm"
+            <Link
+              href="/"
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
               title="Retour à l'accueil"
             >
-              <ChevronLeftIcon className="w-4 h-4" />
+              <HomeIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Accueil</span>
             </Link>
             <div className="flex items-center gap-3">
               <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>

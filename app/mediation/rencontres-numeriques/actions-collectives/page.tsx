@@ -5,9 +5,9 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
-import { 
-  ArrowLeftIcon, 
-  PlusIcon, 
+import {
+  HomeIcon,
+  PlusIcon,
   TrashIcon,
   MapPinIcon,
   ChartBarIcon,
@@ -287,13 +287,12 @@ export default function ActionsCollectivesPage() {
         {/* EN-TÊTE */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#404040]/10">
           <div className="flex items-center gap-4">
-            <Link 
-              href="/" 
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/15 rounded-xl text-[#005259] transition-all shadow-sm active:scale-95 text-xs font-bold uppercase tracking-wider"
-              title="Retour au Dashboard"
+            <Link
+              href="/"
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >
-              <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Retour</span>
+              <HomeIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Accueil</span>
             </Link>
 
             <div className="flex items-center gap-3">

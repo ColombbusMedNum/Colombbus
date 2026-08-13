@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Quicksand } from "next/font/google";
 import {
-  ChevronLeftIcon,
+  ArrowLeftIcon,
   AcademicCapIcon,
   MagnifyingGlassIcon,
   UserGroupIcon,
@@ -70,12 +70,12 @@ export default function SuiviCompetences() {
         {/* HEADER */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-[#404040]/10">
           <div className="flex items-center gap-4">
-            <Link 
-              href="/mediation/equipe" 
-              className="p-2.5 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 text-[#005259] rounded-xl transition-all cursor-pointer flex items-center justify-center shadow-sm"
-              title="Retour à l'équipe"
+            <Link
+              href="/mediation/equipe"
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >
-              <ChevronLeftIcon className="w-4 h-4" />
+              <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Retour à l'équipe</span>
             </Link>
             <div className="flex items-center gap-3">
               <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>

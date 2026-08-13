@@ -18,9 +18,9 @@ import {
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
-import { 
-  ChevronLeftIcon, 
-  UserIcon, 
+import {
+  ArrowLeftIcon,
+  UserIcon,
   PhoneIcon, 
   EnvelopeIcon, 
   MapPinIcon, 
@@ -478,9 +478,9 @@ export default function FicheBeneficiaire() {
         
         {/* NAV HAUTE */}
         <div className="flex justify-between items-center mb-6">
-          <Link href="/mediation/rencontres-numeriques/liste-beneficiaires" className="inline-flex items-center gap-2 text-[#404040]/70 hover:text-[#005259] transition-colors group">
-            <ChevronLeftIcon className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            <span className="text-xs font-bold uppercase tracking-wider">Retour à la liste</span>
+          <Link href="/mediation/rencontres-numeriques/liste-beneficiaires" className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm">
+            <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
+            <span>Retour à la liste</span>
           </Link>
           
           <div className="flex items-center gap-2">

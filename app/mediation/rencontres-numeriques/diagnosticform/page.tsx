@@ -267,10 +267,10 @@ function FormulaireDiagnosticContent() {
         {/* EN-TÊTE DE NAVIGATION & INFORMATIONS USAGER */}
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <button 
+            <button
               type="button"
-              onClick={handleAnnulerOuRetour} 
-              className="inline-flex items-center gap-2 text-xs font-bold text-[#404040]/70 hover:text-[#005259] transition-colors cursor-pointer uppercase tracking-wider"
+              onClick={handleAnnulerOuRetour}
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >
               <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
               <span>Retour au profil</span>

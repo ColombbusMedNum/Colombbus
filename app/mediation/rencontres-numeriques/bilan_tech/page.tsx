@@ -472,9 +472,9 @@ function RapportDiagnosticPixContent() {
           </button>
 
           {/* BOUTON RETOUR TABLEAU DE BORD */}
-          <Link 
-            href="/" 
-            className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white text-[#005259] px-3.5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer border border-[#404040]/15 shadow-sm"
+          <Link
+            href="/"
+            className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
           >
             <HomeIcon className="w-4 h-4 text-[#EA601F]" />
             <span>Accueil</span>

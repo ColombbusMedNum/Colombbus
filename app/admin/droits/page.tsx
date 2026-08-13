@@ -13,7 +13,7 @@ import {
   ShieldCheckIcon,
   UserGroupIcon,
   LockClosedIcon,
-  ArrowLeftIcon,
+  HomeIcon,
   Cog6ToothIcon,
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
@@ -68,8 +68,12 @@ export default function GestionDroitsPage() {
           <p className="text-xs text-[#404040]/60 mt-2 leading-relaxed">
             Cette interface de sécurité maîtresse est réservée exclusivement aux administrateurs de la plateforme Colombbus.
           </p>
-          <Link href="/" className="mt-6 inline-block text-xs bg-[#F3F3F2] hover:bg-[#005259] hover:text-white px-4 py-2 rounded-xl border border-[#404040]/10 transition-colors font-bold uppercase tracking-wider text-[#005259]">
-            Retourner à l'accueil
+          <Link
+            href="/"
+            className="mt-6 flex items-center justify-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm w-fit mx-auto"
+          >
+            <HomeIcon className="w-4 h-4 text-[#EA601F]" />
+            <span>Accueil</span>
           </Link>
         </div>
       </main>
@@ -91,9 +95,12 @@ export default function GestionDroitsPage() {
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">Rôle par membre du staff</p>
             </div>
           </div>
-          <Link href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 rounded-xl text-[#005259] text-xs font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95">
-            <ArrowLeftIcon className="w-3.5 h-3.5" />
-            <span>Retour Dashboard</span>
+          <Link
+            href="/"
+            className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+          >
+            <HomeIcon className="w-4 h-4 text-[#EA601F]" />
+            <span>Accueil</span>
           </Link>
         </div>
 

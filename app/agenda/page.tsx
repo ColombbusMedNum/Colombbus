@@ -12,13 +12,13 @@ import {
   DocumentData, Query
 } from "firebase/firestore";
 import { 
-  PlusIcon, TrashIcon, XMarkIcon, 
-  DocumentDuplicateIcon, PencilSquareIcon, 
+  PlusIcon, TrashIcon, XMarkIcon,
+  DocumentDuplicateIcon, PencilSquareIcon,
   UsersIcon, MapPinIcon, EyeIcon, EyeSlashIcon,
   CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon,
   CheckCircleIcon, LockClosedIcon, BellIcon,
   ChatBubbleLeftRightIcon, ExclamationTriangleIcon,
-  ChevronDownIcon
+  ChevronDownIcon, HomeIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
@@ -81,6 +81,19 @@ function isLightColor(hex: string): boolean {
   const b = parseInt(hex.slice(5, 7), 16);
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return luminance > 0.6;
+}
+
+// Assombrit une couleur claire pour l'utiliser en texte sur fond blanc/quasi-blanc
+// (ex: badges de bloc thématique) : la couleur d'origine reste utilisée telle
+// quelle pour les pastilles/fonds, seul le texte a besoin de contraste suffisant.
+function getReadableTextColor(hex: string): string {
+  if (!isLightColor(hex)) return hex;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const factor = 0.55;
+  const toHex = (n: number) => Math.round(n * factor).toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
 function getWeekIdentifier(date: Date) {
@@ -740,8 +753,12 @@ export default function PlanningExpertMix() {
             {isSidebarOpen ? <ChevronLeftIcon className="w-4 h-4"/> : <ChevronRightIcon className="w-4 h-4"/>}
           </button>
           
-          <Link href="/" className="text-lg tracking-tight font-bold text-white hover:opacity-90 transition-opacity">
-            Accueil
+          <Link
+            href="/"
+            className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+          >
+            <HomeIcon className="w-4 h-4 text-[#EA601F]" />
+            <span>Accueil</span>
           </Link>
 
           <span className="text-[#88ACEA]">/</span>
@@ -985,12 +1002,12 @@ export default function PlanningExpertMix() {
                       onClick={() => setOpenBlocs(prev => ({ ...prev, [groupe.id]: !isOpen }))}
                     >
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: groupe.couleur }}></span>
-                      <span className="flex-1 text-[10px] font-extrabold uppercase tracking-wide truncate" style={{ color: groupe.couleur }}>
+                      <span className="flex-1 text-[10px] font-extrabold uppercase tracking-wide truncate" style={{ color: getReadableTextColor(groupe.couleur) }}>
                         {groupe.nom}
                       </span>
                       <span
                         className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                        style={{ color: groupe.couleur, backgroundColor: `${groupe.couleur}22` }}
+                        style={{ color: getReadableTextColor(groupe.couleur), backgroundColor: `${groupe.couleur}22` }}
                       >
                         {groupe.modeles.length}
                       </span>
@@ -1006,7 +1023,7 @@ export default function PlanningExpertMix() {
                       )}
                       <ChevronDownIcon
                         className={`w-3 h-3 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
-                        style={{ color: groupe.couleur }}
+                        style={{ color: getReadableTextColor(groupe.couleur) }}
                       />
                     </div>
                     {isOpen && (
