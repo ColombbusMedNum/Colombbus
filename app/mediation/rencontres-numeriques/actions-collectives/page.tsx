@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import { 
@@ -59,12 +59,23 @@ export default function ActionsCollectivesPage() {
 
   // États du formulaire de création
   const [lieuSelectionne, setLieuSelectionne] = useState("");
-  const [nouveauLieu, setNouveauLieu] = useState("");
-  const [isNouveauLieu, setIsNouveauLieu] = useState(false);
   const [thematique, setThematique] = useState("");
   const [nbHommes, setNbHommes] = useState<number | "">("");
   const [nbFemmes, setNbFemmes] = useState<number | "">("");
   const [commentaire, setCommentaire] = useState("");
+
+  // Pop-up de création d'un nouveau lieu (écrit directement dans le
+  // référentiel liste_lieux, comme /mediation/localisations), sans quitter
+  // cette page.
+  const [isNouveauLieuModalOpen, setIsNouveauLieuModalOpen] = useState(false);
+  const [nouveauLieuStatus, setNouveauLieuStatus] = useState("");
+  const [nouveauLieuForm, setNouveauLieuForm] = useState({
+    nomCourt: "",
+    nomComplet: "",
+    adresse: "",
+    ville: "",
+    codePostal: ""
+  });
 
   // États liés à l'Édition en ligne
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -146,14 +157,50 @@ export default function ActionsCollectivesPage() {
   // Sélection du lieu
   const handleLieuChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
+    if (val === "__NEW__") {
+      setIsNouveauLieuModalOpen(true);
+      return;
+    }
     setLieuSelectionne(val);
-    setIsNouveauLieu(val === "__NEW__");
+  };
+
+  // Création d'un nouveau lieu dans le référentiel partagé (liste_lieux),
+  // sans quitter cette page. Une fois créé, il est automatiquement
+  // sélectionné pour l'action collective en cours de saisie.
+  const handleCreateLieuInline = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nouveauLieuForm.nomCourt.trim()) return;
+
+    setNouveauLieuStatus("Enregistrement en cours...");
+    try {
+      const nomFinal = nouveauLieuForm.nomCourt.trim();
+      await addDoc(collection(db, "liste_lieux"), {
+        nomCourt: nomFinal,
+        nomComplet: nouveauLieuForm.nomComplet.trim() || nomFinal,
+        adresse: nouveauLieuForm.adresse.trim(),
+        ville: nouveauLieuForm.ville.trim(),
+        codePostal: nouveauLieuForm.codePostal.trim(),
+        actif: true,
+        createdAt: serverTimestamp(),
+      });
+
+      setLieuSelectionne(nomFinal);
+      setNouveauLieuStatus("✅ Lieu ajouté avec succès !");
+      setTimeout(() => {
+        setIsNouveauLieuModalOpen(false);
+        setNouveauLieuStatus("");
+        setNouveauLieuForm({ nomCourt: "", nomComplet: "", adresse: "", ville: "", codePostal: "" });
+      }, 900);
+    } catch (error) {
+      console.error("Erreur de création du lieu :", error);
+      setNouveauLieuStatus("❌ Erreur lors de l'enregistrement");
+    }
   };
 
   // Envoi du formulaire de création
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const lieuFinal = isNouveauLieu ? nouveauLieu.trim() : lieuSelectionne;
+    const lieuFinal = lieuSelectionne;
     if (!lieuFinal || !thematique) return;
 
     setStatus("Enregistrement...");
@@ -167,8 +214,6 @@ export default function ActionsCollectivesPage() {
         createdAt: new Date().toISOString()
       });
 
-      setNouveauLieu("");
-      setIsNouveauLieu(false);
       setThematique("");
       setNbHommes("");
       setNbFemmes("");
@@ -267,11 +312,8 @@ export default function ActionsCollectivesPage() {
           <button
             onClick={() => {
               setShowForm(!showForm);
-              if (lieuxDisponibles.length > 0) {
+              if (lieuxDisponibles.length > 0 && !lieuSelectionne) {
                 setLieuSelectionne(lieuxDisponibles[0]);
-                setIsNouveauLieu(false);
-              } else {
-                setIsNouveauLieu(true);
               }
             }}
             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#EA601F] hover:bg-[#005259] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-sm active:scale-95 self-start sm:self-auto"
@@ -305,27 +347,19 @@ export default function ActionsCollectivesPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="relative">
                 <label className="block text-[10px] font-bold text-[#005259] uppercase tracking-wider mb-1">Lieu d'intervention *</label>
-                {lieuxDisponibles.length > 0 && !isNouveauLieu ? (
-                  <select
-                    value={lieuSelectionne}
-                    onChange={handleLieuChange}
-                    required
-                    className={`${inputClass} pr-8 cursor-pointer`}
-                    style={{ backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23005259' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/></svg>")`, backgroundSize: '1rem', backgroundPosition: 'calc(100% - 0.75rem) center', backgroundRepeat: 'no-repeat' }}
-                  >
-                    {lieuxDisponibles.map((l) => (
-                      <option key={l} value={l} className="bg-white text-[#404040]">{l}</option>
-                    ))}
-                    <option value="__NEW__" className="bg-white text-[#EA601F] font-bold">➕ Créer un nouveau lieu...</option>
-                  </select>
-                ) : (
-                  <div className="space-y-2">
-                    <input type="text" placeholder="Nom du nouveau lieu" value={nouveauLieu} onChange={(e) => setNouveauLieu(e.target.value)} required className={inputClass} autoFocus />
-                    {lieuxDisponibles.length > 0 && (
-                      <button type="button" onClick={() => setIsNouveauLieu(false)} className="text-[10px] text-[#005259] hover:underline font-bold block">Choisir un lieu existant</button>
-                    )}
-                  </div>
-                )}
+                <select
+                  value={lieuSelectionne}
+                  onChange={handleLieuChange}
+                  required
+                  className={`${inputClass} pr-8 cursor-pointer`}
+                  style={{ backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23005259' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5'/></svg>")`, backgroundSize: '1rem', backgroundPosition: 'calc(100% - 0.75rem) center', backgroundRepeat: 'no-repeat' }}
+                >
+                  {!lieuSelectionne && <option value="" disabled>-- Choisir un lieu --</option>}
+                  {lieuxDisponibles.map((l) => (
+                    <option key={l} value={l} className="bg-white text-[#404040]">{l}</option>
+                  ))}
+                  <option value="__NEW__" className="bg-white text-[#EA601F] font-bold">➕ Créer un nouveau lieu...</option>
+                </select>
               </div>
 
               <div>
@@ -361,6 +395,60 @@ export default function ActionsCollectivesPage() {
               <button type="submit" className="bg-[#EA601F] hover:bg-[#005259] text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm">Valider l'action</button>
             </div>
           </form>
+        )}
+
+        {/* POP-UP : CRÉATION D'UN NOUVEAU LIEU DANS LE RÉFÉRENTIEL */}
+        {isNouveauLieuModalOpen && (
+          <div className="fixed inset-0 bg-[#005259]/40 backdrop-blur-xs flex items-center justify-center z-[110] p-4">
+            <form onSubmit={handleCreateLieuInline} className="bg-white border border-[#404040]/10 p-6 rounded-2xl w-full max-w-sm space-y-3 shadow-2xl text-[#404040]">
+              <div className="flex items-center gap-2 pb-2 border-b border-[#404040]/10">
+                <MapPinIcon className="w-4 h-4 text-[#EA601F]" />
+                <h3 className="font-extrabold text-sm text-[#005259] uppercase tracking-wide">Nouveau lieu</h3>
+              </div>
+              <p className="text-[11px] text-[#404040]/70">
+                Ce lieu sera ajouté au référentiel partagé (visible aussi sur /mediation/localisations) et sélectionné automatiquement pour cette action.
+              </p>
+
+              <div>
+                <label className="block text-[10px] font-bold text-[#005259] uppercase tracking-wider mb-1">Nom court *</label>
+                <input required placeholder="Ex: Terrage" value={nouveauLieuForm.nomCourt} onChange={(e) => setNouveauLieuForm({...nouveauLieuForm, nomCourt: e.target.value})} className={inputClass} autoFocus />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-[#005259] uppercase tracking-wider mb-1">Nom complet (Optionnel)</label>
+                <input placeholder="Ex: Résidence Autonomie - Le Terrage" value={nouveauLieuForm.nomComplet} onChange={(e) => setNouveauLieuForm({...nouveauLieuForm, nomComplet: e.target.value})} className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-[#005259] uppercase tracking-wider mb-1">Adresse</label>
+                <input placeholder="Ex: 10 rue du Terrage" value={nouveauLieuForm.adresse} onChange={(e) => setNouveauLieuForm({...nouveauLieuForm, adresse: e.target.value})} className={inputClass} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-[#005259] uppercase tracking-wider mb-1">Code Postal</label>
+                  <input placeholder="75010" value={nouveauLieuForm.codePostal} onChange={(e) => setNouveauLieuForm({...nouveauLieuForm, codePostal: e.target.value})} className={inputClass} />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-[#005259] uppercase tracking-wider mb-1">Ville</label>
+                  <input placeholder="Paris" value={nouveauLieuForm.ville} onChange={(e) => setNouveauLieuForm({...nouveauLieuForm, ville: e.target.value})} className={inputClass} />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-[11px] text-[#EA601F] font-bold">{nouveauLieuStatus}</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setIsNouveauLieuModalOpen(false); setNouveauLieuStatus(""); setNouveauLieuForm({ nomCourt: "", nomComplet: "", adresse: "", ville: "", codePostal: "" }); }}
+                    className="text-[#404040]/60 hover:text-[#404040] text-xs font-bold px-2 cursor-pointer"
+                  >
+                    Annuler
+                  </button>
+                  <button type="submit" className="bg-[#EA601F] hover:bg-[#005259] text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm">
+                    Créer et sélectionner
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
         )}
 
         {/* SYNTHÈSE D'ACTIVITÉ PAR LIEU & TRIMESTRE */}
