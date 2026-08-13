@@ -14,8 +14,8 @@ import {
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import { 
-  ChevronLeftIcon, 
-  MapPinIcon, 
+  HomeIcon,
+  MapPinIcon,
   PlusCircleIcon, 
   PencilSquareIcon, 
   TrashIcon, 
@@ -242,9 +242,9 @@ export default function LocalisationsPage() {
         
         {/* NAV HAUTE */}
         <div className="flex justify-between items-center mb-6">
-          <Link href="/mediation/rencontres-numeriques/liste-beneficiaires" className="inline-flex items-center gap-2 text-[#404040]/70 hover:text-[#005259] transition-colors group">
-            <ChevronLeftIcon className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            <span className="text-xs font-bold uppercase tracking-wider">Retour aux bénéficiaires</span>
+          <Link href="/" className="inline-flex items-center gap-2 text-[#404040]/70 hover:text-[#005259] transition-colors group">
+            <HomeIcon className="w-4 h-4" />
+            <span className="text-xs font-bold uppercase tracking-wider">Accueil</span>
           </Link>
           
           <button 
