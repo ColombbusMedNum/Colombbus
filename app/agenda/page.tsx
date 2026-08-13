@@ -1149,6 +1149,16 @@ export default function PlanningExpertMix() {
             </div>
 
             <div className="flex flex-col gap-1">
+              <label className="text-[10px] text-[#404040]/70 font-semibold">Code Analytique (Optionnel)</label>
+              <input
+                placeholder="Ex: 12345"
+                value={newActivite.codeAnalytique}
+                className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none"
+                onChange={e => setNewActivite({...newActivite, codeAnalytique: e.target.value})}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
               <label className="text-[10px] text-[#404040] font-bold uppercase">Couleur Charte</label>
               <div className="flex items-center gap-2">
                 <input 
