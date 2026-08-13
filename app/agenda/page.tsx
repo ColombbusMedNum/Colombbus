@@ -113,7 +113,8 @@ export default function PlanningExpertMix() {
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isActiviteModalOpen, setIsActiviteModalOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<ActiviteType | null>(null);
-  const [voirMasques, setVoirMasques] = useState(false); 
+  const [voirMasques, setVoirMasques] = useState(false);
+  const [openBlocs, setOpenBlocs] = useState<Record<string, boolean>>({ inclusion: true, decouverte: true, insertion: true, "sans-bloc": true }); 
   const [voirSamedi, setVoirSamedi] = useState(false); 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -917,11 +918,13 @@ export default function PlanningExpertMix() {
 
               return groupes.map(groupe => {
                 if (groupe.modeles.length === 0) return null;
+                const isOpen = openBlocs[groupe.id] !== false;
                 return (
-                  <details key={groupe.id} className="group/bloc rounded-lg border overflow-hidden" style={{ borderColor: `${groupe.couleur}40` }} open>
-                    <summary
-                      className="list-none cursor-pointer flex items-center gap-2 px-2 py-1.5 select-none"
+                  <div key={groupe.id} className="rounded-lg border overflow-hidden" style={{ borderColor: `${groupe.couleur}40` }}>
+                    <div
+                      className="cursor-pointer flex items-center gap-2 px-2 py-1.5 select-none"
                       style={{ backgroundColor: `${groupe.couleur}14` }}
+                      onClick={() => setOpenBlocs(prev => ({ ...prev, [groupe.id]: !isOpen }))}
                     >
                       <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: groupe.couleur }}></span>
                       <span className="flex-1 text-[10px] font-extrabold uppercase tracking-wide truncate" style={{ color: groupe.couleur }}>
@@ -938,20 +941,22 @@ export default function PlanningExpertMix() {
                           type="color"
                           value={groupe.couleur}
                           title="Changer la couleur du bloc"
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                          onClick={(e) => e.stopPropagation()}
                           onChange={(e) => handleChangeBlocColor(groupe.id, e.target.value)}
                           className="w-4 h-4 rounded cursor-pointer border border-black/10 bg-transparent shrink-0"
                         />
                       )}
                       <ChevronDownIcon
-                        className="w-3 h-3 shrink-0 transition-transform group-open/bloc:rotate-180"
+                        className={`w-3 h-3 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
                         style={{ color: groupe.couleur }}
                       />
-                    </summary>
-                    <div className="p-1.5 space-y-1.5">
-                      {groupe.modeles.map(type => renderModeleItem(type, groupe.id === "sans-bloc" ? undefined : groupe.couleur))}
                     </div>
-                  </details>
+                    {isOpen && (
+                      <div className="p-1.5 space-y-1.5">
+                        {groupe.modeles.map(type => renderModeleItem(type, groupe.id === "sans-bloc" ? undefined : groupe.couleur))}
+                      </div>
+                    )}
+                  </div>
                 );
               });
             })()}
