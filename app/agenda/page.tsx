@@ -353,7 +353,13 @@ export default function PlanningExpertMix() {
       dateDebut: type.dateDebut || "",
       dateFin: type.dateFin || ""
     });
-    setSelectedLieuPredefini("");
+    // Retrouve, si possible, l'adresse prédéfinie correspondante pour que le
+    // menu déroulant affiche la bonne sélection au lieu de retomber sur
+    // "-- Choisir une adresse --" à chaque réouverture pour édition.
+    const locMatch = localisations?.find(
+      (l) => `${l.adresse || ""}, ${l.codePostal || ""} ${l.ville || ""}`.trim() === (type.adresse || "").trim()
+    );
+    setSelectedLieuPredefini(locMatch ? (locMatch.nomCourt || locMatch.nomRaccourci || locMatch.nomComplet) : "");
     setIsActiviteModalOpen(true);
   };
 
