@@ -970,7 +970,7 @@ export default function PlanningExpertMix() {
                     <div className="w-full flex items-center justify-between mt-1 pl-3.5">
                       <div className="flex items-center gap-1.5 min-w-0">
                         {type.territoire && <span className="text-[9px] bg-white px-1 rounded border border-current shrink-0">{type.territoire}</span>}
-                        {type.debut && <span className="text-[10px] opacity-80 font-mono truncate">{type.debut} - {type.fin}</span>}
+                        {type.debut && <span className="text-[8px] opacity-80 font-mono truncate">{type.debut} - {type.fin}</span>}
                       </div>
                       <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity">
                         <PermissionGuard actionId="agenda_model_actions">
