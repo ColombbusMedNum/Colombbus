@@ -255,6 +255,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     page_access_home: true, page_access_login: true, page_access_liste_beneficiaires: true,
     page_access_fiche_beneficiaire: true, page_access_diagnosticform: true, page_access_actions_collectives: true,
     page_access_agenda: true, page_access_suivi_collecte: true, page_access_suresnes: true,
+    page_access_adresses: true,
     home_logout: true, home_folder_rencontres: true, home_folder_stats: true, home_nav_liste_benef: true,
     home_nav_collectes: true, home_nav_agenda_suresnes: true, home_nav_emargement_docs: true,
     home_nav_emargement_gen: true, home_nav_actions_coll: true, home_nav_stats_glob: true,
@@ -280,6 +281,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     page_access_home: true, page_access_login: true, page_access_liste_beneficiaires: true,
     page_access_fiche_beneficiaire: true, page_access_diagnosticform: true, page_access_actions_collectives: true,
     page_access_agenda: true, page_access_suivi_collecte: true, page_access_suresnes: true, page_access_equipe: true,
+    page_access_adresses: true,
     home_logout: true, home_folder_rencontres: true, home_folder_stats: true, home_nav_liste_benef: true,
     home_nav_collectes: true, home_nav_agenda_suresnes: true, home_nav_emargement_docs: true,
     home_nav_emargement_gen: true, home_nav_actions_coll: true, home_nav_stats_glob: true,
@@ -312,7 +314,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   // créneau ni modifier une note.
   aci: {
     page_access_home: true, page_access_login: true, page_access_liste_beneficiaires: true, page_access_suresnes: true,
-    page_access_agenda: true,
+    page_access_agenda: true, page_access_adresses: true,
     home_logout: true, home_folder_rencontres: true, home_folder_stats: true, home_nav_liste_benef: true,
     home_nav_collectes: true, home_nav_agenda_suresnes: true, home_nav_agenda_med: true, home_nav_emargement_docs: true,
     home_nav_actions_coll: true, home_nav_stats_glob: true, home_nav_bilan_suresnes: true, home_nav_volume_horaire: true,
