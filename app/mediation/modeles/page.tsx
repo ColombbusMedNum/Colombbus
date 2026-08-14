@@ -171,6 +171,17 @@ export default function ModelesPage() {
     }
   };
 
+  // Pour une activité récurrente (ex: "Quintinie") qui revient sur plusieurs
+  // périodes distinctes dans l'année : crée un nouveau modèle avec les mêmes
+  // horaires/lieu/type/médiateurs, dates vides à remplir directement dans le
+  // tableau. Reste deux documents séparés (comme tout autre modèle) — juste
+  // pré-rempli à partir de l'existant pour ne pas tout retaper.
+  const handleDuplicate = async (type: ActiviteType) => {
+    const { id, ...donnees } = type;
+    await addDoc(collection(db, "activites_types"), { ...donnees, dateDebut: "", dateFin: "" });
+    showToast(`"${type.lieu}" dupliqué — renseignez les nouvelles dates de début/fin.`);
+  };
+
   // Édition directe d'une cellule du tableau : répercute sur les créneaux déjà
   // posés (comme le fait handleSave pour la modale) quand un champ affiché
   // ailleurs que sur le modèle change, et rejoue la génération auto si le
@@ -400,6 +411,11 @@ export default function ModelesPage() {
                           )}
                         </td>
                         <td className="px-4 py-2 text-right whitespace-nowrap">
+                          <PermissionGuard actionId="modeles_create">
+                            <button onClick={() => handleDuplicate(type)} className="p-1.5 text-[#404040]/60 hover:text-[#EA601F] cursor-pointer" title="Dupliquer pour une nouvelle période (activité récurrente)">
+                              <DocumentDuplicateIcon className="w-4 h-4" />
+                            </button>
+                          </PermissionGuard>
                           <PermissionGuard actionId="modeles_edit">
                             <button onClick={() => openEdit(type)} className="p-1.5 text-[#404040]/60 hover:text-[#005259] cursor-pointer" title="Configurer médiateurs, couleur, horaires...">
                               <PencilSquareIcon className="w-4 h-4" />
@@ -453,6 +469,11 @@ export default function ModelesPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
+                      <PermissionGuard actionId="modeles_create">
+                        <button onClick={() => handleDuplicate(type)} className="p-1.5 text-[#404040]/60 hover:text-[#EA601F] cursor-pointer" title="Dupliquer pour une nouvelle période (activité récurrente)">
+                          <DocumentDuplicateIcon className="w-4 h-4" />
+                        </button>
+                      </PermissionGuard>
                       <PermissionGuard actionId="modeles_edit">
                         <button onClick={() => openEdit(type)} className="p-1.5 text-[#404040]/60 hover:text-[#005259] cursor-pointer">
                           <PencilSquareIcon className="w-4 h-4" />
