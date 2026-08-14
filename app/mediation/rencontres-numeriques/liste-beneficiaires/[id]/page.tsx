@@ -39,6 +39,7 @@ import {
   NoSymbolIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
+import { PermissionGuard } from "@/components/PermissionGuard";
 import { useToast } from "@/components/ToastProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { formatPhoneNumber } from "@/lib/formatPhone";
@@ -484,14 +485,18 @@ export default function FicheBeneficiaire() {
           </Link>
           
           <div className="flex items-center gap-2">
-            <Link href="/mediation/rencontres-numeriques/suresnes" className="inline-flex items-center gap-2 bg-white border border-[#404040]/10 hover:border-[#005259] hover:bg-[#005259] hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-[#005259] transition-all shadow-sm">
-              <CalendarDaysIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Agenda Suresnes</span>
-            </Link>
-            <Link href="/mediation/equipe" className="inline-flex items-center gap-2 bg-white border border-[#404040]/10 hover:border-[#005259] hover:bg-[#005259] hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-[#005259] transition-all shadow-sm">
-              <UserGroupIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Gérer l'équipe RH</span>
-            </Link>
+            <PermissionGuard actionId="fiche_nav_agenda_suresnes">
+              <Link href="/mediation/rencontres-numeriques/suresnes" className="inline-flex items-center gap-2 bg-white border border-[#404040]/10 hover:border-[#005259] hover:bg-[#005259] hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-[#005259] transition-all shadow-sm">
+                <CalendarDaysIcon className="w-4 h-4 text-[#EA601F]" />
+                <span>Agenda Suresnes</span>
+              </Link>
+            </PermissionGuard>
+            <PermissionGuard actionId="fiche_nav_equipe">
+              <Link href="/mediation/equipe" className="inline-flex items-center gap-2 bg-white border border-[#404040]/10 hover:border-[#005259] hover:bg-[#005259] hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-[#005259] transition-all shadow-sm">
+                <UserGroupIcon className="w-4 h-4 text-[#EA601F]" />
+                <span>Gérer l'équipe RH</span>
+              </Link>
+            </PermissionGuard>
           </div>
         </div>
 
@@ -549,17 +554,19 @@ export default function FicheBeneficiaire() {
                   )}
                 </div>
               </div>
-              <button 
-                onClick={() => setIsModalProfilOpen(true)} 
-                className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 ${
-                  isProfilIncomplet 
-                    ? "bg-[#F9945D]/15 border border-[#F9945D] text-[#EA601F] hover:bg-[#F9945D]/30" 
-                    : "bg-[#EA601F] hover:bg-[#EF736A] text-white"
-                }`}
-              >
-                <PencilSquareIcon className="w-4 h-4" />
-                <span>{isProfilIncomplet ? "Compléter le profil" : "Éditer le profil"}</span>
-              </button>
+              <PermissionGuard actionId="fiche_edit_profil">
+                <button
+                  onClick={() => setIsModalProfilOpen(true)}
+                  className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 ${
+                    isProfilIncomplet
+                      ? "bg-[#F9945D]/15 border border-[#F9945D] text-[#EA601F] hover:bg-[#F9945D]/30"
+                      : "bg-[#EA601F] hover:bg-[#EF736A] text-white"
+                  }`}
+                >
+                  <PencilSquareIcon className="w-4 h-4" />
+                  <span>{isProfilIncomplet ? "Compléter le profil" : "Éditer le profil"}</span>
+                </button>
+              </PermissionGuard>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mt-6">
               <div className="flex items-center gap-3 bg-[#F3F3F2] p-3 rounded-xl border border-[#404040]/10"><PhoneIcon className="w-4 h-4 text-[#EA601F]" /><span className="text-xs text-[#404040] font-medium">{formatPhoneNumber(user?.Téléphone)}</span></div>
@@ -616,13 +623,15 @@ export default function FicheBeneficiaire() {
                   <p className="text-[11px] text-[#404040]/70 mt-0.5">Enregistrer une nouvelle séance ou un entretien.</p>
                 </div>
               </div>
-              <button 
-                onClick={() => setIsModalRdvOpen(true)}
-                className="mt-2 w-full inline-flex items-center justify-center gap-2 bg-[#EA601F] hover:bg-[#EF736A] text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
-              >
-                <PlusCircleIcon className="w-4 h-4" />
-                <span>Enregistrer un RDV</span>
-              </button>
+              <PermissionGuard actionId="fiche_add_action">
+                <button
+                  onClick={() => setIsModalRdvOpen(true)}
+                  className="mt-2 w-full inline-flex items-center justify-center gap-2 bg-[#EA601F] hover:bg-[#EF736A] text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
+                >
+                  <PlusCircleIcon className="w-4 h-4" />
+                  <span>Enregistrer un RDV</span>
+                </button>
+              </PermissionGuard>
             </section>
 
             {/* AUTO EVALS */}
@@ -634,10 +643,12 @@ export default function FicheBeneficiaire() {
                   <p className="text-[11px] text-[#404040]/70 mt-0.5">Lancer un diagnostic initial, final ou de satisfaction.</p>
                 </div>
               </div>
-              <Link href={`/mediation/rencontres-numeriques/diagnosticform?id=${userId}`} className="mt-4 w-full inline-flex items-center justify-center gap-2 bg-[#005259] hover:bg-[#EA601F] text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95">
-                <PlusCircleIcon className="w-4 h-4" />
-                <span>Remplir un questionnaire</span>
-              </Link>
+              <PermissionGuard actionId="fiche_nav_diagnostic">
+                <Link href={`/mediation/rencontres-numeriques/diagnosticform?id=${userId}`} className="mt-4 w-full inline-flex items-center justify-center gap-2 bg-[#005259] hover:bg-[#EA601F] text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95">
+                  <PlusCircleIcon className="w-4 h-4" />
+                  <span>Remplir un questionnaire</span>
+                </Link>
+              </PermissionGuard>
             </section>
 
           </div>
@@ -801,21 +812,27 @@ export default function FicheBeneficiaire() {
                             <td className="py-3 px-3 text-right">
                               {isEditing ? (
                                 <div className="flex justify-end gap-1.5">
-                                  <button onClick={() => handleUpdateRDV(rdv.id)} className="p-1 bg-[#005259] text-white hover:bg-[#EA601F] rounded shadow-sm">
-                                    <CheckIcon className="w-4 h-4 stroke-[3]" />
-                                  </button>
+                                  <PermissionGuard actionId="fiche_action_save_rdv">
+                                    <button onClick={() => handleUpdateRDV(rdv.id)} className="p-1 bg-[#005259] text-white hover:bg-[#EA601F] rounded shadow-sm">
+                                      <CheckIcon className="w-4 h-4 stroke-[3]" />
+                                    </button>
+                                  </PermissionGuard>
                                   <button onClick={() => { setEditingId(null); setEditFormData(null); }} className="p-1 bg-[#F3F3F2] border border-[#404040]/10 text-[#404040] hover:bg-[#404040]/10 rounded">
                                     <XMarkIcon className="w-4 h-4" />
                                   </button>
                                 </div>
                               ) : (
                                 <div className="flex justify-end gap-2">
-                                  <button onClick={() => startEditing(rdv)} className="p-1.5 bg-[#F3F3F2] border border-[#404040]/10 hover:border-[#005259] text-[#005259] hover:bg-[#005259] hover:text-white rounded-lg transition-colors">
-                                    <PencilSquareIcon className="w-4 h-4" />
-                                  </button>
-                                  <button onClick={() => handleDeleteRDV(rdv.id)} className="p-1.5 bg-[#EF736A]/10 border border-[#EF736A]/30 hover:bg-[#EF736A] hover:text-white text-[#EF736A] rounded-lg transition-colors">
-                                    <TrashIcon className="w-4 h-4" />
-                                  </button>
+                                  <PermissionGuard actionId="fiche_action_edit_rdv">
+                                    <button onClick={() => startEditing(rdv)} className="p-1.5 bg-[#F3F3F2] border border-[#404040]/10 hover:border-[#005259] text-[#005259] hover:bg-[#005259] hover:text-white rounded-lg transition-colors">
+                                      <PencilSquareIcon className="w-4 h-4" />
+                                    </button>
+                                  </PermissionGuard>
+                                  <PermissionGuard actionId="fiche_action_delete_rdv">
+                                    <button onClick={() => handleDeleteRDV(rdv.id)} className="p-1.5 bg-[#EF736A]/10 border border-[#EF736A]/30 hover:bg-[#EF736A] hover:text-white text-[#EF736A] rounded-lg transition-colors">
+                                      <TrashIcon className="w-4 h-4" />
+                                    </button>
+                                  </PermissionGuard>
                                 </div>
                               )}
                             </td>
@@ -860,15 +877,17 @@ export default function FicheBeneficiaire() {
                           </div>
 
                           {diag.moment === "Collecte Tech" && (
-                            <Link 
-                              href={`/mediation/rencontres-numeriques/bilan_tech?id=${userId}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 bg-[#EA601F] hover:bg-[#EF736A] text-white text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg transition-all shadow-sm shrink-0"
-                            >
-                              <ClipboardDocumentCheckIcon className="w-4 h-4 shrink-0" />
-                              <span>Bilan Tech</span>
-                            </Link>
+                            <PermissionGuard actionId="fiche_nav_bilan_tech">
+                              <Link
+                                href={`/mediation/rencontres-numeriques/bilan_tech?id=${userId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 bg-[#EA601F] hover:bg-[#EF736A] text-white text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg transition-all shadow-sm shrink-0"
+                              >
+                                <ClipboardDocumentCheckIcon className="w-4 h-4 shrink-0" />
+                                <span>Bilan Tech</span>
+                              </Link>
+                            </PermissionGuard>
                           )}
                         </div>
 
@@ -956,12 +975,14 @@ export default function FicheBeneficiaire() {
                 <div>
                   <div className="flex justify-between items-center mb-1">
                     <label className="text-[10px] font-bold text-[#404040]/70 uppercase">Lieu de la rencontre</label>
-                    <Link 
-                      href="/mediation/localisations" 
-                      className="text-[9px] text-[#005259] font-bold underline uppercase hover:text-[#EA601F] transition-colors"
-                    >
-                      + Ajouter un lieu
-                    </Link>
+                    <PermissionGuard actionId="fiche_action_change_lieu">
+                      <Link
+                        href="/mediation/localisations"
+                        className="text-[9px] text-[#005259] font-bold underline uppercase hover:text-[#EA601F] transition-colors"
+                      >
+                        + Ajouter un lieu
+                      </Link>
+                    </PermissionGuard>
                   </div>
 
                   <select 
@@ -1069,12 +1090,14 @@ export default function FicheBeneficiaire() {
                   >
                     Annuler
                   </button>
-                  <button 
-                    type="submit" 
-                    className="px-5 py-2.5 bg-[#EA601F] hover:bg-[#EF736A] text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
-                  >
-                    Enregistrer l'action
-                  </button>
+                  <PermissionGuard actionId="fiche_add_action">
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 bg-[#EA601F] hover:bg-[#EF736A] text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
+                    >
+                      Enregistrer l'action
+                    </button>
+                  </PermissionGuard>
                 </div>
               </form>
             </div>
@@ -1111,14 +1134,16 @@ export default function FicheBeneficiaire() {
                       <span className="text-[11px] text-[#404040]/70 block mt-0.5">Restreindre temporairement ou définitivement ce profil.</span>
                     </div>
                   </div>
-                  <select 
-                    value={profilFormData.Statut_Blacklist} 
-                    onChange={e => setProfilFormData({...profilFormData, Statut_Blacklist: e.target.value})} 
-                    className="bg-white border border-[#EF736A]/40 rounded-xl p-2 text-xs font-bold text-[#EF736A] outline-none focus:ring-1 focus:ring-[#EF736A] transition-all"
-                  >
-                    <option value="Non" className="text-[#404040]">Non (Actif)</option>
-                    <option value="Oui" className="text-[#EF736A]">Oui (Blacklisté)</option>
-                  </select>
+                  <PermissionGuard actionId="fiche_modal_toggle_blacklist">
+                    <select
+                      value={profilFormData.Statut_Blacklist}
+                      onChange={e => setProfilFormData({...profilFormData, Statut_Blacklist: e.target.value})}
+                      className="bg-white border border-[#EF736A]/40 rounded-xl p-2 text-xs font-bold text-[#EF736A] outline-none focus:ring-1 focus:ring-[#EF736A] transition-all"
+                    >
+                      <option value="Non" className="text-[#404040]">Non (Actif)</option>
+                      <option value="Oui" className="text-[#EF736A]">Oui (Blacklisté)</option>
+                    </select>
+                  </PermissionGuard>
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
@@ -1239,12 +1264,14 @@ export default function FicheBeneficiaire() {
                       Annuler
                     </button>
                     
-                    <button 
-                      type="submit" 
-                      className="px-5 py-2 rounded-xl text-xs font-bold uppercase bg-[#005259] text-white shadow-md hover:bg-[#EA601F] transition-colors active:scale-95"
-                    >
-                      Enregistrer
-                    </button>
+                    <PermissionGuard actionId="fiche_modal_submit">
+                      <button
+                        type="submit"
+                        className="px-5 py-2 rounded-xl text-xs font-bold uppercase bg-[#005259] text-white shadow-md hover:bg-[#EA601F] transition-colors active:scale-95"
+                      >
+                        Enregistrer
+                      </button>
+                    </PermissionGuard>
                   </div>
                 </div>
               </form>
