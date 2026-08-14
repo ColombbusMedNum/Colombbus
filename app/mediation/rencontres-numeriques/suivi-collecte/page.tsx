@@ -7,6 +7,7 @@ import { ChevronLeftIcon, ArrowDownTrayIcon, UserGroupIcon, HomeIcon, ArrowPathI
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import PageGuard from "@/components/PageGuard";
+import { PermissionGuard } from "@/components/PermissionGuard";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -227,14 +228,16 @@ export default function SuiviCollecteTech() {
             <ArrowPathIcon className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             <span>Rafraîchir</span>
           </button>
-          <button
-            onClick={exportToCSV}
-            disabled={beneficiaires.length === 0}
-            className="inline-flex items-center gap-2 bg-[#EA601F] hover:bg-[#005259] disabled:opacity-40 text-white font-bold text-xs uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-sm cursor-pointer disabled:cursor-not-allowed"
-          >
-            <ArrowDownTrayIcon className="w-4 h-4 text-white" />
-            <span>Exporter au format Excel</span>
-          </button>
+          <PermissionGuard actionId="collecte_export">
+            <button
+              onClick={exportToCSV}
+              disabled={beneficiaires.length === 0}
+              className="inline-flex items-center gap-2 bg-[#EA601F] hover:bg-[#005259] disabled:opacity-40 text-white font-bold text-xs uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-sm cursor-pointer disabled:cursor-not-allowed"
+            >
+              <ArrowDownTrayIcon className="w-4 h-4 text-white" />
+              <span>Exporter au format Excel</span>
+            </button>
+          </PermissionGuard>
           </div>
         </div>
 
@@ -276,16 +279,18 @@ export default function SuiviCollecteTech() {
                   {beneficiaires.map((b) => (
                     <tr key={b.id} className="hover:bg-[#F3F3F2]/60 transition-colors group">
                       <td className="p-3 pl-5 text-xs">
-                        <select
-                          value={b.annee}
-                          onChange={(e) => handleAnneeChange(b.id, e.target.value)}
-                          className="bg-[#F3F3F2] border border-[#404040]/15 rounded-lg px-2 py-1 text-[#005259] text-[11px] font-bold outline-none focus:border-[#005259] cursor-pointer"
-                        >
-                          <option value="2024">2024</option>
-                          <option value="2025">2025</option>
-                          <option value="2026">2026</option>
-                          <option value="2027">2027</option>
-                        </select>
+                        <PermissionGuard actionId="collecte_change_year">
+                          <select
+                            value={b.annee}
+                            onChange={(e) => handleAnneeChange(b.id, e.target.value)}
+                            className="bg-[#F3F3F2] border border-[#404040]/15 rounded-lg px-2 py-1 text-[#005259] text-[11px] font-bold outline-none focus:border-[#005259] cursor-pointer"
+                          >
+                            <option value="2024">2024</option>
+                            <option value="2025">2025</option>
+                            <option value="2026">2026</option>
+                            <option value="2027">2027</option>
+                          </select>
+                        </PermissionGuard>
                       </td>
 
                       <td className="p-3 font-bold text-[#005259] uppercase truncate">
@@ -313,43 +318,59 @@ export default function SuiviCollecteTech() {
                             key={cell.field} 
                             className={`p-2 text-center border-l border-[#404040]/10 ${cell.bg} ${isChecked ? 'bg-[#A9E0C9]/30' : ''}`}
                           >
-                            <label className="flex items-center justify-center w-full h-full cursor-pointer py-1">
-                              <input 
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => handleToggleStep(b.id, cell.field as keyof BeneficiaireCollecte, isChecked)}
-                                className={`w-4 h-4 rounded border-[#404040]/30 bg-white ${cell.color} transition-all cursor-pointer`}
-                              />
-                            </label>
+                            <PermissionGuard actionId="collecte_toggle_step">
+                              <label className="flex items-center justify-center w-full h-full cursor-pointer py-1">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => handleToggleStep(b.id, cell.field as keyof BeneficiaireCollecte, isChecked)}
+                                  className={`w-4 h-4 rounded border-[#404040]/30 bg-white ${cell.color} transition-all cursor-pointer`}
+                                />
+                              </label>
+                            </PermissionGuard>
                           </td>
                         );
                       })}
 
-                      <td className="p-2 border-l border-[#404040]/10 text-[11px]" onClick={() => {
-                        if (editingCommentId !== b.id) {
-                          setEditingCommentId(b.id);
-                          setCommentValue(b.commentaires);
-                        }
-                      }}>
-                        {editingCommentId === b.id ? (
-                          <textarea
-                            autoFocus
-                            value={commentValue}
-                            onChange={(e) => setCommentValue(e.target.value)}
-                            onBlur={() => handleSaveComment(b.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSaveComment(b.id);
+                      <td className="p-2 border-l border-[#404040]/10 text-[11px]">
+                        <PermissionGuard
+                          actionId="collecte_comment_edit"
+                          fallback={
+                            <div className="w-full h-full min-h-[32px] text-[#404040]/80 whitespace-pre-wrap break-words p-1">
+                              {b.commentaires || <span className="text-[#404040]/40 italic">Aucune note</span>}
+                            </div>
+                          }
+                        >
+                          <div
+                            className="w-full h-full"
+                            onClick={() => {
+                              if (editingCommentId !== b.id) {
+                                setEditingCommentId(b.id);
+                                setCommentValue(b.commentaires);
                               }
                             }}
-                            className="w-full bg-[#F3F3F2] border border-[#005259] text-[#404040] rounded-lg p-2 text-[11px] outline-none min-h-[80px] focus:ring-1 focus:ring-[#005259] resize-y"
-                          />
-                        ) : (
-                          <div className="w-full h-full min-h-[32px] cursor-pointer text-[#404040]/80 whitespace-pre-wrap break-words hover:text-[#005259] transition-colors p-1">
-                            {b.commentaires || <span className="text-[#404040]/40 italic">Ajouter une note...</span>}
+                          >
+                            {editingCommentId === b.id ? (
+                              <textarea
+                                autoFocus
+                                value={commentValue}
+                                onChange={(e) => setCommentValue(e.target.value)}
+                                onBlur={() => handleSaveComment(b.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSaveComment(b.id);
+                                  }
+                                }}
+                                className="w-full bg-[#F3F3F2] border border-[#005259] text-[#404040] rounded-lg p-2 text-[11px] outline-none min-h-[80px] focus:ring-1 focus:ring-[#005259] resize-y"
+                              />
+                            ) : (
+                              <div className="w-full h-full min-h-[32px] cursor-pointer text-[#404040]/80 whitespace-pre-wrap break-words hover:text-[#005259] transition-colors p-1">
+                                {b.commentaires || <span className="text-[#404040]/40 italic">Ajouter une note...</span>}
+                              </div>
+                            )}
                           </div>
-                        )}
+                        </PermissionGuard>
                       </td>
                     </tr>
                   ))}
