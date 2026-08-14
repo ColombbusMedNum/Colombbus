@@ -1073,8 +1073,8 @@ export default function PlanningExpertMix() {
                 <div className="bg-white border border-[#404040]/10 rounded-xl p-4 overflow-x-auto shadow-sm">
                   <table className="border-collapse text-xs w-full table-fixed">
                     <thead>
-                      <tr className="border-b-2 border-[#005259]">
-                        <th className="text-left pr-2 pb-2 w-[160px] text-[#005259] font-extrabold text-xs">Médiateur</th>
+                      <tr className="border-b-2 border-[#005259] sticky top-[60px] z-20 bg-white">
+                        <th className="sticky left-0 z-30 bg-white text-left pr-2 pb-2 w-[160px] text-[#005259] font-extrabold text-xs">Médiateur</th>
                         {weekDays.map(d => {
                           const estFerie = joursFeries.has(d.toLocaleDateString('en-CA'));
                           return (
