@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { db } from "@/lib/firebase";
 import PageGuard from "@/components/PageGuard";
+import { PermissionGuard } from "@/components/PermissionGuard";
 import { useToast } from "@/components/ToastProvider";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import {
@@ -399,47 +400,54 @@ export default function PlanningSuresnes() {
               <span>Accueil</span>
             </Link>
 
-            <button 
-              onClick={toggleTodayFilter} 
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border cursor-pointer shadow-sm ${
-                filterTodayOnly 
-                  ? "bg-[#005259] text-white border-[#005259]" 
-                  : "bg-white hover:bg-[#005259] hover:text-white border-[#404040]/10 text-[#005259]"
-              }`}
-            >
-              <ClockIcon className={`w-4 h-4 ${filterTodayOnly ? "text-white" : "text-[#EA601F]"}`} />
-              <span>Aujourd'hui</span>
-            </button>
+            <PermissionGuard actionId="suresnes_filter_today">
+              <button
+                onClick={toggleTodayFilter}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border cursor-pointer shadow-sm ${
+                  filterTodayOnly
+                    ? "bg-[#005259] text-white border-[#005259]"
+                    : "bg-white hover:bg-[#005259] hover:text-white border-[#404040]/10 text-[#005259]"
+                }`}
+              >
+                <ClockIcon className={`w-4 h-4 ${filterTodayOnly ? "text-white" : "text-[#EA601F]"}`} />
+                <span>Aujourd'hui</span>
+              </button>
+            </PermissionGuard>
 
-            <Link 
-              href="/mediation/rencontres-numeriques/liste-beneficiaires"
-              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
-            >
-              <UsersIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Bénéficiaires</span>
-            </Link>
+            <PermissionGuard actionId="suresnes_nav_beneficiaires">
+              <Link
+                href="/mediation/rencontres-numeriques/liste-beneficiaires"
+                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+              >
+                <UsersIcon className="w-4 h-4 text-[#EA601F]" />
+                <span>Bénéficiaires</span>
+              </Link>
+            </PermissionGuard>
 
-            {/* NOUVEAU BOUTON : AGENDA MÉDIATEURS */}
-            <Link 
-              href="/agenda" 
-              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
-            >
-              <CalendarDaysIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Agenda Médiateurs</span>
-            </Link>
+            <PermissionGuard actionId="suresnes_nav_agenda_med">
+              <Link
+                href="/agenda"
+                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+              >
+                <CalendarDaysIcon className="w-4 h-4 text-[#EA601F]" />
+                <span>Agenda Médiateurs</span>
+              </Link>
+            </PermissionGuard>
 
             {/* SÉLECTEUR DE MOIS */}
-            <div className="flex bg-white border border-[#404040]/10 rounded-xl p-1 items-center gap-1 shadow-sm">
-              <button onClick={() => { setViewDate(new Date(year, month - 1, 1)); setFilterTodayOnly(false); }} className="p-1.5 hover:bg-[#F3F3F2] rounded-lg text-[#404040] transition-all cursor-pointer">
-                <ChevronLeftIcon className="w-4 h-4"/>
-              </button>
-              <span className="text-xs font-bold text-[#005259] uppercase tracking-wider min-w-32 text-center">
-                {viewDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}
-              </span>
-              <button onClick={() => { setViewDate(new Date(year, month + 1, 1)); setFilterTodayOnly(false); }} className="p-1.5 hover:bg-[#F3F3F2] rounded-lg text-[#404040] transition-all cursor-pointer">
-                <ChevronRightIcon className="w-4 h-4"/>
-              </button>
-            </div>
+            <PermissionGuard actionId="suresnes_month_nav">
+              <div className="flex bg-white border border-[#404040]/10 rounded-xl p-1 items-center gap-1 shadow-sm">
+                <button onClick={() => { setViewDate(new Date(year, month - 1, 1)); setFilterTodayOnly(false); }} className="p-1.5 hover:bg-[#F3F3F2] rounded-lg text-[#404040] transition-all cursor-pointer">
+                  <ChevronLeftIcon className="w-4 h-4"/>
+                </button>
+                <span className="text-xs font-bold text-[#005259] uppercase tracking-wider min-w-32 text-center">
+                  {viewDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}
+                </span>
+                <button onClick={() => { setViewDate(new Date(year, month + 1, 1)); setFilterTodayOnly(false); }} className="p-1.5 hover:bg-[#F3F3F2] rounded-lg text-[#404040] transition-all cursor-pointer">
+                  <ChevronRightIcon className="w-4 h-4"/>
+                </button>
+              </div>
+            </PermissionGuard>
           </div>
         </div>
 
@@ -608,6 +616,7 @@ export default function PlanningSuresnes() {
                                 </div>
 
                                 <div className="xl:col-span-2 w-full">
+                                  <PermissionGuard actionId="suresnes_slot_thematique_edit">
                                   <div className="flex items-center gap-2 bg-white border border-[#404040]/15 focus-within:border-[#005259] rounded-xl px-3 py-1.5 transition-all shadow-sm">
                                     <TagIcon className="w-3.5 h-3.5 text-[#404040]/40 shrink-0" />
                                     <select
@@ -635,6 +644,7 @@ export default function PlanningSuresnes() {
                                       <option value="Collecte Tech - Tests de positionnement" className="text-[#EA601F] font-bold">🧺 Collecte Tech - Tests de positionnement</option>
                                     </select>
                                   </div>
+                                  </PermissionGuard>
                                 </div>
 
                                 <div className="xl:col-span-1.5 flex items-center justify-start xl:justify-center">
@@ -664,9 +674,10 @@ export default function PlanningSuresnes() {
                                 </div>
 
                                 <div className="xl:col-span-2 w-full">
+                                  <PermissionGuard actionId="suresnes_slot_demande_edit">
                                   <div className="flex items-center gap-1.5 bg-[#FFFFFF] border border-[#404040]/15 focus-within:border-[#005259] rounded-xl px-3 py-1.5 transition-all shadow-sm">
                                     <ChatBubbleBottomCenterTextIcon className="w-3.5 h-3.5 text-[#404040]/40 shrink-0" />
-                                    <input 
+                                    <input
                                       type="text"
                                       disabled={!c.usager}
                                       value={demandeSpecifiqueLocal[c.id] ?? c.demandeSpecifique ?? ""}
@@ -675,16 +686,19 @@ export default function PlanningSuresnes() {
                                       className="w-full bg-transparent border-none p-0 text-xs text-[#404040] placeholder-[#404040]/40 outline-none focus:ring-0 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
                                     />
                                   </div>
+                                  </PermissionGuard>
                                 </div>
                                 
                                 <div className="xl:col-span-1 text-left xl:text-right shrink-0">
                                   {isOrphan ? (
-                                    <button onClick={() => {
-                                      const n = prompt("Attribuer à un autre médiateur ?");
-                                      if(n) updateDoc(doc(db, "planning_suresnes", c.id), { mediateurNom: n });
-                                    }} className="px-2.5 py-1 bg-[#EF736A]/20 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/40 rounded-xl text-[11px] font-bold transition-colors cursor-pointer w-full text-center">
-                                      Réaffecter
-                                    </button>
+                                    <PermissionGuard actionId="suresnes_reassign">
+                                      <button onClick={() => {
+                                        const n = prompt("Attribuer à un autre médiateur ?");
+                                        if(n) updateDoc(doc(db, "planning_suresnes", c.id), { mediateurNom: n });
+                                      }} className="px-2.5 py-1 bg-[#EF736A]/20 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/40 rounded-xl text-[11px] font-bold transition-colors cursor-pointer w-full text-center">
+                                        Réaffecter
+                                      </button>
+                                    </PermissionGuard>
                                   ) : !bTrouve ? (
                                     <span className="inline-block text-center w-full text-[#404040]/50 bg-white border border-[#404040]/10 px-2 py-1 rounded-lg text-[9px] font-bold tracking-wider uppercase shadow-sm">
                                       À attribuer
@@ -823,16 +837,22 @@ function UsagerInput({ docId, initialValue, beneficiairesListe }: { docId: strin
               {matchingBeneficiaire.nom}
             </span>
           </div>
-          <button onClick={handleClear} className="p-1 hover:bg-[#F3F3F2] rounded text-[#404040]/40 hover:text-[#EF736A] transition-colors cursor-pointer pl-2 border-l border-[#404040]/10 shrink-0">
-            <XMarkIcon className="w-3.5 h-3.5" />
-          </button>
+          <PermissionGuard actionId="suresnes_slot_clear">
+            <button onClick={handleClear} className="p-1 hover:bg-[#F3F3F2] rounded text-[#404040]/40 hover:text-[#EF736A] transition-colors cursor-pointer pl-2 border-l border-[#404040]/10 shrink-0">
+              <XMarkIcon className="w-3.5 h-3.5" />
+            </button>
+          </PermissionGuard>
         </div>
       ) : (
         <div className="flex items-center justify-between bg-white border border-[#404040]/15 focus-within:border-[#005259] rounded-xl px-3 py-1.5 transition-all gap-2 shadow-sm">
-          <input className="w-full bg-transparent border-none p-0 text-xs font-medium text-[#404040] placeholder-[#404040]/40 outline-none focus:ring-0" value={value || ""} placeholder="Rechercher un bénéficiaire..." onChange={handleInputChange} />
-          <button type="button" onClick={() => setIsModalOpen(true)} className="p-1 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-lg transition-colors shrink-0 cursor-pointer shadow-sm">
-            <PlusIcon className="w-3.5 h-3.5 stroke-[2.5]" />
-          </button>
+          <PermissionGuard actionId="suresnes_slot_assign">
+            <input className="w-full bg-transparent border-none p-0 text-xs font-medium text-[#404040] placeholder-[#404040]/40 outline-none focus:ring-0" value={value || ""} placeholder="Rechercher un bénéficiaire..." onChange={handleInputChange} />
+          </PermissionGuard>
+          <PermissionGuard actionId="suresnes_create_slot">
+            <button type="button" onClick={() => setIsModalOpen(true)} className="p-1 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-lg transition-colors shrink-0 cursor-pointer shadow-sm">
+              <PlusIcon className="w-3.5 h-3.5 stroke-[2.5]" />
+            </button>
+          </PermissionGuard>
         </div>
       )}
 
