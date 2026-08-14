@@ -22,7 +22,8 @@ import {
   LockClosedIcon,
   WrenchScrewdriverIcon,
   MapPinIcon,
-  BuildingOffice2Icon
+  BuildingOffice2Icon,
+  DocumentDuplicateIcon
 } from "@heroicons/react/24/outline";
 
 const quicksand = Quicksand({
@@ -310,6 +311,36 @@ export default function HomePage() {
                     </h2>
                     <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
                       Consulter l'agenda du Relais Numérique
+                    </p>
+                  </Link>
+                </PermissionGuard>
+
+                {/* MODÈLES D'ACTIVITÉS PROTECTION */}
+                <PermissionGuard
+                  actionId="home_nav_modeles"
+                  fallback={
+                    <div className="bg-[#F3F3F2]/50 border border-[#404040]/10 rounded-2xl p-4 flex flex-col items-center text-center pointer-events-none select-none opacity-50">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white text-[#404040]/40">
+                        <LockClosedIcon className="w-4 h-4" />
+                      </div>
+                      <h2 className="text-[11px] font-bold uppercase tracking-wide text-[#404040]/50">
+                        Modèles d'Activités
+                      </h2>
+                      <p className="text-[9px] text-[#404040]/40 font-medium mt-1 leading-relaxed">
+                        Accès restreint
+                      </p>
+                    </div>
+                  }
+                >
+                  <Link href="/mediation/modeles" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
+                      <DocumentDuplicateIcon className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259]">
+                      Modèles d'Activités
+                    </h2>
+                    <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
+                      Gérer les modèles utilisés dans l'agenda
                     </p>
                   </Link>
                 </PermissionGuard>

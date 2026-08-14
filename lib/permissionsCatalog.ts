@@ -44,6 +44,7 @@ const DETAILED_PAGES: PageEntry[] = [
       { id: "home_nav_bilan_suresnes", nom: "Lien Analyse Actions Suresnes", type: "Link", description: "Accède à l'étude d'impact de Suresnes" },
       { id: "home_nav_volume_horaire", nom: "Lien Volume Horaire", type: "Link", description: "Consulte les heures travaillées et coûts RH" },
       { id: "home_nav_admin_droits", nom: "Lien Gérer les Droits", type: "Link", description: "Accède à la configuration de la sécurité (Admin)" },
+      { id: "home_nav_modeles", nom: "Lien Modèles d'Activités", type: "Link", description: "Accède à la gestion des modèles depuis le dossier Agenda" },
     ],
   },
   {
@@ -300,7 +301,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     page_access_emargements: true, page_access_competences: true, page_access_statistiques: true,
     page_access_bilan_suresnes: true, page_access_volume_horaire: true, page_access_fiches_bilans: true,
     page_access_fiches_bilans_historique: true, page_access_notifications: true, page_access_bibliotheque_logos: true,
-    page_access_modeles: true, modeles_create: true, modeles_edit: true, modeles_delete: true,
+    page_access_modeles: true, modeles_create: true, modeles_edit: true, modeles_delete: true, home_nav_modeles: true,
     home_logout: true, home_folder_rencontres: true, home_folder_stats: true, home_nav_liste_benef: true,
     home_nav_collectes: true, home_nav_agenda_suresnes: true, home_nav_emargement_docs: true,
     home_nav_emargement_gen: true, home_nav_actions_coll: true, home_nav_stats_glob: true,
