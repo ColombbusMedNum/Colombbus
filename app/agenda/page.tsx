@@ -31,6 +31,7 @@ import {
   genererCreneauxPourModele, estimerNombreCreneaux, estVisibleCetteSemaine,
   formatDateFrCourt,
 } from "../../lib/activitesTypes";
+import { regrouperParCategorie } from "../../lib/equipeCategories";
 
 // Police Quicksand conforme à la charte
 const quicksand = Quicksand({
@@ -172,6 +173,9 @@ export default function PlanningExpertMix() {
   const [newActivite, setNewActivite] = useState<ActiviteType>(ACTIVITE_VIDE);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const toggleSection = (key: string) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+  const [categoriesOuvertesAgenda, setCategoriesOuvertesAgenda] = useState<Record<string, boolean>>({
+    cadres: true, permanents: true, aci_massy: true, aci_paris: true, stagiaires: true, autres: true,
+  });
 
   const currentWeekId = getWeekIdentifier(currentDate);
   const estSemaineValidee = !!semainesValidees[currentWeekId];
@@ -503,6 +507,26 @@ export default function PlanningExpertMix() {
   Array.from(new Set(weekDays.map(d => d.getFullYear()))).forEach(annee => {
     getJoursFeries(annee).forEach(dateStr => joursFeries.add(dateStr));
   });
+
+  // Médiateurs réellement affichés dans la grille cette semaine (actifs,
+  // avec une identité, et masqués uniquement s'ils n'ont aucune action cette
+  // semaine ou si "voir les masqués" est activé) — base commune du tri par
+  // catégorie ci-dessous.
+  const mediateursAffiches = mediateurs
+    .filter(m => m.actif !== false && (m.prenom || m.nom))
+    .filter(m => {
+      if (voirMasques) return true;
+      if (!m.masque) return true;
+
+      const mNomComplet = `${m.prenom || ""} ${m.nom || ""}`.trim();
+      return actions.some((action) => {
+        const correspond = action.mediatId === m.id || action.mediateurNom === mNomComplet;
+        const estCetteSemaine = weekDays.some(day => day.toLocaleDateString('en-CA') === action.date);
+        return correspond && estCetteSemaine;
+      });
+    });
+
+  const groupesMediateursAgenda = regrouperParCategorie(mediateursAffiches);
 
   const processActionCreation = async (
     mediatId: string, 
@@ -1035,88 +1059,90 @@ export default function PlanningExpertMix() {
           </div>
         </aside>
 
-        {/* GRILLE DU TABLEAU DU PLANNING */}
-        <div className="flex-1 bg-white border border-[#404040]/10 rounded-xl p-4 overflow-x-auto shadow-sm">
-          <table className="border-collapse text-xs w-full table-fixed">
-            <thead>
-              <tr className="border-b-2 border-[#005259]">
-                <th className="text-left pr-2 pb-2 w-[160px] text-[#005259] font-extrabold text-xs">Médiateur</th>
-                {weekDays.map(d => {
-                  const estFerie = joursFeries.has(d.toLocaleDateString('en-CA'));
-                  return (
-                    <th key={d.toString()} className={`text-center pb-2 px-1 ${estFerie ? "bg-[#EF736A]/10 rounded-t-md" : ""}`}>
-                      <span className={`font-extrabold uppercase block ${estFerie ? "text-[#EF736A]" : "text-[#005259]"}`}>{d.toLocaleDateString('fr-FR', { weekday: 'short' })}</span>
-                      <span className={`text-[11px] font-medium ${estFerie ? "text-[#EF736A]/80" : "text-[#404040]/70"}`}>{d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</span>
-                      {estFerie && <span className="block text-[8px] font-black uppercase tracking-widest text-[#EF736A]">Férié</span>}
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F3F3F2]">
-              {mediateurs
-                .filter(m => m.actif !== false && (m.prenom || m.nom))
-                .filter(m => {
-                  if (voirMasques) return true;
-                  if (!m.masque) return true;
-
-                  const mNomComplet = `${m.prenom || ""} ${m.nom || ""}`.trim();
-                  return actions.some((action) => {
-                    const correspond = action.mediatId === m.id || action.mediateurNom === mNomComplet;
-                    const estCetteSemaine = weekDays.some(day => day.toLocaleDateString('en-CA') === action.date);
-                    return correspond && estCetteSemaine;
-                  });
-                })
-                .map(m => {
-                  const pNom = m.prenom || "";
-                  const fNom = m.nom || "";
-                  return (
-                    <tr key={m.id} className={`hover:bg-[#F3F3F2]/60 transition-colors ${m.masque ? 'opacity-40 bg-[#F3F3F2]' : ''}`}>
-                      <td className="pr-2 py-2 sticky left-0 bg-white z-10 w-[160px]">
-                        <div className="flex items-start justify-between gap-1">
-                          <div className={`flex flex-col text-xs leading-tight select-none ${m.masque ? 'line-through text-[#404040]/50' : ''}`}>
-                            <span className="font-bold text-[#005259]">{pNom}</span>
-                            {fNom && <span className="font-extrabold text-[#404040] uppercase mt-0.5">{fNom}</span>}
-                          </div>
-                          
-                          <PermissionGuard actionId="agenda_staff_mask">
-                            <div className="flex items-center gap-0.5 shrink-0">
-                              <button onClick={() => toggleMasqueMed(m)} className={`p-0.5 rounded hover:text-[#EF736A] ${m.masque ? 'text-[#EF736A]' : 'text-[#404040]/40'}`}>
-                                {m.masque ? <EyeSlashIcon className="w-3.5 h-3.5"/> : <EyeIcon className="w-3.5 h-3.5"/>}
-                              </button>
-                              <button onClick={() => { setEditingMed(m); setNewMed({ prenom: m.prenom || "", nom: m.nom || "", poste: m.poste || "", statut: m.statut || "Permanent", debutACI: m.debutACI || "09:00", finACI: m.finACI || "17:00", masque: m.masque || false }); setIsUserModalOpen(true); }} className="text-[#404040]/40 hover:text-[#005259] p-0.5">
-                                <PencilSquareIcon className="w-3.5 h-3.5"/>
-                              </button>
-                            </div>
-                          </PermissionGuard>
-                        </div>
-                        
-                        {m.statut === 'ACI' && (
-                          <div className="mt-1">
-                            <span className="inline-block text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#88ACEA]/20 text-[#005259] border border-[#88ACEA]">
-                              ACI
-                            </span>
-                          </div>
-                        )}
-                      </td>
-
-                      {weekDays.map(day => {
-                        const dateStr = day.toLocaleDateString('en-CA');
-                        const estFerie = joursFeries.has(dateStr);
+        {/* GRILLE DU TABLEAU DU PLANNING, PAR BLOCS RÉTRACTABLES */}
+        <div className="flex-1 space-y-3">
+          {groupesMediateursAgenda.map(groupe => (
+            <Accordion
+              key={groupe.key}
+              title={`${groupe.label} (${groupe.membres.length})`}
+              open={categoriesOuvertesAgenda[groupe.key] ?? true}
+              onToggle={() => setCategoriesOuvertesAgenda(prev => ({ ...prev, [groupe.key]: !(prev[groupe.key] ?? true) }))}
+            >
+              {groupe.membres.length === 0 ? (
+                <p className="text-[11px] italic text-[#404040]/40 py-2">Aucun collaborateur dans cette catégorie.</p>
+              ) : (
+                <div className="bg-white border border-[#404040]/10 rounded-xl p-4 overflow-x-auto shadow-sm">
+                  <table className="border-collapse text-xs w-full table-fixed">
+                    <thead>
+                      <tr className="border-b-2 border-[#005259]">
+                        <th className="text-left pr-2 pb-2 w-[160px] text-[#005259] font-extrabold text-xs">Médiateur</th>
+                        {weekDays.map(d => {
+                          const estFerie = joursFeries.has(d.toLocaleDateString('en-CA'));
+                          return (
+                            <th key={d.toString()} className={`text-center pb-2 px-1 ${estFerie ? "bg-[#EF736A]/10 rounded-t-md" : ""}`}>
+                              <span className={`font-extrabold uppercase block ${estFerie ? "text-[#EF736A]" : "text-[#005259]"}`}>{d.toLocaleDateString('fr-FR', { weekday: 'short' })}</span>
+                              <span className={`text-[11px] font-medium ${estFerie ? "text-[#EF736A]/80" : "text-[#404040]/70"}`}>{d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</span>
+                              {estFerie && <span className="block text-[8px] font-black uppercase tracking-widest text-[#EF736A]">Férié</span>}
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F3F3F2]">
+                      {groupe.membres.map((m: Mediateur) => {
+                        const pNom = m.prenom || "";
+                        const fNom = m.nom || "";
                         return (
-                          <td key={dateStr} className={`p-1 border-l border-[#F3F3F2] align-top ${estFerie ? "bg-[#EF736A]/5" : ""}`}>
-                            <div className="grid grid-cols-2 gap-1 min-h-[38px]">
-                              <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
-                              <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
-                            </div>
-                          </td>
+                          <tr key={m.id} className={`hover:bg-[#F3F3F2]/60 transition-colors ${m.masque ? 'opacity-40 bg-[#F3F3F2]' : ''}`}>
+                            <td className="pr-2 py-2 sticky left-0 bg-white z-10 w-[160px]">
+                              <div className="flex items-start justify-between gap-1">
+                                <div className={`flex flex-col text-xs leading-tight select-none ${m.masque ? 'line-through text-[#404040]/50' : ''}`}>
+                                  <span className="font-bold text-[#005259]">{pNom}</span>
+                                  {fNom && <span className="font-extrabold text-[#404040] uppercase mt-0.5">{fNom}</span>}
+                                </div>
+
+                                <PermissionGuard actionId="agenda_staff_mask">
+                                  <div className="flex items-center gap-0.5 shrink-0">
+                                    <button onClick={() => toggleMasqueMed(m)} className={`p-0.5 rounded hover:text-[#EF736A] ${m.masque ? 'text-[#EF736A]' : 'text-[#404040]/40'}`}>
+                                      {m.masque ? <EyeSlashIcon className="w-3.5 h-3.5"/> : <EyeIcon className="w-3.5 h-3.5"/>}
+                                    </button>
+                                    <button onClick={() => { setEditingMed(m); setNewMed({ prenom: m.prenom || "", nom: m.nom || "", poste: m.poste || "", statut: m.statut || "Permanent", debutACI: m.debutACI || "09:00", finACI: m.finACI || "17:00", masque: m.masque || false }); setIsUserModalOpen(true); }} className="text-[#404040]/40 hover:text-[#005259] p-0.5">
+                                      <PencilSquareIcon className="w-3.5 h-3.5"/>
+                                    </button>
+                                  </div>
+                                </PermissionGuard>
+                              </div>
+
+                              {m.statut === 'ACI' && (
+                                <div className="mt-1">
+                                  <span className="inline-block text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#88ACEA]/20 text-[#005259] border border-[#88ACEA]">
+                                    ACI
+                                  </span>
+                                </div>
+                              )}
+                            </td>
+
+                            {weekDays.map(day => {
+                              const dateStr = day.toLocaleDateString('en-CA');
+                              const estFerie = joursFeries.has(dateStr);
+                              return (
+                                <td key={dateStr} className={`p-1 border-l border-[#F3F3F2] align-top ${estFerie ? "bg-[#EF736A]/5" : ""}`}>
+                                  <div className="grid grid-cols-2 gap-1 min-h-[38px]">
+                                    <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
+                                    <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
+                                  </div>
+                                </td>
+                              );
+                            })}
+                          </tr>
                         );
                       })}
-                    </tr>
-                  );
-                })}
-            </tbody>
-          </table>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Accordion>
+          ))}
         </div>
       </div>
 

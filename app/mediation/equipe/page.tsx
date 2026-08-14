@@ -34,6 +34,8 @@ import { useMediateurs } from "@/lib/MediateursProvider";
 import { ROLES, normalizeRole } from "@/lib/roles";
 import { formatPhoneNumber } from "@/lib/formatPhone";
 import { getTerritoryColor } from "@/lib/territoryColor";
+import Accordion from "@/components/Accordion";
+import { regrouperParCategorie } from "@/lib/equipeCategories";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -72,6 +74,7 @@ const getRoleLabel = (role: string) => {
   return ROLES.find((r) => r.id === normalizeRole(role))?.nom || role;
 };
 
+
 export default function GestionEquipe() {
   const { showToast } = useToast();
   const confirm = useConfirm();
@@ -84,6 +87,9 @@ export default function GestionEquipe() {
   
   const [currentTab, setCurrentTab] = useState<"actifs" | "archives">("actifs");
   const [displayMode, setDisplayMode] = useState<"cartes" | "liste">("cartes");
+  const [categoriesOuvertes, setCategoriesOuvertes] = useState<{ [key: string]: boolean }>({
+    cadres: true, permanents: true, aci_massy: true, aci_paris: true, stagiaires: true, autres: true,
+  });
 
   const [grillesHorairesACI, setGrillesHorairesACI] = useState<{ [site: string]: any }>({
     Paris: { ...HORAIRES_PAR_DEFAUT },
@@ -430,6 +436,8 @@ export default function GestionEquipe() {
     .filter(m => (currentTab === "actifs" ? m.actif !== false : m.actif === false))
     .sort((a, b) => (a.nom || "").localeCompare(b.nom || ""));
 
+  const groupesMediateurs = React.useMemo(() => regrouperParCategorie(filteredMediateurs), [filteredMediateurs]);
+
   return (
     <PageGuard pageId="page_access_equipe">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
@@ -612,139 +620,152 @@ export default function GestionEquipe() {
           </div>
         </PermissionGuard>
 
-        {/* LISTING COLLABORATEURS */}
-        <div>
+        {/* LISTING COLLABORATEURS, PAR BLOCS RÉTRACTABLES */}
+        <div className="space-y-3">
           {filteredMediateurs.length === 0 ? (
             <div className="text-center py-16 border border-[#404040]/10 rounded-2xl bg-white shadow-sm">
               <p className="text-[#404040]/60 text-xs font-bold uppercase tracking-wider">Aucun collaborateur trouvé.</p>
             </div>
-          ) : displayMode === "cartes" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredMediateurs.map((m) => {
-                const localSites = m.sites || [];
-                const userRole = normalizeRole(m.role);
-                return (
-                  <div key={m.id} className="group relative bg-white border border-[#404040]/10 hover:border-[#005259]/30 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between min-h-[200px]">
-                    <div className="absolute top-0 right-0 flex divide-x divide-[#404040]/10 rounded-bl-xl rounded-tr-2xl border-l border-b border-[#404040]/10 bg-[#F3F3F2] text-[10px] font-bold uppercase">
-                      <span className="px-2.5 py-1 text-[#404040]">{m.statut}</span>
-                      <span className={`px-2.5 py-1 ${getRoleTextColor(userRole)}`}>
-                        {getRoleLabel(userRole)}
-                      </span>
-                    </div>
-
-                    <div className="mt-3">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-xl bg-[#005259]/10 border border-[#005259]/20 flex items-center justify-center text-[#005259] font-bold text-xs">
-                          {m.trigramme || `${m.prenom?.[0] || ""}${m.nom?.[0] || ""}`}
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-sm text-[#005259] group-hover:text-[#EA601F] transition-colors">{m.prenom} <span className="uppercase">{m.nom}</span></h3>
-                          <p className="text-[11px] text-[#404040]/70 font-medium">{m.poste}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-1.5 border-t border-[#404040]/10 pt-3 text-[11px] text-[#404040]/80">
-                        {m.email && <p className="truncate"><EnvelopeIcon className="w-3.5 h-3.5 inline mr-1 text-[#EA601F]" /> {m.email}</p>}
-                        {m.telephone && (
-                          <p className="truncate">
-                            <PhoneIcon className="w-3.5 h-3.5 inline mr-1 text-[#EA601F]" /> {formatPhoneNumber(m.telephone)}
-                          </p>
-                        )}
-                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                          <MapPinIcon className="w-3.5 h-3.5 text-[#EA601F] shrink-0" />
-                          {localSites.length === 0 ? (
-                            <span className="text-[10px] italic text-[#404040]/40">Aucun territoire affecté</span>
-                          ) : (
-                            localSites.map((s: string) => (
-                              <span key={s} className={`px-2 py-0.5 border text-[10px] font-bold rounded-md ${getTerritoryColor(s)}`}>
-                                {s}
-                              </span>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between border-t border-[#404040]/10 pt-3 mt-4">
-                      <div className="text-[10px] text-[#404040]/70 font-bold uppercase flex items-center gap-2">
-                        <span className="bg-[#F3F3F2] px-2 py-1 rounded border border-[#404040]/10 text-[#005259]">Taux : {m.taux || 0}€</span>
-                        {m.statut === "ACI" && (
-                          <span className="text-[#EA601F] bg-[#F9945D]/15 border border-[#F9945D]/30 px-2 py-1 rounded flex items-center gap-1">
-                            <ClockIcon className="w-3.5 h-3.5" /> Réf : {m.rattachementHoraireACI || "Paris"}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex gap-1.5">
-                        {!uidsConnectes.has(m.id) && (
-                          <PermissionGuard actionId="equipe_create_access">
-                            <button onClick={() => handleCreateAccess(m)} title="Créer l'accès de connexion" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#EA601F] hover:bg-[#EA601F]/10 transition-colors cursor-pointer"><KeyIcon className="w-4 h-4" /></button>
-                          </PermissionGuard>
-                        )}
-                        <PermissionGuard actionId="equipe_member_actions">
-                          <button onClick={() => openModal(m)} title="Modifier" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#005259] hover:bg-[#005259]/10 transition-colors cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
-                        </PermissionGuard>
-                        <PermissionGuard actionId="equipe_member_actions">
-                          <button onClick={() => toggleArchive(m)} title="Archiver" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#EF736A] hover:bg-[#EF736A]/10 transition-colors cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
-                        </PermissionGuard>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           ) : (
-            /* VERSION TABLEAU */
-            <div className="w-full bg-white border border-[#404040]/10 rounded-2xl overflow-hidden shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
-                      <th className="px-6 py-4">Collaborateur</th>
-                      <th className="px-6 py-4">Email Login</th>
-                      <th className="px-6 py-4">Rôle Applicatif</th>
-                      <th className="px-6 py-4">Territoire(s) affecté(s)</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#404040]/5 text-xs text-[#404040]">
-                    {filteredMediateurs.map((m) => {
+            groupesMediateurs.map((groupe) => (
+              <Accordion
+                key={groupe.key}
+                title={`${groupe.label} (${groupe.membres.length})`}
+                open={categoriesOuvertes[groupe.key] ?? true}
+                onToggle={() => setCategoriesOuvertes(prev => ({ ...prev, [groupe.key]: !(prev[groupe.key] ?? true) }))}
+              >
+                {groupe.membres.length === 0 ? (
+                  <p className="text-[11px] italic text-[#404040]/40 py-2">Aucun collaborateur dans cette catégorie.</p>
+                ) : displayMode === "cartes" ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {groupe.membres.map((m: any) => {
+                      const localSites = m.sites || [];
                       const userRole = normalizeRole(m.role);
                       return (
-                        <tr key={m.id} className="hover:bg-[#F3F3F2]/60 transition-colors">
-                          <td className="px-6 py-4 font-bold text-[#005259] uppercase">{m.prenom} <span className="text-[#404040]">{m.nom}</span></td>
-                          <td className="px-6 py-4 text-[#404040]/80 font-mono text-[11px]">{m.email || "-"}</td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border border-[#404040]/10 bg-[#F3F3F2] ${getRoleTextColor(userRole)}`}>
+                        <div key={m.id} className="group relative bg-white border border-[#404040]/10 hover:border-[#005259]/30 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between min-h-[200px]">
+                          <div className="absolute top-0 right-0 flex divide-x divide-[#404040]/10 rounded-bl-xl rounded-tr-2xl border-l border-b border-[#404040]/10 bg-[#F3F3F2] text-[10px] font-bold uppercase">
+                            <span className="px-2.5 py-1 text-[#404040]">{m.statut}</span>
+                            <span className={`px-2.5 py-1 ${getRoleTextColor(userRole)}`}>
                               {getRoleLabel(userRole)}
                             </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex flex-wrap gap-1">
-                              {(m.sites || []).map((s: string) => (
-                                <span key={s} className={`px-2 py-0.5 border text-[10px] font-semibold rounded ${getTerritoryColor(s)}`}>{s}</span>
-                              ))}
+                          </div>
+
+                          <div className="mt-3">
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="w-10 h-10 rounded-xl bg-[#005259]/10 border border-[#005259]/20 flex items-center justify-center text-[#005259] font-bold text-xs">
+                                {m.trigramme || `${m.prenom?.[0] || ""}${m.nom?.[0] || ""}`}
+                              </div>
+                              <div>
+                                <h3 className="font-bold text-sm text-[#005259] group-hover:text-[#EA601F] transition-colors">{m.prenom} <span className="uppercase">{m.nom}</span></h3>
+                                <p className="text-[11px] text-[#404040]/70 font-medium">{m.poste}</p>
+                              </div>
                             </div>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            {!uidsConnectes.has(m.id) && (
-                              <PermissionGuard actionId="equipe_create_access">
-                                <button onClick={() => handleCreateAccess(m)} title="Créer l'accès de connexion" className="p-1.5 text-[#404040]/60 hover:text-[#EA601F] mr-1 cursor-pointer"><KeyIcon className="w-4 h-4" /></button>
+
+                            <div className="space-y-1.5 border-t border-[#404040]/10 pt-3 text-[11px] text-[#404040]/80">
+                              {m.email && <p className="truncate"><EnvelopeIcon className="w-3.5 h-3.5 inline mr-1 text-[#EA601F]" /> {m.email}</p>}
+                              {m.telephone && (
+                                <p className="truncate">
+                                  <PhoneIcon className="w-3.5 h-3.5 inline mr-1 text-[#EA601F]" /> {formatPhoneNumber(m.telephone)}
+                                </p>
+                              )}
+                              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                <MapPinIcon className="w-3.5 h-3.5 text-[#EA601F] shrink-0" />
+                                {localSites.length === 0 ? (
+                                  <span className="text-[10px] italic text-[#404040]/40">Aucun territoire affecté</span>
+                                ) : (
+                                  localSites.map((s: string) => (
+                                    <span key={s} className={`px-2 py-0.5 border text-[10px] font-bold rounded-md ${getTerritoryColor(s)}`}>
+                                      {s}
+                                    </span>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between border-t border-[#404040]/10 pt-3 mt-4">
+                            <div className="text-[10px] text-[#404040]/70 font-bold uppercase flex items-center gap-2">
+                              <span className="bg-[#F3F3F2] px-2 py-1 rounded border border-[#404040]/10 text-[#005259]">Taux : {m.taux || 0}€</span>
+                              {m.statut === "ACI" && (
+                                <span className="text-[#EA601F] bg-[#F9945D]/15 border border-[#F9945D]/30 px-2 py-1 rounded flex items-center gap-1">
+                                  <ClockIcon className="w-3.5 h-3.5" /> Réf : {m.rattachementHoraireACI || "Paris"}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex gap-1.5">
+                              {!uidsConnectes.has(m.id) && (
+                                <PermissionGuard actionId="equipe_create_access">
+                                  <button onClick={() => handleCreateAccess(m)} title="Créer l'accès de connexion" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#EA601F] hover:bg-[#EA601F]/10 transition-colors cursor-pointer"><KeyIcon className="w-4 h-4" /></button>
+                                </PermissionGuard>
+                              )}
+                              <PermissionGuard actionId="equipe_member_actions">
+                                <button onClick={() => openModal(m)} title="Modifier" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#005259] hover:bg-[#005259]/10 transition-colors cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
                               </PermissionGuard>
-                            )}
-                            <PermissionGuard actionId="equipe_member_actions">
-                              <button onClick={() => openModal(m)} className="p-1.5 text-[#404040]/60 hover:text-[#005259] mr-1 cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
-                            </PermissionGuard>
-                            <PermissionGuard actionId="equipe_member_actions">
-                              <button onClick={() => toggleArchive(m)} className="p-1.5 text-[#404040]/60 hover:text-[#EF736A] cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
-                            </PermissionGuard>
-                          </td>
-                        </tr>
+                              <PermissionGuard actionId="equipe_member_actions">
+                                <button onClick={() => toggleArchive(m)} title="Archiver" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#EF736A] hover:bg-[#EF736A]/10 transition-colors cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
+                              </PermissionGuard>
+                            </div>
+                          </div>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                  </div>
+                ) : (
+                  /* VERSION TABLEAU */
+                  <div className="w-full bg-white border border-[#404040]/10 rounded-2xl overflow-hidden shadow-sm">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
+                            <th className="px-6 py-4">Collaborateur</th>
+                            <th className="px-6 py-4">Email Login</th>
+                            <th className="px-6 py-4">Rôle Applicatif</th>
+                            <th className="px-6 py-4">Territoire(s) affecté(s)</th>
+                            <th className="px-6 py-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#404040]/5 text-xs text-[#404040]">
+                          {groupe.membres.map((m: any) => {
+                            const userRole = normalizeRole(m.role);
+                            return (
+                              <tr key={m.id} className="hover:bg-[#F3F3F2]/60 transition-colors">
+                                <td className="px-6 py-4 font-bold text-[#005259] uppercase">{m.prenom} <span className="text-[#404040]">{m.nom}</span></td>
+                                <td className="px-6 py-4 text-[#404040]/80 font-mono text-[11px]">{m.email || "-"}</td>
+                                <td className="px-6 py-4">
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold border border-[#404040]/10 bg-[#F3F3F2] ${getRoleTextColor(userRole)}`}>
+                                    {getRoleLabel(userRole)}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex flex-wrap gap-1">
+                                    {(m.sites || []).map((s: string) => (
+                                      <span key={s} className={`px-2 py-0.5 border text-[10px] font-semibold rounded ${getTerritoryColor(s)}`}>{s}</span>
+                                    ))}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                  {!uidsConnectes.has(m.id) && (
+                                    <PermissionGuard actionId="equipe_create_access">
+                                      <button onClick={() => handleCreateAccess(m)} title="Créer l'accès de connexion" className="p-1.5 text-[#404040]/60 hover:text-[#EA601F] mr-1 cursor-pointer"><KeyIcon className="w-4 h-4" /></button>
+                                    </PermissionGuard>
+                                  )}
+                                  <PermissionGuard actionId="equipe_member_actions">
+                                    <button onClick={() => openModal(m)} className="p-1.5 text-[#404040]/60 hover:text-[#005259] mr-1 cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
+                                  </PermissionGuard>
+                                  <PermissionGuard actionId="equipe_member_actions">
+                                    <button onClick={() => toggleArchive(m)} className="p-1.5 text-[#404040]/60 hover:text-[#EF736A] cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
+                                  </PermissionGuard>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </Accordion>
+            ))
           )}
         </div>
 
