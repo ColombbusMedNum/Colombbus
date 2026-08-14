@@ -27,6 +27,7 @@ import {
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import PageGuard from "@/components/PageGuard";
+import { PermissionGuard } from "@/components/PermissionGuard";
 import { useToast } from "@/components/ToastProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { useMediateurs } from "@/lib/MediateursProvider";
@@ -417,21 +418,25 @@ export default function GestionEquipe() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto shrink-0">
-            <Link 
-              href="/mediation/competences" 
-              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
-            >
-              <AcademicCapIcon className="w-4 h-4 text-[#EA601F]" /> 
-              <span>Compétences</span>
-            </Link>
+            <PermissionGuard actionId="equipe_nav_competences">
+              <Link
+                href="/mediation/competences"
+                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+              >
+                <AcademicCapIcon className="w-4 h-4 text-[#EA601F]" />
+                <span>Compétences</span>
+              </Link>
+            </PermissionGuard>
 
-            <button
-              onClick={() => openModal()} 
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md active:scale-95 group"
-            >
-              <UserPlusIcon className="w-4 h-4 transition-transform group-hover:scale-110" /> 
-              <span>Nouveau membre</span>
-            </button>
+            <PermissionGuard actionId="equipe_add_member">
+              <button
+                onClick={() => openModal()}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md active:scale-95 group"
+              >
+                <UserPlusIcon className="w-4 h-4 transition-transform group-hover:scale-110" />
+                <span>Nouveau membre</span>
+              </button>
+            </PermissionGuard>
           </div>
         </div>
 
@@ -446,7 +451,9 @@ export default function GestionEquipe() {
                   <span key={t} className={`inline-flex items-center gap-1.5 px-2.5 py-1 border rounded-lg text-[11px] font-bold ${getTerritoryColor(t)}`}>
                     {t}
                     {t !== "Paris" && t !== "Massy" && (
-                      <button type="button" onClick={() => handleSupprimerTerritoire(t)} className="opacity-60 hover:opacity-100 font-normal ml-0.5 cursor-pointer">×</button>
+                      <PermissionGuard actionId="equipe_territory_manage">
+                        <button type="button" onClick={() => handleSupprimerTerritoire(t)} className="opacity-60 hover:opacity-100 font-normal ml-0.5 cursor-pointer">×</button>
+                      </PermissionGuard>
                     )}
                   </span>
                 ))}
@@ -454,18 +461,20 @@ export default function GestionEquipe() {
             </div>
           </div>
 
-          <form onSubmit={handleAddTerritoire} className="flex items-center gap-2 w-full md:w-auto shrink-0">
-            <input 
-              type="text" 
-              placeholder="Nouveau territoire (ex: Lyon, Lille)..." 
-              className="p-2.5 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:ring-1 focus:ring-[#005259] text-[#404040] placeholder-[#404040]/40 rounded-xl text-xs font-medium outline-none w-full md:w-56 transition-all"
-              value={nouveauTerritoireInput}
-              onChange={e => setNouveauTerritoireInput(e.target.value)}
-            />
-            <button type="submit" className="px-3.5 py-2.5 bg-[#005259] hover:bg-[#EA601F] text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1 shrink-0 cursor-pointer transition-all shadow-sm">
-              <PlusIcon className="w-4 h-4" /> Créer
-            </button>
-          </form>
+          <PermissionGuard actionId="equipe_territory_manage">
+            <form onSubmit={handleAddTerritoire} className="flex items-center gap-2 w-full md:w-auto shrink-0">
+              <input
+                type="text"
+                placeholder="Nouveau territoire (ex: Lyon, Lille)..."
+                className="p-2.5 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:ring-1 focus:ring-[#005259] text-[#404040] placeholder-[#404040]/40 rounded-xl text-xs font-medium outline-none w-full md:w-56 transition-all"
+                value={nouveauTerritoireInput}
+                onChange={e => setNouveauTerritoireInput(e.target.value)}
+              />
+              <button type="submit" className="px-3.5 py-2.5 bg-[#005259] hover:bg-[#EA601F] text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1 shrink-0 cursor-pointer transition-all shadow-sm">
+                <PlusIcon className="w-4 h-4" /> Créer
+              </button>
+            </form>
+          </PermissionGuard>
         </div>
 
         {/* GRILLES HORAIRES */}
@@ -492,21 +501,23 @@ export default function GestionEquipe() {
                     {JOURS_SEMAINE.map(j => (
                       <div key={j.key} className="flex items-center justify-between p-2 bg-white border border-[#404040]/10 rounded-xl shadow-xs">
                         <span className="text-[11px] font-bold text-[#005259] uppercase tracking-wide pl-1">{j.label}</span>
-                        <div className="flex items-center gap-2">
-                          <input 
-                            type="time" 
-                            className="p-1 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] font-mono text-xs rounded text-center w-20 outline-none focus:border-[#005259]"
-                            value={grillesHorairesACI[site]?.[j.key]?.debut || "09:30"}
-                            onChange={e => handleGlobalHoraireChange(site, j.key, "debut", e.target.value)}
-                          />
-                          <span className="text-[#404040]/50 text-[10px] font-bold uppercase">à</span>
-                          <input 
-                            type="time" 
-                            className="p-1 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] font-mono text-xs rounded text-center w-20 outline-none focus:border-[#005259]"
-                            value={grillesHorairesACI[site]?.[j.key]?.fin || "17:00"}
-                            onChange={e => handleGlobalHoraireChange(site, j.key, "fin", e.target.value)}
-                          />
-                        </div>
+                        <PermissionGuard actionId="equipe_horaires_aci_edit">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="time"
+                              className="p-1 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] font-mono text-xs rounded text-center w-20 outline-none focus:border-[#005259]"
+                              value={grillesHorairesACI[site]?.[j.key]?.debut || "09:30"}
+                              onChange={e => handleGlobalHoraireChange(site, j.key, "debut", e.target.value)}
+                            />
+                            <span className="text-[#404040]/50 text-[10px] font-bold uppercase">à</span>
+                            <input
+                              type="time"
+                              className="p-1 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] font-mono text-xs rounded text-center w-20 outline-none focus:border-[#005259]"
+                              value={grillesHorairesACI[site]?.[j.key]?.fin || "17:00"}
+                              onChange={e => handleGlobalHoraireChange(site, j.key, "fin", e.target.value)}
+                            />
+                          </div>
+                        </PermissionGuard>
                       </div>
                     ))}
                   </div>
@@ -517,41 +528,43 @@ export default function GestionEquipe() {
         </div>
 
         {/* FILTRES & VUES */}
-        <div className="flex items-center justify-between gap-4 bg-white p-2 rounded-2xl border border-[#404040]/10 shadow-sm">
-          <div className="flex items-center gap-1.5">
-            <button 
-              onClick={() => setCurrentTab("actifs")} 
-              className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                currentTab === "actifs" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/70 hover:text-[#005259] hover:bg-[#F3F3F2]"
-              }`}
-            >
-              Membres actifs ({filteredMediateurs.length})
-            </button>
-            <button 
-              onClick={() => setCurrentTab("archives")} 
-              className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                currentTab === "archives" ? "bg-[#EF736A] text-white shadow-sm" : "text-[#404040]/70 hover:text-[#EF736A] hover:bg-[#F3F3F2]"
-              }`}
-            >
-              Archives
-            </button>
-          </div>
+        <PermissionGuard actionId="equipe_display_toggles">
+          <div className="flex items-center justify-between gap-4 bg-white p-2 rounded-2xl border border-[#404040]/10 shadow-sm">
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setCurrentTab("actifs")}
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                  currentTab === "actifs" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/70 hover:text-[#005259] hover:bg-[#F3F3F2]"
+                }`}
+              >
+                Membres actifs ({filteredMediateurs.length})
+              </button>
+              <button
+                onClick={() => setCurrentTab("archives")}
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                  currentTab === "archives" ? "bg-[#EF736A] text-white shadow-sm" : "text-[#404040]/70 hover:text-[#EF736A] hover:bg-[#F3F3F2]"
+                }`}
+              >
+                Archives
+              </button>
+            </div>
 
-          <div className="flex items-center gap-1 bg-[#F3F3F2] p-1 rounded-xl border border-[#404040]/10">
-            <button 
-              onClick={() => setDisplayMode("cartes")} 
-              className={`p-1.5 rounded-lg cursor-pointer transition-all ${displayMode === "cartes" ? "bg-white text-[#005259] shadow-xs font-bold" : "text-[#404040]/50 hover:text-[#404040]"}`}
-            >
-              <Squares2X2Icon className="w-4 h-4" />
-            </button>
-            <button 
-              onClick={() => setDisplayMode("liste")} 
-              className={`p-1.5 rounded-lg cursor-pointer transition-all ${displayMode === "liste" ? "bg-white text-[#005259] shadow-xs font-bold" : "text-[#404040]/50 hover:text-[#404040]"}`}
-            >
-              <ListBulletIcon className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1 bg-[#F3F3F2] p-1 rounded-xl border border-[#404040]/10">
+              <button
+                onClick={() => setDisplayMode("cartes")}
+                className={`p-1.5 rounded-lg cursor-pointer transition-all ${displayMode === "cartes" ? "bg-white text-[#005259] shadow-xs font-bold" : "text-[#404040]/50 hover:text-[#404040]"}`}
+              >
+                <Squares2X2Icon className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setDisplayMode("liste")}
+                className={`p-1.5 rounded-lg cursor-pointer transition-all ${displayMode === "liste" ? "bg-white text-[#005259] shadow-xs font-bold" : "text-[#404040]/50 hover:text-[#404040]"}`}
+              >
+                <ListBulletIcon className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-        </div>
+        </PermissionGuard>
 
         {/* LISTING COLLABORATEURS */}
         <div>
@@ -617,10 +630,16 @@ export default function GestionEquipe() {
                       </div>
                       <div className="flex gap-1.5">
                         {!uidsConnectes.has(m.id) && (
-                          <button onClick={() => handleCreateAccess(m)} title="Créer l'accès de connexion" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#EA601F] hover:bg-[#EA601F]/10 transition-colors cursor-pointer"><KeyIcon className="w-4 h-4" /></button>
+                          <PermissionGuard actionId="equipe_create_access">
+                            <button onClick={() => handleCreateAccess(m)} title="Créer l'accès de connexion" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#EA601F] hover:bg-[#EA601F]/10 transition-colors cursor-pointer"><KeyIcon className="w-4 h-4" /></button>
+                          </PermissionGuard>
                         )}
-                        <button onClick={() => openModal(m)} title="Modifier" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#005259] hover:bg-[#005259]/10 transition-colors cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
-                        <button onClick={() => toggleArchive(m)} title="Archiver" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#EF736A] hover:bg-[#EF736A]/10 transition-colors cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
+                        <PermissionGuard actionId="equipe_member_actions">
+                          <button onClick={() => openModal(m)} title="Modifier" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#005259] hover:bg-[#005259]/10 transition-colors cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
+                        </PermissionGuard>
+                        <PermissionGuard actionId="equipe_member_actions">
+                          <button onClick={() => toggleArchive(m)} title="Archiver" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#EF736A] hover:bg-[#EF736A]/10 transition-colors cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
+                        </PermissionGuard>
                       </div>
                     </div>
                   </div>
@@ -662,10 +681,16 @@ export default function GestionEquipe() {
                           </td>
                           <td className="px-6 py-4 text-right">
                             {!uidsConnectes.has(m.id) && (
-                              <button onClick={() => handleCreateAccess(m)} title="Créer l'accès de connexion" className="p-1.5 text-[#404040]/60 hover:text-[#EA601F] mr-1 cursor-pointer"><KeyIcon className="w-4 h-4" /></button>
+                              <PermissionGuard actionId="equipe_create_access">
+                                <button onClick={() => handleCreateAccess(m)} title="Créer l'accès de connexion" className="p-1.5 text-[#404040]/60 hover:text-[#EA601F] mr-1 cursor-pointer"><KeyIcon className="w-4 h-4" /></button>
+                              </PermissionGuard>
                             )}
-                            <button onClick={() => openModal(m)} className="p-1.5 text-[#404040]/60 hover:text-[#005259] mr-1 cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
-                            <button onClick={() => toggleArchive(m)} className="p-1.5 text-[#404040]/60 hover:text-[#EF736A] cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
+                            <PermissionGuard actionId="equipe_member_actions">
+                              <button onClick={() => openModal(m)} className="p-1.5 text-[#404040]/60 hover:text-[#005259] mr-1 cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
+                            </PermissionGuard>
+                            <PermissionGuard actionId="equipe_member_actions">
+                              <button onClick={() => toggleArchive(m)} className="p-1.5 text-[#404040]/60 hover:text-[#EF736A] cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
+                            </PermissionGuard>
                           </td>
                         </tr>
                       );
@@ -780,8 +805,9 @@ export default function GestionEquipe() {
                     <AcademicCapIcon className="w-4 h-4 text-[#EA601F]" /> Qualités & Compétences (Excel, Word...)
                   </label>
                   
+                  <PermissionGuard actionId="equipe_modal_competence">
                   <div className="flex gap-2 mb-3">
-                    <input 
+                    <input
                       type="text"
                       placeholder="Saisir ou choisir une qualité ci-dessous..."
                       value={competenceInput}
@@ -794,16 +820,18 @@ export default function GestionEquipe() {
                       }}
                       className="flex-1 p-2.5 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] placeholder-[#404040]/40 rounded-xl outline-none focus:border-[#005259] focus:ring-1 focus:ring-[#005259]"
                     />
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => handleAddCompetence()}
                       className="px-3 bg-[#005259] hover:bg-[#EA601F] text-white font-bold rounded-xl transition-colors cursor-pointer"
                     >
                       +
                     </button>
                   </div>
+                  </PermissionGuard>
 
                   {listeQualitesGlobales.length > 0 && (
+                    <PermissionGuard actionId="equipe_modal_competence">
                     <div className="mb-3">
                       <p className="text-[10px] text-[#404040]/70 uppercase font-bold mb-1">Qualités enregistrées (cliquer pour ajouter) :</p>
                       <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1.5 bg-[#F3F3F2] rounded-xl border border-[#404040]/10">
@@ -816,8 +844,8 @@ export default function GestionEquipe() {
                               disabled={dejàAttribuee}
                               onClick={() => handleAddCompetence(qualite)}
                               className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all ${
-                                dejàAttribuee 
-                                ? "bg-white border-[#404040]/10 text-[#404040]/30 cursor-not-allowed" 
+                                dejàAttribuee
+                                ? "bg-white border-[#404040]/10 text-[#404040]/30 cursor-not-allowed"
                                 : "bg-white border-[#005259]/20 text-[#005259] hover:border-[#005259] cursor-pointer"
                               }`}
                             >
@@ -827,6 +855,7 @@ export default function GestionEquipe() {
                         })}
                       </div>
                     </div>
+                    </PermissionGuard>
                   )}
 
                   <p className="text-[10px] text-[#404040]/70 uppercase font-bold mb-1">Qualités retenues pour ce profil :</p>
@@ -837,13 +866,15 @@ export default function GestionEquipe() {
                       formData.competences.map((comp, idx) => (
                         <span key={idx} className="inline-flex items-center gap-1 bg-[#005259]/10 border border-[#005259]/20 text-[#005259] px-2 py-0.5 rounded-md font-medium text-[11px]">
                           {comp}
-                          <button 
-                            type="button" 
-                            onClick={() => handleRemoveCompetence(idx)}
-                            className="text-[#404040]/50 hover:text-[#EF736A] font-bold ml-1 cursor-pointer"
-                          >
-                            ×
-                          </button>
+                          <PermissionGuard actionId="equipe_modal_competence">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveCompetence(idx)}
+                              className="text-[#404040]/50 hover:text-[#EF736A] font-bold ml-1 cursor-pointer"
+                            >
+                              ×
+                            </button>
+                          </PermissionGuard>
                         </span>
                       ))
                     )}
