@@ -917,7 +917,7 @@ export default function PlanningExpertMix() {
       <div className="max-w-8xl mx-auto py-5 pr-4 flex gap-4 transition-all duration-300">
         
         {/* SIDEBAR : MODÈLES D'ACTIVITÉS */}
-        <aside className={`shrink-0 bg-white border border-[#404040]/10 rounded-xl p-3 space-y-2.5 self-start shadow-sm transition-all duration-300 ${isSidebarOpen ? "w-56 opacity-100" : "w-0 p-0 border-0 opacity-0 pointer-events-none"}`}>
+        <aside className={`shrink-0 bg-white border border-[#404040]/10 rounded-xl p-3 space-y-2.5 self-start sticky top-[60px] max-h-[calc(100vh-76px)] overflow-y-auto shadow-sm transition-all duration-300 ${isSidebarOpen ? "w-56 opacity-100" : "w-0 p-0 border-0 opacity-0 pointer-events-none"}`}>
           <div className="flex items-center justify-between border-b border-[#F3F3F2] pb-2">
             <Link href="/mediation/modeles" className="text-xs font-extrabold text-[#005259] uppercase tracking-wider flex items-center gap-1.5 hover:text-[#EA601F] transition-colors" title="Voir tous les modèles">
               <DocumentDuplicateIcon className="w-4 h-4 text-[#EA601F]" /> Modèles
