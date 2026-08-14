@@ -26,7 +26,8 @@ import type { Mediateur, ActionPlanning } from "../../lib/types";
 import { useConfirm } from "../../components/ConfirmProvider";
 import {
   type ActiviteType, BLOCS_THEMATIQUES, getJoursFeries,
-  genererCreneauxPourModele, estimerNombreCreneaux,
+  genererCreneauxPourModele, estimerNombreCreneaux, estVisibleCetteSemaine,
+  formatDateFrCourt,
 } from "../../lib/activitesTypes";
 
 // Police Quicksand conforme à la charte
@@ -89,7 +90,7 @@ function getWeekIdentifier(date: Date) {
 const ACTIVITE_VIDE: ActiviteType = {
   lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "",
   couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "",
-  blocs: [], mediateursIds: [], generationMoment: "Les deux",
+  blocs: [], mediateursIds: [], generationMoment: "Les deux", datesActives: [],
 };
 
 export default function PlanningExpertMix() {
@@ -340,7 +341,8 @@ export default function PlanningExpertMix() {
         dateFin: newActivite.dateFin,
         blocs: newActivite.blocs || [],
         mediateursIds: newActivite.mediateursIds || [],
-        generationMoment: newActivite.generationMoment || "Les deux"
+        generationMoment: newActivite.generationMoment || "Les deux",
+        datesActives: newActivite.datesActives || []
       };
 
       let idModele = editingActivite?.id;
@@ -400,7 +402,8 @@ export default function PlanningExpertMix() {
       dateFin: type.dateFin || "",
       blocs: type.blocs || [],
       mediateursIds: type.mediateursIds || [],
-      generationMoment: type.generationMoment || "Les deux"
+      generationMoment: type.generationMoment || "Les deux",
+      datesActives: type.datesActives || []
     });
     // Retrouve, si possible, l'adresse prédéfinie correspondante pour que le
     // menu déroulant affiche la bonne sélection au lieu de retomber sur
@@ -878,11 +881,7 @@ export default function PlanningExpertMix() {
 
           <div className="space-y-2">
             {(() => {
-              const modelesSemaine = activitesTypes.filter(type => {
-                if (type.dateDebut && endOfWeekStr < type.dateDebut) return false;
-                if (type.dateFin && startOfWeekStr > type.dateFin) return false;
-                return true;
-              });
+              const modelesSemaine = activitesTypes.filter(type => estVisibleCetteSemaine(type, startOfWeekStr, endOfWeekStr));
 
               // Rendu d'un modèle dans la liste. Dans un bloc thématique, la
               // couleur du bloc prime sur la couleur propre du modèle pour
@@ -1405,6 +1404,36 @@ export default function PlanningExpertMix() {
               <div className="grid grid-cols-2 gap-2">
                 <input type="date" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.dateDebut} onChange={e => setNewActivite({...newActivite, dateDebut: e.target.value})} />
                 <input type="date" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.dateFin} onChange={e => setNewActivite({...newActivite, dateFin: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] text-[#404040]/70 font-semibold">Dates ponctuelles (Optionnel — pour une activité récurrente irrégulière, ex: Quintinie)</label>
+              <div className="flex flex-wrap items-center gap-1 border border-[#404040]/10 rounded-md p-1.5">
+                {(newActivite.datesActives || []).slice().sort().map(d => (
+                  <span key={d} className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#F3F3F2] border border-[#404040]/15 px-1.5 py-0.5 rounded-full text-[#404040]">
+                    {formatDateFrCourt(d)}
+                    <button
+                      type="button"
+                      onClick={() => setNewActivite({...newActivite, datesActives: (newActivite.datesActives || []).filter(x => x !== d)})}
+                      className="text-[#404040]/50 hover:text-[#EF736A] cursor-pointer leading-none"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+                <input
+                  type="date"
+                  value=""
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (!val) return;
+                    const current = newActivite.datesActives || [];
+                    if (!current.includes(val)) setNewActivite({...newActivite, datesActives: [...current, val]});
+                  }}
+                  title="Ajouter une date"
+                  className="text-[10px] px-1.5 py-0.5 border border-dashed border-[#404040]/30 rounded-full bg-transparent text-[#404040]/60 cursor-pointer"
+                />
               </div>
             </div>
 

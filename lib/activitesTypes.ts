@@ -30,6 +30,31 @@ export interface ActiviteType {
   // Moment(s) concerné(s) par la génération automatique. Absent/"Les deux"
   // = Matin + Après-midi.
   generationMoment?: "Matin" | "Après-midi" | "Les deux";
+  // Jours précis (YYYY-MM-DD) où ce modèle a effectivement lieu, pour les
+  // activités récurrentes mais irrégulières (ex: "Quintinie" un mardi sur
+  // deux) qu'une période continue [dateDebut, dateFin] représenterait mal.
+  // Si renseigné, prime sur dateDebut/dateFin pour décider si le modèle
+  // apparaît dans la sidebar de l'agenda une semaine donnée (voir
+  // estVisibleCetteSemaine) — ne déclenche PAS de génération automatique
+  // de créneaux, contrairement à dateDebut/dateFin.
+  datesActives?: string[];
+}
+
+// Un modèle est-il visible dans la sidebar de l'agenda pour la semaine
+// [startOfWeekStr, endOfWeekStr] (toutes deux au format YYYY-MM-DD) ?
+// datesActives, si renseigné, remplace complètement la logique de période
+// continue (les deux mécanismes ne se combinent pas sur un même modèle).
+export function estVisibleCetteSemaine(
+  modele: ActiviteType,
+  startOfWeekStr: string,
+  endOfWeekStr: string
+): boolean {
+  if (modele.datesActives && modele.datesActives.length > 0) {
+    return modele.datesActives.some((d) => d >= startOfWeekStr && d <= endOfWeekStr);
+  }
+  if (modele.dateDebut && endOfWeekStr < modele.dateDebut) return false;
+  if (modele.dateFin && startOfWeekStr > modele.dateFin) return false;
+  return true;
 }
 
 // Blocs thématiques : un modèle peut être rattaché à plusieurs à la fois.
@@ -89,6 +114,11 @@ export function getJoursFeries(year: number): Set<string> {
 function formatDateFr(dateStr: string): string {
   const [y, m, d] = dateStr.split("-");
   return `${d}/${m}/${y}`;
+}
+
+export function formatDateFrCourt(dateStr: string): string {
+  const [, m, d] = dateStr.split("-");
+  return `${d}/${m}`;
 }
 
 export interface ResultatGeneration {

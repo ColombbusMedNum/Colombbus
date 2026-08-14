@@ -20,7 +20,7 @@ import { useConfirm } from "@/components/ConfirmProvider";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import {
   type ActiviteType, BLOCS_THEMATIQUES,
-  genererCreneauxPourModele, estimerNombreCreneaux,
+  genererCreneauxPourModele, estimerNombreCreneaux, formatDateFrCourt,
 } from "@/lib/activitesTypes";
 
 const quicksand = Quicksand({
@@ -31,7 +31,7 @@ const quicksand = Quicksand({
 const ACTIVITE_VIDE: ActiviteType = {
   lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "",
   couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "",
-  blocs: [], mediateursIds: [], generationMoment: "Les deux",
+  blocs: [], mediateursIds: [], generationMoment: "Les deux", datesActives: [],
 };
 
 export default function ModelesPage() {
@@ -95,6 +95,7 @@ export default function ModelesPage() {
       blocs: type.blocs || [],
       mediateursIds: type.mediateursIds || [],
       generationMoment: type.generationMoment || "Les deux",
+      datesActives: type.datesActives || [],
     });
     const locMatch = localisations?.find(
       (l) => `${l.adresse || ""}, ${l.codePostal || ""} ${l.ville || ""}`.trim() === (type.adresse || "").trim()
@@ -129,6 +130,7 @@ export default function ModelesPage() {
         blocs: newActivite.blocs || [],
         mediateursIds: newActivite.mediateursIds || [],
         generationMoment: newActivite.generationMoment || "Les deux",
+        datesActives: newActivite.datesActives || [],
       };
 
       let idModele = editingActivite?.id;
@@ -313,6 +315,7 @@ export default function ModelesPage() {
                     <th className="px-4 py-3">Code Analytique</th>
                     <th className="px-4 py-3">Date début</th>
                     <th className="px-4 py-3">Date fin</th>
+                    <th className="px-4 py-3">Dates ponctuelles</th>
                     <th className="px-4 py-3">Lieu</th>
                     <th className="px-4 py-3">Type</th>
                     <th className="px-4 py-3">Médiateurs</th>
@@ -373,6 +376,33 @@ export default function ModelesPage() {
                             onChange={e => handleInlineUpdate(type, { dateFin: e.target.value })}
                             className="px-1.5 py-1 bg-transparent hover:bg-[#F3F3F2] border border-transparent hover:border-[#404040]/15 rounded text-[10px] text-[#404040] outline-none cursor-pointer"
                           />
+                        </td>
+                        <td className="px-4 py-2 min-w-[140px]">
+                          <div className="flex flex-wrap items-center gap-1">
+                            {(type.datesActives || []).slice().sort().map(d => (
+                              <span key={d} className="inline-flex items-center gap-0.5 text-[9px] font-bold bg-[#F3F3F2] border border-[#404040]/15 px-1 py-0.5 rounded-full text-[#404040]">
+                                {formatDateFrCourt(d)}
+                                <button
+                                  onClick={() => handleInlineUpdate(type, { datesActives: (type.datesActives || []).filter(x => x !== d) })}
+                                  className="text-[#404040]/50 hover:text-[#EF736A] cursor-pointer leading-none"
+                                >
+                                  ✕
+                                </button>
+                              </span>
+                            ))}
+                            <input
+                              type="date"
+                              value=""
+                              onChange={e => {
+                                const val = e.target.value;
+                                if (!val) return;
+                                const current = type.datesActives || [];
+                                if (!current.includes(val)) handleInlineUpdate(type, { datesActives: [...current, val] });
+                              }}
+                              title="Ajouter une date"
+                              className="text-[9px] px-1 py-0.5 border border-dashed border-[#404040]/30 rounded-full bg-transparent text-[#404040]/60 cursor-pointer"
+                            />
+                          </div>
                         </td>
                         <td className="px-4 py-2 min-w-[160px]">{renderTexteEditable("adresse", "Aucune adresse")}</td>
                         <td className="px-4 py-2 min-w-[150px]">
@@ -671,6 +701,36 @@ export default function ModelesPage() {
               <div className="grid grid-cols-2 gap-2">
                 <input type="date" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.dateDebut} onChange={e => setNewActivite({...newActivite, dateDebut: e.target.value})} />
                 <input type="date" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.dateFin} onChange={e => setNewActivite({...newActivite, dateFin: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] text-[#404040]/70 font-semibold">Dates ponctuelles (Optionnel — pour une activité récurrente irrégulière, ex: Quintinie)</label>
+              <div className="flex flex-wrap items-center gap-1 border border-[#404040]/10 rounded-md p-1.5">
+                {(newActivite.datesActives || []).slice().sort().map(d => (
+                  <span key={d} className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#F3F3F2] border border-[#404040]/15 px-1.5 py-0.5 rounded-full text-[#404040]">
+                    {formatDateFrCourt(d)}
+                    <button
+                      type="button"
+                      onClick={() => setNewActivite({...newActivite, datesActives: (newActivite.datesActives || []).filter(x => x !== d)})}
+                      className="text-[#404040]/50 hover:text-[#EF736A] cursor-pointer leading-none"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+                <input
+                  type="date"
+                  value=""
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (!val) return;
+                    const current = newActivite.datesActives || [];
+                    if (!current.includes(val)) setNewActivite({...newActivite, datesActives: [...current, val]});
+                  }}
+                  title="Ajouter une date"
+                  className="text-[10px] px-1.5 py-0.5 border border-dashed border-[#404040]/30 rounded-full bg-transparent text-[#404040]/60 cursor-pointer"
+                />
               </div>
             </div>
 
