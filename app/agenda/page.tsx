@@ -963,13 +963,16 @@ export default function PlanningExpertMix() {
                     }}
                     className={`group/item w-full flex flex-col p-2 rounded-lg text-xs transition-all border ${estSemaineValidee ? 'opacity-50 cursor-not-allowed' : isSelected ? 'ring-2 ring-[#005259]' : 'hover:shadow-md cursor-pointer'}`}
                   >
-                    <div className="w-full flex items-center justify-between font-bold">
-                      <span className="truncate flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full shrink-0 border border-black/10" style={{ backgroundColor: colorTheme }}></span>
-                        <span className="truncate">{type.lieu}</span>
-                        {type.territoire && <span className="text-[9px] bg-white px-1 rounded border border-current">{type.territoire}</span>}
-                      </span>
-                      <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                    <div className="w-full flex items-center gap-1.5 font-bold">
+                      <span className="w-2 h-2 rounded-full shrink-0 border border-black/10" style={{ backgroundColor: colorTheme }}></span>
+                      <span className="truncate flex-1">{type.lieu}</span>
+                    </div>
+                    <div className="w-full flex items-center justify-between mt-1 pl-3.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {type.territoire && <span className="text-[9px] bg-white px-1 rounded border border-current shrink-0">{type.territoire}</span>}
+                        {type.debut && <span className="text-[10px] opacity-80 font-mono truncate">{type.debut} - {type.fin}</span>}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity">
                         <PermissionGuard actionId="agenda_model_actions">
                           <button onClick={(e) => handleOpenEditActivite(type, e)} className="hover:opacity-70 p-0.5">
                             <PencilSquareIcon className="w-3 h-3" />
@@ -990,7 +993,6 @@ export default function PlanningExpertMix() {
                         )}
                       </div>
                     </div>
-                    {type.debut && <div className="text-[10px] opacity-80 font-mono mt-0.5 pl-3">{type.debut} - {type.fin}</div>}
                   </div>
                 );
               };
