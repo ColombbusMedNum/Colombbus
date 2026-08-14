@@ -75,7 +75,8 @@ const DETAILED_PAGES: PageEntry[] = [
       { id: "benef_filter_blacklist", nom: "Badge Filtre Blacklistés", type: "button", description: "Affiche les profils bloqués" },
       { id: "benef_action_toggle_blacklist", nom: "Bouton Blacklist/Reclasser direct", type: "button", description: "Modifie l'état de blacklistage dans la liste" },
       { id: "benef_action_open", nom: "Bouton Ouvrir Fiche", type: "Link", description: "Navigue vers le profil du bénéficiaire" },
-      { id: "benef_nav_localisations", nom: "Lien Ajouter un lieu", type: "Link", description: "Accède à la gestion des lieux (localisations)" },
+      // benef_nav_localisations ("Lien Ajouter un lieu") retiré : ce lien
+      // n'existe plus dans app/.../liste-beneficiaires/page.tsx (audit droits).
     ],
   },
   {
@@ -278,7 +279,6 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     home_nav_emargement_gen: true, home_nav_actions_coll: true, home_nav_stats_glob: true,
     benef_search: true, benef_nav_agenda_suresnes: true, benef_create_new: true, benef_filter_alphabet: true,
     benef_filter_today: true, benef_filter_suresnes: true, benef_filter_de: true, benef_action_open: true,
-    benef_nav_localisations: true,
     fiche_edit_profil: true, fiche_nav_diagnostic: true, fiche_add_action: true, fiche_action_change_lieu: true,
     fiche_action_edit_rdv: true, fiche_action_save_rdv: true, fiche_modal_submit: true,
     fiche_nav_bilan_tech: true, fiche_nav_agenda_suresnes: true,
@@ -309,7 +309,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     home_nav_bilan_suresnes: true, home_nav_volume_horaire: true, home_nav_agenda_med: true,
     benef_search: true, benef_nav_agenda_suresnes: true, benef_create_new: true, benef_filter_alphabet: true,
     benef_filter_today: true, benef_filter_suresnes: true, benef_filter_de: true, benef_filter_blacklist: true,
-    benef_action_toggle_blacklist: true, benef_action_open: true, benef_nav_localisations: true,
+    benef_action_toggle_blacklist: true, benef_action_open: true,
     fiche_edit_profil: true, fiche_nav_diagnostic: true, fiche_add_action: true, fiche_action_change_lieu: true,
     fiche_action_edit_rdv: true, fiche_action_save_rdv: true, fiche_action_delete_rdv: true, fiche_modal_toggle_blacklist: true, fiche_modal_submit: true,
     fiche_nav_bilan_tech: true, fiche_nav_agenda_suresnes: true, fiche_nav_equipe: true,

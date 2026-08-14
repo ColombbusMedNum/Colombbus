@@ -257,13 +257,15 @@ export default function ListeBeneficiaires() {
           </div>
           
           <div className="flex flex-wrap gap-2">
-            <Link 
-              href="/mediation/rencontres-numeriques/suresnes"
-              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
-            >
-              <CalendarDaysIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Agenda Suresnes</span>
-            </Link>
+            <PermissionGuard actionId="benef_nav_agenda_suresnes">
+              <Link
+                href="/mediation/rencontres-numeriques/suresnes"
+                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+              >
+                <CalendarDaysIcon className="w-4 h-4 text-[#EA601F]" />
+                <span>Agenda Suresnes</span>
+              </Link>
+            </PermissionGuard>
 
             <Link
               href="/"
@@ -287,53 +289,57 @@ export default function ListeBeneficiaires() {
         </div>
 
         {/* BARRE DE RECHERCHE */}
-        <div className="relative group">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            <MagnifyingGlassIcon className="h-5 w-5 text-[#404040]/40 group-focus-within:text-[#005259] transition-colors" />
+        <PermissionGuard actionId="benef_search">
+          <div className="relative group">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <MagnifyingGlassIcon className="h-5 w-5 text-[#404040]/40 group-focus-within:text-[#005259] transition-colors" />
+            </div>
+            <input
+              type="text"
+              placeholder="Rechercher un bénéficiaire par son nom ou son prénom..."
+              className="w-full bg-white border border-[#404040]/15 rounded-2xl pl-12 pr-4 py-3.5 text-sm text-[#404040] placeholder-[#404040]/40 focus:border-[#005259] focus:ring-1 focus:ring-[#005259] outline-none transition-all shadow-sm font-medium"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-          <input
-            type="text"
-            placeholder="Rechercher un bénéficiaire par son nom ou son prénom..."
-            className="w-full bg-white border border-[#404040]/15 rounded-2xl pl-12 pr-4 py-3.5 text-sm text-[#404040] placeholder-[#404040]/40 focus:border-[#005259] focus:ring-1 focus:ring-[#005259] outline-none transition-all shadow-sm font-medium"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
+        </PermissionGuard>
 
         {/* BARRE DE FILTRAGE PAR LETTRE (ALPHABET) */}
-        <div className="bg-white border border-[#404040]/10 rounded-2xl p-3 flex flex-wrap gap-1 justify-between items-center shadow-sm">
-          <button
-            onClick={() => setLettreActive(null)}
-            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
-              lettreActive === null
-                ? "bg-[#005259] text-white shadow-sm"
-                : "text-[#404040]/70 hover:text-[#005259] hover:bg-[#F3F3F2]"
-            }`}
-          >
-            Tous (A-Z)
-          </button>
-          <div className="flex flex-wrap gap-0.5 justify-center flex-1 mx-2">
-            {alphabet.map((lettre) => {
-              const aDesBeneficiaires = lettresAvecBeneficiaires.has(lettre);
+        <PermissionGuard actionId="benef_filter_alphabet">
+          <div className="bg-white border border-[#404040]/10 rounded-2xl p-3 flex flex-wrap gap-1 justify-between items-center shadow-sm">
+            <button
+              onClick={() => setLettreActive(null)}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                lettreActive === null
+                  ? "bg-[#005259] text-white shadow-sm"
+                  : "text-[#404040]/70 hover:text-[#005259] hover:bg-[#F3F3F2]"
+              }`}
+            >
+              Tous (A-Z)
+            </button>
+            <div className="flex flex-wrap gap-0.5 justify-center flex-1 mx-2">
+              {alphabet.map((lettre) => {
+                const aDesBeneficiaires = lettresAvecBeneficiaires.has(lettre);
 
-              return (
-                <button
-                  key={lettre}
-                  onClick={() => setLettreActive(lettre === lettreActive ? null : lettre)}
-                  className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    lettreActive === lettre
-                      ? "bg-[#005259] text-white shadow-sm"
-                      : aDesBeneficiaires
-                      ? "text-[#005259] bg-[#F3F3F2] hover:bg-[#005259]/10 border border-[#005259]/10"
-                      : "text-[#404040]/30 hover:text-[#404040]/60 hover:bg-[#F3F3F2]/50 opacity-50"
-                  }`}
-                >
-                  {lettre}
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={lettre}
+                    onClick={() => setLettreActive(lettre === lettreActive ? null : lettre)}
+                    className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      lettreActive === lettre
+                        ? "bg-[#005259] text-white shadow-sm"
+                        : aDesBeneficiaires
+                        ? "text-[#005259] bg-[#F3F3F2] hover:bg-[#005259]/10 border border-[#005259]/10"
+                        : "text-[#404040]/30 hover:text-[#404040]/60 hover:bg-[#F3F3F2]/50 opacity-50"
+                    }`}
+                  >
+                    {lettre}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        </PermissionGuard>
 
         {/* FILTRES RAPIDES */}
         <div className="flex flex-wrap items-center gap-2 px-1">
@@ -352,49 +358,57 @@ export default function ListeBeneficiaires() {
             Tous ({beneficiaires.length})
           </button>
 
-          <button
-            onClick={() => setFiltreActif("Aujourd'hui")}
-            className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-              filtreActif === "Aujourd'hui"
-                ? "bg-[#005259] text-white shadow-sm"
-                : "bg-white text-[#404040] border border-[#404040]/10 hover:border-[#005259] hover:text-[#005259]"
-            }`}
-          >
-            📅 Aujourd'hui ({countAujourdhui})
-          </button>
+          <PermissionGuard actionId="benef_filter_today">
+            <button
+              onClick={() => setFiltreActif("Aujourd'hui")}
+              className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                filtreActif === "Aujourd'hui"
+                  ? "bg-[#005259] text-white shadow-sm"
+                  : "bg-white text-[#404040] border border-[#404040]/10 hover:border-[#005259] hover:text-[#005259]"
+              }`}
+            >
+              📅 Aujourd'hui ({countAujourdhui})
+            </button>
+          </PermissionGuard>
 
-          <button
-            onClick={() => setFiltreActif("Suresnes")}
-            className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-              filtreActif === "Suresnes"
-                ? "bg-[#005259] text-white shadow-sm"
-                : "bg-white text-[#404040] border border-[#404040]/10 hover:border-[#005259] hover:text-[#005259]"
-            }`}
-          >
-            📍 Suresnes ({countSuresnes})
-          </button>
+          <PermissionGuard actionId="benef_filter_suresnes">
+            <button
+              onClick={() => setFiltreActif("Suresnes")}
+              className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                filtreActif === "Suresnes"
+                  ? "bg-[#005259] text-white shadow-sm"
+                  : "bg-white text-[#404040] border border-[#404040]/10 hover:border-[#005259] hover:text-[#005259]"
+              }`}
+            >
+              📍 Suresnes ({countSuresnes})
+            </button>
+          </PermissionGuard>
 
-          <button
-            onClick={() => setFiltreActif("DE")}
-            className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-              filtreActif === "DE"
-                ? "bg-[#005259] text-white shadow-sm"
-                : "bg-white text-[#404040] border border-[#404040]/10 hover:border-[#005259] hover:text-[#005259]"
-            }`}
-          >
-            💼 Public France Travail ({countDE})
-          </button>
+          <PermissionGuard actionId="benef_filter_de">
+            <button
+              onClick={() => setFiltreActif("DE")}
+              className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                filtreActif === "DE"
+                  ? "bg-[#005259] text-white shadow-sm"
+                  : "bg-white text-[#404040] border border-[#404040]/10 hover:border-[#005259] hover:text-[#005259]"
+              }`}
+            >
+              💼 Public France Travail ({countDE})
+            </button>
+          </PermissionGuard>
 
-          <button
-            onClick={() => setFiltreActif("Blacklistes")}
-            className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-              filtreActif === "Blacklistes"
-                ? "bg-[#EF736A] text-white shadow-sm"
-                : "bg-white text-[#EF736A] border border-[#EF736A]/30 hover:bg-[#EF736A]/10"
-            }`}
-          >
-            🚫 Blacklistés ({countBlacklistes})
-          </button>
+          <PermissionGuard actionId="benef_filter_blacklist">
+            <button
+              onClick={() => setFiltreActif("Blacklistes")}
+              className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                filtreActif === "Blacklistes"
+                  ? "bg-[#EF736A] text-white shadow-sm"
+                  : "bg-white text-[#EF736A] border border-[#EF736A]/30 hover:bg-[#EF736A]/10"
+              }`}
+            >
+              🚫 Blacklistés ({countBlacklistes})
+            </button>
+          </PermissionGuard>
         </div>
 
         {/* TABLEAU DES RÉSULTATS */}
@@ -497,13 +511,15 @@ export default function ListeBeneficiaires() {
                               </button>
                             </PermissionGuard>
 
-                            <Link
-                              href={`/mediation/rencontres-numeriques/liste-beneficiaires/${b.id}`}
-                              className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#005259] hover:bg-[#EA601F] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-sm cursor-pointer"
-                            >
-                              <span>Ouvrir</span>
-                              <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
-                            </Link>
+                            <PermissionGuard actionId="benef_action_open">
+                              <Link
+                                href={`/mediation/rencontres-numeriques/liste-beneficiaires/${b.id}`}
+                                className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#005259] hover:bg-[#EA601F] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-sm cursor-pointer"
+                              >
+                                <span>Ouvrir</span>
+                                <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
+                              </Link>
+                            </PermissionGuard>
                           </div>
                         </td>
                       </tr>
