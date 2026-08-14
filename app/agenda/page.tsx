@@ -5,6 +5,7 @@ import { db } from "../../lib/firebase";
 import PageGuard from "../../components/PageGuard";
 import { useToast } from "../../components/ToastProvider";
 import { usePermissions } from "../../lib/PermissionsProvider";
+import { PermissionGuard } from "../../components/PermissionGuard";
 import { useMediateurs } from "../../lib/MediateursProvider";
 import { 
   collection, onSnapshot, query, orderBy, addDoc, 
@@ -718,12 +719,14 @@ export default function PlanningExpertMix() {
       {/* HEADER */}
       <header className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-5 py-2.5 border-b border-[#003d42] bg-[#005259] text-white shadow-md">
         <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-1 bg-[#003d42] hover:bg-[#002b2f] border border-[#005259] rounded-md text-white transition-all cursor-pointer"
-          >
-            {isSidebarOpen ? <ChevronLeftIcon className="w-4 h-4"/> : <ChevronRightIcon className="w-4 h-4"/>}
-          </button>
+          <PermissionGuard actionId="agenda_toggle_sidebar">
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-1 bg-[#003d42] hover:bg-[#002b2f] border border-[#005259] rounded-md text-white transition-all cursor-pointer"
+            >
+              {isSidebarOpen ? <ChevronLeftIcon className="w-4 h-4"/> : <ChevronRightIcon className="w-4 h-4"/>}
+            </button>
+          </PermissionGuard>
           
           <Link
             href="/"
@@ -737,28 +740,31 @@ export default function PlanningExpertMix() {
           <span className="text-white/90 font-medium">Agenda des médiateurs</span>
 
           {/* BOUTON VALIDATION SEMAINE */}
-          <button
-            onClick={toggleValidationSemaine}
-            className={`px-3 py-1 rounded-md text-xs transition-all border flex items-center gap-1.5 cursor-pointer font-bold ${
-              estSemaineValidee 
-                ? "bg-[#A9E0C9]/20 border-[#A9E0C9] text-[#A9E0C9]" 
-                : "bg-[#F9C44E] border-[#F9C44E] text-[#005259] hover:bg-[#f8b930]"
-            }`}
-          >
-            {estSemaineValidee ? (
-              <><LockClosedIcon className="w-3.5 h-3.5"/> Semaine Validée</>
-            ) : (
-              <><CheckCircleIcon className="w-3.5 h-3.5"/> En cours de validation</>
-            )}
-          </button>
+          <PermissionGuard actionId="agenda_validate_week">
+            <button
+              onClick={toggleValidationSemaine}
+              className={`px-3 py-1 rounded-md text-xs transition-all border flex items-center gap-1.5 cursor-pointer font-bold ${
+                estSemaineValidee
+                  ? "bg-[#A9E0C9]/20 border-[#A9E0C9] text-[#A9E0C9]"
+                  : "bg-[#F9C44E] border-[#F9C44E] text-[#005259] hover:bg-[#f8b930]"
+              }`}
+            >
+              {estSemaineValidee ? (
+                <><LockClosedIcon className="w-3.5 h-3.5"/> Semaine Validée</>
+              ) : (
+                <><CheckCircleIcon className="w-3.5 h-3.5"/> En cours de validation</>
+              )}
+            </button>
+          </PermissionGuard>
         </div>
 
         <div className="flex items-center gap-3">
           
           {/* CLOCHE NOTIFICATION */}
+          <PermissionGuard actionId="agenda_notif_panel">
           <div className="relative" ref={notifRef}>
-            <button 
-              onClick={() => setIsNotifOpen(!isNotifOpen)} 
+            <button
+              onClick={() => setIsNotifOpen(!isNotifOpen)}
               className="p-2 bg-[#003d42] border border-[#002b2f] hover:bg-[#002b2f] rounded-lg text-white relative cursor-pointer flex items-center justify-center min-w-[36px] h-9"
               title="Notifications"
             >
@@ -821,13 +827,16 @@ export default function PlanningExpertMix() {
               </div>
             )}
           </div>
+          </PermissionGuard>
 
           {/* SÉLECTEUR SEMAINE */}
-          <div className="flex items-center gap-1.5 bg-[#003d42] border border-[#002b2f] rounded-lg px-2 h-9">
-            <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate()-7); setCurrentDate(d); }} className="text-white hover:text-[#F9C44E] transition-colors cursor-pointer text-xs font-bold">←</button>
-            <span className="text-xs font-semibold text-white min-w-28 text-center">Sem. du {monday.toLocaleDateString('fr-FR', {day:'numeric', month:'short'})}</span>
-            <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate()+7); setCurrentDate(d); }} className="text-white hover:text-[#F9C44E] transition-colors cursor-pointer text-xs font-bold">→</button>
-          </div>
+          <PermissionGuard actionId="agenda_week_nav">
+            <div className="flex items-center gap-1.5 bg-[#003d42] border border-[#002b2f] rounded-lg px-2 h-9">
+              <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate()-7); setCurrentDate(d); }} className="text-white hover:text-[#F9C44E] transition-colors cursor-pointer text-xs font-bold">←</button>
+              <span className="text-xs font-semibold text-white min-w-28 text-center">Sem. du {monday.toLocaleDateString('fr-FR', {day:'numeric', month:'short'})}</span>
+              <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate()+7); setCurrentDate(d); }} className="text-white hover:text-[#F9C44E] transition-colors cursor-pointer text-xs font-bold">→</button>
+            </div>
+          </PermissionGuard>
 
           {/* MODÈLE SÉLECTIONNÉ */}
           {selectedModel && (
@@ -840,25 +849,29 @@ export default function PlanningExpertMix() {
           )}
 
           {/* BOUTON SAMEDI */}
-          <button
-            onClick={() => setVoirSamedi(!voirSamedi)}
-            className={`px-3 h-9 rounded-md text-xs transition-colors border flex items-center gap-1.5 cursor-pointer font-bold ${
-              voirSamedi ? "bg-[#F9945D] border-[#F9945D] text-white" : "bg-[#003d42] border-[#002b2f] text-white hover:bg-[#002b2f]"
-            }`}
-          >
-            <CalendarDaysIcon className="w-3.5 h-3.5"/>
-            {voirSamedi ? "Masquer Samedi" : "+ Samedi"}
-          </button>
+          <PermissionGuard actionId="agenda_display_toggles">
+            <button
+              onClick={() => setVoirSamedi(!voirSamedi)}
+              className={`px-3 h-9 rounded-md text-xs transition-colors border flex items-center gap-1.5 cursor-pointer font-bold ${
+                voirSamedi ? "bg-[#F9945D] border-[#F9945D] text-white" : "bg-[#003d42] border-[#002b2f] text-white hover:bg-[#002b2f]"
+              }`}
+            >
+              <CalendarDaysIcon className="w-3.5 h-3.5"/>
+              {voirSamedi ? "Masquer Samedi" : "+ Samedi"}
+            </button>
+          </PermissionGuard>
 
           {/* BOUTON MASQUÉS */}
-          <button
-            onClick={() => setVoirMasques(!voirMasques)}
-            className={`px-3 h-9 rounded-md text-xs transition-colors border flex items-center gap-1.5 cursor-pointer font-bold ${
-              voirMasques ? "bg-[#EF736A] border-[#EF736A] text-white" : "bg-[#003d42] border-[#002b2f] text-white hover:bg-[#002b2f]"
-            }`}
-          >
-            {voirMasques ? <><EyeIcon className="w-3.5 h-3.5"/> Vue complète</> : <><EyeSlashIcon className="w-3.5 h-3.5"/> Masqués</>}
-          </button>
+          <PermissionGuard actionId="agenda_display_toggles">
+            <button
+              onClick={() => setVoirMasques(!voirMasques)}
+              className={`px-3 h-9 rounded-md text-xs transition-colors border flex items-center gap-1.5 cursor-pointer font-bold ${
+                voirMasques ? "bg-[#EF736A] border-[#EF736A] text-white" : "bg-[#003d42] border-[#002b2f] text-white hover:bg-[#002b2f]"
+              }`}
+            >
+              {voirMasques ? <><EyeIcon className="w-3.5 h-3.5"/> Vue complète</> : <><EyeSlashIcon className="w-3.5 h-3.5"/> Masqués</>}
+            </button>
+          </PermissionGuard>
 
           <Link href="/mediation/adresses" className="bg-[#003d42] hover:bg-[#002b2f] text-white border border-[#002b2f] px-3 h-9 rounded-md text-xs flex items-center gap-1.5 font-bold">
             <MapPinIcon className="w-3.5 h-3.5 text-[#A9E0C9]"/> Adresses
@@ -886,12 +899,14 @@ export default function PlanningExpertMix() {
             <Link href="/mediation/modeles" className="text-xs font-extrabold text-[#005259] uppercase tracking-wider flex items-center gap-1.5 hover:text-[#EA601F] transition-colors" title="Voir tous les modèles">
               <DocumentDuplicateIcon className="w-4 h-4 text-[#EA601F]" /> Modèles
             </Link>
-            <button
-              onClick={() => { setEditingActivite(null); setNewActivite(ACTIVITE_VIDE); setSelectedLieuPredefini(""); setOpenSections({}); setIsActiviteModalOpen(true); }}
-              className="p-1 bg-[#F3F3F2] hover:bg-[#005259] text-[#005259] hover:text-white rounded-md transition-colors cursor-pointer"
-            >
-              <PlusIcon className="w-3.5 h-3.5" />
-            </button>
+            <PermissionGuard actionId="agenda_model_create">
+              <button
+                onClick={() => { setEditingActivite(null); setNewActivite(ACTIVITE_VIDE); setSelectedLieuPredefini(""); setOpenSections({}); setIsActiviteModalOpen(true); }}
+                className="p-1 bg-[#F3F3F2] hover:bg-[#005259] text-[#005259] hover:text-white rounded-md transition-colors cursor-pointer"
+              >
+                <PlusIcon className="w-3.5 h-3.5" />
+              </button>
+            </PermissionGuard>
           </div>
 
           <div className="space-y-2">
@@ -932,18 +947,22 @@ export default function PlanningExpertMix() {
                         {type.territoire && <span className="text-[9px] bg-white px-1 rounded border border-current">{type.territoire}</span>}
                       </span>
                       <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                        <button onClick={(e) => handleOpenEditActivite(type, e)} className="hover:opacity-70 p-0.5">
-                          <PencilSquareIcon className="w-3 h-3" />
-                        </button>
+                        <PermissionGuard actionId="agenda_model_actions">
+                          <button onClick={(e) => handleOpenEditActivite(type, e)} className="hover:opacity-70 p-0.5">
+                            <PencilSquareIcon className="w-3 h-3" />
+                          </button>
+                        </PermissionGuard>
                         {type.id && (
                           isModeleProtege ? (
                             <span className="p-0.5 opacity-60" title="Modèle protégé : lié à Suresnes, non supprimable">
                               <LockClosedIcon className="w-3 h-3" />
                             </span>
                           ) : (
-                            <button onClick={(e) => handleDeleteActiviteType(type.id!, e)} className="hover:text-[#EF736A] p-0.5">
-                              <XMarkIcon className="w-3.5 h-3.5" />
-                            </button>
+                            <PermissionGuard actionId="agenda_model_actions">
+                              <button onClick={(e) => handleDeleteActiviteType(type.id!, e)} className="hover:text-[#EF736A] p-0.5">
+                                <XMarkIcon className="w-3.5 h-3.5" />
+                              </button>
+                            </PermissionGuard>
                           )
                         )}
                       </div>
@@ -1060,14 +1079,16 @@ export default function PlanningExpertMix() {
                             {fNom && <span className="font-extrabold text-[#404040] uppercase mt-0.5">{fNom}</span>}
                           </div>
                           
-                          <div className="flex items-center gap-0.5 shrink-0">
-                            <button onClick={() => toggleMasqueMed(m)} className={`p-0.5 rounded hover:text-[#EF736A] ${m.masque ? 'text-[#EF736A]' : 'text-[#404040]/40'}`}>
-                              {m.masque ? <EyeSlashIcon className="w-3.5 h-3.5"/> : <EyeIcon className="w-3.5 h-3.5"/>}
-                            </button>
-                            <button onClick={() => { setEditingMed(m); setNewMed({ prenom: m.prenom || "", nom: m.nom || "", poste: m.poste || "", statut: m.statut || "Permanent", debutACI: m.debutACI || "09:00", finACI: m.finACI || "17:00", masque: m.masque || false }); setIsUserModalOpen(true); }} className="text-[#404040]/40 hover:text-[#005259] p-0.5">
-                              <PencilSquareIcon className="w-3.5 h-3.5"/>
-                            </button>
-                          </div>
+                          <PermissionGuard actionId="agenda_staff_mask">
+                            <div className="flex items-center gap-0.5 shrink-0">
+                              <button onClick={() => toggleMasqueMed(m)} className={`p-0.5 rounded hover:text-[#EF736A] ${m.masque ? 'text-[#EF736A]' : 'text-[#404040]/40'}`}>
+                                {m.masque ? <EyeSlashIcon className="w-3.5 h-3.5"/> : <EyeIcon className="w-3.5 h-3.5"/>}
+                              </button>
+                              <button onClick={() => { setEditingMed(m); setNewMed({ prenom: m.prenom || "", nom: m.nom || "", poste: m.poste || "", statut: m.statut || "Permanent", debutACI: m.debutACI || "09:00", finACI: m.finACI || "17:00", masque: m.masque || false }); setIsUserModalOpen(true); }} className="text-[#404040]/40 hover:text-[#005259] p-0.5">
+                                <PencilSquareIcon className="w-3.5 h-3.5"/>
+                              </button>
+                            </div>
+                          </PermissionGuard>
                         </div>
                         
                         {m.statut === 'ACI' && (
