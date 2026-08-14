@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { auth, db, firebaseConfig } from "@/lib/firebase";
-import { collection, onSnapshot, doc, updateDoc, setDoc, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, getDoc, updateDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { Quicksand } from "next/font/google";
 import { 
   UserPlusIcon,
@@ -75,12 +75,10 @@ const getRoleLabel = (role: string) => {
 export default function GestionEquipe() {
   const { showToast } = useToast();
   const confirm = useConfirm();
-  const { mediateurs: mediateursBruts } = useMediateurs();
-  const mediateurs = React.useMemo(() => {
-    return mediateursBruts.filter(
-      (m: any) => m.id !== "parametres_configuration" && m.id !== "parametres_horaires"
-    );
-  }, [mediateursBruts]);
+  // Depuis la migration vers la collection configuration_equipe, liste_mediateurs
+  // ne contient plus que des fiches de médiateurs : plus besoin de filtrer
+  // les anciens documents de configuration au passage.
+  const { mediateurs } = useMediateurs();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMed, setEditingMed] = useState<any | null>(null);
   
@@ -121,35 +119,82 @@ export default function GestionEquipe() {
   });
 
   useEffect(() => {
-    const unsubConfig = onSnapshot(doc(db, "liste_mediateurs", "parametres_configuration"), (snapshot) => {
-      if (snapshot.exists()) {
-        const configData = snapshot.data();
-        if (configData.territoires) {
-          setListeTerritoires(configData.territoires.sort());
-        }
-        if (configData.qualitesGlobales) {
-          setListeQualitesGlobales(configData.qualitesGlobales.sort());
-        } else {
-          setListeQualitesGlobales([]);
-        }
-      } else {
-        setDoc(doc(db, "liste_mediateurs", "parametres_configuration"), { 
-          territoires: ["Paris", "Massy"],
-          qualitesGlobales: ["Excel", "Word"]
-        });
-      }
-    });
+    let unsubConfig = () => {};
+    let unsubHoraires = () => {};
+    let annule = false;
 
-    const unsubHoraires = onSnapshot(doc(db, "liste_mediateurs", "parametres_horaires"), (snapshot) => {
-      if (snapshot.exists()) {
-        setGrillesHorairesACI(snapshot.data());
-      } else {
-        setDoc(doc(db, "liste_mediateurs", "parametres_horaires"), {
-          Paris: { ...HORAIRES_PAR_DEFAUT },
-          Massy: { ...HORAIRES_PAR_DEFAUT }
-        });
+    const configRef = doc(db, "configuration_equipe", "parametres_configuration");
+    const horairesRef = doc(db, "configuration_equipe", "parametres_horaires");
+    // Anciens emplacements : ces deux documents vivaient par erreur dans
+    // liste_mediateurs (qui ne devrait contenir que des fiches de médiateurs
+    // indexées par UID), provoquant des "médiateurs fantômes" dans toute
+    // page listant liste_mediateurs sans filtre dédié.
+    const ancienConfigRef = doc(db, "liste_mediateurs", "parametres_configuration");
+    const ancienHoraireRef = doc(db, "liste_mediateurs", "parametres_horaires");
+
+    const demarrer = async () => {
+      // Migration transparente, une seule fois : si le nouvel emplacement est
+      // vide mais que l'ancien contient encore des données, on les reprend
+      // telles quelles (au lieu de repartir sur les valeurs par défaut) puis
+      // on nettoie l'ancien document. La suppression exige d'être admin (voir
+      // firestore.rules) : un coordinateur copie sans supprimer, un admin
+      // finira le nettoyage à sa prochaine visite de la page.
+      try {
+        const [nouveauConfig, nouveauHoraires] = await Promise.all([getDoc(configRef), getDoc(horairesRef)]);
+
+        if (!nouveauConfig.exists()) {
+          const ancien = await getDoc(ancienConfigRef);
+          if (ancien.exists()) {
+            await setDoc(configRef, ancien.data());
+            await deleteDoc(ancienConfigRef).catch(() => {});
+          }
+        }
+
+        if (!nouveauHoraires.exists()) {
+          const ancien = await getDoc(ancienHoraireRef);
+          if (ancien.exists()) {
+            await setDoc(horairesRef, ancien.data());
+            await deleteDoc(ancienHoraireRef).catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.error("Erreur lors de la migration de la configuration équipe :", err);
       }
-    });
+
+      if (annule) return;
+
+      unsubConfig = onSnapshot(configRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const configData = snapshot.data();
+          if (configData.territoires) {
+            setListeTerritoires(configData.territoires.sort());
+          }
+          if (configData.qualitesGlobales) {
+            setListeQualitesGlobales(configData.qualitesGlobales.sort());
+          } else {
+            setListeQualitesGlobales([]);
+          }
+        } else {
+          setDoc(configRef, {
+            territoires: ["Paris", "Massy"],
+            qualitesGlobales: ["Excel", "Word"]
+          });
+        }
+      });
+
+      unsubHoraires = onSnapshot(horairesRef, (snapshot) => {
+        if (snapshot.exists()) {
+          setGrillesHorairesACI(snapshot.data());
+        } else {
+          setDoc(horairesRef, {
+            Paris: { ...HORAIRES_PAR_DEFAUT },
+            Massy: { ...HORAIRES_PAR_DEFAUT }
+          });
+        }
+      });
+    };
+
+    demarrer();
 
     // Sert à savoir quels membres se sont déjà connectés au moins une fois
     // (voir firestore.rules /premieres_connexions et app/login/page.tsx),
@@ -159,6 +204,7 @@ export default function GestionEquipe() {
     });
 
     return () => {
+      annule = true;
       unsubConfig();
       unsubHoraires();
       unsubConnexions();
@@ -180,7 +226,7 @@ export default function GestionEquipe() {
     setNouveauTerritoireInput("");
     
     try {
-      await updateDoc(doc(db, "liste_mediateurs", "parametres_configuration"), { territoires: nouvelleListe });
+      await updateDoc(doc(db, "configuration_equipe", "parametres_configuration"), { territoires: nouvelleListe });
     } catch (err) {
       console.error(err);
     }
@@ -196,7 +242,7 @@ export default function GestionEquipe() {
     const nouvelleListe = listeTerritoires.filter(t => t !== nom).sort();
     setListeTerritoires(nouvelleListe);
     try {
-      await updateDoc(doc(db, "liste_mediateurs", "parametres_configuration"), { territoires: nouvelleListe });
+      await updateDoc(doc(db, "configuration_equipe", "parametres_configuration"), { territoires: nouvelleListe });
     } catch (err) {
       console.error(err);
     }
@@ -212,7 +258,7 @@ export default function GestionEquipe() {
     };
     setGrillesHorairesACI(updated);
     try {
-      await setDoc(doc(db, "liste_mediateurs", "parametres_horaires"), updated);
+      await setDoc(doc(db, "configuration_equipe", "parametres_horaires"), updated);
     } catch (err) {
       console.error(err);
     }
@@ -243,7 +289,7 @@ export default function GestionEquipe() {
       const nouveauCatalogue = [...listeQualitesGlobales, value].sort();
       setListeQualitesGlobales(nouveauCatalogue);
       try {
-        await updateDoc(doc(db, "liste_mediateurs", "parametres_configuration"), {
+        await updateDoc(doc(db, "configuration_equipe", "parametres_configuration"), {
           qualitesGlobales: nouveauCatalogue
         });
       } catch (err) {

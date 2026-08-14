@@ -29,14 +29,11 @@ const quicksand = Quicksand({
 // rôles des membres du staff, qui est une préoccupation distincte.
 export default function GestionDroitsPage() {
   const { role: userRole, loading } = usePermissions();
-  const { mediateurs: mediateursBruts } = useMediateurs();
+  // Depuis la migration vers la collection configuration_equipe, liste_mediateurs
+  // ne contient plus que des fiches de médiateurs : plus besoin de filtrer
+  // les anciens documents de configuration au passage.
+  const { mediateurs } = useMediateurs();
   const { showToast } = useToast();
-
-  const mediateurs = React.useMemo(() => {
-    return mediateursBruts.filter(
-      (m: any) => m.id !== "parametres_configuration" && m.id !== "parametres_horaires"
-    );
-  }, [mediateursBruts]);
 
   const handleChangeRole = async (userId: string, newRole: string) => {
     if (userRole !== "admin") {

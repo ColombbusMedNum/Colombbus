@@ -21,15 +21,12 @@ const quicksand = Quicksand({
 });
 
 export default function SuiviCompetences() {
-  const { mediateurs: mediateursBruts } = useMediateurs();
+  // Depuis la migration vers la collection configuration_equipe, liste_mediateurs
+  // ne contient plus que des fiches de médiateurs : plus besoin de filtrer
+  // les anciens documents de configuration au passage.
+  const { mediateurs } = useMediateurs();
   const [searchFilter, setSearchFilter] = useState("");
   const [selectedTerritory, setSelectedTerritory] = useState<string | null>(null);
-
-  const mediateurs = React.useMemo(() => {
-    return mediateursBruts.filter(
-      (m: any) => m.id !== "parametres_configuration" && m.id !== "parametres_horaires"
-    );
-  }, [mediateursBruts]);
 
   // Extraire dynamiquement la liste de tous les territoires des médiateurs actifs
   const listeTerritoires = Array.from(

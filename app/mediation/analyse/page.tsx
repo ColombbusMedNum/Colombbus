@@ -77,9 +77,11 @@ export default function AnalyseDroitsPage() {
   const [viewMode, setViewMode] = useState<"roles" | "personne">("roles");
   const [selectedMediateurId, setSelectedMediateurId] = useState("");
 
+  // Depuis la migration vers la collection configuration_equipe, liste_mediateurs
+  // ne contient plus que des fiches de médiateurs : plus besoin de filtrer
+  // les anciens documents de configuration au passage.
   const mediateursTries = React.useMemo(() => {
     return [...mediateurs]
-      .filter((m: any) => m.id !== "parametres_configuration" && m.id !== "parametres_horaires")
       .sort((a: any, b: any) => (a.nom || "").localeCompare(b.nom || "", "fr", { sensitivity: "base" }));
   }, [mediateurs]);
 

@@ -71,6 +71,19 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Territoires, catalogue de qualités et grilles horaires ACI, gérés
+    // depuis /mediation/equipe (anciennement mélangés à tort dans
+    // liste_mediateurs sous les ID "parametres_configuration"/
+    // "parametres_horaires", ce qui les faisait apparaître comme des
+    // médiateurs fantômes dans toute page listant liste_mediateurs sans
+    // filtre dédié). Écriture alignée sur les droits déjà accordés côté UI
+    // (equipe_territory_manage, equipe_horaires_aci_edit, equipe_modal_competence
+    // sont réservés à l'admin et au coordinateur — voir lib/permissionsCatalog.ts).
+    match /configuration_equipe/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || (isStaff() && myRole() == "coordinateur");
+    }
+
     // Données opérationnelles : accessibles à tout le staff authentifié
     // (peu importe le rôle précis). C'est la même politique que celle qui
     // prévalait de fait avant cette mise en place de rules (aucune

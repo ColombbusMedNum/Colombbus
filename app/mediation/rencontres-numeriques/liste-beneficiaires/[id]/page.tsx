@@ -199,7 +199,6 @@ export default function FicheBeneficiaire() {
   // MÉDIATEURS : dérivés du cache partagé (lib/MediateursProvider.tsx)
   const listeMediateurs = useMemo<Mediateur[]>(() => {
     return mediateursBruts
-      .filter((d: any) => d.id !== "parametres_configuration" && d.id !== "parametres_horaires")
       .map((d: any) => {
         const nomComplet = `${d.prenom || ""} ${d.nom || ""}`.trim() || "Sans nom";
         return { id: d.id, nom: nomComplet } as Mediateur;

@@ -28,8 +28,6 @@ initializeApp({
 const db = getFirestore();
 const auth = getAuth();
 
-const IGNORED_DOC_IDS = new Set(["parametres_configuration", "parametres_horaires"]);
-
 async function listAllAuthUsersByEmail() {
   const byEmail = new Map();
   let pageToken;
@@ -54,8 +52,6 @@ async function main() {
   const noAuthAccount = [];
 
   snap.docs.forEach((docSnap) => {
-    if (IGNORED_DOC_IDS.has(docSnap.id)) return;
-
     const data = docSnap.data();
     const email = (data.email || "").toLowerCase().trim();
     const uid = email ? authByEmail.get(email) : undefined;
