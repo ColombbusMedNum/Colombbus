@@ -10,7 +10,7 @@ import { Quicksand } from "next/font/google";
 import {
   PlusIcon, PencilSquareIcon, TrashIcon, HomeIcon,
   CalendarDaysIcon, ClockIcon, UsersIcon, LockClosedIcon,
-  DocumentDuplicateIcon, Squares2X2Icon, ListBulletIcon,
+  DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import PageGuard from "@/components/PageGuard";
@@ -47,9 +47,6 @@ export default function ModelesPage() {
   const [localisations, setLocalisations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [displayMode, setDisplayMode] = useState<"cartes" | "liste">("cartes");
-  const [editingCell, setEditingCell] = useState<{ id: string; field: "lieu" | "codeAnalytique" | "adresse" } | null>(null);
-  const [editingCellValue, setEditingCellValue] = useState("");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingActivite, setEditingActivite] = useState<ActiviteType | null>(null);
@@ -184,36 +181,6 @@ export default function ModelesPage() {
     showToast(`"${type.lieu}" dupliqué — renseignez les nouvelles dates de début/fin.`);
   };
 
-  // Édition directe d'une cellule du tableau : répercute sur les créneaux déjà
-  // posés (comme le fait handleSave pour la modale) quand un champ affiché
-  // ailleurs que sur le modèle change, et rejoue la génération auto si le
-  // modèle a déjà des médiateurs/une période configurés (pour combler la
-  // différence si la période vient de changer), sans jamais rien écraser.
-  const handleInlineUpdate = async (type: ActiviteType, changes: Partial<ActiviteType>) => {
-    if (!type.id) return;
-    try {
-      await updateDoc(doc(db, "activites_types", type.id), changes);
-
-      const toucheCreneaux = changes.lieu !== undefined || changes.codeAnalytique !== undefined || changes.adresse !== undefined;
-      if (toucheCreneaux) {
-        const qActions = query(collection(db, "planning_mediateurs"), where("lieu", "==", type.lieu));
-        const snapActions = await getDocs(qActions);
-        await Promise.all(snapActions.docs.map(actionDoc => updateDoc(doc(db, "planning_mediateurs", actionDoc.id), changes)));
-      }
-
-      if ((changes.dateDebut !== undefined || changes.dateFin !== undefined) && (type.mediateursIds || []).length > 0) {
-        const modeleMisAJour = { ...type, ...changes };
-        if (modeleMisAJour.dateDebut && modeleMisAJour.dateFin) {
-          const { crees } = await genererCreneauxPourModele(modeleMisAJour, mediateurs);
-          if (crees > 0) showToast(`${crees} créneau(x) généré(s) pour la nouvelle période.`);
-        }
-      }
-    } catch (error) {
-      console.error("Erreur mise à jour modèle :", error);
-      showToast("Une erreur est survenue lors de la mise à jour.", "error");
-    }
-  };
-
   const handleDelete = async (type: ActiviteType) => {
     if ((type.lieu || "").toUpperCase().includes("RN")) {
       showToast("🔒 Ce modèle est lié à Suresnes et ne peut pas être supprimé.", "error");
@@ -275,207 +242,17 @@ export default function ModelesPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <input
-            type="text"
-            placeholder="Rechercher un modèle par nom..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full max-w-sm px-3.5 py-2 bg-white border border-[#404040]/10 rounded-xl text-xs text-[#404040] outline-none focus:border-[#005259] shadow-sm"
-          />
-          <div className="flex items-center gap-1 bg-white border border-[#404040]/10 rounded-xl p-1 shadow-sm">
-            <button
-              onClick={() => setDisplayMode("cartes")}
-              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${displayMode === "cartes" ? "bg-[#005259] text-white" : "text-[#404040]/50 hover:text-[#005259]"}`}
-              title="Vue cartes"
-            >
-              <Squares2X2Icon className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setDisplayMode("liste")}
-              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${displayMode === "liste" ? "bg-[#005259] text-white" : "text-[#404040]/50 hover:text-[#005259]"}`}
-              title="Vue tableau"
-            >
-              <ListBulletIcon className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+        <input
+          type="text"
+          placeholder="Rechercher un modèle par nom..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full max-w-sm px-3.5 py-2 bg-white border border-[#404040]/10 rounded-xl text-xs text-[#404040] outline-none focus:border-[#005259] shadow-sm"
+        />
 
         {loading ? (
           <div className="text-center py-16 text-[#EA601F] font-bold text-xs animate-pulse uppercase tracking-widest">
             Chargement des modèles...
-          </div>
-        ) : displayMode === "liste" ? (
-          <div className="bg-white border border-[#404040]/10 rounded-2xl overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
-                    <th className="px-4 py-3">Nom de l'activité</th>
-                    <th className="px-4 py-3">Code Analytique</th>
-                    <th className="px-4 py-3">Date début</th>
-                    <th className="px-4 py-3">Date fin</th>
-                    <th className="px-4 py-3">Dates ponctuelles</th>
-                    <th className="px-4 py-3">Lieu</th>
-                    <th className="px-4 py-3">Type</th>
-                    <th className="px-4 py-3">Médiateurs</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#404040]/5 text-xs text-[#404040]">
-                  {modelesFiltres.map((type) => {
-                    const isProtege = (type.lieu || "").toUpperCase().includes("RN");
-                    const mediateursConcernes = mediateurs.filter((m: any) => (type.mediateursIds || []).includes(m.id));
-
-                    const renderTexteEditable = (field: "lieu" | "codeAnalytique" | "adresse", placeholder: string) => {
-                      const estEnEdition = editingCell?.id === type.id && editingCell?.field === field;
-                      if (estEnEdition) {
-                        return (
-                          <input
-                            autoFocus
-                            value={editingCellValue}
-                            onChange={e => setEditingCellValue(e.target.value)}
-                            onBlur={() => { handleInlineUpdate(type, { [field]: editingCellValue.trim() }); setEditingCell(null); }}
-                            onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                            className="w-full px-1.5 py-1 bg-[#F3F3F2] border border-[#005259] rounded text-xs text-[#404040] outline-none"
-                          />
-                        );
-                      }
-                      const valeur = (type[field] as string) || "";
-                      return (
-                        <div
-                          onClick={() => { setEditingCell({ id: type.id!, field }); setEditingCellValue(valeur); }}
-                          className="cursor-pointer hover:bg-[#F3F3F2] rounded px-1.5 py-1 min-h-[26px] -mx-1.5"
-                        >
-                          {valeur || <span className="text-[#404040]/40 italic">{placeholder}</span>}
-                        </div>
-                      );
-                    };
-
-                    return (
-                      <tr key={type.id} className="hover:bg-[#F3F3F2]/60 transition-colors align-top">
-                        <td className="px-4 py-2 font-bold min-w-[160px]">
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10" style={{ backgroundColor: type.couleur || "#005259" }}></span>
-                            <div className="flex-1 min-w-0">{renderTexteEditable("lieu", "Nom...")}</div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-2 font-mono min-w-[100px]">{renderTexteEditable("codeAnalytique", "—")}</td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="date"
-                            value={type.dateDebut || ""}
-                            onChange={e => handleInlineUpdate(type, { dateDebut: e.target.value })}
-                            className="px-1.5 py-1 bg-transparent hover:bg-[#F3F3F2] border border-transparent hover:border-[#404040]/15 rounded text-[10px] text-[#404040] outline-none cursor-pointer"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="date"
-                            value={type.dateFin || ""}
-                            onChange={e => handleInlineUpdate(type, { dateFin: e.target.value })}
-                            className="px-1.5 py-1 bg-transparent hover:bg-[#F3F3F2] border border-transparent hover:border-[#404040]/15 rounded text-[10px] text-[#404040] outline-none cursor-pointer"
-                          />
-                        </td>
-                        <td className="px-4 py-2 min-w-[140px]">
-                          <div className="flex flex-wrap items-center gap-1">
-                            {(type.datesActives || []).slice().sort().map(d => (
-                              <span key={d} className="inline-flex items-center gap-0.5 text-[9px] font-bold bg-[#F3F3F2] border border-[#404040]/15 px-1 py-0.5 rounded-full text-[#404040]">
-                                {formatDateFrCourt(d)}
-                                <button
-                                  onClick={() => handleInlineUpdate(type, { datesActives: (type.datesActives || []).filter(x => x !== d) })}
-                                  className="text-[#404040]/50 hover:text-[#EF736A] cursor-pointer leading-none"
-                                >
-                                  ✕
-                                </button>
-                              </span>
-                            ))}
-                            <input
-                              type="date"
-                              value=""
-                              onChange={e => {
-                                const val = e.target.value;
-                                if (!val) return;
-                                const current = type.datesActives || [];
-                                if (!current.includes(val)) handleInlineUpdate(type, { datesActives: [...current, val] });
-                              }}
-                              title="Ajouter une date"
-                              className="text-[9px] px-1 py-0.5 border border-dashed border-[#404040]/30 rounded-full bg-transparent text-[#404040]/60 cursor-pointer"
-                            />
-                          </div>
-                        </td>
-                        <td className="px-4 py-2 min-w-[160px]">{renderTexteEditable("adresse", "Aucune adresse")}</td>
-                        <td className="px-4 py-2 min-w-[150px]">
-                          <div className="flex flex-wrap gap-1">
-                            {BLOCS_THEMATIQUES.map(bloc => {
-                              const isChecked = (type.blocs || []).includes(bloc.id);
-                              return (
-                                <button
-                                  key={bloc.id}
-                                  onClick={() => {
-                                    const current = type.blocs || [];
-                                    const updated = isChecked ? current.filter(b => b !== bloc.id) : [...current, bloc.id];
-                                    handleInlineUpdate(type, { blocs: updated });
-                                  }}
-                                  className="text-[9px] font-bold px-1.5 py-0.5 rounded border cursor-pointer transition-all"
-                                  style={{
-                                    borderColor: bloc.couleur,
-                                    color: isChecked ? "#fff" : bloc.couleur,
-                                    backgroundColor: isChecked ? bloc.couleur : "transparent",
-                                  }}
-                                  title={bloc.nom}
-                                >
-                                  {bloc.nom}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </td>
-                        <td className="px-4 py-2 text-[10px] min-w-[120px]">
-                          {mediateursConcernes.length === 0 ? (
-                            <span className="text-[#404040]/50 italic">Tous</span>
-                          ) : (
-                            <span className="font-bold" title={mediateursConcernes.map((m: any) => `${m.prenom} ${m.nom}`).join(", ")}>
-                              {mediateursConcernes.map((m: any) => m.prenom).join(", ")}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2 text-right whitespace-nowrap">
-                          <PermissionGuard actionId="modeles_create">
-                            <button onClick={() => handleDuplicate(type)} className="p-1.5 text-[#404040]/60 hover:text-[#EA601F] cursor-pointer" title="Dupliquer pour une nouvelle période (activité récurrente)">
-                              <DocumentDuplicateIcon className="w-4 h-4" />
-                            </button>
-                          </PermissionGuard>
-                          <PermissionGuard actionId="modeles_edit">
-                            <button onClick={() => openEdit(type)} className="p-1.5 text-[#404040]/60 hover:text-[#005259] cursor-pointer" title="Configurer médiateurs, couleur, horaires...">
-                              <PencilSquareIcon className="w-4 h-4" />
-                            </button>
-                          </PermissionGuard>
-                          <PermissionGuard actionId="modeles_delete">
-                            {isProtege ? (
-                              <span className="p-1.5 text-[#404040]/30 inline-block" title="Modèle protégé : lié à Suresnes, non supprimable">
-                                <LockClosedIcon className="w-4 h-4" />
-                              </span>
-                            ) : (
-                              <button onClick={() => handleDelete(type)} className="p-1.5 text-[#404040]/60 hover:text-[#EF736A] cursor-pointer">
-                                <TrashIcon className="w-4 h-4" />
-                              </button>
-                            )}
-                          </PermissionGuard>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {modelesFiltres.length === 0 && (
-              <div className="text-center py-16 text-xs font-bold uppercase tracking-wider text-[#404040]/60">
-                <DocumentDuplicateIcon className="w-6 h-6 mx-auto mb-2 text-[#404040]/30" />
-                Aucun modèle {search ? "ne correspond à cette recherche" : "pour l'instant"}.
-              </div>
-            )}
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
