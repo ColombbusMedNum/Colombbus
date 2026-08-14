@@ -23,36 +23,17 @@ import {
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import type { Mediateur, ActionPlanning } from "../../lib/types";
+import { useConfirm } from "../../components/ConfirmProvider";
+import {
+  type ActiviteType, BLOCS_THEMATIQUES, getJoursFeries,
+  genererCreneauxPourModele, estimerNombreCreneaux,
+} from "../../lib/activitesTypes";
 
 // Police Quicksand conforme à la charte
 const quicksand = Quicksand({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"]
 });
-
-interface ActiviteType {
-  id?: string;
-  lieu: string;
-  debut: string;
-  fin: string;
-  adresse: string;
-  territoire: string;
-  couleur: string;
-  codeAnalytique: string;
-  dateDebut: string;
-  dateFin: string;
-  blocs?: string[];
-}
-
-// Blocs thématiques : un modèle peut être rattaché à plusieurs à la fois
-// (voir le champ "Bloc thématique" du formulaire de modèle, et la barre
-// latérale qui regroupe les modèles par bloc sous forme d'accordéons).
-const BLOCS_THEMATIQUES = [
-  { id: "inclusion", nom: "Inclusion Numérique", couleur: "#0F6B72" },
-  { id: "decouverte", nom: "Découverte Métiers", couleur: "#B8863A" },
-  { id: "insertion", nom: "Insertion Professionnelle", couleur: "#7A5A9E" },
-  { id: "divers", nom: "Divers", couleur: "#5C7A8A" },
-];
 
 interface NotificationItem {
   id: string;
@@ -105,56 +86,15 @@ function getWeekIdentifier(date: Date) {
   return `${d.getUTCFullYear()}-W${weekNo}`;
 }
 
-// Dimanche de Pâques (algorithme de Meeus/Jones/Butcher), base de calcul des
-// jours fériés mobiles (Lundi de Pâques, Ascension, Pentecôte).
-function getEasterSunday(year: number): Date {
-  const a = year % 19;
-  const b = Math.floor(year / 100);
-  const c = year % 100;
-  const d = Math.floor(b / 4);
-  const e = b % 4;
-  const f = Math.floor((b + 8) / 25);
-  const g = Math.floor((b - f + 1) / 3);
-  const h = (19 * a + b - d - g + 15) % 30;
-  const i = Math.floor(c / 4);
-  const k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h - k) % 7;
-  const m = Math.floor((a + 11 * h + 22 * l) / 451);
-  const month = Math.floor((h + l - 7 * m + 114) / 31);
-  const day = ((h + l - 7 * m + 114) % 31) + 1;
-  return new Date(year, month - 1, day);
-}
-
-// Jours fériés français légaux pour une année donnée, au format YYYY-MM-DD
-// (comme dateStr, calculé via toLocaleDateString('en-CA') partout ailleurs
-// dans ce fichier). Le Lundi de Pentecôte est volontairement exclu : c'est
-// la seule journée travaillée dans ce planning (journée de solidarité).
-function getJoursFeries(year: number): Set<string> {
-  const addDays = (date: Date, n: number) => {
-    const copy = new Date(date);
-    copy.setDate(copy.getDate() + n);
-    return copy;
-  };
-  const toStr = (date: Date) => date.toLocaleDateString('en-CA');
-
-  const paques = getEasterSunday(year);
-
-  return new Set([
-    toStr(new Date(year, 0, 1)),      // Jour de l'An
-    toStr(addDays(paques, 1)),        // Lundi de Pâques
-    toStr(new Date(year, 4, 1)),      // Fête du Travail
-    toStr(new Date(year, 4, 8)),      // Victoire 1945
-    toStr(addDays(paques, 39)),       // Ascension
-    toStr(new Date(year, 6, 14)),     // Fête Nationale
-    toStr(new Date(year, 7, 15)),     // Assomption
-    toStr(new Date(year, 10, 1)),     // Toussaint
-    toStr(new Date(year, 10, 11)),    // Armistice
-    toStr(new Date(year, 11, 25)),    // Noël
-  ]);
-}
+const ACTIVITE_VIDE: ActiviteType = {
+  lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "",
+  couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "",
+  blocs: [], mediateursIds: [], generationMoment: "Les deux",
+};
 
 export default function PlanningExpertMix() {
   const { showToast } = useToast();
+  const confirm = useConfirm();
   const [actions, setActions] = useState<ActionPlanning[]>([]);
   const { mediateurs: mediateursBruts } = useMediateurs();
   const [activitesTypes, setActivitesTypes] = useState<ActiviteType[]>([]);
@@ -215,18 +155,7 @@ export default function PlanningExpertMix() {
   
   const [editingActivite, setEditingActivite] = useState<ActiviteType | null>(null);
   const [selectedLieuPredefini, setSelectedLieuPredefini] = useState("");
-  const [newActivite, setNewActivite] = useState<ActiviteType>({
-    lieu: "",
-    debut: "09:00",
-    fin: "17:00",
-    adresse: "",
-    territoire: "",
-    couleur: "#005259",
-    codeAnalytique: "",
-    dateDebut: "",
-    dateFin: "",
-    blocs: []
-  });
+  const [newActivite, setNewActivite] = useState<ActiviteType>(ACTIVITE_VIDE);
 
   const currentWeekId = getWeekIdentifier(currentDate);
   const estSemaineValidee = !!semainesValidees[currentWeekId];
@@ -390,6 +319,14 @@ export default function PlanningExpertMix() {
     e.preventDefault(); 
     if (!newActivite.lieu.trim()) return;
     
+    const nbCreneauxEstimes = estimerNombreCreneaux(newActivite);
+    if (nbCreneauxEstimes > 0) {
+      const ok = await confirm(
+        `Ce modèle va générer jusqu'à ${nbCreneauxEstimes} créneau(x) sur les jours ouvrés de la période choisie, pour ${newActivite.mediateursIds!.length} médiateur(s). Les cases déjà occupées seront ignorées. Continuer ?`
+      );
+      if (!ok) return;
+    }
+
     try {
       const dataPayload = {
         lieu: newActivite.lieu.trim(),
@@ -401,15 +338,19 @@ export default function PlanningExpertMix() {
         codeAnalytique: newActivite.codeAnalytique.trim(),
         dateDebut: newActivite.dateDebut,
         dateFin: newActivite.dateFin,
-        blocs: newActivite.blocs || []
+        blocs: newActivite.blocs || [],
+        mediateursIds: newActivite.mediateursIds || [],
+        generationMoment: newActivite.generationMoment || "Les deux"
       };
+
+      let idModele = editingActivite?.id;
 
       if (editingActivite?.id) {
         await updateDoc(doc(db, "activites_types", editingActivite.id), dataPayload);
         const qActions = query(collection(db, "planning_mediateurs"), where("lieu", "==", editingActivite.lieu));
         const snapActions = await getDocs(qActions);
-        
-        const updates = snapActions.docs.map(actionDoc => 
+
+        const updates = snapActions.docs.map(actionDoc =>
           updateDoc(doc(db, "planning_mediateurs", actionDoc.id), {
             codeAnalytique: newActivite.codeAnalytique.trim(),
             couleur: newActivite.couleur,
@@ -426,10 +367,16 @@ export default function PlanningExpertMix() {
           setSelectedModel({ id: editingActivite.id, ...dataPayload });
         }
       } else {
-        await addDoc(collection(db, "activites_types"), dataPayload);
+        const ref = await addDoc(collection(db, "activites_types"), dataPayload);
+        idModele = ref.id;
       }
-      
-      setNewActivite({ lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "", couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "", blocs: [] });
+
+      if (nbCreneauxEstimes > 0) {
+        const { crees, ignores } = await genererCreneauxPourModele({ ...dataPayload, id: idModele }, mediateurs);
+        showToast(`${crees} créneau(x) généré(s)${ignores > 0 ? `, ${ignores} déjà occupé(s) ignoré(s)` : ""}.`);
+      }
+
+      setNewActivite(ACTIVITE_VIDE);
       setEditingActivite(null);
       setSelectedLieuPredefini("");
       setIsActiviteModalOpen(false);
@@ -451,7 +398,9 @@ export default function PlanningExpertMix() {
       codeAnalytique: type.codeAnalytique || "",
       dateDebut: type.dateDebut || "",
       dateFin: type.dateFin || "",
-      blocs: type.blocs || []
+      blocs: type.blocs || [],
+      mediateursIds: type.mediateursIds || [],
+      generationMoment: type.generationMoment || "Les deux"
     });
     // Retrouve, si possible, l'adresse prédéfinie correspondante pour que le
     // menu déroulant affiche la bonne sélection au lieu de retomber sur
@@ -916,11 +865,11 @@ export default function PlanningExpertMix() {
         {/* SIDEBAR : MODÈLES D'ACTIVITÉS */}
         <aside className={`shrink-0 bg-white border border-[#404040]/10 rounded-xl p-3 space-y-2.5 self-start shadow-sm transition-all duration-300 ${isSidebarOpen ? "w-56 opacity-100" : "w-0 p-0 border-0 opacity-0 pointer-events-none"}`}>
           <div className="flex items-center justify-between border-b border-[#F3F3F2] pb-2">
-            <div className="text-xs font-extrabold text-[#005259] uppercase tracking-wider flex items-center gap-1.5">
+            <Link href="/mediation/modeles" className="text-xs font-extrabold text-[#005259] uppercase tracking-wider flex items-center gap-1.5 hover:text-[#EA601F] transition-colors" title="Voir tous les modèles">
               <DocumentDuplicateIcon className="w-4 h-4 text-[#EA601F]" /> Modèles
-            </div>
-            <button 
-              onClick={() => { setEditingActivite(null); setNewActivite({ lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "", couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "", blocs: [] }); setSelectedLieuPredefini(""); setIsActiviteModalOpen(true); }} 
+            </Link>
+            <button
+              onClick={() => { setEditingActivite(null); setNewActivite(ACTIVITE_VIDE); setSelectedLieuPredefini(""); setIsActiviteModalOpen(true); }}
               className="p-1 bg-[#F3F3F2] hover:bg-[#005259] text-[#005259] hover:text-white rounded-md transition-colors cursor-pointer"
             >
               <PlusIcon className="w-3.5 h-3.5" />
@@ -1450,6 +1399,65 @@ export default function PlanningExpertMix() {
                 />
               </div>
             </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] text-[#404040]/70 font-semibold">Période de validité (Optionnel — sinon, toujours visible)</label>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="date" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.dateDebut} onChange={e => setNewActivite({...newActivite, dateDebut: e.target.value})} />
+                <input type="date" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.dateFin} onChange={e => setNewActivite({...newActivite, dateFin: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] text-[#404040]/70 font-semibold">Médiateurs concernés (Optionnel — sinon, modèle générique pour tous)</label>
+              <div className="flex flex-col gap-1 max-h-28 overflow-y-auto border border-[#404040]/10 rounded-md p-1.5">
+                {mediateurs.filter(m => m.actif !== false && (m.prenom || m.nom)).map(m => {
+                  const isChecked = (newActivite.mediateursIds || []).includes(m.id);
+                  return (
+                    <label key={m.id} className="flex items-center gap-2 px-1 py-0.5 rounded text-xs font-semibold text-[#404040] cursor-pointer hover:bg-[#F3F3F2]">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {
+                          const current = newActivite.mediateursIds || [];
+                          const updated = isChecked ? current.filter(id => id !== m.id) : [...current, m.id];
+                          setNewActivite({...newActivite, mediateursIds: updated});
+                        }}
+                        className="w-3.5 h-3.5 cursor-pointer"
+                      />
+                      {m.prenom} {m.nom}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            {(newActivite.mediateursIds || []).length > 0 && (
+              <div className="flex flex-col gap-1 bg-[#EA601F]/5 border border-[#EA601F]/20 rounded-md p-2">
+                <label className="text-[10px] text-[#EA601F] font-bold uppercase">Génération automatique des créneaux</label>
+                {(!newActivite.dateDebut || !newActivite.dateFin) ? (
+                  <p className="text-[10px] text-[#404040]/70">Renseignez une période ci-dessus pour générer automatiquement les créneaux de ces médiateurs sur les jours ouvrés.</p>
+                ) : (
+                  <>
+                    <p className="text-[10px] text-[#404040]/70">Un créneau sera posé automatiquement pour chaque médiateur choisi, sur chaque jour ouvré (hors jours fériés) de la période.</p>
+                    <div className="flex gap-3 pt-0.5">
+                      {(["Matin", "Après-midi", "Les deux"] as const).map(opt => (
+                        <label key={opt} className="flex items-center gap-1 text-[10px] font-bold text-[#404040] cursor-pointer">
+                          <input
+                            type="radio"
+                            name="generationMoment"
+                            checked={(newActivite.generationMoment || "Les deux") === opt}
+                            onChange={() => setNewActivite({...newActivite, generationMoment: opt})}
+                            className="cursor-pointer"
+                          />
+                          {opt}
+                        </label>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             <div className="flex gap-2 pt-2">
               <button type="submit" className="flex-1 bg-[#005259] text-white py-1.5 rounded-md text-xs font-bold">Valider</button>

@@ -187,6 +187,17 @@ const DETAILED_PAGES: PageEntry[] = [
       { id: "equipe_nav_agenda", nom: "Lien Agenda", type: "Link", description: "Accède à l'agenda des médiateurs depuis l'équipe" },
     ],
   },
+  {
+    pageId: "page_access_modeles",
+    pageName: "Modèles d'Activités",
+    route: "/mediation/modeles",
+    filePath: "app/mediation/modeles/page.tsx",
+    actions: [
+      { id: "modeles_create", nom: "Bouton Nouveau Modèle", type: "button", description: "Ouvre le formulaire de création d'un modèle" },
+      { id: "modeles_edit", nom: "Bouton Éditer (Modèle)", type: "button", description: "Modifie un modèle existant et ses créneaux déjà posés" },
+      { id: "modeles_delete", nom: "Bouton Supprimer (Modèle)", type: "button", description: "Efface définitivement un modèle" },
+    ],
+  },
 ];
 
 // Routes restantes de l'app, cataloguées seulement au niveau page pour
@@ -289,6 +300,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     page_access_emargements: true, page_access_competences: true, page_access_statistiques: true,
     page_access_bilan_suresnes: true, page_access_volume_horaire: true, page_access_fiches_bilans: true,
     page_access_fiches_bilans_historique: true, page_access_notifications: true, page_access_bibliotheque_logos: true,
+    page_access_modeles: true, modeles_create: true, modeles_edit: true, modeles_delete: true,
     home_logout: true, home_folder_rencontres: true, home_folder_stats: true, home_nav_liste_benef: true,
     home_nav_collectes: true, home_nav_agenda_suresnes: true, home_nav_emargement_docs: true,
     home_nav_emargement_gen: true, home_nav_actions_coll: true, home_nav_stats_glob: true,
