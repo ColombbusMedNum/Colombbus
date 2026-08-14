@@ -17,6 +17,7 @@ import {
   XMarkIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
+import { PermissionGuard } from "@/components/PermissionGuard";
 import { useToast } from "@/components/ToastProvider";
 
 // Initialisation de la police Quicksand
@@ -318,31 +319,33 @@ function FormulaireDiagnosticContent() {
                 Sélectionner le type d'évaluation
               </label>
               
-              <div className="grid grid-cols-1 gap-3">
-                {[
-                  { id: "Initial", label: "Auto-diagnostic initial (Début)", desc: "Évaluer le niveau initial de l'usager.", icon: AcademicCapIcon },
-                  { id: "Final", label: "Auto-diagnostic final (Fin)", desc: "Mesurer les compétences acquises.", icon: ClipboardDocumentCheckIcon },
-                  { id: "Satisfaction", label: "Questionnaire de satisfaction", desc: "Recueillir le ressenti de l'usager.", icon: FaceSmileIcon },
-                  { id: "CollecteTech", label: "Collecte Tech", desc: "Diagnostic d'inclusion numérique Collect.Tech (22 Questions - 44 Pts).", icon: WrenchScrewdriverIcon }
-                ].map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setTypeQuestionnaire(t.id)}
-                    className={`flex items-center gap-3.5 p-4 rounded-2xl border text-left transition-all cursor-pointer ${
-                      typeQuestionnaire === t.id 
-                        ? "bg-[#005259]/5 border-[#005259] text-[#005259] ring-1 ring-[#005259]/30 shadow-sm" 
-                        : "bg-white border-[#404040]/10 hover:border-[#005259]/30 hover:bg-[#F3F3F2]/50 text-[#404040]"
-                    }`}
-                  >
-                    <t.icon className={`w-5 h-5 ${typeQuestionnaire === t.id ? "text-[#005259]" : "text-[#404040]/50"}`} />
-                    <div>
-                      <div className={`text-xs font-bold uppercase tracking-wider ${typeQuestionnaire === t.id ? "text-[#005259]" : "text-[#404040]"}`}>{t.label}</div>
-                      <div className="text-[11px] text-[#404040]/70 font-medium">{t.desc}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
+              <PermissionGuard actionId="diag_select_type">
+                <div className="grid grid-cols-1 gap-3">
+                  {[
+                    { id: "Initial", label: "Auto-diagnostic initial (Début)", desc: "Évaluer le niveau initial de l'usager.", icon: AcademicCapIcon },
+                    { id: "Final", label: "Auto-diagnostic final (Fin)", desc: "Mesurer les compétences acquises.", icon: ClipboardDocumentCheckIcon },
+                    { id: "Satisfaction", label: "Questionnaire de satisfaction", desc: "Recueillir le ressenti de l'usager.", icon: FaceSmileIcon },
+                    { id: "CollecteTech", label: "Collecte Tech", desc: "Diagnostic d'inclusion numérique Collect.Tech (22 Questions - 44 Pts).", icon: WrenchScrewdriverIcon }
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setTypeQuestionnaire(t.id)}
+                      className={`flex items-center gap-3.5 p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                        typeQuestionnaire === t.id
+                          ? "bg-[#005259]/5 border-[#005259] text-[#005259] ring-1 ring-[#005259]/30 shadow-sm"
+                          : "bg-white border-[#404040]/10 hover:border-[#005259]/30 hover:bg-[#F3F3F2]/50 text-[#404040]"
+                      }`}
+                    >
+                      <t.icon className={`w-5 h-5 ${typeQuestionnaire === t.id ? "text-[#005259]" : "text-[#404040]/50"}`} />
+                      <div>
+                        <div className={`text-xs font-bold uppercase tracking-wider ${typeQuestionnaire === t.id ? "text-[#005259]" : "text-[#404040]"}`}>{t.label}</div>
+                        <div className="text-[11px] text-[#404040]/70 font-medium">{t.desc}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </PermissionGuard>
 
               <div className="pt-3 flex justify-between items-center border-t border-[#404040]/10">
                 <button
@@ -353,14 +356,16 @@ function FormulaireDiagnosticContent() {
                   Annuler
                 </button>
 
-                <button
-                  type="button"
-                  disabled={!typeQuestionnaire}
-                  onClick={handleDemarrer}
-                  className="bg-[#EA601F] hover:bg-[#EF736A] text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all cursor-pointer shadow-md disabled:opacity-30 uppercase tracking-wider"
-                >
-                  Démarrer
-                </button>
+                <PermissionGuard actionId="diag_start">
+                  <button
+                    type="button"
+                    disabled={!typeQuestionnaire}
+                    onClick={handleDemarrer}
+                    className="bg-[#EA601F] hover:bg-[#EF736A] text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-all cursor-pointer shadow-md disabled:opacity-30 uppercase tracking-wider"
+                  >
+                    Démarrer
+                  </button>
+                </PermissionGuard>
               </div>
             </div>
           )}
@@ -394,30 +399,32 @@ function FormulaireDiagnosticContent() {
                           <h2 className="text-sm font-bold text-[#005259] leading-relaxed pt-2">{q.question}</h2>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-2.5 pt-2">
-                          {q.options.map((option) => {
-                            const isSelected = reponsesQCM[q.id] === option;
-                            return (
-                              <label 
-                                key={option} 
-                                className={`flex items-center gap-3 p-3.5 rounded-xl border text-xs cursor-pointer transition-all ${
-                                  isSelected 
-                                    ? "bg-[#005259]/5 border-[#005259] text-[#005259] font-bold ring-1 ring-[#005259]/30 shadow-sm" 
-                                    : "bg-white border-[#404040]/10 hover:bg-[#F3F3F2] text-[#404040]"
-                                }`}
-                              >
-                                <input 
-                                  type="radio" 
-                                  name={q.id} 
-                                  checked={isSelected}
-                                  onChange={() => setReponsesQCM(prev => ({ ...prev, [q.id]: option }))}
-                                  className="text-[#005259] focus:ring-0 bg-white border-[#404040]/30 w-4 h-4 accent-[#005259]"
-                                />
-                                <span>{option}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
+                        <PermissionGuard actionId="diag_choose_option">
+                          <div className="grid grid-cols-1 gap-2.5 pt-2">
+                            {q.options.map((option) => {
+                              const isSelected = reponsesQCM[q.id] === option;
+                              return (
+                                <label
+                                  key={option}
+                                  className={`flex items-center gap-3 p-3.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                                    isSelected
+                                      ? "bg-[#005259]/5 border-[#005259] text-[#005259] font-bold ring-1 ring-[#005259]/30 shadow-sm"
+                                      : "bg-white border-[#404040]/10 hover:bg-[#F3F3F2] text-[#404040]"
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name={q.id}
+                                    checked={isSelected}
+                                    onChange={() => setReponsesQCM(prev => ({ ...prev, [q.id]: option }))}
+                                    className="text-[#005259] focus:ring-0 bg-white border-[#404040]/30 w-4 h-4 accent-[#005259]"
+                                  />
+                                  <span>{option}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </PermissionGuard>
                       </div>
                     );
                   })}
@@ -439,30 +446,32 @@ function FormulaireDiagnosticContent() {
                           <h2 className="text-sm font-bold text-[#005259] leading-relaxed pt-2">{q.question}</h2>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-2.5 pt-2">
-                          {q.options.map((option, idx) => {
-                            const isSelected = reponsesCollecte[q.id] === idx;
-                            return (
-                              <label 
-                                key={idx} 
-                                className={`flex items-center gap-3 p-3.5 rounded-xl border text-xs cursor-pointer transition-all ${
-                                  isSelected 
-                                    ? "bg-[#005259]/5 border-[#005259] text-[#005259] font-bold ring-1 ring-[#005259]/30 shadow-sm" 
-                                    : "bg-white border-[#404040]/10 hover:bg-[#F3F3F2] text-[#404040]"
-                                }`}
-                              >
-                                <input 
-                                  type="radio" 
-                                  name={q.id} 
-                                  checked={isSelected}
-                                  onChange={() => setReponsesCollecte(prev => ({ ...prev, [q.id]: idx }))}
-                                  className="text-[#005259] focus:ring-0 bg-white border-[#404040]/30 w-4 h-4 accent-[#005259]"
-                                />
-                                <span>{option.text}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
+                        <PermissionGuard actionId="diag_choose_option">
+                          <div className="grid grid-cols-1 gap-2.5 pt-2">
+                            {q.options.map((option, idx) => {
+                              const isSelected = reponsesCollecte[q.id] === idx;
+                              return (
+                                <label
+                                  key={idx}
+                                  className={`flex items-center gap-3 p-3.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                                    isSelected
+                                      ? "bg-[#005259]/5 border-[#005259] text-[#005259] font-bold ring-1 ring-[#005259]/30 shadow-sm"
+                                      : "bg-white border-[#404040]/10 hover:bg-[#F3F3F2] text-[#404040]"
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name={q.id}
+                                    checked={isSelected}
+                                    onChange={() => setReponsesCollecte(prev => ({ ...prev, [q.id]: idx }))}
+                                    className="text-[#005259] focus:ring-0 bg-white border-[#404040]/30 w-4 h-4 accent-[#005259]"
+                                  />
+                                  <span>{option.text}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </PermissionGuard>
                       </div>
                     );
                   })}
@@ -487,72 +496,78 @@ function FormulaireDiagnosticContent() {
 
               {/* CONTRÔLES DE NAVIGATION */}
               {(isModeQCMClassic || isModeCollecteTech) && totalQuestions > 0 && (
-                <div className="flex justify-between items-center pt-2">
-                  <button
-                    type="button"
-                    disabled={currentQuestionIndex === 0}
-                    onClick={() => setCurrentQuestionIndex(prev => prev - 1)}
-                    className="flex items-center gap-1.5 text-xs font-bold text-[#404040]/70 hover:text-[#005259] disabled:opacity-30 transition-colors cursor-pointer uppercase tracking-wider"
-                  >
-                    <ChevronLeftIcon className="w-4 h-4 text-[#EA601F]" />
-                    Précédent
-                  </button>
-
-                  {currentQuestionIndex < (totalQuestions - 1) && (
+                <PermissionGuard actionId="diag_nav_questions">
+                  <div className="flex justify-between items-center pt-2">
                     <button
                       type="button"
-                      disabled={!questionEnCoursA_Reponse}
-                      onClick={() => setCurrentQuestionIndex(prev => prev + 1)}
-                      className="flex items-center gap-1.5 bg-[#EA601F] hover:bg-[#EF736A] text-white text-xs font-bold px-5 py-2.5 rounded-xl disabled:opacity-30 transition-all cursor-pointer shadow-md uppercase tracking-wider"
+                      disabled={currentQuestionIndex === 0}
+                      onClick={() => setCurrentQuestionIndex(prev => prev - 1)}
+                      className="flex items-center gap-1.5 text-xs font-bold text-[#404040]/70 hover:text-[#005259] disabled:opacity-30 transition-colors cursor-pointer uppercase tracking-wider"
                     >
-                      Suivant
-                      <ChevronRightIcon className="w-4 h-4" />
+                      <ChevronLeftIcon className="w-4 h-4 text-[#EA601F]" />
+                      Précédent
                     </button>
-                  )}
-                </div>
+
+                    {currentQuestionIndex < (totalQuestions - 1) && (
+                      <button
+                        type="button"
+                        disabled={!questionEnCoursA_Reponse}
+                        onClick={() => setCurrentQuestionIndex(prev => prev + 1)}
+                        className="flex items-center gap-1.5 bg-[#EA601F] hover:bg-[#EF736A] text-white text-xs font-bold px-5 py-2.5 rounded-xl disabled:opacity-30 transition-all cursor-pointer shadow-md uppercase tracking-wider"
+                      >
+                        Suivant
+                        <ChevronRightIcon className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </PermissionGuard>
               )}
 
               {/* SATISFACTION */}
               {typeQuestionnaire === "Satisfaction" && (
                 <div className="bg-white border border-[#404040]/10 rounded-2xl p-6 space-y-5 shadow-sm">
-                  <div>
-                    <label className="text-xs font-bold text-[#005259] uppercase tracking-wider block">Appréciation globale des ateliers</label>
-                    <div className="flex gap-2 pt-3 justify-center">
-                      {[1, 2, 3, 4, 5].map((num) => (
-                        <button 
-                          key={num} 
-                          type="button" 
-                          onClick={() => setSatisfactionGlobale(num)} 
-                          className={`w-10 h-10 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                            satisfactionGlobale === num 
-                              ? "bg-[#005259] border-[#005259] text-white shadow-sm" 
-                              : "bg-[#F3F3F2] border-[#404040]/10 text-[#404040] hover:border-[#005259]"
-                          }`}
-                        >
-                          {num}
-                        </button>
-                      ))}
+                  <PermissionGuard actionId="diag_rate_satisfaction">
+                    <div>
+                      <label className="text-xs font-bold text-[#005259] uppercase tracking-wider block">Appréciation globale des ateliers</label>
+                      <div className="flex gap-2 pt-3 justify-center">
+                        {[1, 2, 3, 4, 5].map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => setSatisfactionGlobale(num)}
+                            className={`w-10 h-10 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                              satisfactionGlobale === num
+                                ? "bg-[#005259] border-[#005259] text-white shadow-sm"
+                                : "bg-[#F3F3F2] border-[#404040]/10 text-[#404040] hover:border-[#005259]"
+                            }`}
+                          >
+                            {num}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-[#005259] uppercase tracking-wider block">Clarté des supports mémo</label>
-                    <div className="flex gap-2 pt-3 justify-center">
-                      {[1, 2, 3, 4, 5].map((num) => (
-                        <button 
-                          key={num} 
-                          type="button" 
-                          onClick={() => setSatisfactionSupports(num)} 
-                          className={`w-10 h-10 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                            satisfactionSupports === num 
-                              ? "bg-[#005259] border-[#005259] text-white shadow-sm" 
-                              : "bg-[#F3F3F2] border-[#404040]/10 text-[#404040] hover:border-[#005259]"
-                          }`}
-                        >
-                          {num}
-                        </button>
-                      ))}
+                  </PermissionGuard>
+                  <PermissionGuard actionId="diag_rate_satisfaction">
+                    <div>
+                      <label className="text-xs font-bold text-[#005259] uppercase tracking-wider block">Clarté des supports mémo</label>
+                      <div className="flex gap-2 pt-3 justify-center">
+                        {[1, 2, 3, 4, 5].map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => setSatisfactionSupports(num)}
+                            className={`w-10 h-10 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                              satisfactionSupports === num
+                                ? "bg-[#005259] border-[#005259] text-white shadow-sm"
+                                : "bg-[#F3F3F2] border-[#404040]/10 text-[#404040] hover:border-[#005259]"
+                            }`}
+                          >
+                            {num}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  </PermissionGuard>
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-[#005259] uppercase tracking-wider block">Des suggestions ?</label>
                     <textarea 
@@ -586,14 +601,16 @@ function FormulaireDiagnosticContent() {
                       Annuler
                     </button>
 
-                    <button
-                      type="submit"
-                      disabled={loading || ((isModeQCMClassic || isModeCollecteTech) && !questionEnCoursA_Reponse)}
-                      className="bg-[#EA601F] hover:bg-[#EF736A] disabled:opacity-30 text-white text-xs font-bold px-6 py-2.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-md uppercase tracking-wider"
-                    >
-                      <CheckCircleIcon className="w-4 h-4" />
-                      <span>{loading ? "Enregistrement..." : "Terminer et Enregistrer"}</span>
-                    </button>
+                    <PermissionGuard actionId="diag_submit">
+                      <button
+                        type="submit"
+                        disabled={loading || ((isModeQCMClassic || isModeCollecteTech) && !questionEnCoursA_Reponse)}
+                        className="bg-[#EA601F] hover:bg-[#EF736A] disabled:opacity-30 text-white text-xs font-bold px-6 py-2.5 rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-md uppercase tracking-wider"
+                      >
+                        <CheckCircleIcon className="w-4 h-4" />
+                        <span>{loading ? "Enregistrement..." : "Terminer et Enregistrer"}</span>
+                      </button>
+                    </PermissionGuard>
                   </div>
                 </div>
               )}

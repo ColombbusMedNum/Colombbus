@@ -52,10 +52,12 @@ const DETAILED_PAGES: PageEntry[] = [
     pageName: "Connexion",
     route: "/login",
     filePath: "app/login/page.tsx",
-    actions: [
-      { id: "login_submit", nom: "Bouton Valider (Soumettre)", type: "submit", description: "Lance la requête d'authentification Firebase" },
-      { id: "login_forgot_password", nom: "Bouton Mot de passe oublié ?", type: "button", description: "Déclenche l'e-mail de réinitialisation" },
-    ],
+    // Pas d'actions : login_submit/login_forgot_password ont été retirés du
+    // catalogue — ils ne peuvent structurellement jamais être appliqués par
+    // <PermissionGuard>, qui dépend du rôle de l'utilisateur déjà authentifié
+    // (usePermissions().can() renvoie toujours false tant que personne n'est
+    // connecté). Les gater aurait empêché tout le monde de se connecter.
+    actions: [],
   },
   {
     pageId: "page_access_liste_beneficiaires",
@@ -274,7 +276,6 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     home_logout: true, home_folder_rencontres: true, home_folder_stats: true, home_nav_liste_benef: true,
     home_nav_collectes: true, home_nav_agenda_suresnes: true, home_nav_emargement_docs: true,
     home_nav_emargement_gen: true, home_nav_actions_coll: true, home_nav_stats_glob: true,
-    login_submit: true, login_forgot_password: true,
     benef_search: true, benef_nav_agenda_suresnes: true, benef_create_new: true, benef_filter_alphabet: true,
     benef_filter_today: true, benef_filter_suresnes: true, benef_filter_de: true, benef_action_open: true,
     benef_nav_localisations: true,
@@ -306,7 +307,6 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     home_nav_collectes: true, home_nav_agenda_suresnes: true, home_nav_emargement_docs: true,
     home_nav_emargement_gen: true, home_nav_actions_coll: true, home_nav_stats_glob: true,
     home_nav_bilan_suresnes: true, home_nav_volume_horaire: true, home_nav_agenda_med: true,
-    login_submit: true, login_forgot_password: true,
     benef_search: true, benef_nav_agenda_suresnes: true, benef_create_new: true, benef_filter_alphabet: true,
     benef_filter_today: true, benef_filter_suresnes: true, benef_filter_de: true, benef_filter_blacklist: true,
     benef_action_toggle_blacklist: true, benef_action_open: true, benef_nav_localisations: true,
@@ -340,7 +340,6 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     home_logout: true, home_folder_rencontres: true, home_folder_stats: true, home_nav_liste_benef: true,
     home_nav_collectes: true, home_nav_agenda_suresnes: true, home_nav_agenda_med: true, home_nav_emargement_docs: true,
     home_nav_actions_coll: true, home_nav_stats_glob: true, home_nav_bilan_suresnes: true, home_nav_volume_horaire: true,
-    login_submit: true,
     benef_search: true, benef_nav_agenda_suresnes: true, benef_filter_alphabet: true,
     benef_filter_today: true, benef_filter_suresnes: true, benef_filter_de: true, benef_action_open: true,
     suresnes_filter_today: true, suresnes_month_nav: true,

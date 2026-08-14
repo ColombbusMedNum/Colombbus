@@ -17,6 +17,7 @@ import {
   XMarkIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
+import { PermissionGuard } from "@/components/PermissionGuard";
 import { useToast } from "@/components/ToastProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
 
@@ -308,18 +309,20 @@ export default function ActionsCollectivesPage() {
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              setShowForm(!showForm);
-              if (lieuxDisponibles.length > 0 && !lieuSelectionne) {
-                setLieuSelectionne(lieuxDisponibles[0]);
-              }
-            }}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#EA601F] hover:bg-[#005259] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-sm active:scale-95 self-start sm:self-auto"
-          >
-            <PlusIcon className="w-4 h-4 text-white stroke-[3]" />
-            <span>{showForm ? "Fermer" : "Saisir un rapport"}</span>
-          </button>
+          <PermissionGuard actionId="coll_toggle_form">
+            <button
+              onClick={() => {
+                setShowForm(!showForm);
+                if (lieuxDisponibles.length > 0 && !lieuSelectionne) {
+                  setLieuSelectionne(lieuxDisponibles[0]);
+                }
+              }}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#EA601F] hover:bg-[#005259] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-sm active:scale-95 self-start sm:self-auto"
+            >
+              <PlusIcon className="w-4 h-4 text-white stroke-[3]" />
+              <span>{showForm ? "Fermer" : "Saisir un rapport"}</span>
+            </button>
+          </PermissionGuard>
         </div>
 
         {/* COMPTEURS GÉNÉRAUX */}
@@ -391,7 +394,9 @@ export default function ActionsCollectivesPage() {
 
             <div className="flex items-center justify-between pt-2">
               <span className="text-xs text-[#EA601F] font-bold">{status}</span>
-              <button type="submit" className="bg-[#EA601F] hover:bg-[#005259] text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm">Valider l'action</button>
+              <PermissionGuard actionId="coll_submit">
+                <button type="submit" className="bg-[#EA601F] hover:bg-[#005259] text-white px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm">Valider l'action</button>
+              </PermissionGuard>
             </div>
           </form>
         )}
@@ -588,13 +593,15 @@ export default function ActionsCollectivesPage() {
                         <XMarkIcon className="w-3.5 h-3.5" />
                         <span>Annuler</span>
                       </button>
-                      <button 
-                        onClick={() => handleSaveEdit(act.id)}
-                        className="inline-flex items-center gap-1 bg-[#EA601F] hover:bg-[#005259] text-white px-3 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-wider cursor-pointer transition-all shadow-sm"
-                      >
-                        <CheckIcon className="w-3.5 h-3.5" />
-                        <span>Enregistrer</span>
-                      </button>
+                      <PermissionGuard actionId="coll_save_edit">
+                        <button
+                          onClick={() => handleSaveEdit(act.id)}
+                          className="inline-flex items-center gap-1 bg-[#EA601F] hover:bg-[#005259] text-white px-3 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-wider cursor-pointer transition-all shadow-sm"
+                        >
+                          <CheckIcon className="w-3.5 h-3.5" />
+                          <span>Enregistrer</span>
+                        </button>
+                      </PermissionGuard>
                     </div>
                   </div>
                 ) : (
@@ -630,13 +637,15 @@ export default function ActionsCollectivesPage() {
                       >
                         <PencilSquareIcon className="w-4 h-4" />
                       </button>
-                      <button 
-                        onClick={() => handleDelete(act.id)} 
-                        title="Supprimer cette saisie"
-                        className="p-2 bg-[#F3F3F2] border border-[#404040]/10 text-[#404040]/50 hover:text-red-500 hover:border-red-200 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
-                      >
-                        <TrashIcon className="w-4 h-4" />
-                      </button>
+                      <PermissionGuard actionId="coll_delete">
+                        <button
+                          onClick={() => handleDelete(act.id)}
+                          title="Supprimer cette saisie"
+                          className="p-2 bg-[#F3F3F2] border border-[#404040]/10 text-[#404040]/50 hover:text-red-500 hover:border-red-200 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      </PermissionGuard>
                     </div>
                   </div>
                 )}
