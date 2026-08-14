@@ -101,6 +101,7 @@ export default function GestionEquipe() {
   
   const [listeQualitesGlobales, setListeQualitesGlobales] = useState<string[]>([]);
   const [competenceInput, setCompetenceInput] = useState("");
+  const [uidsConnectes, setUidsConnectes] = useState<Set<string>>(new Set());
 
   const [formData, setFormData] = useState({
     prenom: "",      
@@ -149,9 +150,17 @@ export default function GestionEquipe() {
       }
     });
 
+    // Sert à savoir quels membres se sont déjà connectés au moins une fois
+    // (voir firestore.rules /premieres_connexions et app/login/page.tsx),
+    // pour retirer le bouton d'envoi de l'e-mail d'activation une fois inutile.
+    const unsubConnexions = onSnapshot(collection(db, "premieres_connexions"), (snapshot) => {
+      setUidsConnectes(new Set(snapshot.docs.map((d) => d.id)));
+    });
+
     return () => {
       unsubConfig();
       unsubHoraires();
+      unsubConnexions();
     };
   }, []);
 
@@ -607,7 +616,9 @@ export default function GestionEquipe() {
                         )}
                       </div>
                       <div className="flex gap-1.5">
-                        <button onClick={() => handleCreateAccess(m)} title="Créer l'accès de connexion" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#EA601F] hover:bg-[#EA601F]/10 transition-colors cursor-pointer"><KeyIcon className="w-4 h-4" /></button>
+                        {!uidsConnectes.has(m.id) && (
+                          <button onClick={() => handleCreateAccess(m)} title="Créer l'accès de connexion" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#EA601F] hover:bg-[#EA601F]/10 transition-colors cursor-pointer"><KeyIcon className="w-4 h-4" /></button>
+                        )}
                         <button onClick={() => openModal(m)} title="Modifier" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#005259] hover:bg-[#005259]/10 transition-colors cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
                         <button onClick={() => toggleArchive(m)} title="Archiver" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#EF736A] hover:bg-[#EF736A]/10 transition-colors cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
                       </div>
@@ -650,7 +661,9 @@ export default function GestionEquipe() {
                             </div>
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <button onClick={() => handleCreateAccess(m)} title="Créer l'accès de connexion" className="p-1.5 text-[#404040]/60 hover:text-[#EA601F] mr-1 cursor-pointer"><KeyIcon className="w-4 h-4" /></button>
+                            {!uidsConnectes.has(m.id) && (
+                              <button onClick={() => handleCreateAccess(m)} title="Créer l'accès de connexion" className="p-1.5 text-[#404040]/60 hover:text-[#EA601F] mr-1 cursor-pointer"><KeyIcon className="w-4 h-4" /></button>
+                            )}
                             <button onClick={() => openModal(m)} className="p-1.5 text-[#404040]/60 hover:text-[#005259] mr-1 cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
                             <button onClick={() => toggleArchive(m)} className="p-1.5 text-[#404040]/60 hover:text-[#EF736A] cursor-pointer"><ArchiveBoxIcon className="w-4 h-4" /></button>
                           </td>

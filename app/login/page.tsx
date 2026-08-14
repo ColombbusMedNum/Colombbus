@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Quicksand } from "next/font/google";
 import { auth, db } from "../../lib/firebase";
 import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from "firebase/auth";
-import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { normalizeRole } from "../../lib/roles";
 import { useRouter } from "next/navigation";
 import { LockClosedIcon, EnvelopeIcon, ShieldExclamationIcon, ArrowRightEndOnRectangleIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
@@ -71,6 +71,16 @@ export default function LoginPage() {
       }
 
       const role = normalizeRole(roleRaw);
+
+      // Marque la première connexion (voir firestore.rules /premieres_connexions)
+      // pour que /mediation/equipe puisse retirer le bouton d'envoi de l'e-mail
+      // d'activation une fois que la personne s'est connectée au moins une fois.
+      const premiereConnexionRef = doc(db, "premieres_connexions", user.uid);
+      getDoc(premiereConnexionRef).then((snap) => {
+        if (!snap.exists()) {
+          setDoc(premiereConnexionRef, { effectuee: true, date: serverTimestamp() }).catch(() => {});
+        }
+      }).catch(() => {});
 
       // 3. Stockage des informations de session (Cookies + LocalStorage)
       const maxAge = 7 * 24 * 60 * 60; // Durée : 7 jours

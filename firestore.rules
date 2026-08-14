@@ -52,6 +52,18 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Marqueur "première connexion effectuée", posé par l'utilisateur
+    // lui-même depuis app/login/page.tsx pour permettre à /mediation/equipe
+    // de retirer le bouton d'envoi de l'e-mail d'activation une fois inutile.
+    // Volontairement une collection à part de liste_mediateurs (non
+    // modifiable par l'admin) : write-once, un seul document par UID, aucune
+    // modification ni suppression possible après coup.
+    match /premieres_connexions/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow update, delete: if false;
+    }
+
     // Matrice centralisée des droits par page/action (lue par
     // PermissionsProvider, éditée uniquement depuis /analyse).
     match /configuration_droits/{actionId} {
