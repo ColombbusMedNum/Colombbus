@@ -1353,7 +1353,7 @@ export default function PlanningExpertMix() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-[#404040]/70 font-semibold">Code Analytique (Optionnel)</label>
+              <label className="text-[10px] text-[#404040]/70 font-semibold">Code Analytique BluePowder (Optionnel)</label>
               <input
                 placeholder="Ex: 12345"
                 value={newActivite.codeAnalytique}
