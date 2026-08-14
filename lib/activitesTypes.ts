@@ -9,6 +9,7 @@ import {
   collection, query, where, getDocs, addDoc, doc, writeBatch,
 } from "firebase/firestore";
 import type { Mediateur } from "./types";
+import { identifiantMediateur } from "./matchMediateur";
 
 export interface ActiviteType {
   id?: string;
@@ -208,9 +209,18 @@ export async function genererCreneauxPourModele(
       where("date", "<=", modele.dateFin)
     )
   );
-  const occupes = new Set(
-    snapExistant.docs.map((d) => `${d.data().mediatId}_${d.data().date}_${d.data().moment}`)
-  );
+  // Indexé par identifiant ET par nom complet (quand ils diffèrent) pour ne
+  // pas dupliquer un créneau existant sur un vieux document n'ayant que l'un
+  // des deux champs — voir lib/matchMediateur.ts.
+  const occupes = new Set<string>();
+  snapExistant.docs.forEach((d) => {
+    const data = d.data();
+    const id = identifiantMediateur(data);
+    if (id) occupes.add(`${id}_${data.date}_${data.moment}`);
+    if (data.mediateurNom && data.mediateurNom !== id) {
+      occupes.add(`${data.mediateurNom}_${data.date}_${data.moment}`);
+    }
+  });
 
   const upperLieu = (modele.lieu || "").toUpperCase();
   const isSuresnesAction = upperLieu.includes("RN") || upperLieu.includes("RND");
@@ -236,7 +246,7 @@ export async function genererCreneauxPourModele(
 
     for (const dateStr of dates) {
       for (const moment of moments) {
-        if (occupes.has(`${med.id}_${dateStr}_${moment}`)) {
+        if (occupes.has(`${med.id}_${dateStr}_${moment}`) || occupes.has(`${nomComplet}_${dateStr}_${moment}`)) {
           ignores++;
           continue;
         }

@@ -11,6 +11,7 @@ import MediateurAnalyticsPanel from "@/components/MediateurAnalyticsPanel";
 import { useAnalyticsSummary } from "@/lib/useAnalyticsSummary";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import { usePermissions } from "@/lib/PermissionsProvider";
+import { estActionDuMediateur } from "@/lib/matchMediateur";
 
 // Police Quicksand pour toute la page
 const quicksand = Quicksand({
@@ -68,8 +69,7 @@ export default function StatsMediateursAnalytique() {
   const currentMedActions = actions.filter(a => {
     if (selectedMedId === "all") return true;
     if (!currentMediateur) return false;
-    const nomComplet = `${currentMediateur.prenom || ""} ${currentMediateur.nom || ""}`.trim();
-    return a.mediateurId === selectedMedId || a.mediateurNom === nomComplet || a.mediateur === nomComplet;
+    return estActionDuMediateur(a, currentMediateur);
   });
 
   // 4. Synthèse analytique

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { calculerDureeHeures } from "./planningHours";
+import { identifiantMediateur } from "./matchMediateur";
 
 export interface AnalyticsSummaryItem {
   code: string;
@@ -23,7 +24,7 @@ export function useAnalyticsSummary(currentMedActions: any[]) {
     currentMedActions.forEach((action) => {
       const code = (action.codeAnalytique || "").trim() || "SANS_CODE";
       const label = action.codeAnalytique ? `Code ${action.codeAnalytique}` : "Sans code analytique / Non spécifié";
-      const identifiant = action.mediateurId || action.mediateurNom || action.mediateur || "";
+      const identifiant = identifiantMediateur(action);
       const cleUnique = `${identifiant}_${action.date}_${action.moment || ""}_${code}_${action.debut || ""}_${action.fin || ""}`;
 
       if (!summary[code]) {

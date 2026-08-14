@@ -15,6 +15,7 @@ import {
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { calculerDureeHeures, calculerHeuresComplementairesACI } from "@/lib/planningHours";
+import { identifiantMediateur } from "@/lib/matchMediateur";
 
 // Police Quicksand pour toute la page
 const quicksand = Quicksand({
@@ -70,7 +71,7 @@ export default function VolumeHoraireComplet() {
     let grandTotal = 0;
 
     planningRaw.forEach((action: any) => {
-      const identifiantMed = action.mediateurId || action.mediateurNom || action.mediateur;
+      const identifiantMed = identifiantMediateur(action);
       if (!identifiantMed) return;
 
       const medInfo = mediateursRaw[identifiantMed] || { statut: "Permanent", poste: "Médiateur", taux: 0 };

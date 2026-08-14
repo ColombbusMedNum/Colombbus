@@ -10,6 +10,7 @@ import PageGuard from "@/components/PageGuard";
 import MediateurAnalyticsPanel from "@/components/MediateurAnalyticsPanel";
 import { useAnalyticsSummary } from "@/lib/useAnalyticsSummary";
 import { useMediateurs } from "@/lib/MediateursProvider";
+import { estActionDuMediateur } from "@/lib/matchMediateur";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -44,8 +45,7 @@ export default function StatsMediateursAnalytique() {
   // 1. Filtrer les actions du médiateur sélectionné
   const currentMedActions = actions.filter(a => {
     if (!currentMediateur) return false;
-    const nomComplet = `${currentMediateur.prenom || ""} ${currentMediateur.nom || ""}`.trim();
-    return a.mediateurId === selectedMedId || a.mediateurNom === nomComplet || a.mediateur === nomComplet;
+    return estActionDuMediateur(a, currentMediateur);
   });
 
   // 2. Grouper et cumuler intelligemment par code analytique

@@ -32,6 +32,7 @@ import {
   formatDateFrCourt,
 } from "../../lib/activitesTypes";
 import { regrouperParCategorie } from "../../lib/equipeCategories";
+import { estActionDuMediateur } from "../../lib/matchMediateur";
 
 // Police Quicksand conforme à la charte
 const quicksand = Quicksand({
@@ -518,11 +519,9 @@ export default function PlanningExpertMix() {
       if (voirMasques) return true;
       if (!m.masque) return true;
 
-      const mNomComplet = `${m.prenom || ""} ${m.nom || ""}`.trim();
       return actions.some((action) => {
-        const correspond = action.mediatId === m.id || action.mediateurNom === mNomComplet;
         const estCetteSemaine = weekDays.some(day => day.toLocaleDateString('en-CA') === action.date);
-        return correspond && estCetteSemaine;
+        return estActionDuMediateur(action, m) && estCetteSemaine;
       });
     });
 
@@ -566,7 +565,7 @@ export default function PlanningExpertMix() {
     const deletes = snapSuresnes.docs.map(d => (!d.data().usager ? deleteDoc(doc(db, "planning_suresnes", d.id)) : Promise.resolve()));
     await Promise.all(deletes);
 
-    const aDejaAction = actions.some((a) => (a.mediatId === mediatId || a.mediateurNom === nomCompletLiaison) && a.date === dateStr && a.moment === moment);
+    const aDejaAction = actions.some((a) => estActionDuMediateur(a, { id: mediatId, prenom, nom }) && a.date === dateStr && a.moment === moment);
 
     await addDoc(collection(db, "planning_mediateurs"), {
       mediatId: mediatId, 
@@ -1584,8 +1583,7 @@ interface DayCellProps {
 }
 
 function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire, estSemaineValidee, canCreateSlot, canDeleteSlot, canOpenCommentaire }: DayCellProps) {
-  const mNomComplet = `${m.prenom || ""} ${m.nom || ""}`.trim();
-  const filtered = actions.filter((a) => (a.mediatId === m.id || a.mediateurNom === mNomComplet) && a.date === date && a.moment === moment);
+  const filtered = actions.filter((a) => estActionDuMediateur(a, m) && a.date === date && a.moment === moment);
   
   return (
     <div className="flex flex-col relative group/cell h-full justify-start gap-1 min-h-[36px] bg-[#F3F3F2]/40 p-0.5 rounded border border-transparent hover:border-[#404040]/10 transition-colors">

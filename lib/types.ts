@@ -28,12 +28,13 @@ export interface Mediateur {
   trigramme?: string;
 }
 
-// Créneau planifié (collection "planning_mediateurs"). Le champ identifiant
-// le médiateur n'a jamais été nommé de façon cohérente selon l'endroit du
-// code qui a écrit le document — les 4 variantes ci-dessous coexistent
-// réellement dans les données ; un consommateur doit vérifier
-// `mediateurId || mediatId || mediateur` (voir lib/useAnalyticsSummary.ts)
-// plutôt que supposer un seul nom de champ.
+// Créneau planifié (collection "planning_mediateurs"). Seuls mediatId et
+// mediateurNom sont écrits par le code actuel (app/agenda/page.tsx et
+// lib/activitesTypes.ts) ; mediateurId et mediateur sont d'anciens noms de
+// champ qui peuvent encore exister sur des documents historiques mais que
+// plus rien n'écrit. Un consommateur doit passer par les helpers de
+// lib/matchMediateur.ts (estActionDuMediateur / identifiantMediateur), qui
+// vérifient mediatId en priorité, plutôt que de comparer un champ au hasard.
 export interface ActionPlanning {
   id: string;
   mediateurId?: string;
