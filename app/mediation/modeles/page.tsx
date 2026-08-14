@@ -17,6 +17,7 @@ import PageGuard from "@/components/PageGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { useToast } from "@/components/ToastProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
+import Accordion from "@/components/Accordion";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import {
   type ActiviteType, BLOCS_THEMATIQUES,
@@ -33,6 +34,17 @@ const ACTIVITE_VIDE: ActiviteType = {
   couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "",
   blocs: [], mediateursIds: [], generationMoment: "Les deux", datesActives: [],
 };
+
+// Replie par défaut les sections avancées de la modale de modèle, sauf
+// celles qui contiennent déjà des données (en édition) — évite une pop-up
+// interminable tout en gardant visible ce qui a déjà été configuré.
+function sectionsOuvertesInitiales(type: ActiviteType): Record<string, boolean> {
+  return {
+    apparence: (type.blocs || []).length > 0,
+    periode: !!(type.dateDebut || type.dateFin || (type.datesActives || []).length > 0),
+    mediateurs: (type.mediateursIds || []).length > 0,
+  };
+}
 
 export default function ModelesPage() {
   const { showToast } = useToast();
@@ -52,6 +64,8 @@ export default function ModelesPage() {
   const [editingActivite, setEditingActivite] = useState<ActiviteType | null>(null);
   const [selectedLieuPredefini, setSelectedLieuPredefini] = useState("");
   const [newActivite, setNewActivite] = useState<ActiviteType>(ACTIVITE_VIDE);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const toggleSection = (key: string) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
 
   useEffect(() => {
     const unsubActs = onSnapshot(query(collection(db, "activites_types"), orderBy("lieu", "asc")), (snap) => {
@@ -74,6 +88,7 @@ export default function ModelesPage() {
     setEditingActivite(null);
     setNewActivite(ACTIVITE_VIDE);
     setSelectedLieuPredefini("");
+    setOpenSections({});
     setIsModalOpen(true);
   };
 
@@ -98,6 +113,7 @@ export default function ModelesPage() {
       (l) => `${l.adresse || ""}, ${l.codePostal || ""} ${l.ville || ""}`.trim() === (type.adresse || "").trim()
     );
     setSelectedLieuPredefini(locMatch ? (locMatch.nomCourt || locMatch.nomRaccourci || locMatch.nomComplet) : "");
+    setOpenSections(sectionsOuvertesInitiales(type));
     setIsModalOpen(true);
   };
 
@@ -421,146 +437,152 @@ export default function ModelesPage() {
               />
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-[#404040]/70 font-semibold">Bloc thématique (Optionnel, plusieurs possibles)</label>
-              <div className="flex flex-col gap-1.5">
-                {BLOCS_THEMATIQUES.map(bloc => {
-                  const isChecked = (newActivite.blocs || []).includes(bloc.id);
-                  return (
-                    <label
-                      key={bloc.id}
-                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-md border cursor-pointer text-xs font-bold transition-all"
-                      style={{
-                        borderColor: bloc.couleur,
-                        color: bloc.couleur,
-                        backgroundColor: isChecked ? `${bloc.couleur}1F` : "transparent"
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {
-                          const current = newActivite.blocs || [];
-                          const updated = isChecked ? current.filter(b => b !== bloc.id) : [...current, bloc.id];
-                          setNewActivite({...newActivite, blocs: updated});
+            <Accordion title="Apparence (bloc thématique, couleur)" open={!!openSections.apparence} onToggle={() => toggleSection("apparence")}>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-[#404040]/70 font-semibold">Bloc thématique (Optionnel, plusieurs possibles)</label>
+                <div className="flex flex-col gap-1.5">
+                  {BLOCS_THEMATIQUES.map(bloc => {
+                    const isChecked = (newActivite.blocs || []).includes(bloc.id);
+                    return (
+                      <label
+                        key={bloc.id}
+                        className="flex items-center gap-2 px-2.5 py-1.5 rounded-md border cursor-pointer text-xs font-bold transition-all"
+                        style={{
+                          borderColor: bloc.couleur,
+                          color: bloc.couleur,
+                          backgroundColor: isChecked ? `${bloc.couleur}1F` : "transparent"
                         }}
-                        className="w-3.5 h-3.5 cursor-pointer"
-                        style={{ accentColor: bloc.couleur }}
-                      />
-                      {bloc.nom}
-                    </label>
-                  );
-                })}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            const current = newActivite.blocs || [];
+                            const updated = isChecked ? current.filter(b => b !== bloc.id) : [...current, bloc.id];
+                            setNewActivite({...newActivite, blocs: updated});
+                          }}
+                          className="w-3.5 h-3.5 cursor-pointer"
+                          style={{ accentColor: bloc.couleur }}
+                        />
+                        {bloc.nom}
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-[#404040] font-bold uppercase">Couleur Charte</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={newActivite.couleur}
-                  onChange={e => setNewActivite({...newActivite, couleur: e.target.value})}
-                  className="w-8 h-8 rounded cursor-pointer border border-[#404040]/20 bg-transparent shrink-0"
-                />
-                <input
-                  type="text"
-                  value={newActivite.couleur}
-                  onChange={e => setNewActivite({...newActivite, couleur: e.target.value})}
-                  placeholder="#005259"
-                  className="flex-1 min-w-0 px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs font-mono font-bold text-[#005259] outline-none"
-                />
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-[#404040] font-bold uppercase">Couleur Charte</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={newActivite.couleur}
+                    onChange={e => setNewActivite({...newActivite, couleur: e.target.value})}
+                    className="w-8 h-8 rounded cursor-pointer border border-[#404040]/20 bg-transparent shrink-0"
+                  />
+                  <input
+                    type="text"
+                    value={newActivite.couleur}
+                    onChange={e => setNewActivite({...newActivite, couleur: e.target.value})}
+                    placeholder="#005259"
+                    className="flex-1 min-w-0 px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs font-mono font-bold text-[#005259] outline-none"
+                  />
+                </div>
               </div>
-            </div>
+            </Accordion>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-[#404040]/70 font-semibold">Période de validité (Optionnel — sinon, toujours visible)</label>
-              <div className="grid grid-cols-2 gap-2">
-                <input type="date" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.dateDebut} onChange={e => setNewActivite({...newActivite, dateDebut: e.target.value})} />
-                <input type="date" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.dateFin} onChange={e => setNewActivite({...newActivite, dateFin: e.target.value})} />
+            <Accordion title="Période & dates (visibilité dans la sidebar)" open={!!openSections.periode} onToggle={() => toggleSection("periode")}>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-[#404040]/70 font-semibold">Période de validité (Optionnel — sinon, toujours visible)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="date" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.dateDebut} onChange={e => setNewActivite({...newActivite, dateDebut: e.target.value})} />
+                  <input type="date" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.dateFin} onChange={e => setNewActivite({...newActivite, dateFin: e.target.value})} />
+                </div>
               </div>
-            </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-[#404040]/70 font-semibold">Dates ponctuelles (Optionnel — pour une activité récurrente irrégulière, ex: Quintinie)</label>
-              <div className="flex flex-wrap items-center gap-1 border border-[#404040]/10 rounded-md p-1.5">
-                {(newActivite.datesActives || []).slice().sort().map(d => (
-                  <span key={d} className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#F3F3F2] border border-[#404040]/15 px-1.5 py-0.5 rounded-full text-[#404040]">
-                    {formatDateFrCourt(d)}
-                    <button
-                      type="button"
-                      onClick={() => setNewActivite({...newActivite, datesActives: (newActivite.datesActives || []).filter(x => x !== d)})}
-                      className="text-[#404040]/50 hover:text-[#EF736A] cursor-pointer leading-none"
-                    >
-                      ✕
-                    </button>
-                  </span>
-                ))}
-                <input
-                  type="date"
-                  value=""
-                  onChange={e => {
-                    const val = e.target.value;
-                    if (!val) return;
-                    const current = newActivite.datesActives || [];
-                    if (!current.includes(val)) setNewActivite({...newActivite, datesActives: [...current, val]});
-                  }}
-                  title="Ajouter une date"
-                  className="text-[10px] px-1.5 py-0.5 border border-dashed border-[#404040]/30 rounded-full bg-transparent text-[#404040]/60 cursor-pointer"
-                />
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-[#404040]/70 font-semibold">Dates ponctuelles (Optionnel — pour une activité récurrente irrégulière, ex: Quintinie)</label>
+                <div className="flex flex-wrap items-center gap-1 border border-[#404040]/10 rounded-md p-1.5">
+                  {(newActivite.datesActives || []).slice().sort().map(d => (
+                    <span key={d} className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#F3F3F2] border border-[#404040]/15 px-1.5 py-0.5 rounded-full text-[#404040]">
+                      {formatDateFrCourt(d)}
+                      <button
+                        type="button"
+                        onClick={() => setNewActivite({...newActivite, datesActives: (newActivite.datesActives || []).filter(x => x !== d)})}
+                        className="text-[#404040]/50 hover:text-[#EF736A] cursor-pointer leading-none"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    type="date"
+                    value=""
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (!val) return;
+                      const current = newActivite.datesActives || [];
+                      if (!current.includes(val)) setNewActivite({...newActivite, datesActives: [...current, val]});
+                    }}
+                    title="Ajouter une date"
+                    className="text-[10px] px-1.5 py-0.5 border border-dashed border-[#404040]/30 rounded-full bg-transparent text-[#404040]/60 cursor-pointer"
+                  />
+                </div>
               </div>
-            </div>
+            </Accordion>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-[#404040]/70 font-semibold">Médiateurs concernés (Optionnel — sinon, modèle générique pour tous)</label>
-              <div className="flex flex-col gap-1 max-h-28 overflow-y-auto border border-[#404040]/10 rounded-md p-1.5">
-                {mediateurs.map((m: any) => {
-                  const isChecked = (newActivite.mediateursIds || []).includes(m.id);
-                  return (
-                    <label key={m.id} className="flex items-center gap-2 px-1 py-0.5 rounded text-xs font-semibold text-[#404040] cursor-pointer hover:bg-[#F3F3F2]">
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => {
-                          const current = newActivite.mediateursIds || [];
-                          const updated = isChecked ? current.filter(id => id !== m.id) : [...current, m.id];
-                          setNewActivite({...newActivite, mediateursIds: updated});
-                        }}
-                        className="w-3.5 h-3.5 cursor-pointer"
-                      />
-                      {m.prenom} {m.nom}
-                    </label>
-                  );
-                })}
+            <Accordion title="Médiateurs & génération automatique" open={!!openSections.mediateurs} onToggle={() => toggleSection("mediateurs")}>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-[#404040]/70 font-semibold">Médiateurs concernés (Optionnel — sinon, modèle générique pour tous)</label>
+                <div className="flex flex-col gap-1 max-h-28 overflow-y-auto border border-[#404040]/10 rounded-md p-1.5">
+                  {mediateurs.map((m: any) => {
+                    const isChecked = (newActivite.mediateursIds || []).includes(m.id);
+                    return (
+                      <label key={m.id} className="flex items-center gap-2 px-1 py-0.5 rounded text-xs font-semibold text-[#404040] cursor-pointer hover:bg-[#F3F3F2]">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            const current = newActivite.mediateursIds || [];
+                            const updated = isChecked ? current.filter(id => id !== m.id) : [...current, m.id];
+                            setNewActivite({...newActivite, mediateursIds: updated});
+                          }}
+                          className="w-3.5 h-3.5 cursor-pointer"
+                        />
+                        {m.prenom} {m.nom}
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
 
-            {(newActivite.mediateursIds || []).length > 0 && (
-              <div className="flex flex-col gap-1 bg-[#EA601F]/5 border border-[#EA601F]/20 rounded-md p-2">
-                <label className="text-[10px] text-[#EA601F] font-bold uppercase">Génération automatique des créneaux</label>
-                {(!newActivite.dateDebut || !newActivite.dateFin) ? (
-                  <p className="text-[10px] text-[#404040]/70">Renseignez une période ci-dessus pour générer automatiquement les créneaux de ces médiateurs sur les jours ouvrés.</p>
-                ) : (
-                  <>
-                    <p className="text-[10px] text-[#404040]/70">Un créneau sera posé automatiquement pour chaque médiateur choisi, sur chaque jour ouvré (hors jours fériés) de la période.</p>
-                    <div className="flex gap-3 pt-0.5">
-                      {(["Matin", "Après-midi", "Les deux"] as const).map(opt => (
-                        <label key={opt} className="flex items-center gap-1 text-[10px] font-bold text-[#404040] cursor-pointer">
-                          <input
-                            type="radio"
-                            name="generationMoment"
-                            checked={(newActivite.generationMoment || "Les deux") === opt}
-                            onChange={() => setNewActivite({...newActivite, generationMoment: opt})}
-                            className="cursor-pointer"
-                          />
-                          {opt}
-                        </label>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+              {(newActivite.mediateursIds || []).length > 0 && (
+                <div className="flex flex-col gap-1 bg-[#EA601F]/5 border border-[#EA601F]/20 rounded-md p-2">
+                  <label className="text-[10px] text-[#EA601F] font-bold uppercase">Génération automatique des créneaux</label>
+                  {(!newActivite.dateDebut || !newActivite.dateFin) ? (
+                    <p className="text-[10px] text-[#404040]/70">Renseignez une période ci-dessus pour générer automatiquement les créneaux de ces médiateurs sur les jours ouvrés.</p>
+                  ) : (
+                    <>
+                      <p className="text-[10px] text-[#404040]/70">Un créneau sera posé automatiquement pour chaque médiateur choisi, sur chaque jour ouvré (hors jours fériés) de la période.</p>
+                      <div className="flex gap-3 pt-0.5">
+                        {(["Matin", "Après-midi", "Les deux"] as const).map(opt => (
+                          <label key={opt} className="flex items-center gap-1 text-[10px] font-bold text-[#404040] cursor-pointer">
+                            <input
+                              type="radio"
+                              name="generationMoment"
+                              checked={(newActivite.generationMoment || "Les deux") === opt}
+                              onChange={() => setNewActivite({...newActivite, generationMoment: opt})}
+                              className="cursor-pointer"
+                            />
+                            {opt}
+                          </label>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </Accordion>
 
             <div className="flex gap-2 pt-2">
               <button type="submit" className="flex-1 bg-[#005259] text-white py-1.5 rounded-md text-xs font-bold">Valider</button>
