@@ -52,13 +52,15 @@ export default function HomePage() {
 
       {/* BOUTON DÉCONNEXION */}
       <div className="absolute top-4 right-4 md:top-8 md:right-8 z-20">
-        <button 
-          onClick={handleLogout}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-[#EA601F] hover:text-white border border-[#404040]/15 rounded-xl text-[#EA601F] text-xs font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95 group cursor-pointer"
-        >
-          <ArrowLeftStartOnRectangleIcon className="w-4 h-4 text-[#EA601F] group-hover:text-white transition-colors" />
-          <span>Déconnexion</span>
-        </button>
+        <PermissionGuard actionId="home_logout">
+          <button
+            onClick={handleLogout}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-[#EA601F] hover:text-white border border-[#404040]/15 rounded-xl text-[#EA601F] text-xs font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95 group cursor-pointer"
+          >
+            <ArrowLeftStartOnRectangleIcon className="w-4 h-4 text-[#EA601F] group-hover:text-white transition-colors" />
+            <span>Déconnexion</span>
+          </button>
+        </PermissionGuard>
       </div>
 
       <div className="max-w-7xl w-full relative z-10 flex flex-col items-center justify-center min-h-[80vh]">
@@ -101,88 +103,96 @@ export default function HomePage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full items-stretch">
 
               {/* AGENDA */}
-              <button
-                onClick={() => setActiveFolder("agenda")}
-                className="group bg-white border border-[#404040]/10 hover:border-[#005259] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px] cursor-pointer"
-              >
-                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-all duration-300 shadow-sm bg-[#F3F3F2] border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white">
-                  <CalendarDaysIcon className="w-7 h-7 transition-colors" />
-                </div>
-                <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F] transition-colors">
-                  Agenda
-                </h2>
-                <p className="text-xs text-[#404040]/70 font-medium mt-2 leading-relaxed">
-                  Médiateurs et Relais Numérique de Suresnes
-                </p>
-                <div className="mt-4 flex gap-1.5 p-1.5 rounded-lg bg-[#F3F3F2] border border-[#404040]/10">
-                  <div className="w-2 h-2 rounded-full bg-[#005259]"></div>
-                  <div className="w-2 h-2 rounded-full bg-[#EA601F]"></div>
-                </div>
-              </button>
+              <PermissionGuard actionId="home_folder_rencontres">
+                <button
+                  onClick={() => setActiveFolder("agenda")}
+                  className="group bg-white border border-[#404040]/10 hover:border-[#005259] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px] cursor-pointer"
+                >
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-all duration-300 shadow-sm bg-[#F3F3F2] border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white">
+                    <CalendarDaysIcon className="w-7 h-7 transition-colors" />
+                  </div>
+                  <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F] transition-colors">
+                    Agenda
+                  </h2>
+                  <p className="text-xs text-[#404040]/70 font-medium mt-2 leading-relaxed">
+                    Médiateurs et Relais Numérique de Suresnes
+                  </p>
+                  <div className="mt-4 flex gap-1.5 p-1.5 rounded-lg bg-[#F3F3F2] border border-[#404040]/10">
+                    <div className="w-2 h-2 rounded-full bg-[#005259]"></div>
+                    <div className="w-2 h-2 rounded-full bg-[#EA601F]"></div>
+                  </div>
+                </button>
+              </PermissionGuard>
 
               {/* BÉNÉFICIAIRES */}
-              <button
-                onClick={() => setActiveFolder("beneficiaires")}
-                className="group bg-white border border-[#404040]/10 hover:border-[#EA601F] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px] cursor-pointer"
-              >
-                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-all duration-300 shadow-sm bg-[#F3F3F2] border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white">
-                  <UsersIcon className="w-7 h-7 transition-colors" />
-                </div>
-                <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F] transition-colors">
-                  Bénéficiaires
-                </h2>
-                <p className="text-xs text-[#404040]/70 font-medium mt-2 leading-relaxed">
-                  Fiches, émargements et actions collectives
-                </p>
-                <div className="mt-4 flex gap-1.5 p-1.5 rounded-lg bg-[#F3F3F2] border border-[#404040]/10">
-                  <div className="w-2 h-2 rounded-full bg-[#EA601F]"></div>
-                  <div className="w-2 h-2 rounded-full bg-[#005259]"></div>
-                  <div className="w-2 h-2 rounded-full bg-[#EA601F]/40"></div>
-                </div>
-              </button>
+              <PermissionGuard actionId="home_folder_beneficiaires">
+                <button
+                  onClick={() => setActiveFolder("beneficiaires")}
+                  className="group bg-white border border-[#404040]/10 hover:border-[#EA601F] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px] cursor-pointer"
+                >
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-all duration-300 shadow-sm bg-[#F3F3F2] border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white">
+                    <UsersIcon className="w-7 h-7 transition-colors" />
+                  </div>
+                  <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F] transition-colors">
+                    Bénéficiaires
+                  </h2>
+                  <p className="text-xs text-[#404040]/70 font-medium mt-2 leading-relaxed">
+                    Fiches, émargements et actions collectives
+                  </p>
+                  <div className="mt-4 flex gap-1.5 p-1.5 rounded-lg bg-[#F3F3F2] border border-[#404040]/10">
+                    <div className="w-2 h-2 rounded-full bg-[#EA601F]"></div>
+                    <div className="w-2 h-2 rounded-full bg-[#005259]"></div>
+                    <div className="w-2 h-2 rounded-full bg-[#EA601F]/40"></div>
+                  </div>
+                </button>
+              </PermissionGuard>
 
               {/* BILANS */}
-              <button
-                onClick={() => setActiveFolder("bilans")}
-                className="group bg-white border border-[#404040]/10 hover:border-[#005259] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px] cursor-pointer"
-              >
-                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-all duration-300 shadow-sm bg-[#F3F3F2] border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white">
-                  <ClipboardDocumentCheckIcon className="w-7 h-7 transition-colors" />
-                </div>
-                <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F] transition-colors">
-                  Bilans
-                </h2>
-                <p className="text-xs text-[#404040]/70 font-medium mt-2 leading-relaxed">
-                  Fiches bilan, bilan tech et suivi collectes
-                </p>
-                <div className="mt-4 flex gap-1.5 p-1.5 rounded-lg bg-[#F3F3F2] border border-[#404040]/10">
-                  <div className="w-2 h-2 rounded-full bg-[#005259]"></div>
-                  <div className="w-2 h-2 rounded-full bg-[#EA601F]/40"></div>
-                </div>
-              </button>
+              <PermissionGuard actionId="home_folder_bilans">
+                <button
+                  onClick={() => setActiveFolder("bilans")}
+                  className="group bg-white border border-[#404040]/10 hover:border-[#005259] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px] cursor-pointer"
+                >
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-all duration-300 shadow-sm bg-[#F3F3F2] border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white">
+                    <ClipboardDocumentCheckIcon className="w-7 h-7 transition-colors" />
+                  </div>
+                  <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F] transition-colors">
+                    Bilans
+                  </h2>
+                  <p className="text-xs text-[#404040]/70 font-medium mt-2 leading-relaxed">
+                    Fiches bilan, bilan tech et suivi collectes
+                  </p>
+                  <div className="mt-4 flex gap-1.5 p-1.5 rounded-lg bg-[#F3F3F2] border border-[#404040]/10">
+                    <div className="w-2 h-2 rounded-full bg-[#005259]"></div>
+                    <div className="w-2 h-2 rounded-full bg-[#EA601F]/40"></div>
+                  </div>
+                </button>
+              </PermissionGuard>
 
               {/* LIEUX */}
-              <button
-                onClick={() => setActiveFolder("lieux")}
-                className="group bg-white border border-[#404040]/10 hover:border-[#EA601F] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px] cursor-pointer"
-              >
-                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-all duration-300 shadow-sm bg-[#F3F3F2] border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white">
-                  <MapPinIcon className="w-7 h-7 transition-colors" />
-                </div>
-                <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F] transition-colors">
-                  Lieux
-                </h2>
-                <p className="text-xs text-[#404040]/70 font-medium mt-2 leading-relaxed">
-                  Rendez-vous par lieu et gestion des adresses
-                </p>
-                <div className="mt-4 flex gap-1.5 p-1.5 rounded-lg bg-[#F3F3F2] border border-[#404040]/10">
-                  <div className="w-2 h-2 rounded-full bg-[#EA601F]"></div>
-                </div>
-              </button>
+              <PermissionGuard actionId="home_folder_lieux">
+                <button
+                  onClick={() => setActiveFolder("lieux")}
+                  className="group bg-white border border-[#404040]/10 hover:border-[#EA601F] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px] cursor-pointer"
+                >
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-all duration-300 shadow-sm bg-[#F3F3F2] border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white">
+                    <MapPinIcon className="w-7 h-7 transition-colors" />
+                  </div>
+                  <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F] transition-colors">
+                    Lieux
+                  </h2>
+                  <p className="text-xs text-[#404040]/70 font-medium mt-2 leading-relaxed">
+                    Rendez-vous par lieu et gestion des adresses
+                  </p>
+                  <div className="mt-4 flex gap-1.5 p-1.5 rounded-lg bg-[#F3F3F2] border border-[#404040]/10">
+                    <div className="w-2 h-2 rounded-full bg-[#EA601F]"></div>
+                  </div>
+                </button>
+              </PermissionGuard>
 
               {/* ÉQUIPE (lien direct, pas un dossier) */}
               <PermissionGuard
-                actionId="page_access_equipe"
+                actionId="home_nav_equipe"
                 fallback={
                   <div className="group bg-white/60 border border-[#404040]/10 rounded-3xl p-6 shadow-sm flex flex-col items-center justify-center text-center min-h-[240px] pointer-events-none select-none opacity-60">
                     <div className="bg-[#F3F3F2] w-16 h-16 rounded-2xl flex items-center justify-center mb-5 text-[#404040]/40 border border-[#404040]/10">
@@ -214,24 +224,26 @@ export default function HomePage() {
               </PermissionGuard>
 
               {/* STATISTIQUES & BILANS */}
-              <button
-                onClick={() => setActiveFolder("stats")}
-                className="group bg-[#white] border border-[#404040]/10 hover:border-[#005259] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px] cursor-pointer"
-              >
-                <div className="bg-[#F3F3F2] border border-[#404040]/10 w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-all duration-300 shadow-sm text-[#005259] group-hover:bg-[#005259] group-hover:text-white">
-                  <ChartBarIcon className="w-7 h-7 transition-colors" />
-                </div>
-                <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F] transition-colors">
-                  Statistiques & Bilans
-                </h2>
-                <p className="text-xs text-[#404040]/70 font-medium mt-2 leading-relaxed">
-                  Rapports globaux et impact Suresnes
-                </p>
-                <div className="mt-4 flex gap-1.5 p-1.5 rounded-lg bg-[#F3F3F2] border border-[#404040]/10">
-                  <div className="w-2 h-2 rounded-full bg-[#EA601F]"></div>
-                  <div className="w-2 h-2 rounded-full bg-[#005259]"></div>
-                </div>
-              </button>
+              <PermissionGuard actionId="home_folder_stats">
+                <button
+                  onClick={() => setActiveFolder("stats")}
+                  className="group bg-[#white] border border-[#404040]/10 hover:border-[#005259] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px] cursor-pointer"
+                >
+                  <div className="bg-[#F3F3F2] border border-[#404040]/10 w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-all duration-300 shadow-sm text-[#005259] group-hover:bg-[#005259] group-hover:text-white">
+                    <ChartBarIcon className="w-7 h-7 transition-colors" />
+                  </div>
+                  <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F] transition-colors">
+                    Statistiques & Bilans
+                  </h2>
+                  <p className="text-xs text-[#404040]/70 font-medium mt-2 leading-relaxed">
+                    Rapports globaux et impact Suresnes
+                  </p>
+                  <div className="mt-4 flex gap-1.5 p-1.5 rounded-lg bg-[#F3F3F2] border border-[#404040]/10">
+                    <div className="w-2 h-2 rounded-full bg-[#EA601F]"></div>
+                    <div className="w-2 h-2 rounded-full bg-[#005259]"></div>
+                  </div>
+                </button>
+              </PermissionGuard>
 
             </div>
           ) : activeFolder === "agenda" ? (
@@ -369,56 +381,64 @@ export default function HomePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
                 {/* LISTE DES BÉNÉFICIAIRES */}
-                <Link href="/mediation/rencontres-numeriques/liste-beneficiaires" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
-                    <UsersIcon className="w-4 h-4" />
-                  </div>
-                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259]">
-                    Liste des bénéficiaires
-                  </h2>
-                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
-                    Consulter et modifier les fiches existantes
-                  </p>
-                </Link>
+                <PermissionGuard actionId="home_nav_liste_benef">
+                  <Link href="/mediation/rencontres-numeriques/liste-beneficiaires" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
+                      <UsersIcon className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259]">
+                      Liste des bénéficiaires
+                    </h2>
+                    <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
+                      Consulter et modifier les fiches existantes
+                    </p>
+                  </Link>
+                </PermissionGuard>
 
                 {/* ÉMARGEMENTS & DOC. INTERNES */}
-                <Link href="/mediation/rencontres-numeriques/emargements" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
-                    <ClipboardDocumentCheckIcon className="w-4 h-4" />
-                  </div>
-                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259]">
-                    Émargements & Doc. internes
-                  </h2>
-                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
-                    Accéder aux feuilles archivées
-                  </p>
-                </Link>
+                <PermissionGuard actionId="home_nav_emargement_docs">
+                  <Link href="/mediation/rencontres-numeriques/emargements" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
+                      <ClipboardDocumentCheckIcon className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259]">
+                      Émargements & Doc. internes
+                    </h2>
+                    <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
+                      Accéder aux feuilles archivées
+                    </p>
+                  </Link>
+                </PermissionGuard>
 
                 {/* GÉNÉRATEUR D'ÉMARGEMENTS */}
-                <Link href="/mediation/rencontres-numeriques/emargement" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
-                    <DocumentPlusIcon className="w-4 h-4" />
-                  </div>
-                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
-                    Générateur d'Émargements
-                  </h2>
-                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
-                    Éditer de nouvelles feuilles A4 prêtes à imprimer
-                  </p>
-                </Link>
+                <PermissionGuard actionId="home_nav_emargement_gen">
+                  <Link href="/mediation/rencontres-numeriques/emargement" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
+                      <DocumentPlusIcon className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
+                      Générateur d'Émargements
+                    </h2>
+                    <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
+                      Éditer de nouvelles feuilles A4 prêtes à imprimer
+                    </p>
+                  </Link>
+                </PermissionGuard>
 
                 {/* ACTIONS COLLECTIVES */}
-                <Link href="/mediation/rencontres-numeriques/actions-collectives" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
-                    <UserGroupIcon className="w-4 h-4" />
-                  </div>
-                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259]">
-                    Actions Collectives
-                  </h2>
-                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
-                    Saisir les bilans simplifiés d'ateliers
-                  </p>
-                </Link>
+                <PermissionGuard actionId="home_nav_actions_coll">
+                  <Link href="/mediation/rencontres-numeriques/actions-collectives" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
+                      <UserGroupIcon className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259]">
+                      Actions Collectives
+                    </h2>
+                    <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
+                      Saisir les bilans simplifiés d'ateliers
+                    </p>
+                  </Link>
+                </PermissionGuard>
 
               </div>
             </div>
@@ -444,43 +464,49 @@ export default function HomePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
                 {/* FICHE BILAN */}
-                <Link href="/mediation/rencontres-numeriques/fiches-bilans" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
-                    <ClipboardDocumentCheckIcon className="w-4 h-4" />
-                  </div>
-                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259]">
-                    Fiche Bilan
-                  </h2>
-                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
-                    Accéder aux fiches de synthèses et bilans
-                  </p>
-                </Link>
+                <PermissionGuard actionId="home_nav_fiche_bilan">
+                  <Link href="/mediation/rencontres-numeriques/fiches-bilans" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
+                      <ClipboardDocumentCheckIcon className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259]">
+                      Fiche Bilan
+                    </h2>
+                    <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
+                      Accéder aux fiches de synthèses et bilans
+                    </p>
+                  </Link>
+                </PermissionGuard>
 
                 {/* BILAN TECH */}
-                <Link href="/mediation/rencontres-numeriques/bilan_tech" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
-                    <WrenchScrewdriverIcon className="w-4 h-4" />
-                  </div>
-                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
-                    Bilan Tech
-                  </h2>
-                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
-                    Effectuer et suivre les bilans techniques
-                  </p>
-                </Link>
+                <PermissionGuard actionId="home_nav_bilan_tech">
+                  <Link href="/mediation/rencontres-numeriques/bilan_tech" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
+                      <WrenchScrewdriverIcon className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
+                      Bilan Tech
+                    </h2>
+                    <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
+                      Effectuer et suivre les bilans techniques
+                    </p>
+                  </Link>
+                </PermissionGuard>
 
                 {/* SUIVI DES COLLECTES TECH */}
-                <Link href="/mediation/rencontres-numeriques/suivi-collecte" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
-                    <CpuChipIcon className="w-4 h-4" />
-                  </div>
-                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259]">
-                    Suivi Collectes Tech
-                  </h2>
-                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1.5 leading-relaxed">
-                    Tableau d'activité synchrone type Excel / IdF
-                  </p>
-                </Link>
+                <PermissionGuard actionId="home_nav_collectes">
+                  <Link href="/mediation/rencontres-numeriques/suivi-collecte" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
+                      <CpuChipIcon className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259]">
+                      Suivi Collectes Tech
+                    </h2>
+                    <p className="text-[9px] text-[#404040]/70 font-medium mt-1.5 leading-relaxed">
+                      Tableau d'activité synchrone type Excel / IdF
+                    </p>
+                  </Link>
+                </PermissionGuard>
 
               </div>
             </div>
@@ -506,30 +532,34 @@ export default function HomePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
                 {/* RENDEZ-VOUS PAR LIEUX */}
-                <Link href="/mediation/rencontres-numeriques/rendez-vous-par-lieu" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
-                    <MapPinIcon className="w-4 h-4" />
-                  </div>
-                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
-                    Rendez-vous par lieu
-                  </h2>
-                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
-                    Consulter et planifier les rendez-vous selon les lieux
-                  </p>
-                </Link>
+                <PermissionGuard actionId="home_nav_rdv_par_lieu">
+                  <Link href="/mediation/rencontres-numeriques/rendez-vous-par-lieu" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
+                      <MapPinIcon className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
+                      Rendez-vous par lieu
+                    </h2>
+                    <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
+                      Consulter et planifier les rendez-vous selon les lieux
+                    </p>
+                  </Link>
+                </PermissionGuard>
 
                 {/* AJOUTER UN LIEU */}
-                <Link href="/mediation/localisations" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
-                    <BuildingOffice2Icon className="w-4 h-4" />
-                  </div>
-                  <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
-                    Ajouter un lieu
-                  </h2>
-                  <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
-                    Gérer les adresses et localisations prédéfinies
-                  </p>
-                </Link>
+                <PermissionGuard actionId="home_nav_ajouter_lieu">
+                  <Link href="/mediation/localisations" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-4 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 bg-white border border-[#404040]/10 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
+                      <BuildingOffice2Icon className="w-4 h-4" />
+                    </div>
+                    <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
+                      Ajouter un lieu
+                    </h2>
+                    <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
+                      Gérer les adresses et localisations prédéfinies
+                    </p>
+                  </Link>
+                </PermissionGuard>
 
               </div>
             </div>
@@ -553,43 +583,49 @@ export default function HomePage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* STATS GLOBALES */}
-                <Link href="/mediation/statistiques" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="bg-white border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
-                    <ChartBarIcon className="w-5 h-5" />
-                  </div>
-                  <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
-                    Bilan & Stats Globaux
-                  </h2>
-                  <p className="text-[10px] text-[#404040]/70 font-medium mt-1.5 leading-relaxed">
-                    Consulter les rapports et indicateurs transversaux de la plateforme
-                  </p>
-                </Link>
+                <PermissionGuard actionId="home_nav_stats_glob">
+                  <Link href="/mediation/statistiques" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                    <div className="bg-white border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
+                      <ChartBarIcon className="w-5 h-5" />
+                    </div>
+                    <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
+                      Bilan & Stats Globaux
+                    </h2>
+                    <p className="text-[10px] text-[#404040]/70 font-medium mt-1.5 leading-relaxed">
+                      Consulter les rapports et indicateurs transversaux de la plateforme
+                    </p>
+                  </Link>
+                </PermissionGuard>
 
                 {/* STATS SURESNES */}
-                <Link href="/mediation/bilan-suresnes" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="bg-[#white] border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
-                    <BuildingOfficeIcon className="w-5 h-5" />
-                  </div>
-                  <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">
-                    Analyse Actions Suresnes
-                  </h2>
-                  <p className="text-[10px] text-[#404040]/70 font-medium mt-1.5 leading-relaxed">
-                    Édition et étude du bilan d'impact annuel du Relais Numérique
-                  </p>
-                </Link>
+                <PermissionGuard actionId="home_nav_bilan_suresnes">
+                  <Link href="/mediation/bilan-suresnes" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#005259] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                    <div className="bg-[#white] border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#005259] group-hover:bg-[#005259] group-hover:text-white transition-all">
+                      <BuildingOfficeIcon className="w-5 h-5" />
+                    </div>
+                    <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">
+                      Analyse Actions Suresnes
+                    </h2>
+                    <p className="text-[10px] text-[#404040]/70 font-medium mt-1.5 leading-relaxed">
+                      Édition et étude du bilan d'impact annuel du Relais Numérique
+                    </p>
+                  </Link>
+                </PermissionGuard>
 
                 {/* VOLUME HORAIRE */}
-                <Link href="/mediation/volume-horaire" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
-                  <div className="bg-white border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
-                    <ClockIcon className="w-5 h-5" />
-                  </div>
-                  <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
-                    Volume Horaire
-                  </h2>
-                  <p className="text-[10px] text-[#404040]/70 font-medium mt-1.5 leading-relaxed">
-                    Analyser le temps de travail et coûts RH
-                  </p>
-                </Link>
+                <PermissionGuard actionId="home_nav_volume_horaire">
+                  <Link href="/mediation/volume-horaire" className="group bg-[#F3F3F2] border border-[#404040]/10 rounded-2xl p-5 hover:border-[#EA601F] hover:bg-white shadow-sm transition-all duration-300 flex flex-col items-center text-center active:scale-95">
+                    <div className="bg-white border border-[#404040]/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4 text-[#EA601F] group-hover:bg-[#EA601F] group-hover:text-white transition-all">
+                      <ClockIcon className="w-5 h-5" />
+                    </div>
+                    <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
+                      Volume Horaire
+                    </h2>
+                    <p className="text-[10px] text-[#404040]/70 font-medium mt-1.5 leading-relaxed">
+                      Analyser le temps de travail et coûts RH
+                    </p>
+                  </Link>
+                </PermissionGuard>
 
                 {/* GESTION DES DROITS (Reservé aux admins) */}
                 <PermissionGuard actionId="home_nav_admin_droits">
