@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { auth, db, firebaseConfig } from "@/lib/firebase";
@@ -23,7 +23,8 @@ import {
   ChevronDownIcon,
   ShieldCheckIcon,
   AcademicCapIcon,
-  KeyIcon
+  KeyIcon,
+  CheckCircleIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import PageGuard from "@/components/PageGuard";
@@ -95,6 +96,8 @@ export default function GestionEquipe() {
     Paris: { ...HORAIRES_PAR_DEFAUT },
     Massy: { ...HORAIRES_PAR_DEFAUT }
   });
+  const [horaireEnregistre, setHoraireEnregistre] = useState<{ [site: string]: boolean }>({});
+  const horaireEnregistreTimers = useRef<{ [site: string]: ReturnType<typeof setTimeout> }>({});
 
   const [accordionOpen, setAccordionOpen] = useState<{ [site: string]: boolean }>({
     Paris: false,
@@ -265,8 +268,14 @@ export default function GestionEquipe() {
     setGrillesHorairesACI(updated);
     try {
       await setDoc(doc(db, "configuration_equipe", "parametres_horaires"), updated);
+      setHoraireEnregistre(prev => ({ ...prev, [site]: true }));
+      clearTimeout(horaireEnregistreTimers.current[site]);
+      horaireEnregistreTimers.current[site] = setTimeout(() => {
+        setHoraireEnregistre(prev => ({ ...prev, [site]: false }));
+      }, 2000);
     } catch (err) {
       console.error(err);
+      showToast("Erreur lors de l'enregistrement des horaires.", "error");
     }
   };
 
@@ -546,6 +555,9 @@ export default function GestionEquipe() {
                     <h3 className="text-xs font-bold uppercase tracking-wider text-[#005259]">
                       Grille Horaires ACI — {site}
                     </h3>
+                    <span className={`flex items-center gap-1 text-[10px] font-bold uppercase text-[#005259] transition-opacity duration-300 ${horaireEnregistre[site] ? "opacity-100" : "opacity-0"}`}>
+                      <CheckCircleIcon className="w-3.5 h-3.5 text-[#A9E0C9]" /> Enregistré
+                    </span>
                   </div>
                   <ChevronDownIcon className={`w-4 h-4 text-[#404040]/50 transition-transform duration-200 ${isOpen ? "rotate-180 text-[#EA601F]" : ""}`} />
                 </div>
