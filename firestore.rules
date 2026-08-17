@@ -44,12 +44,22 @@ service cloud.firestore {
       return isSignedIn() && exists(/databases/$(database)/documents/liste_mediateurs/$(request.auth.uid)) && estActif() && myRole() == "admin";
     }
 
-    // Profil et rôle de chaque membre du staff.
+    // Rôles couvrant les actions déléguées par un admin à un coordinateur
+    // dans lib/permissionsCatalog.ts (gestion d'équipe, validation de
+    // semaine, modèles d'activités...). Centralisé ici pour rester en phase
+    // avec la matrice de droits sans dupliquer la condition partout.
+    function isCoordinateurOuPlus() {
+      return isAdmin() || (isStaff() && myRole() == "coordinateur");
+    }
+
+    // Profil et rôle de chaque membre du staff. Écriture ouverte au
+    // coordinateur (pas seulement l'admin) : equipe_add_member,
+    // equipe_member_actions, equipe_create_access et agenda_staff_mask lui
+    // sont accordés côté UI (lib/permissionsCatalog.ts) — la règle doit
+    // suivre, sans quoi ces boutons échouent pour un vrai coordinateur.
     match /liste_mediateurs/{uid} {
       allow read: if isSignedIn();
-      // Seul un admin peut créer/modifier des profils (l'admin exécute lui-même
-      // l'écriture depuis app/equipe/page.tsx et app/admin/droits/page.tsx).
-      allow write: if isAdmin();
+      allow write: if isCoordinateurOuPlus();
     }
 
     // Marqueur "première connexion effectuée", posé par l'utilisateur
@@ -81,7 +91,7 @@ service cloud.firestore {
     // sont réservés à l'admin et au coordinateur — voir lib/permissionsCatalog.ts).
     match /configuration_equipe/{docId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin() || (isStaff() && myRole() == "coordinateur");
+      allow write: if isCoordinateurOuPlus();
     }
 
     // Données opérationnelles : accessibles à tout le staff authentifié
@@ -90,8 +100,17 @@ service cloud.firestore {
     // restriction), mais restreinte au moins aux comptes du staff — un
     // découpage plus fin par rôle/action pourra être ajouté collection par
     // collection au fil de l'eau, en s'appuyant sur configuration_droits.
+    //
+    // Exception : le champ Statut_Blacklist reste protégé (mediateur peut
+    // éditer un profil via fiche_modal_submit, mais benef_action_toggle_blacklist
+    // et fiche_modal_toggle_blacklist ne sont accordés qu'au coordinateur+ —
+    // voir lib/permissionsCatalog.ts) sans bloquer le reste de l'édition.
     match /utilisateurs/{docId} {
-      allow read, write: if isStaff();
+      allow read, create: if isStaff();
+      allow update: if isStaff() && (
+        isCoordinateurOuPlus() ||
+        request.resource.data.get('Statut_Blacklist', 'Non') == resource.data.get('Statut_Blacklist', 'Non')
+      );
     }
     // Sous-collection "visites" de chaque bénéficiaire (rendez-vous,
     // diagnostics...). Le joker récursif {path=**} est nécessaire — pas
@@ -99,8 +118,11 @@ service cloud.firestore {
     // pages (suresnes, rendez-vous-par-lieu, fiches-bilans) interrogent
     // "visites" via collectionGroup() plutôt qu'un accès direct, et Firestore
     // n'autorise une requête collectionGroup que via cette syntaxe.
+    // Suppression réservée au coordinateur+ (fiche_action_delete_rdv) : un
+    // médiateur garde le droit de créer/éditer un RDV, pas de l'effacer.
     match /{path=**}/visites/{visiteId} {
-      allow read, write: if isStaff();
+      allow read, create, update: if isStaff();
+      allow delete: if isCoordinateurOuPlus();
     }
     match /utilisateurs/{docId}/fiches_bilan/{ficheId} {
       allow read, write: if isStaff();
@@ -111,14 +133,30 @@ service cloud.firestore {
     match /planning_mediateurs/{docId} {
       allow read, write: if isStaff();
     }
+    // Réaffectation d'un créneau à un autre médiateur (mediateurNom) réservée
+    // au coordinateur+ (suresnes_reassign) ; assigner/vider/éditer un usager
+    // sur son propre créneau reste ouvert à tout le staff.
     match /planning_suresnes/{docId} {
-      allow read, write: if isStaff();
+      allow read, create, delete: if isStaff();
+      allow update: if isStaff() && (
+        isCoordinateurOuPlus() ||
+        request.resource.data.get('mediateurNom', null) == resource.data.get('mediateurNom', null)
+      );
     }
+    // Verrouillage hebdomadaire du planning, réservé au coordinateur+
+    // (agenda_validate_week).
     match /semaines_validees/{docId} {
-      allow read, write: if isStaff();
+      allow read: if isStaff();
+      allow write: if isCoordinateurOuPlus();
     }
+    // Modèles d'activités (création/édition/suppression réservée au
+    // coordinateur+ via agenda_model_create/agenda_model_actions/
+    // modeles_create/modeles_edit/modeles_delete). Les créneaux qu'ils
+    // génèrent restent dans planning_mediateurs/planning_suresnes, ouverts
+    // à tout le staff comme avant.
     match /activites_types/{docId} {
-      allow read, write: if isStaff();
+      allow read: if isStaff();
+      allow write: if isCoordinateurOuPlus();
     }
     // Couleur de chaque bloc thématique (Inclusion Numérique, Découverte
     // Métiers, Insertion Professionnelle) — voir app/agenda/page.tsx.
