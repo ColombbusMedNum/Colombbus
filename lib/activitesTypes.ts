@@ -234,6 +234,11 @@ export async function genererCreneauxPourModele(
   const upperLieu = (modele.lieu || "").toUpperCase();
   const isSuresnesAction = upperLieu.includes("RN") || upperLieu.includes("RND");
   const isRND = upperLieu.includes("RND");
+  // Un même agenda planning_suresnes héberge plusieurs sites RN, distingués
+  // par le numéro de département dans le nom du modèle : "91" (Essonne) va
+  // sur le site "rn91", tout le reste ("RN Suresnes", "92 - RN"...) reste
+  // sur "suresnes" — voir app/mediation/rencontres-numeriques/suresnes.
+  const siteSuresnes = upperLieu.includes("91") ? "rn91" : "suresnes";
 
   // Sur TERRAGE et MASSY, un médiateur ACI travaille selon sa propre grille
   // horaire (configuration_equipe/parametres_horaires) plutôt que selon les
@@ -306,10 +311,10 @@ export async function genererCreneauxPourModele(
 
         if (isSuresnesAction) {
           const horaires = moment === "Matin" ? ["10h00 - 11h30", "11h30 - 13h00"] : ["14h00 - 15h30", "15h30 - 17h00"];
-          const nomAvecType = isRND ? `${nomComplet} (RND)` : `${nomComplet} (RN)`;
+          const nomAvecType = siteSuresnes === "rn91" ? `${nomComplet} (RN91)` : isRND ? `${nomComplet} (RND)` : `${nomComplet} (RN)`;
           for (const h of horaires) {
             const refS = doc(collection(db, "planning_suresnes"));
-            batch.set(refS, { mediateurNom: nomAvecType, date: dateStr, moment, horaire: h, usager: "" });
+            batch.set(refS, { mediateurNom: nomAvecType, date: dateStr, moment, horaire: h, usager: "", site: siteSuresnes });
             opsDansBatch++;
             await commitSiPlein();
           }

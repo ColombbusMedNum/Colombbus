@@ -641,15 +641,19 @@ export default function PlanningExpertMix() {
     if (isSuresnesAction) {
       const horaires = moment === "Matin" ? ["10h00 - 11h30", "11h30 - 13h00"] : ["14h00 - 15h30", "15h30 - 17h00"];
       const isRND = upperLieu.includes("RND");
-      const nomAvecType = isRND ? `${nomCompletLiaison} (RND)` : `${nomCompletLiaison} (RN)`;
+      // Même agenda planning_suresnes, plusieurs sites RN distingués par le
+      // numéro de département dans le nom du lieu (voir genererCreneauxPourModele).
+      const siteSuresnes = upperLieu.includes("91") ? "rn91" : "suresnes";
+      const nomAvecType = siteSuresnes === "rn91" ? `${nomCompletLiaison} (RN91)` : isRND ? `${nomCompletLiaison} (RND)` : `${nomCompletLiaison} (RN)`;
 
       for (const h of horaires) {
         await addDoc(collection(db, "planning_suresnes"), {
           mediateurNom: nomAvecType,
-          date: dateStr, 
-          moment, 
-          horaire: h, 
-          usager: ""
+          date: dateStr,
+          moment,
+          horaire: h,
+          usager: "",
+          site: siteSuresnes
         });
       }
     }

@@ -58,6 +58,19 @@ export default function PlanningSuresnes() {
   const [beneficiaires, setBeneficiaires] = useState<Beneficiaire[]>([]);
   const [viewDate, setViewDate] = useState(new Date());
   const [filterTodayOnly, setFilterTodayOnly] = useState(false);
+  // Un même agenda héberge plusieurs sites RN, distingués par le champ
+  // "site" posé à la création du créneau (voir lib/activitesTypes.ts et
+  // app/agenda/page.tsx) — absent sur les anciens créneaux, qui sont donc
+  // considérés "suresnes" par défaut.
+  const [siteActif, setSiteActif] = useState<"suresnes" | "rn91">("suresnes");
+  const SITES = [
+    { id: "suresnes" as const, label: "Suresnes" },
+    { id: "rn91" as const, label: "RN - 91" },
+  ];
+  const creneauxDuSite = React.useMemo(
+    () => creneaux.filter(c => (c.site || "suresnes") === siteActif),
+    [creneaux, siteActif]
+  );
   
   // États synchronisés en temps réel depuis les fiches de visites
   const [rawVisites, setRawVisites] = useState<any[]>([]);
@@ -224,7 +237,7 @@ export default function PlanningSuresnes() {
     collTechHommesUniques,
     collTechFemmesUniques,
   } = React.useMemo(() => {
-    const filteredCreneauxDuMois = creneaux.filter(c => {
+    const filteredCreneauxDuMois = creneauxDuSite.filter(c => {
       if (!c.date) return false;
       const parts = c.date.split("-");
       return parseInt(parts[0]) === year && (parseInt(parts[1]) - 1) === month;
@@ -239,7 +252,7 @@ export default function PlanningSuresnes() {
     let totalCollecteTech = 0;
 
     creneauxDuMoisRemplis.forEach(c => {
-      const nomNettoye = (c.mediateurNom || "").replace(" (RND)", "").replace(" (RN)", "").trim().toLowerCase();
+      const nomNettoye = (c.mediateurNom || "").replace(" (RND)", "").replace(" (RN91)", "").replace(" (RN)", "").trim().toLowerCase();
       const isOrphan = !mediateursActifs.includes(nomNettoye);
 
       if (!isOrphan) {
@@ -321,7 +334,7 @@ export default function PlanningSuresnes() {
       collTechHommesUniques,
       collTechFemmesUniques,
     };
-  }, [creneaux, year, month, mediateursActifs, beneficiaires, statutsVisitesRealtime]);
+  }, [creneauxDuSite, year, month, mediateursActifs, beneficiaires, statutsVisitesRealtime]);
 
   const handleThematiqueChange = async (creneauId: string, nouvelleThematique: string) => {
     try {
@@ -383,7 +396,7 @@ export default function PlanningSuresnes() {
             <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
             <div>
               <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
-                Suresnes <span className="text-[#EA601F] font-normal">— Rencontres Numériques</span>
+                {SITES.find(s => s.id === siteActif)?.label} <span className="text-[#EA601F] font-normal">— Rencontres Numériques</span>
               </h1>
               <p className="text-xs text-[#404040]/70 mt-0.5">
                 Suivi des rendez-vous, thématiques et présence des médiateurs
@@ -451,6 +464,21 @@ export default function PlanningSuresnes() {
           </div>
         </div>
 
+        {/* SÉLECTEUR DE SITE */}
+        <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-2xl border border-[#404040]/10 shadow-sm w-fit">
+          {SITES.map(site => (
+            <button
+              key={site.id}
+              onClick={() => setSiteActif(site.id)}
+              className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                siteActif === site.id ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/70 hover:text-[#005259] hover:bg-[#F3F3F2]"
+              }`}
+            >
+              {site.label}
+            </button>
+          ))}
+        </div>
+
         {/* ANALYTICS / KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="p-4 bg-white border border-[#404040]/10 rounded-2xl flex flex-col justify-between shadow-sm">
@@ -469,14 +497,18 @@ export default function PlanningSuresnes() {
               </div>
               <div className="flex gap-2 text-right">
                 <div>
-                  <span className="text-[8px] text-[#404040]/60 block font-bold uppercase">RN</span>
+                  <span className="text-[8px] text-[#404040]/60 block font-bold uppercase">{siteActif === "rn91" ? "RN91" : "RN"}</span>
                   <span className="text-[11px] font-bold text-[#005259]">{totalRemplisRN}</span>
                 </div>
-                <div className="w-px bg-[#404040]/10 self-stretch my-0.5"></div>
-                <div>
-                  <span className="text-[8px] text-[#404040]/60 block font-bold uppercase">RND</span>
-                  <span className="text-[11px] font-bold text-[#EA601F]">{totalRemplisRND}</span>
-                </div>
+                {siteActif === "suresnes" && (
+                  <>
+                    <div className="w-px bg-[#404040]/10 self-stretch my-0.5"></div>
+                    <div>
+                      <span className="text-[8px] text-[#404040]/60 block font-bold uppercase">RND</span>
+                      <span className="text-[11px] font-bold text-[#EA601F]">{totalRemplisRND}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -505,20 +537,24 @@ export default function PlanningSuresnes() {
             <span className="block text-[10px] uppercase font-bold tracking-widest text-[#005259]">Public unique (Mois)</span>
             <div className="flex flex-col gap-1.5 mt-2">
               <div className="flex items-center justify-between text-[11px]">
-                <span className="text-[#404040]/70 font-bold uppercase text-[9px] tracking-wide">RN :</span>
+                <span className="text-[#404040]/70 font-bold uppercase text-[9px] tracking-wide">{siteActif === "rn91" ? "RN91 :" : "RN :"}</span>
                 <div className="flex gap-2 text-[#404040]">
                   <span>H:<b className="text-[#005259]">{rnHommesUniques}</b></span>
                   <span>F:<b className="text-[#EA601F]">{rnFemmesUniques}</b></span>
                 </div>
               </div>
-              <div className="h-px bg-[#404040]/10"></div>
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-[#EA601F] font-bold uppercase text-[9px] tracking-wide">RND :</span>
-                <div className="flex gap-2 text-[#404040]">
-                  <span>H:<b className="text-[#005259]">{rndHommesUniques}</b></span>
-                  <span>F:<b className="text-[#EA601F]">{rndFemmesUniques}</b></span>
-                </div>
-              </div>
+              {siteActif === "suresnes" && (
+                <>
+                  <div className="h-px bg-[#404040]/10"></div>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-[#EA601F] font-bold uppercase text-[9px] tracking-wide">RND :</span>
+                    <div className="flex gap-2 text-[#404040]">
+                      <span>H:<b className="text-[#005259]">{rndHommesUniques}</b></span>
+                      <span>F:<b className="text-[#EA601F]">{rndFemmesUniques}</b></span>
+                    </div>
+                  </div>
+                </>
+              )}
               <div className="h-px bg-[#404040]/10"></div>
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-[#F9945D] font-bold uppercase text-[9px] tracking-wide">Coll. Tech :</span>
@@ -543,7 +579,7 @@ export default function PlanningSuresnes() {
 
             if (filterTodayOnly && dateStr !== todayStr) return null;
 
-            const entries = creneaux.filter(c => c.date === dateStr);
+            const entries = creneauxDuSite.filter(c => c.date === dateStr);
             if (entries.length === 0) return null;
 
             return (
@@ -573,10 +609,10 @@ export default function PlanningSuresnes() {
                         
                         <div className="space-y-2">
                           {sessionEntries.map(c => {
-                            const nomNettoye = (c.mediateurNom || "").replace(" (RND)", "").replace(" (RN)", "").trim().toLowerCase();
+                            const nomNettoye = (c.mediateurNom || "").replace(" (RND)", "").replace(" (RN91)", "").replace(" (RN)", "").trim().toLowerCase();
                             const isOrphan = !mediateursActifs.includes(nomNettoye);
                             const isRND = c.mediateurNom?.includes("(RND)");
-                            const nomAffiche = c.mediateurNom?.replace(" (RND)", "").replace(" (RN)", "");
+                            const nomAffiche = c.mediateurNom?.replace(" (RND)", "").replace(" (RN91)", "").replace(" (RN)", "");
                             
                             const bTrouve = beneficiaires.find(
                               b => `${b.prenom.trim()} ${b.nom.trim()}`.toLowerCase() === (c.usager || "").trim().toLowerCase()
