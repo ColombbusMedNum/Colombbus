@@ -11,7 +11,8 @@ import {
   ClockIcon,
   CurrencyEuroIcon,
   UserGroupIcon,
-  BriefcaseIcon
+  BriefcaseIcon,
+  CalendarDaysIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { calculerDureeHeures, calculerHeuresComplementairesACI } from "@/lib/planningHours";
@@ -23,6 +24,13 @@ const quicksand = Quicksand({
   weight: ["300", "400", "500", "600", "700"],
 });
 
+const MOIS = [
+  { value: "01", label: "Janvier" }, { value: "02", label: "Février" }, { value: "03", label: "Mars" },
+  { value: "04", label: "Avril" }, { value: "05", label: "Mai" }, { value: "06", label: "Juin" },
+  { value: "07", label: "Juillet" }, { value: "08", label: "Août" }, { value: "09", label: "Septembre" },
+  { value: "10", label: "Octobre" }, { value: "11", label: "Novembre" }, { value: "12", label: "Décembre" },
+];
+
 export default function VolumeHoraireComplet() {
   const { mediateurs: mediateursListe } = useMediateurs();
   const [planningRaw, setPlanningRaw] = useState<any[]>([]);
@@ -31,6 +39,26 @@ export default function VolumeHoraireComplet() {
   const [statsActions, setStatsActions] = useState<any[]>([]);
   const [totalGeneral, setTotalGeneral] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  const [anneeFiltre, setAnneeFiltre] = useState("toutes");
+  const [moisFiltre, setMoisFiltre] = useState("tous");
+
+  // Années réellement présentes dans les données, pour ne proposer que des
+  // choix pertinents plutôt qu'une plage arbitraire.
+  const anneesDisponibles = useMemo(() => {
+    const annees = new Set<string>();
+    planningRaw.forEach((a: any) => { if (a.date) annees.add(a.date.slice(0, 4)); });
+    return Array.from(annees).sort().reverse();
+  }, [planningRaw]);
+
+  const planningFiltre = useMemo(() => {
+    return planningRaw.filter((a: any) => {
+      if (!a.date) return anneeFiltre === "toutes" && moisFiltre === "tous";
+      if (anneeFiltre !== "toutes" && a.date.slice(0, 4) !== anneeFiltre) return false;
+      if (moisFiltre !== "tous" && a.date.slice(5, 7) !== moisFiltre) return false;
+      return true;
+    });
+  }, [planningRaw, anneeFiltre, moisFiltre]);
 
   // MOTEUR DE CALCUL DES HEURES ET DÉBORDEMENTS ACI, basé sur les fonctions
   // partagées de lib/planningHours.ts (mêmes règles que statistiques/mediateurs,
@@ -64,13 +92,11 @@ export default function VolumeHoraireComplet() {
 
   // CRUNCHING DES DONNÉES EN TEMPS RÉEL
   useEffect(() => {
-    if (Object.keys(mediateursRaw).length === 0 && planningRaw.length === 0) return;
-
     const mStats: Record<string, any> = {};
     const aStats: Record<string, any> = {};
     let grandTotal = 0;
 
-    planningRaw.forEach((action: any) => {
+    planningFiltre.forEach((action: any) => {
       const identifiantMed = identifiantMediateur(action);
       if (!identifiantMed) return;
 
@@ -115,7 +141,7 @@ export default function VolumeHoraireComplet() {
     setTotalGeneral(grandTotal);
     setStatsMediateurs(Object.values(mStats).sort((a: any, b: any) => b.h - a.h));
     setStatsActions(Object.values(aStats).sort((a: any, b: any) => b.h - a.h));
-  }, [planningRaw, mediateursRaw]);
+  }, [planningFiltre, mediateursRaw]);
 
   if (loading) {
     return (
@@ -155,6 +181,44 @@ export default function VolumeHoraireComplet() {
             <HomeIcon className="w-4 h-4 text-[#EA601F]" />
             <span>Accueil</span>
           </Link>
+        </div>
+
+        {/* FILTRE DE PÉRIODE */}
+        <div className="bg-white border border-[#404040]/10 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3 shadow-sm">
+          <div className="flex items-center gap-2 text-[#005259] shrink-0">
+            <CalendarDaysIcon className="w-4 h-4 text-[#EA601F]" />
+            <span className="text-[10px] font-bold uppercase tracking-widest">Période</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={anneeFiltre}
+              onChange={e => setAnneeFiltre(e.target.value)}
+              className="px-3 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl text-xs font-bold outline-none focus:border-[#005259] cursor-pointer"
+            >
+              <option value="toutes">Toutes les années</option>
+              {anneesDisponibles.map(annee => (
+                <option key={annee} value={annee}>{annee}</option>
+              ))}
+            </select>
+            <select
+              value={moisFiltre}
+              onChange={e => setMoisFiltre(e.target.value)}
+              className="px-3 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl text-xs font-bold outline-none focus:border-[#005259] cursor-pointer"
+            >
+              <option value="tous">Tous les mois</option>
+              {MOIS.map(m => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
+            {(anneeFiltre !== "toutes" || moisFiltre !== "tous") && (
+              <button
+                onClick={() => { setAnneeFiltre("toutes"); setMoisFiltre("tous"); }}
+                className="px-3 py-1.5 bg-[#F3F3F2] hover:bg-[#EF736A] hover:text-white border border-[#404040]/10 text-[#404040]/70 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+              >
+                Réinitialiser
+              </button>
+            )}
+          </div>
         </div>
 
         {/* CARTES DE SYNTHÈSE DES CHIFFRES KIS */}
@@ -229,7 +293,9 @@ export default function VolumeHoraireComplet() {
                 {statsMediateurs.length === 0 && (
                   <tr>
                     <td colSpan={4} className="p-12 text-center text-[#404040]/60 font-bold uppercase text-xs italic tracking-widest">
-                      Aucune action enregistrée pour le moment dans l'agenda.
+                      {anneeFiltre !== "toutes" || moisFiltre !== "tous"
+                        ? "Aucune action enregistrée sur cette période."
+                        : "Aucune action enregistrée pour le moment dans l'agenda."}
                     </td>
                   </tr>
                 )}
