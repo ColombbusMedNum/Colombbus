@@ -123,9 +123,7 @@ export default function PlanningExpertMix() {
   const [localisations, setLocalisations] = useState<any[]>([]);
   const [semainesValidees, setSemainesValidees] = useState<Record<string, boolean>>({});
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  
-  const [currentUserId] = useState<string | null>("ID_DU_MEDIATEUR_CONNECTE");
-  
+
   // États UI
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -182,7 +180,14 @@ export default function PlanningExpertMix() {
   const estSemaineValidee = !!semainesValidees[currentWeekId];
   const nonLuesCount = notifications.filter(n => !n.lue).length;
 
-  const { can } = usePermissions();
+  const { can, user } = usePermissions();
+  // La collection "notifications" cible chaque destinataire par son UID
+  // Firebase Auth (voir destinataireId posé dans processActionCreation et
+  // lib/activitesTypes.ts) : longtemps codé en dur sur un texte de
+  // substitution ("ID_DU_MEDIATEUR_CONNECTE"), ce qui faisait que la cloche
+  // ne trouvait jamais aucune notification pour personne, alors que
+  // /mediation/notifications (qui n'a pas ce filtre) les affichait toutes.
+  const currentUserId = user?.uid || null;
   const canCreateSlot = can("agenda_slot_create");
   const canDeleteSlot = can("agenda_slot_delete");
   const canViewComment = can("agenda_comment_view");
