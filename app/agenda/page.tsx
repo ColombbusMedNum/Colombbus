@@ -1102,12 +1102,21 @@ export default function PlanningExpertMix() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#F3F3F2]">
-                      {groupe.membres.map((m: Mediateur) => {
+                      {(() => {
+                        let dernierGroupeACI: number | null | undefined = undefined;
+                        let bandToggle = false;
+                        return groupe.membres.map((m: Mediateur) => {
                         const pNom = m.prenom || "";
                         const fNom = m.nom || "";
+                        const cleGroupe = m.groupeACI ?? null;
+                        if (cleGroupe !== dernierGroupeACI) {
+                          bandToggle = !bandToggle;
+                          dernierGroupeACI = cleGroupe;
+                        }
+                        const rowBgClass = m.masque ? "bg-[#F3F3F2]" : (bandToggle ? "bg-[#F9C44E]/[0.08]" : "bg-white");
                         return (
-                          <tr key={m.id} className={`hover:bg-[#F3F3F2]/60 transition-colors ${m.masque ? 'opacity-40 bg-[#F3F3F2]' : ''}`}>
-                            <td className="pr-2 py-2 sticky left-0 bg-white z-10 w-[160px]">
+                          <tr key={m.id} className={`hover:bg-[#F3F3F2]/60 transition-colors ${rowBgClass} ${m.masque ? 'opacity-40' : ''}`}>
+                            <td className={`pr-2 py-2 sticky left-0 z-10 w-[160px] ${rowBgClass}`}>
                               <div className="flex items-start justify-between gap-1">
                                 <div className={`flex flex-col text-xs leading-tight select-none ${m.masque ? 'line-through text-[#404040]/50' : ''}`}>
                                   <span className="font-bold text-[#005259]">{pNom}</span>
@@ -1157,7 +1166,7 @@ export default function PlanningExpertMix() {
                               const dateStr = day.toLocaleDateString('en-CA');
                               const estFerie = joursFeries.has(dateStr);
                               return (
-                                <td key={dateStr} className={`p-1 border-l border-[#F3F3F2] align-top ${estFerie ? "bg-[#EF736A]/5" : ""}`}>
+                                <td key={dateStr} className={`p-1 border-l border-[#F3F3F2] align-top ${estFerie ? "bg-[#EF736A]/5" : rowBgClass}`}>
                                   <div className="grid grid-cols-2 gap-1 min-h-[38px]">
                                     <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
                                     <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
@@ -1167,7 +1176,8 @@ export default function PlanningExpertMix() {
                             })}
                           </tr>
                         );
-                      })}
+                        });
+                      })()}
                     </tbody>
                   </table>
                 </div>
