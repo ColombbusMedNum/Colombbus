@@ -6,7 +6,6 @@ import { Quicksand } from "next/font/google";
 import {
   BookOpenIcon,
   HomeIcon,
-  MapIcon,
   RocketLaunchIcon,
   CalendarDaysIcon,
   UsersIcon,
@@ -304,6 +303,7 @@ function MatrixDot({ value }: { value: boolean | "perso" }) {
 
 export default function GuidePage() {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [matriceOuverte, setMatriceOuverte] = useState(false);
   const toggle = (key: string) => setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
 
   return (
@@ -344,12 +344,8 @@ export default function GuidePage() {
         </div>
 
         {/* MATRICE */}
-        <div className="bg-white border border-[#404040]/10 rounded-2xl overflow-hidden shadow-sm">
-          <div className="p-4 border-b border-[#404040]/10 flex items-center gap-3 bg-[#F3F3F2]/60">
-            <div className="p-2 rounded-lg bg-[#005259] text-white"><MapIcon className="w-4 h-4" /></div>
-            <h2 className="font-bold text-xs uppercase tracking-wider text-[#005259]">Qui peut faire quoi</h2>
-          </div>
-          <div className="overflow-x-auto">
+        <Accordion title="Qui peut faire quoi" open={matriceOuverte} onToggle={() => setMatriceOuverte((v) => !v)}>
+          <div className="overflow-x-auto -m-2.5">
             <table className="w-full text-left border-collapse min-w-[520px]">
               <thead>
                 <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
@@ -373,7 +369,7 @@ export default function GuidePage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </Accordion>
 
         {/* DÉMARRAGE PAR RÔLE */}
         <div className="space-y-3">
