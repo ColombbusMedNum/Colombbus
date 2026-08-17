@@ -29,7 +29,7 @@ import Accordion from "../../components/Accordion";
 import {
   type ActiviteType, BLOCS_THEMATIQUES, getJoursFeries,
   genererCreneauxPourModele, estimerNombreCreneaux, estVisibleCetteSemaine,
-  formatDateFrCourt,
+  formatDateFrCourt, estModeleProtege,
 } from "../../lib/activitesTypes";
 import { regrouperParCategorie } from "../../lib/equipeCategories";
 import { estActionDuMediateur } from "../../lib/matchMediateur";
@@ -122,6 +122,9 @@ export default function PlanningExpertMix() {
   );
   const [localisations, setLocalisations] = useState<any[]>([]);
   const [semainesValidees, setSemainesValidees] = useState<Record<string, boolean>>({});
+  // Grille horaire personnelle ACI (Paris/Massy), utilisée sur TERRAGE/MASSY
+  // à la place des horaires fixes du modèle — voir processActionCreation.
+  const [grillesHorairesACI, setGrillesHorairesACI] = useState<Record<string, Record<string, { debut: string; fin: string }>>>({});
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   // États UI
@@ -246,6 +249,10 @@ export default function PlanningExpertMix() {
       setLocalisations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
+    const unsubHoraires = onSnapshot(doc(db, "configuration_equipe", "parametres_horaires"), (snap) => {
+      setGrillesHorairesACI((snap.data() as any) || {});
+    });
+
     let qNotifs: Query<DocumentData> = collection(db, "notifications");
     if (filtrePersoUniquement && currentUserId) {
       qNotifs = query(collection(db, "notifications"), where("destinataireId", "==", currentUserId));
@@ -290,7 +297,7 @@ export default function PlanningExpertMix() {
       });
     });
 
-    return () => { unsubActs(); unsubSemaines(); unsubNotifs(); unsubLocs(); unsubBlocs(); };
+    return () => { unsubActs(); unsubSemaines(); unsubNotifs(); unsubLocs(); unsubBlocs(); unsubHoraires(); };
   }, [filtrePersoUniquement, currentUserId]);
 
   const mediateurs = React.useMemo(() => {
@@ -444,8 +451,8 @@ export default function PlanningExpertMix() {
   const handleDeleteActiviteType = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const cible = activitesTypes.find(t => t.id === id);
-    if ((cible?.lieu || "").toUpperCase().includes("RN")) {
-      showToast("🔒 Ce modèle est lié à Suresnes et ne peut pas être supprimé.", "error");
+    if (estModeleProtege(cible?.lieu)) {
+      showToast("🔒 Ce modèle est protégé (Suresnes ou grille horaire ACI) et ne peut pas être supprimé.", "error");
       return;
     }
     await deleteDoc(doc(db, "activites_types", id));
@@ -558,6 +565,20 @@ export default function PlanningExpertMix() {
     const upperLieu = lieu.toUpperCase();
     const isSuresnesAction = upperLieu.includes("RN") || upperLieu.includes("RND");
     const nomCompletLiaison = `${prenom} ${nom}`.trim();
+    const medObj = mediateurs.find(m => m.id === mediatId);
+    const estACI = medObj?.statut === "ACI";
+
+    // Sur TERRAGE/MASSY, un ACI travaille selon sa propre grille horaire
+    // plutôt que selon les horaires fixes du modèle sélectionné — voir
+    // genererCreneauxPourModele pour la même règle côté génération en masse.
+    let horaireOverride: { debut: string; fin: string } | null = null;
+    if (estACI && (upperLieu.includes("TERRAGE") || upperLieu.includes("MASSY"))) {
+      const site = upperLieu.includes("TERRAGE") ? "Paris" : "Massy";
+      const joursParIndex = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+      const jourKey = joursParIndex[new Date(`${dateStr}T00:00:00`).getDay()];
+      const h = grillesHorairesACI[site]?.[jourKey];
+      if (h?.debut && h?.fin) horaireOverride = h;
+    }
 
     let dateFormatee = dateStr;
     try {
@@ -594,10 +615,19 @@ export default function PlanningExpertMix() {
       commentaire: "",
       couleur: selectedModel?.couleur || "#005259",
       ...(selectedModel?.adresse ? { adresse: selectedModel.adresse } : {}),
-      ...(selectedModel?.debut ? { debut: selectedModel.debut, fin: selectedModel.fin } : {}),
+      ...(horaireOverride
+        ? { debut: horaireOverride.debut, fin: horaireOverride.fin }
+        : selectedModel?.debut ? { debut: selectedModel.debut, fin: selectedModel.fin } : {}),
       ...(selectedModel?.territoire ? { territoire: selectedModel.territoire } : {}),
-      ...(selectedModel?.codeAnalytique ? { codeAnalytique: selectedModel.codeAnalytique } : {}) 
+      ...(selectedModel?.codeAnalytique ? { codeAnalytique: selectedModel.codeAnalytique } : {})
     });
+
+    // Le mercredi compte intégralement en heures complémentaires pour un ACI
+    // (voir calculerHeuresComplementairesACI) — signalé après coup, sans
+    // bloquer la création du créneau.
+    if (estACI && new Date(`${dateStr}T00:00:00`).getDay() === 3) {
+      showToast(`ℹ️ Mercredi : ce créneau de ${prenom} compte intégralement en heures complémentaires (ACI).`);
+    }
 
     await addDoc(collection(db, "notifications"), {
       destinataireId: mediatId,
@@ -960,10 +990,12 @@ export default function PlanningExpertMix() {
               const renderModeleItem = (type: ActiviteType, blocColor?: string) => {
                 const colorTheme = blocColor || type.couleur || "#005259";
                 const isSelected = selectedModel?.id === type.id;
-                // Modèles fondateurs de la liaison Suresnes : leur suppression casserait
-                // la génération automatique des créneaux planning_suresnes (voir isSuresnesAction
-                // dans processActionCreation) — on les protège contre une suppression accidentelle.
-                const isModeleProtege = (type.lieu || "").toUpperCase().includes("RN");
+                // Modèles fondateurs de la liaison Suresnes (leur suppression casserait
+                // la génération automatique des créneaux planning_suresnes, voir
+                // isSuresnesAction dans processActionCreation) ou dont les créneaux ACI
+                // utilisent une grille horaire personnelle (TERRAGE/MASSY) : protégés
+                // contre une suppression accidentelle.
+                const isModeleProtege = estModeleProtege(type.lieu);
 
                 const isLight = isLightColor(colorTheme);
                 const textColor = isLight ? "#1A1A1A" : colorTheme;

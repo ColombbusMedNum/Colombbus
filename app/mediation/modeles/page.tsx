@@ -21,7 +21,7 @@ import Accordion from "@/components/Accordion";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import {
   type ActiviteType, BLOCS_THEMATIQUES,
-  genererCreneauxPourModele, estimerNombreCreneaux, formatDateFrCourt,
+  genererCreneauxPourModele, estimerNombreCreneaux, formatDateFrCourt, estModeleProtege,
 } from "@/lib/activitesTypes";
 
 const quicksand = Quicksand({
@@ -198,8 +198,8 @@ export default function ModelesPage() {
   };
 
   const handleDelete = async (type: ActiviteType) => {
-    if ((type.lieu || "").toUpperCase().includes("RN")) {
-      showToast("🔒 Ce modèle est lié à Suresnes et ne peut pas être supprimé.", "error");
+    if (estModeleProtege(type.lieu)) {
+      showToast("🔒 Ce modèle est protégé (Suresnes ou grille horaire ACI) et ne peut pas être supprimé.", "error");
       return;
     }
     if (!(await confirm(`Supprimer définitivement le modèle "${type.lieu}" ? Les créneaux déjà posés sur le planning ne seront pas affectés.`))) return;
@@ -273,7 +273,7 @@ export default function ModelesPage() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {modelesFiltres.map((type) => {
-              const isProtege = (type.lieu || "").toUpperCase().includes("RN");
+              const isProtege = estModeleProtege(type.lieu);
               const mediateursConcernes = mediateurs.filter((m: any) => (type.mediateursIds || []).includes(m.id));
               const aPeriode = !!(type.dateDebut || type.dateFin);
 

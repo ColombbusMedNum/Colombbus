@@ -6,10 +6,19 @@
 
 import { db } from "./firebase";
 import {
-  collection, query, where, getDocs, addDoc, doc, writeBatch,
+  collection, query, where, getDocs, addDoc, doc, writeBatch, getDoc,
 } from "firebase/firestore";
 import type { Mediateur } from "./types";
 import { identifiantMediateur } from "./matchMediateur";
+
+// Modèles protégés contre la suppression accidentelle (RN/RND, fondateurs de
+// la liaison Suresnes — voir isSuresnesAction ci-dessous — ainsi que TERRAGE
+// et MASSY, dont les créneaux ACI utilisent la grille horaire personnelle de
+// chacun plutôt que les horaires du modèle, voir genererCreneauxPourModele).
+export function estModeleProtege(lieu?: string): boolean {
+  const upper = (lieu || "").toUpperCase();
+  return upper.includes("RN") || upper.includes("TERRAGE") || upper.includes("MASSY");
+}
 
 export interface ActiviteType {
   id?: string;
@@ -226,6 +235,20 @@ export async function genererCreneauxPourModele(
   const isSuresnesAction = upperLieu.includes("RN") || upperLieu.includes("RND");
   const isRND = upperLieu.includes("RND");
 
+  // Sur TERRAGE et MASSY, un médiateur ACI travaille selon sa propre grille
+  // horaire (configuration_equipe/parametres_horaires) plutôt que selon les
+  // horaires fixes du modèle — TERRAGE suit toujours la grille Paris, MASSY
+  // toujours la grille Massy, indépendamment du rattachement personnel de
+  // chacun.
+  const estTerrage = upperLieu.includes("TERRAGE");
+  const estMassyLieu = upperLieu.includes("MASSY");
+  let grillesHorairesACI: Record<string, Record<string, { debut: string; fin: string }>> | null = null;
+  if (estTerrage || estMassyLieu) {
+    const snapHoraires = await getDoc(doc(db, "configuration_equipe", "parametres_horaires"));
+    grillesHorairesACI = snapHoraires.exists() ? (snapHoraires.data() as any) : null;
+  }
+  const JOURS_PAR_INDEX = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+
   let crees = 0;
   let ignores = 0;
   let batch = writeBatch(db);
@@ -245,11 +268,21 @@ export async function genererCreneauxPourModele(
     let creesPourCeMed = 0;
 
     for (const dateStr of dates) {
+      let horaireOverride: { debut: string; fin: string } | null = null;
+      if ((estTerrage || estMassyLieu) && med.statut === "ACI" && grillesHorairesACI) {
+        const site = estTerrage ? "Paris" : "Massy";
+        const jourKey = JOURS_PAR_INDEX[new Date(`${dateStr}T00:00:00`).getDay()];
+        const h = grillesHorairesACI[site]?.[jourKey];
+        if (h?.debut && h?.fin) horaireOverride = h;
+      }
+
       for (const moment of moments) {
         if (occupes.has(`${med.id}_${dateStr}_${moment}`) || occupes.has(`${nomComplet}_${dateStr}_${moment}`)) {
           ignores++;
           continue;
         }
+
+        const horaireCreneau = horaireOverride || (modele.debut ? { debut: modele.debut, fin: modele.fin } : null);
 
         const ref = doc(collection(db, "planning_mediateurs"));
         batch.set(ref, {
@@ -262,7 +295,7 @@ export async function genererCreneauxPourModele(
           commentaire: "",
           couleur: modele.couleur || "#005259",
           ...(modele.adresse ? { adresse: modele.adresse } : {}),
-          ...(modele.debut ? { debut: modele.debut, fin: modele.fin } : {}),
+          ...(horaireCreneau ? { debut: horaireCreneau.debut, fin: horaireCreneau.fin } : {}),
           ...(modele.territoire ? { territoire: modele.territoire } : {}),
           ...(modele.codeAnalytique ? { codeAnalytique: modele.codeAnalytique } : {}),
         });
