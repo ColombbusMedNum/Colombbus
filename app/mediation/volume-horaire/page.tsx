@@ -139,6 +139,11 @@ export default function VolumeHoraireComplet() {
   useEffect(() => {
     const mStats: Record<string, any> = {};
     const aStats: Record<string, any> = {};
+    // Ventilation par territoire : basée sur le champ territoire renseigné
+    // sur l'activité elle-même (ex "75", "92", visible en badge dans le
+    // sidebar de l'agenda), pas sur les sites affectés à la fiche du
+    // médiateur (Équipe) — les deux notions ne coïncident pas forcément.
+    const tStats: Record<string, { territoire: string; h: number; cout: number }> = {};
     let grandTotal = 0;
 
     planningFiltre.forEach((action: any) => {
@@ -147,9 +152,9 @@ export default function VolumeHoraireComplet() {
 
       const medInfo = mediateursRaw[identifiantMed] || { statut: "Permanent", poste: "Médiateur", taux: 0 };
       const nomAffichage = action.mediateurNom || identifiantMed;
-      
+
       const { total, comp } = calculerAnalyseAction(action, medInfo);
-      const tauxHoraire = Number(medInfo.taux) || (medInfo.statut === "ACI" ? 13.5 : 22.0); 
+      const tauxHoraire = Number(medInfo.taux) || (medInfo.statut === "ACI" ? 13.5 : 22.0);
       const cout = total * tauxHoraire;
 
       grandTotal += total;
@@ -160,7 +165,6 @@ export default function VolumeHoraireComplet() {
           nom: nomAffichage,
           poste: medInfo.poste || "Médiateur",
           statut: medInfo.statut || "Permanent",
-          sites: medInfo.sites || (medInfo.sitePrincipal ? [medInfo.sitePrincipal] : []),
           h: 0,
           comp: 0,
           cout: 0
@@ -177,24 +181,17 @@ export default function VolumeHoraireComplet() {
       }
       aStats[titre].h += total;
       aStats[titre].cout += cout;
-      
+
       if (!aStats[titre].details[nomAffichage]) {
         aStats[titre].details[nomAffichage] = { h: 0 };
       }
       aStats[titre].details[nomAffichage].h += total;
-    });
 
-    // Ventilation par territoire (site du médiateur, ex Paris/Massy) : un
-    // médiateur affecté à plusieurs sites compte dans chacun d'eux — même
-    // notion de territoire que la grille horaire ACI (app/mediation/equipe).
-    const tStats: Record<string, { territoire: string; h: number; cout: number }> = {};
-    Object.values(mStats).forEach((m: any) => {
-      const sites = m.sites.length > 0 ? m.sites : ["Sans territoire"];
-      sites.forEach((site: string) => {
-        if (!tStats[site]) tStats[site] = { territoire: site, h: 0, cout: 0 };
-        tStats[site].h += m.h;
-        tStats[site].cout += m.cout;
-      });
+      // Aggregations par Territoire
+      const territoire = action.territoire || "Sans territoire";
+      if (!tStats[territoire]) tStats[territoire] = { territoire, h: 0, cout: 0 };
+      tStats[territoire].h += total;
+      tStats[territoire].cout += cout;
     });
 
     setTotalGeneral(grandTotal);
