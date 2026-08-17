@@ -7,6 +7,7 @@ interface MediateurAnalyticsPanelProps {
   currentMediateur: any;
   analyticsSummary: AnalyticsSummaryItem[];
   totalHeuresGlobal: number;
+  totalHeuresComplementaires?: number;
   emptyMessage: string;
 }
 
@@ -18,8 +19,10 @@ export default function MediateurAnalyticsPanel({
   currentMediateur,
   analyticsSummary,
   totalHeuresGlobal,
+  totalHeuresComplementaires = 0,
   emptyMessage,
 }: MediateurAnalyticsPanelProps) {
+  const totalHeuresNormales = totalHeuresGlobal - totalHeuresComplementaires;
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
@@ -44,14 +47,28 @@ export default function MediateurAnalyticsPanel({
           )}
         </div>
 
-        <div className="pt-4 border-t border-[#404040]/10 bg-[#F3F3F2] -mx-5 -mb-5 p-5 rounded-b-2xl flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ClockIcon className="w-4 h-4 text-[#EA601F]" />
-            <span className="text-xs text-[#005259] font-bold uppercase tracking-wider">Volume total :</span>
+        <div className="pt-4 border-t border-[#404040]/10 bg-[#F3F3F2] -mx-5 -mb-5 p-5 rounded-b-2xl space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ClockIcon className="w-4 h-4 text-[#EA601F]" />
+              <span className="text-xs text-[#005259] font-bold uppercase tracking-wider">Volume total :</span>
+            </div>
+            <div className="text-xl font-black text-[#005259] font-mono">
+              {totalHeuresGlobal.toFixed(1)}h
+            </div>
           </div>
-          <div className="text-xl font-black text-[#005259] font-mono">
-            {totalHeuresGlobal.toFixed(1)}h
-          </div>
+          {totalHeuresComplementaires > 0 && (
+            <div className="flex items-center justify-between pt-2 border-t border-[#404040]/10 text-[11px]">
+              <span className="text-[#404040]/70 font-bold uppercase tracking-wider">
+                dont normales / complémentaires
+              </span>
+              <span className="font-mono font-bold">
+                <span className="text-[#005259]">{totalHeuresNormales.toFixed(1)}h</span>
+                <span className="text-[#404040]/40 mx-1">/</span>
+                <span className="text-[#EA601F]">{totalHeuresComplementaires.toFixed(1)}h</span>
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -70,6 +87,9 @@ export default function MediateurAnalyticsPanel({
           <div className="space-y-4 pt-1">
             {analyticsSummary.map((item) => {
               const pourcentage = totalHeuresGlobal > 0 ? (item.totalHeures / totalHeuresGlobal) * 100 : 0;
+              const heuresNormales = item.totalHeures - item.heuresComplementaires;
+              const pourcentageNormal = totalHeuresGlobal > 0 ? (heuresNormales / totalHeuresGlobal) * 100 : 0;
+              const pourcentageComp = totalHeuresGlobal > 0 ? (item.heuresComplementaires / totalHeuresGlobal) * 100 : 0;
               const isSansCode = item.code === "SANS_CODE";
 
               return (
@@ -96,16 +116,31 @@ export default function MediateurAnalyticsPanel({
                     </div>
                   </div>
 
-                  <div className="w-full bg-[#F3F3F2] rounded-full h-2.5 overflow-hidden border border-[#404040]/10">
+                  <div className="w-full bg-[#F3F3F2] rounded-full h-2.5 overflow-hidden border border-[#404040]/10 flex">
                     <div
-                      className={`h-full rounded-full transition-all duration-500 ${
+                      className={`h-full transition-all duration-500 ${
                         isSansCode
                           ? "bg-[#404040]/30"
                           : "bg-gradient-to-r from-[#EA601F] to-[#EF736A]"
                       }`}
-                      style={{ width: `${pourcentage}%` }}
+                      style={{ width: `${pourcentageNormal}%` }}
                     ></div>
+                    {item.heuresComplementaires > 0 && (
+                      <div
+                        className="h-full bg-[#005259]"
+                        title={`${item.heuresComplementaires.toFixed(1)}h complémentaires`}
+                        style={{ width: `${pourcentageComp}%` }}
+                      ></div>
+                    )}
                   </div>
+
+                  {item.heuresComplementaires > 0 && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-[#404040]/60 font-medium">
+                      <span className="inline-block w-2 h-2 rounded-full bg-[#005259] shrink-0"></span>
+                      dont <span className="font-bold text-[#005259]">{item.heuresComplementaires.toFixed(1)}h</span> complémentaires
+                      (<span className="font-bold">{heuresNormales.toFixed(1)}h</span> normales)
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -1,22 +1,39 @@
 import { useMemo } from "react";
-import { calculerDureeHeures } from "./planningHours";
+import { calculerDureeHeures, calculerHeuresComplementairesACI } from "./planningHours";
 import { identifiantMediateur } from "./matchMediateur";
 
 export interface AnalyticsSummaryItem {
   code: string;
   label: string;
   totalHeures: number;
+  heuresComplementaires: number;
   count: number;
 }
 
 // Regroupe une liste d'actions planifiées par code analytique et cumule leur
-// durée (via calculerDureeHeures). Partagé entre app/mediation/mediateurs et
+// durée (via calculerDureeHeures), en isolant la part d'heures
+// complémentaires ACI (calculerHeuresComplementairesACI, mêmes règles que
+// app/mediation/volume-horaire). Partagé entre app/mediation/mediateurs et
 // app/mediation/statistiques, qui dupliquaient cette logique — avec une
 // différence fonctionnelle réelle : statistiques inclut l'identifiant du
 // médiateur dans la clé de déduplication (nécessaire pour sa vue "Tous les
 // médiateurs" agrégée), ce qui est repris ici comme comportement canonique
 // — sans effet pour un usage à un seul médiateur comme dans mediateurs/page.tsx.
-export function useAnalyticsSummary(currentMedActions: any[]) {
+//
+// `mediateurs` sert à retrouver, pour chaque action, le médiateur réellement
+// concerné (statut, horaires ACI) — indispensable pour la vue "Tous les
+// médiateurs" de statistiques où chaque action peut appartenir à une
+// personne différente de celle actuellement affichée.
+export function useAnalyticsSummary(currentMedActions: any[], mediateurs: any[] = []) {
+  const mediateursParId = useMemo(() => {
+    return mediateurs.reduce((acc: Record<string, any>, m: any) => {
+      const nomComplet = `${m.prenom || ""} ${m.nom || ""}`.trim();
+      acc[m.id] = m;
+      if (nomComplet) acc[nomComplet] = m;
+      return acc;
+    }, {} as Record<string, any>);
+  }, [mediateurs]);
+
   const analyticsSummary = useMemo<AnalyticsSummaryItem[]>(() => {
     const summary: Record<string, AnalyticsSummaryItem> = {};
     const dejaCompte = new Set<string>();
@@ -28,13 +45,16 @@ export function useAnalyticsSummary(currentMedActions: any[]) {
       const cleUnique = `${identifiant}_${action.date}_${action.moment || ""}_${code}_${action.debut || ""}_${action.fin || ""}`;
 
       if (!summary[code]) {
-        summary[code] = { code, label, totalHeures: 0, count: 0 };
+        summary[code] = { code, label, totalHeures: 0, heuresComplementaires: 0, count: 0 };
       }
 
       if (dejaCompte.has(cleUnique)) {
         summary[code].count += 1;
       } else {
-        summary[code].totalHeures += calculerDureeHeures(action.debut || "", action.fin || "");
+        const total = calculerDureeHeures(action.debut || "", action.fin || "");
+        const medInfo = mediateursParId[identifiant] || {};
+        summary[code].totalHeures += total;
+        summary[code].heuresComplementaires += calculerHeuresComplementairesACI(action, medInfo, total);
         summary[code].count += 1;
         if (action.debut && action.fin) dejaCompte.add(cleUnique);
       }
@@ -42,11 +62,16 @@ export function useAnalyticsSummary(currentMedActions: any[]) {
 
     // Arrondis propres pour éviter les résidus de virgule flottante JavaScript (ex: 14.000000002h)
     return Object.values(summary)
-      .map((item) => ({ ...item, totalHeures: Math.round(item.totalHeures * 10) / 10 }))
+      .map((item) => ({
+        ...item,
+        totalHeures: Math.round(item.totalHeures * 10) / 10,
+        heuresComplementaires: Math.round(item.heuresComplementaires * 10) / 10,
+      }))
       .sort((a, b) => b.totalHeures - a.totalHeures);
-  }, [currentMedActions]);
+  }, [currentMedActions, mediateursParId]);
 
   const totalHeuresGlobal = analyticsSummary.reduce((acc, curr) => acc + curr.totalHeures, 0);
+  const totalHeuresComplementaires = analyticsSummary.reduce((acc, curr) => acc + curr.heuresComplementaires, 0);
 
-  return { analyticsSummary, totalHeuresGlobal };
+  return { analyticsSummary, totalHeuresGlobal, totalHeuresComplementaires };
 }

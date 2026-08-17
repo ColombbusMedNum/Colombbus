@@ -49,7 +49,7 @@ export default function StatsMediateursAnalytique() {
   });
 
   // 2. Grouper et cumuler intelligemment par code analytique
-  const { analyticsSummary, totalHeuresGlobal } = useAnalyticsSummary(currentMedActions);
+  const { analyticsSummary, totalHeuresGlobal, totalHeuresComplementaires } = useAnalyticsSummary(currentMedActions, mediateurs);
 
   return (
     <PageGuard pageId="page_access_mediateurs">
@@ -106,6 +106,7 @@ export default function StatsMediateursAnalytique() {
             currentMediateur={currentMediateur}
             analyticsSummary={analyticsSummary}
             totalHeuresGlobal={totalHeuresGlobal}
+            totalHeuresComplementaires={totalHeuresComplementaires}
             emptyMessage="Aucune mission ou activité planifiée trouvée pour ce médiateur."
           />
         ) : (

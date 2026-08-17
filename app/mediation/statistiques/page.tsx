@@ -73,7 +73,7 @@ export default function StatsMediateursAnalytique() {
   });
 
   // 4. Synthèse analytique
-  const { analyticsSummary, totalHeuresGlobal } = useAnalyticsSummary(currentMedActions);
+  const { analyticsSummary, totalHeuresGlobal, totalHeuresComplementaires } = useAnalyticsSummary(currentMedActions, mediateurs);
 
   return (
     <PageGuard pageId="page_access_statistiques">
@@ -165,6 +165,7 @@ export default function StatsMediateursAnalytique() {
             currentMediateur={currentMediateur}
             analyticsSummary={analyticsSummary}
             totalHeuresGlobal={totalHeuresGlobal}
+            totalHeuresComplementaires={totalHeuresComplementaires}
             emptyMessage="Aucune mission ou activité enregistrée sur l'agenda."
           />
         ) : (
