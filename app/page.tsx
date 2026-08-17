@@ -23,7 +23,8 @@ import {
   WrenchScrewdriverIcon,
   MapPinIcon,
   BuildingOffice2Icon,
-  DocumentDuplicateIcon
+  DocumentDuplicateIcon,
+  BookOpenIcon
 } from "@heroicons/react/24/outline";
 
 const quicksand = Quicksand({
@@ -243,6 +244,24 @@ export default function HomePage() {
                     <div className="w-2 h-2 rounded-full bg-[#005259]"></div>
                   </div>
                 </button>
+              </PermissionGuard>
+
+              {/* MODE D'EMPLOI (lien direct, pas un dossier) */}
+              <PermissionGuard actionId="home_nav_guide">
+                <Link
+                  href="/mediation/guide"
+                  className="group bg-white border border-[#404040]/10 hover:border-[#005259] rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px]"
+                >
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-all duration-300 shadow-sm bg-[#F3F3F2] border border-[#404040]/10 text-[#005259] group-hover:bg-[#005259] group-hover:text-white">
+                    <BookOpenIcon className="w-7 h-7 transition-colors" />
+                  </div>
+                  <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F] transition-colors">
+                    Mode d'emploi
+                  </h2>
+                  <p className="text-xs text-[#404040]/70 font-medium mt-2 leading-relaxed max-w-[200px]">
+                    Le guide de toutes les pages, page par page
+                  </p>
+                </Link>
               </PermissionGuard>
 
             </div>
