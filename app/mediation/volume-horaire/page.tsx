@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, doc, onSnapshot, setDoc } from "firebase/firestore";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
@@ -12,11 +12,17 @@ import {
   CurrencyEuroIcon,
   UserGroupIcon,
   BriefcaseIcon,
-  CalendarDaysIcon
+  CalendarDaysIcon,
+  ArrowDownTrayIcon,
+  ExclamationTriangleIcon,
+  MapPinIcon,
+  Cog6ToothIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
+import { usePermissions } from "@/lib/PermissionsProvider";
 import { calculerDureeHeures, calculerHeuresComplementairesACI } from "@/lib/planningHours";
 import { identifiantMediateur } from "@/lib/matchMediateur";
+import { getTerritoryColor } from "@/lib/territoryColor";
 
 // Police Quicksand pour toute la page
 const quicksand = Quicksand({
@@ -37,11 +43,50 @@ export default function VolumeHoraireComplet() {
   
   const [statsMediateurs, setStatsMediateurs] = useState<any[]>([]);
   const [statsActions, setStatsActions] = useState<any[]>([]);
+  const [statsTerritoires, setStatsTerritoires] = useState<any[]>([]);
   const [totalGeneral, setTotalGeneral] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const [anneeFiltre, setAnneeFiltre] = useState("toutes");
   const [moisFiltre, setMoisFiltre] = useState("tous");
+
+  const { role } = usePermissions();
+  const peutConfigurerSeuils = role === "admin" || role === "coordinateur";
+
+  // Seuils d'alerte sur les heures complémentaires ACI, configurables
+  // manuellement en heures et/ou en pourcentage (les deux peuvent être actifs
+  // en même temps ; 0 = seuil désactivé). Stockés à côté des autres réglages
+  // globaux de l'équipe (voir app/mediation/equipe/page.tsx).
+  const [seuilHeures, setSeuilHeures] = useState(0);
+  const [seuilPourcentage, setSeuilPourcentage] = useState(0);
+  const [seuilsOuvert, setSeuilsOuvert] = useState(false);
+  const [seuilHeuresInput, setSeuilHeuresInput] = useState("0");
+  const [seuilPourcentageInput, setSeuilPourcentageInput] = useState("0");
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "configuration_equipe", "parametres_configuration"), (snap) => {
+      const data = snap.data();
+      const seuils = data?.seuilsComplementairesACI || {};
+      setSeuilHeures(Number(seuils.heures) || 0);
+      setSeuilPourcentage(Number(seuils.pourcentage) || 0);
+      setSeuilHeuresInput(String(Number(seuils.heures) || 0));
+      setSeuilPourcentageInput(String(Number(seuils.pourcentage) || 0));
+    });
+    return () => unsub();
+  }, []);
+
+  const enregistrerSeuils = async () => {
+    const heures = Math.max(0, Number(seuilHeuresInput) || 0);
+    const pourcentage = Math.max(0, Number(seuilPourcentageInput) || 0);
+    try {
+      await setDoc(doc(db, "configuration_equipe", "parametres_configuration"), {
+        seuilsComplementairesACI: { heures, pourcentage }
+      }, { merge: true });
+      setSeuilsOuvert(false);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   // Années réellement présentes dans les données, pour ne proposer que des
   // choix pertinents plutôt qu'une plage arbitraire.
@@ -111,13 +156,14 @@ export default function VolumeHoraireComplet() {
 
       // Aggregations par Médiateur
       if (!mStats[nomAffichage]) {
-        mStats[nomAffichage] = { 
-          nom: nomAffichage, 
+        mStats[nomAffichage] = {
+          nom: nomAffichage,
           poste: medInfo.poste || "Médiateur",
           statut: medInfo.statut || "Permanent",
-          h: 0, 
-          comp: 0, 
-          cout: 0 
+          sites: medInfo.sites || (medInfo.sitePrincipal ? [medInfo.sitePrincipal] : []),
+          h: 0,
+          comp: 0,
+          cout: 0
         };
       }
       mStats[nomAffichage].h += total;
@@ -138,10 +184,57 @@ export default function VolumeHoraireComplet() {
       aStats[titre].details[nomAffichage].h += total;
     });
 
+    // Ventilation par territoire (site du médiateur, ex Paris/Massy) : un
+    // médiateur affecté à plusieurs sites compte dans chacun d'eux — même
+    // notion de territoire que la grille horaire ACI (app/mediation/equipe).
+    const tStats: Record<string, { territoire: string; h: number; cout: number }> = {};
+    Object.values(mStats).forEach((m: any) => {
+      const sites = m.sites.length > 0 ? m.sites : ["Sans territoire"];
+      sites.forEach((site: string) => {
+        if (!tStats[site]) tStats[site] = { territoire: site, h: 0, cout: 0 };
+        tStats[site].h += m.h;
+        tStats[site].cout += m.cout;
+      });
+    });
+
     setTotalGeneral(grandTotal);
     setStatsMediateurs(Object.values(mStats).sort((a: any, b: any) => b.h - a.h));
     setStatsActions(Object.values(aStats).sort((a: any, b: any) => b.h - a.h));
+    setStatsTerritoires(Object.values(tStats).sort((a: any, b: any) => b.h - a.h));
   }, [planningFiltre, mediateursRaw]);
+
+  // % de dépassement = heures complémentaires rapportées aux heures
+  // effectivement travaillées dans le cadre du contrat sur la période
+  // (m.h - m.comp) — pas besoin d'un volume contractuel déclaré à part,
+  // ce sont déjà les deux composantes calculées par calculerAnalyseAction.
+  const pourcentageDepassement = (m: any) => {
+    const heuresContrat = m.h - m.comp;
+    if (heuresContrat <= 0) return m.comp > 0 ? 100 : 0;
+    return (m.comp / heuresContrat) * 100;
+  };
+
+  const estEnAlerte = (m: any) => {
+    if (m.statut !== "ACI") return false;
+    if (seuilHeures > 0 && m.comp > seuilHeures) return true;
+    if (seuilPourcentage > 0 && pourcentageDepassement(m) > seuilPourcentage) return true;
+    return false;
+  };
+
+  const exporterCSV = () => {
+    if (statsMediateurs.length === 0) return;
+    const headers = "Collaborateur;Poste;Statut;Volume Total (h);Heures Complémentaires ACI (h);Coût Estimé (€)\n";
+    const rows = statsMediateurs.map((m: any) =>
+      `${m.nom};${m.poste};${m.statut};${m.h.toFixed(1)};${m.comp.toFixed(1)};${m.cout.toFixed(2)}`
+    );
+    const blob = new Blob([headers + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const suffixe = anneeFiltre !== "toutes" ? `_${anneeFiltre}${moisFiltre !== "tous" ? `-${moisFiltre}` : ""}` : "";
+    link.setAttribute("download", `volume_horaire${suffixe}.csv`);
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   if (loading) {
     return (
@@ -219,7 +312,70 @@ export default function VolumeHoraireComplet() {
               </button>
             )}
           </div>
+          <div className="flex items-center gap-2 sm:ml-auto">
+            {peutConfigurerSeuils && (
+              <button
+                onClick={() => setSeuilsOuvert(v => !v)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                  seuilsOuvert ? "bg-[#005259] text-white" : "bg-[#F3F3F2] hover:bg-[#005259] hover:text-white border border-[#404040]/10 text-[#404040]/70"
+                }`}
+              >
+                <Cog6ToothIcon className="w-4 h-4" />
+                <span>Seuils d'alerte ACI</span>
+              </button>
+            )}
+            <button
+              onClick={exporterCSV}
+              disabled={statsMediateurs.length === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#005259] hover:bg-[#EA601F] text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ArrowDownTrayIcon className="w-4 h-4" />
+              <span>Exporter (.csv)</span>
+            </button>
+          </div>
         </div>
+
+        {peutConfigurerSeuils && seuilsOuvert && (
+          <div className="bg-white border border-[#005259]/20 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-end gap-3 shadow-sm">
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-[#005259] mb-1.5">Seuil en heures complémentaires</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={seuilHeuresInput}
+                  onChange={e => setSeuilHeuresInput(e.target.value)}
+                  className="w-24 p-2 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl text-xs font-mono outline-none focus:border-[#005259]"
+                />
+                <span className="text-[11px] text-[#404040]/60 font-bold">h (0 = désactivé)</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-[#005259] mb-1.5">Seuil en % du volume contractuel</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={seuilPourcentageInput}
+                  onChange={e => setSeuilPourcentageInput(e.target.value)}
+                  className="w-24 p-2 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl text-xs font-mono outline-none focus:border-[#005259]"
+                />
+                <span className="text-[11px] text-[#404040]/60 font-bold">% (0 = désactivé)</span>
+              </div>
+            </div>
+            <button
+              onClick={enregistrerSeuils}
+              className="px-4 py-2 bg-[#005259] hover:bg-[#EA601F] text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+            >
+              Enregistrer
+            </button>
+            <p className="text-[10px] text-[#404040]/60 italic sm:ml-auto">
+              Un ACI est signalé dès qu'il dépasse l'un OU l'autre des deux seuils.
+            </p>
+          </div>
+        )}
 
         {/* CARTES DE SYNTHÈSE DES CHIFFRES KIS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -268,10 +424,17 @@ export default function VolumeHoraireComplet() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#404040]/10">
-                {statsMediateurs.map((m, i) => (
-                  <tr key={i} className="hover:bg-[#F3F3F2]/50 transition-colors">
-                    <td className="py-3.5 px-6">
-                      <div className="font-bold text-xs text-[#005259] uppercase">{m.nom}</div>
+                {statsMediateurs.map((m, i) => {
+                  const enAlerte = estEnAlerte(m);
+                  return (
+                  <tr key={i} className={`hover:bg-[#F3F3F2]/50 transition-colors ${enAlerte ? "bg-[#EF736A]/5" : ""}`}>
+                    <td className={`py-3.5 px-6 ${enAlerte ? "border-l-2 border-[#EF736A]" : ""}`}>
+                      <div className="font-bold text-xs text-[#005259] uppercase flex items-center gap-1.5">
+                        {m.nom}
+                        {enAlerte && (
+                          <ExclamationTriangleIcon className="w-3.5 h-3.5 text-[#EF736A] shrink-0" title="Dépasse le seuil d'heures complémentaires configuré" />
+                        )}
+                      </div>
                       <div className="text-[11px] text-[#404040]/70 mt-0.5 flex items-center gap-1.5 font-medium">
                         <span className={`w-1.5 h-1.5 rounded-full ${m.statut === 'ACI' ? 'bg-[#EA601F]' : 'bg-[#005259]'}`}></span>
                         {m.poste}
@@ -280,16 +443,19 @@ export default function VolumeHoraireComplet() {
                     <td className="py-3.5 px-4 font-bold text-[#005259] font-mono text-xs">{m.h.toFixed(1)}h</td>
                     <td className="py-3.5 px-4">
                       <span className={`inline-flex px-2.5 py-1 rounded-md text-[10px] font-mono font-bold border ${
-                        m.comp > 0 
-                          ? 'bg-[#EA601F]/15 border-[#EA601F]/40 text-[#EA601F]' 
+                        enAlerte
+                          ? 'bg-[#EF736A]/15 border-[#EF736A]/40 text-[#EF736A]'
+                          : m.comp > 0
+                          ? 'bg-[#EA601F]/15 border-[#EA601F]/40 text-[#EA601F]'
                           : 'bg-[#F3F3F2] border-[#404040]/10 text-[#404040]/50'
                       }`}>
-                        +{m.comp.toFixed(1)}h
+                        +{m.comp.toFixed(1)}h{m.statut === "ACI" && ` (${pourcentageDepassement(m).toFixed(0)}%)`}
                       </span>
                     </td>
                     <td className="py-3.5 px-6 text-right font-bold text-[#EA601F] font-mono text-xs">{m.cout.toFixed(2)}€</td>
                   </tr>
-                ))}
+                  );
+                })}
                 {statsMediateurs.length === 0 && (
                   <tr>
                     <td colSpan={4} className="p-12 text-center text-[#404040]/60 font-bold uppercase text-xs italic tracking-widest">
@@ -301,6 +467,37 @@ export default function VolumeHoraireComplet() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        {/* CARTES PAR TERRITOIRE (site du médiateur, ex Paris/Massy) */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-lg bg-[#005259] text-white">
+              <MapPinIcon className="w-4 h-4" />
+            </div>
+            <h2 className="font-bold text-xs uppercase tracking-wider text-[#005259]">
+              Ventilation par Territoire
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {statsTerritoires.map((t, i) => (
+              <div key={i} className={`border p-4 rounded-2xl flex items-center justify-between shadow-sm ${getTerritoryColor(t.territoire)}`}>
+                <div>
+                  <div className="font-bold uppercase text-xs tracking-tight">{t.territoire}</div>
+                  <div className="text-[11px] font-mono mt-0.5 opacity-80">{t.h.toFixed(1)}h</div>
+                </div>
+                <div className="font-mono font-bold text-xs bg-white/60 px-2.5 py-1 rounded-lg">
+                  {t.cout.toFixed(2)}€
+                </div>
+              </div>
+            ))}
+            {statsTerritoires.length === 0 && (
+              <div className="sm:col-span-2 md:col-span-3 p-8 text-center text-[#404040]/60 font-bold uppercase text-xs italic tracking-widest bg-white border border-[#404040]/10 rounded-2xl">
+                Aucune donnée pour cette période.
+              </div>
+            )}
           </div>
         </div>
 
