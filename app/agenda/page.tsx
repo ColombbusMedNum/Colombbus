@@ -769,7 +769,7 @@ export default function PlanningExpertMix() {
     const docsDuMediateur = snapSuresnes.docs.filter(d => {
       const mNom = d.data().mediateurNom || "";
       const cible = actionDoc.mediateurNom || "";
-      return mNom === cible || mNom === `${cible} (RN)` || mNom === `${cible} (RND)`;
+      return mNom === cible || mNom === `${cible} (RN)` || mNom === `${cible} (RND)` || mNom === `${cible} (RN91)`;
     });
 
     if (docsDuMediateur.some(d => d.data().usager && d.data().usager.trim() !== "")) {
