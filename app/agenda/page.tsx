@@ -1074,6 +1074,23 @@ export default function PlanningExpertMix() {
 
         {/* GRILLE DU TABLEAU DU PLANNING, PAR BLOCS RÉTRACTABLES */}
         <div className="flex-1 space-y-3">
+          {/* Barre des jours/dates unique, sortie des accordéons : sticky
+              une seule fois pour toute la page au lieu d'une par catégorie
+              (évite les répétitions et les chevauchements en défilant). */}
+          <div className="sticky top-[60px] z-30 bg-white border border-[#404040]/10 rounded-xl px-4 pt-1 pb-2 shadow-sm grid text-xs" style={{ gridTemplateColumns: `160px repeat(${weekDays.length}, minmax(0, 1fr))` }}>
+            <div className="text-left text-[#005259] font-extrabold text-xs flex items-end pb-1">Médiateur</div>
+            {weekDays.map(d => {
+              const estFerie = joursFeries.has(d.toLocaleDateString('en-CA'));
+              return (
+                <div key={d.toString()} className={`text-center pb-1 px-1 ${estFerie ? "bg-[#EF736A]/10 rounded-t-md" : ""}`}>
+                  <span className={`font-extrabold uppercase block ${estFerie ? "text-[#EF736A]" : "text-[#005259]"}`}>{d.toLocaleDateString('fr-FR', { weekday: 'short' })}</span>
+                  <span className={`text-[11px] font-medium ${estFerie ? "text-[#EF736A]/80" : "text-[#404040]/70"}`}>{d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</span>
+                  {estFerie && <span className="block text-[8px] font-black uppercase tracking-widest text-[#EF736A]">Férié</span>}
+                </div>
+              );
+            })}
+          </div>
+
           {groupesMediateursAgenda.map(groupe => (
             <Accordion
               key={groupe.key}
@@ -1084,39 +1101,23 @@ export default function PlanningExpertMix() {
               {groupe.membres.length === 0 ? (
                 <p className="text-[11px] italic text-[#404040]/40 py-2">Aucun collaborateur dans cette catégorie.</p>
               ) : (
-                <div className="bg-white border border-[#404040]/10 rounded-xl p-4 overflow-x-auto shadow-sm">
-                  <table className="border-collapse text-xs w-full table-fixed">
-                    <thead>
-                      <tr className="border-b-2 border-[#005259]">
-                        <th className="text-left pr-2 pb-2 w-[160px] text-[#005259] font-extrabold text-xs">Médiateur</th>
-                        {weekDays.map(d => {
-                          const estFerie = joursFeries.has(d.toLocaleDateString('en-CA'));
-                          return (
-                            <th key={d.toString()} className={`text-center pb-2 px-1 ${estFerie ? "bg-[#EF736A]/10 rounded-t-md" : ""}`}>
-                              <span className={`font-extrabold uppercase block ${estFerie ? "text-[#EF736A]" : "text-[#005259]"}`}>{d.toLocaleDateString('fr-FR', { weekday: 'short' })}</span>
-                              <span className={`text-[11px] font-medium ${estFerie ? "text-[#EF736A]/80" : "text-[#404040]/70"}`}>{d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</span>
-                              {estFerie && <span className="block text-[8px] font-black uppercase tracking-widest text-[#EF736A]">Férié</span>}
-                            </th>
-                          );
-                        })}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#F3F3F2]">
-                      {(() => {
-                        let dernierGroupeACI: number | null | undefined = undefined;
-                        let bandToggle = false;
-                        return groupe.membres.map((m: Mediateur) => {
-                        const pNom = m.prenom || "";
-                        const fNom = m.nom || "";
-                        const cleGroupe = m.groupeACI ?? null;
-                        if (cleGroupe !== dernierGroupeACI) {
-                          bandToggle = !bandToggle;
-                          dernierGroupeACI = cleGroupe;
-                        }
-                        const rowBgClass = m.masque ? "bg-[#F3F3F2]" : (bandToggle ? "bg-[#F9C44E]/[0.08]" : "bg-white");
-                        return (
-                          <tr key={m.id} className={`hover:bg-[#F3F3F2]/60 transition-colors ${rowBgClass} ${m.masque ? 'opacity-40' : ''}`}>
-                            <td className={`pr-2 py-2 sticky left-0 z-10 w-[160px] ${rowBgClass}`}>
+                <div className="bg-white border border-[#404040]/10 rounded-xl p-4 overflow-x-auto overflow-y-visible shadow-sm">
+                  <div className="grid text-xs" style={{ gridTemplateColumns: `160px repeat(${weekDays.length}, minmax(0, 1fr))` }}>
+                    {(() => {
+                      let dernierGroupeACI: number | null | undefined = undefined;
+                      let bandToggle = false;
+                      return groupe.membres.map((m: Mediateur) => {
+                      const pNom = m.prenom || "";
+                      const fNom = m.nom || "";
+                      const cleGroupe = m.groupeACI ?? null;
+                      if (cleGroupe !== dernierGroupeACI) {
+                        bandToggle = !bandToggle;
+                        dernierGroupeACI = cleGroupe;
+                      }
+                      const rowBgClass = m.masque ? "bg-[#F3F3F2]" : (bandToggle ? "bg-[#F9C44E]/[0.08]" : "bg-white");
+                      return (
+                        <React.Fragment key={m.id}>
+                          <div className={`pr-2 py-2 sticky left-0 z-10 border-b border-[#F3F3F2] hover:bg-[#F3F3F2]/60 transition-colors ${rowBgClass} ${m.masque ? 'opacity-40' : ''}`}>
                               <div className="flex items-start justify-between gap-1">
                                 <div className={`flex flex-col text-xs leading-tight select-none ${m.masque ? 'line-through text-[#404040]/50' : ''}`}>
                                   <span className="font-bold text-[#005259]">{pNom}</span>
@@ -1160,26 +1161,25 @@ export default function PlanningExpertMix() {
                                   </PermissionGuard>
                                 </div>
                               )}
-                            </td>
+                          </div>
 
-                            {weekDays.map(day => {
-                              const dateStr = day.toLocaleDateString('en-CA');
-                              const estFerie = joursFeries.has(dateStr);
-                              return (
-                                <td key={dateStr} className={`p-1 border-l border-[#F3F3F2] align-top ${estFerie ? "bg-[#EF736A]/5" : rowBgClass}`}>
-                                  <div className="grid grid-cols-2 gap-1 min-h-[38px]">
-                                    <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
-                                    <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
-                                  </div>
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                        });
-                      })()}
-                    </tbody>
-                  </table>
+                          {weekDays.map(day => {
+                            const dateStr = day.toLocaleDateString('en-CA');
+                            const estFerie = joursFeries.has(dateStr);
+                            return (
+                              <div key={dateStr} className={`p-1 border-b border-l border-[#F3F3F2] align-top ${estFerie ? "bg-[#EF736A]/5" : rowBgClass} ${m.masque ? 'opacity-40' : ''}`}>
+                                <div className="grid grid-cols-2 gap-1 min-h-[38px]">
+                                  <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
+                                  <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </React.Fragment>
+                      );
+                      });
+                    })()}
+                  </div>
                 </div>
               )}
             </Accordion>
