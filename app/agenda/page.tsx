@@ -908,7 +908,7 @@ export default function PlanningExpertMix() {
             </button>
           </PermissionGuard>
 
-          <Link href="/mediation/adresses" className="bg-[#003d42] hover:bg-[#002b2f] text-white border border-[#002b2f] px-3 h-9 rounded-md text-xs flex items-center gap-1.5 font-bold">
+          <Link href="/mediation/localisations?vueRestreinte=1" className="bg-[#003d42] hover:bg-[#002b2f] text-white border border-[#002b2f] px-3 h-9 rounded-md text-xs flex items-center gap-1.5 font-bold">
             <MapPinIcon className="w-3.5 h-3.5 text-[#A9E0C9]"/> Adresses
           </Link>
 

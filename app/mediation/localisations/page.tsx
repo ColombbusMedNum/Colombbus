@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { db } from "@/lib/firebase";
 import { 
   collection, 
@@ -12,6 +12,7 @@ import {
   serverTimestamp 
 } from "firebase/firestore";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Quicksand } from "next/font/google";
 import { 
   HomeIcon,
@@ -47,6 +48,20 @@ interface Lieu {
 }
 
 export default function LocalisationsPage() {
+  return (
+    <Suspense fallback={null}>
+      <LocalisationsPageContent />
+    </Suspense>
+  );
+}
+
+function LocalisationsPageContent() {
+  const searchParams = useSearchParams();
+  // Vue restreinte : lecture seule (bouton "Adresses" de l'agenda) — masque
+  // création, édition, suppression et archivage. Non affecté par l'entrée
+  // "Lieux" de l'accueil, qui n'ajoute pas ce paramètre.
+  const vueRestreinte = searchParams.get("vueRestreinte") === "1";
+
   const [lieux, setLieux] = useState<Lieu[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -250,13 +265,15 @@ export default function LocalisationsPage() {
             <span>Accueil</span>
           </Link>
           
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="inline-flex items-center gap-2 bg-[#EA601F] hover:bg-[#EF736A] text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md"
-          >
-            <PlusCircleIcon className="w-4 h-4" />
-            <span>Ajouter un lieu</span>
-          </button>
+          {!vueRestreinte && (
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="inline-flex items-center gap-2 bg-[#EA601F] hover:bg-[#EF736A] text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md"
+            >
+              <PlusCircleIcon className="w-4 h-4" />
+              <span>Ajouter un lieu</span>
+            </button>
+          )}
         </div>
 
         {/* HEADER */}
@@ -375,7 +392,7 @@ export default function LocalisationsPage() {
                     <th className="py-3 px-3">Nom Complet</th>
                     <th className="py-3 px-3">Adresse / Ville</th>
                     <th className="py-3 px-3 text-center">Statut</th>
-                    <th className="py-3 px-3 text-right">Actions</th>
+                    {!vueRestreinte && <th className="py-3 px-3 text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#404040]/5">
@@ -472,6 +489,7 @@ export default function LocalisationsPage() {
                         </td>
 
                         {/* ACTIONS */}
+                        {!vueRestreinte && (
                         <td className="py-3 px-3 text-right">
                           {isEditing ? (
                             <div className="flex justify-end gap-1.5">
@@ -511,6 +529,7 @@ export default function LocalisationsPage() {
                             </div>
                           )}
                         </td>
+                        )}
 
                       </tr>
                     );
@@ -553,9 +572,10 @@ export default function LocalisationsPage() {
                   </div>
 
                   {/* ACTIONS CARTE */}
+                  {!vueRestreinte && (
                   <div className="flex items-center justify-end gap-2 border-t border-[#404040]/10 pt-3 mt-4">
-                    <button 
-                      onClick={() => startEditing(lieu)} 
+                    <button
+                      onClick={() => startEditing(lieu)}
                       className="p-1.5 bg-white border border-[#404040]/10 hover:border-[#005259] text-[#005259] rounded-lg transition-colors flex items-center gap-1 text-[10px] font-bold uppercase shadow-sm"
                       title="Modifier"
                     >
@@ -563,11 +583,11 @@ export default function LocalisationsPage() {
                       <span>Éditer</span>
                     </button>
 
-                    <button 
-                      onClick={() => requestToggleArchiveLieu(lieu)} 
+                    <button
+                      onClick={() => requestToggleArchiveLieu(lieu)}
                       className={`p-1.5 bg-white border rounded-lg transition-colors flex items-center gap-1 text-[10px] font-bold uppercase shadow-sm ${
-                        lieu.actif 
-                          ? "border-amber-500/30 hover:bg-amber-500/10 text-amber-600" 
+                        lieu.actif
+                          ? "border-amber-500/30 hover:bg-amber-500/10 text-amber-600"
                           : "border-emerald-500/30 hover:bg-emerald-500/10 text-emerald-600"
                       }`}
                       title={lieu.actif ? "Archiver" : "Désarchiver"}
@@ -585,14 +605,15 @@ export default function LocalisationsPage() {
                       )}
                     </button>
 
-                    <button 
-                      onClick={() => requestDeleteLieu(lieu.id, lieu.nomCourt)} 
+                    <button
+                      onClick={() => requestDeleteLieu(lieu.id, lieu.nomCourt)}
                       className="p-1.5 bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 text-rose-600 rounded-lg transition-colors"
                       title="Supprimer"
                     >
                       <TrashIcon className="w-3.5 h-3.5" />
                     </button>
                   </div>
+                  )}
                 </div>
               ))}
             </div>
