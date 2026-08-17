@@ -26,6 +26,9 @@ export interface Mediateur {
   competences?: string[];
   rattachementHoraireACI?: string;
   trigramme?: string;
+  // Numéro de groupe ACI (1 à 10), affiché sur l'agenda pour repérer d'un
+  // coup d'œil les collaborateurs ACI qui partagent le même groupe.
+  groupeACI?: number;
 }
 
 // Créneau planifié (collection "planning_mediateurs"). Seuls mediatId et

@@ -525,7 +525,19 @@ export default function PlanningExpertMix() {
       });
     });
 
-  const groupesMediateursAgenda = regrouperParCategorie(mediateursAffiches);
+  // Tri par groupe ACI (les non-classés passent après), puis alphabétique à
+  // l'intérieur d'un même groupe (ou entre non-classés).
+  const groupesMediateursAgenda = regrouperParCategorie(mediateursAffiches).map(groupe => ({
+    ...groupe,
+    membres: [...groupe.membres].sort((a, b) => {
+      const ga = a.groupeACI ?? Number.MAX_SAFE_INTEGER;
+      const gb = b.groupeACI ?? Number.MAX_SAFE_INTEGER;
+      if (ga !== gb) return ga - gb;
+      const nomA = `${a.prenom || ""} ${a.nom || ""}`.trim();
+      const nomB = `${b.prenom || ""} ${b.nom || ""}`.trim();
+      return nomA.localeCompare(nomB, "fr");
+    })
+  }));
 
   const processActionCreation = async (
     mediatId: string, 
@@ -1115,10 +1127,28 @@ export default function PlanningExpertMix() {
                               </div>
 
                               {m.statut === 'ACI' && (
-                                <div className="mt-1">
+                                <div className="mt-1 flex items-center gap-1">
                                   <span className="inline-block text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#88ACEA]/20 text-[#005259] border border-[#88ACEA]">
                                     ACI
                                   </span>
+                                  <PermissionGuard actionId="agenda_staff_mask" fallback={
+                                    m.groupeACI ? (
+                                      <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#F9C44E]/20 text-[#005259] border border-[#F9C44E]">
+                                        Groupe {m.groupeACI}
+                                      </span>
+                                    ) : null
+                                  }>
+                                    <select
+                                      value={m.groupeACI || ""}
+                                      onChange={(e) => updateDoc(doc(db, "liste_mediateurs", m.id), { groupeACI: e.target.value ? Number(e.target.value) : null })}
+                                      className="text-[9px] font-black uppercase tracking-wider pl-1 pr-0.5 py-0.5 rounded bg-[#F9C44E]/20 text-[#005259] border border-[#F9C44E] outline-none cursor-pointer"
+                                    >
+                                      <option value="">Groupe ?</option>
+                                      {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
+                                        <option key={n} value={n}>Groupe {n}</option>
+                                      ))}
+                                    </select>
+                                  </PermissionGuard>
                                 </div>
                               )}
                             </td>
