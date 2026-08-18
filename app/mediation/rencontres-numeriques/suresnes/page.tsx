@@ -58,6 +58,20 @@ interface Beneficiaire {
   statutBlacklist?: string;
 }
 
+// Le champ "site" d'un créneau peut avoir été saisi à la main dans Firebase
+// (ex "RN - 91" au lieu de la clé interne "rn91") : on canonicalise ici selon
+// la même règle que liste-beneficiaires → "Mettre à jour l'agenda", pour
+// qu'un site tapé différemment ne crée pas un second onglet en double.
+function normaliserSiteId(site: string | undefined): string {
+  const s = (site || "suresnes").trim();
+  const upper = s.toUpperCase();
+  if (upper === "SURESNES") return "suresnes";
+  const estRN = upper.includes("RN");
+  if (estRN && (upper.includes("91") || upper.includes("ESSONNE"))) return "rn91";
+  if (estRN) return "suresnes";
+  return s;
+}
+
 export default function PlanningSuresnes() {
   const [creneaux, setCreneaux] = useState<any[]>([]);
   const { mediateurs: mediateursBruts } = useMediateurs();
@@ -87,12 +101,12 @@ export default function PlanningSuresnes() {
       { id: "rn91", label: "RN - 91" },
     ];
     const autres = Array.from(new Set(
-      creneaux.map(c => c.site || "suresnes").filter(id => id !== "suresnes" && id !== "rn91")
+      creneaux.map(c => normaliserSiteId(c.site)).filter(id => id !== "suresnes" && id !== "rn91")
     )).sort((a, b) => a.localeCompare(b, 'fr'));
     return [...base, ...autres.map(id => ({ id, label: id }))];
   }, [creneaux]);
   const creneauxDuSite = React.useMemo(
-    () => creneaux.filter(c => (c.site || "suresnes") === siteActif),
+    () => creneaux.filter(c => normaliserSiteId(c.site) === siteActif),
     [creneaux, siteActif]
   );
 
@@ -726,7 +740,7 @@ export default function PlanningSuresnes() {
                                       <PermissionGuard actionId="suresnes_reassign">
                                         <button onClick={() => {
                                           setReassignSearch("");
-                                          setReassignCreneau({ id: c.id, currentName: nomAffiche || c.mediateurNom || "", site: c.site || "suresnes", isRND });
+                                          setReassignCreneau({ id: c.id, currentName: nomAffiche || c.mediateurNom || "", site: normaliserSiteId(c.site), isRND });
                                         }} className="mt-1 px-2 py-0.5 bg-[#EF736A]/20 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/40 rounded-lg text-[9px] font-bold uppercase tracking-wide transition-colors cursor-pointer">
                                           Réaffecter
                                         </button>

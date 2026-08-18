@@ -38,6 +38,20 @@ interface MoisStats {
 
 const SITE_GLOBAL = "__global__";
 
+// Le champ "site" d'un créneau peut avoir été saisi à la main dans Firebase
+// (ex "RN - 91" au lieu de la clé interne "rn91") : on canonicalise ici selon
+// la même règle que app/mediation/rencontres-numeriques/suresnes, pour qu'un
+// site tapé différemment ne crée pas une seconde entrée en double.
+function normaliserSiteId(site: string | undefined): string {
+  const s = (site || "suresnes").trim();
+  const upper = s.toUpperCase();
+  if (upper === "SURESNES") return "suresnes";
+  const estRN = upper.includes("RN");
+  if (estRN && (upper.includes("91") || upper.includes("ESSONNE"))) return "rn91";
+  if (estRN) return "suresnes";
+  return s;
+}
+
 // Libellés des sites connus — tout site absent de cette table s'affiche
 // avec son propre texte (voir liste-beneficiaires → "Mettre à jour
 // l'agenda", qui nomme chaque nouveau site d'après le lieu importé).
@@ -131,7 +145,7 @@ export default function BilanSuresnesPage() {
   // sélecteur — toujours en tête Suresnes/RN-91 s'ils existent, puis les
   // autres lieux par ordre alphabétique.
   const sitesDisponibles = useMemo(() => {
-    const ids = Array.from(new Set(rawCreneaux.map(c => c.site || "suresnes")));
+    const ids = Array.from(new Set(rawCreneaux.map(c => normaliserSiteId(c.site))));
     const connus = ids.filter(id => id === "suresnes" || id === "rn91").sort();
     const autres = ids.filter(id => id !== "suresnes" && id !== "rn91").sort((a, b) => a.localeCompare(b, 'fr'));
     return [...connus, ...autres].map(id => ({ id, label: LABELS_SITES[id] || id }));
@@ -140,7 +154,7 @@ export default function BilanSuresnesPage() {
   const { totalSuresnes, trimestres, moisDetail } = useMemo(() => {
     const creneauxDuSite = siteFiltre === SITE_GLOBAL
       ? rawCreneaux
-      : rawCreneaux.filter(c => (c.site || "suresnes") === siteFiltre);
+      : rawCreneaux.filter(c => normaliserSiteId(c.site) === siteFiltre);
 
     const cohorteUniques: Record<string, { date: Date; genre: string }> = {};
 
