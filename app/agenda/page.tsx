@@ -903,6 +903,15 @@ export default function PlanningExpertMix() {
           </div>
           </PermissionGuard>
 
+          {/* AUJOURD'HUI : retour direct à la semaine en cours */}
+          <button
+            onClick={() => setCurrentDate(new Date())}
+            className="px-3 bg-[#003d42] border border-[#002b2f] hover:bg-[#002b2f] rounded-lg text-white cursor-pointer text-xs font-bold h-9"
+            title="Revenir à la semaine en cours"
+          >
+            Aujourd'hui
+          </button>
+
           {/* SÉLECTEUR SEMAINE */}
           <PermissionGuard actionId="agenda_week_nav">
             <div className="flex items-center gap-1.5 bg-[#003d42] border border-[#002b2f] rounded-lg px-2 h-9">
