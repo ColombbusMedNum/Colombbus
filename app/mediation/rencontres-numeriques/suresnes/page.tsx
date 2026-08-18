@@ -66,6 +66,9 @@ function normaliserSiteId(site: string | undefined): string {
   const s = (site || "suresnes").trim();
   const upper = s.toUpperCase();
   if (upper === "SURESNES") return "suresnes";
+  // "Suresnes - à domicile" reste le même service que le lieu principal, à
+  // la différence de "Suresnes - Collecte.Tech" qui garde son propre onglet.
+  if (upper.includes("SURESNES") && upper.includes("DOMICILE")) return "suresnes";
   const estRN = upper.includes("RN");
   if (estRN && (upper.includes("91") || upper.includes("ESSONNE"))) return "rn91";
   if (estRN) return "suresnes";
