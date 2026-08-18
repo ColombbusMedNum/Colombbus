@@ -256,7 +256,7 @@ export default function HomePage() {
                     <BookOpenIcon className="w-7 h-7 transition-colors" />
                   </div>
                   <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F] transition-colors">
-                    Mode d'emploi
+                    F.A.Q
                   </h2>
                   <p className="text-xs text-[#404040]/70 font-medium mt-2 leading-relaxed max-w-[200px]">
                     Le guide de toutes les pages, page par page
@@ -325,7 +325,7 @@ export default function HomePage() {
                         <LockClosedIcon className="w-4 h-4" />
                       </div>
                       <h2 className="text-[11px] font-bold uppercase tracking-wide text-[#404040]/50">
-                        Agenda Suresnes
+                        Agenda Suresnes & Essonne
                       </h2>
                       <p className="text-[9px] text-[#404040]/40 font-medium mt-1 leading-relaxed">
                         Accès restreint
@@ -338,7 +338,7 @@ export default function HomePage() {
                       <CalendarIcon className="w-4 h-4" />
                     </div>
                     <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">
-                      Agenda Suresnes
+                      Agenda Suresnes & Essonne
                     </h2>
                     <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed">
                       Consulter l'agenda du Relais Numérique
