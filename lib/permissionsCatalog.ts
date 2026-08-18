@@ -238,6 +238,7 @@ const PAGE_ONLY_ROUTES: Omit<PageEntry, "actions">[] = [
   { pageId: "page_access_notifications", pageName: "Notifications", route: "/mediation/notifications", filePath: "app/mediation/notifications/page.tsx" },
   { pageId: "page_access_bibliotheque_logos", pageName: "Bibliothèque de logos", route: "/mediation/bibliotheque-logos", filePath: "app/mediation/bibliotheque-logos/page.tsx" },
   { pageId: "page_access_guide", pageName: "Mode d'emploi", route: "/mediation/guide", filePath: "app/mediation/guide/page.tsx" },
+  { pageId: "page_access_actions_collectives_accueil", pageName: "Actions Collectives (Accueil)", route: "/mediation/rencontres-numeriques/actions-collectives/accueil", filePath: "app/mediation/rencontres-numeriques/actions-collectives/accueil/page.tsx" },
 ];
 
 export const PAGES_CATALOG: PageEntry[] = [
@@ -280,7 +281,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
 
   mediateur: {
     page_access_home: true, page_access_login: true, page_access_liste_beneficiaires: true,
-    page_access_fiche_beneficiaire: true, page_access_diagnosticform: true, page_access_actions_collectives: true,
+    page_access_fiche_beneficiaire: true, page_access_diagnosticform: true, page_access_actions_collectives: true, page_access_actions_collectives_accueil: true,
     page_access_agenda: true, page_access_suivi_collecte: true, page_access_suresnes: true,
     page_access_adresses: true, page_access_equipe: true, page_access_mediateurs: true,
     page_access_localisations: true, page_access_bilan_tech: true, page_access_emargement: true,
@@ -309,7 +310,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
 
   coordinateur: {
     page_access_home: true, page_access_login: true, page_access_liste_beneficiaires: true,
-    page_access_fiche_beneficiaire: true, page_access_diagnosticform: true, page_access_actions_collectives: true,
+    page_access_fiche_beneficiaire: true, page_access_diagnosticform: true, page_access_actions_collectives: true, page_access_actions_collectives_accueil: true,
     page_access_agenda: true, page_access_suivi_collecte: true, page_access_suresnes: true, page_access_equipe: true,
     page_access_adresses: true, page_access_mediateurs: true, page_access_localisations: true,
     page_access_rdv_par_lieu: true, page_access_bilan_tech: true, page_access_emargement: true,
@@ -352,7 +353,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   aci: {
     page_access_home: true, page_access_login: true, page_access_liste_beneficiaires: true, page_access_suresnes: true,
     page_access_agenda: true, page_access_adresses: true, page_access_fiche_beneficiaire: true,
-    page_access_diagnosticform: true, page_access_actions_collectives: true, page_access_mediateurs: true,
+    page_access_diagnosticform: true, page_access_actions_collectives: true, page_access_actions_collectives_accueil: true, page_access_mediateurs: true,
     page_access_localisations: true, page_access_notifications: true, page_access_guide: true,
     home_logout: true, home_folder_rencontres: true, home_folder_stats: true, home_nav_liste_benef: true,
     home_folder_beneficiaires: true, home_folder_bilans: true, home_folder_lieux: true, home_nav_ajouter_lieu: true,
