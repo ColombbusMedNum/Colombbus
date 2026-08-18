@@ -49,7 +49,6 @@ interface BaseNode {
   icon: IconType;
   accent: Accent;
   actionId: string;
-  dots?: Dot[];
   fallbackLocked?: boolean;
 }
 interface LeafNode extends BaseNode { kind: "leaf"; href: string; }
@@ -62,7 +61,7 @@ const NAV_TREE: NavNode[] = [
   {
     id: "agenda", kind: "folder", accent: "teal", icon: CalendarDaysIcon,
     title: "Agenda", subtitle: "Médiateurs et Relais Numérique de Suresnes",
-    actionId: "home_folder_rencontres", dots: ["teal", "orange", "mint"],
+    actionId: "home_folder_rencontres",
     children: [
       { id: "agenda-med", kind: "leaf", accent: "teal", icon: CalendarDaysIcon, title: "Agenda des Médiateurs", subtitle: "Gérer l'équipe et le planning des actions", actionId: "home_nav_agenda_med", fallbackLocked: true, href: "/agenda" },
       { id: "agenda-suresnes", kind: "leaf", accent: "orange", icon: CalendarIcon, title: "Agenda Suresnes & Essonne", subtitle: "Consulter l'agenda du Relais Numérique", actionId: "home_nav_agenda_suresnes", fallbackLocked: true, href: "/mediation/rencontres-numeriques/suresnes" },
@@ -82,7 +81,7 @@ const NAV_TREE: NavNode[] = [
           {
             id: "beneficiaires", kind: "folder", accent: "orange", icon: UsersIcon,
             title: "Bénéficiaires", subtitle: "Fiches, émargements et actions collectives",
-            actionId: "home_folder_beneficiaires", dots: ["orange", "teal", "orange-40"],
+            actionId: "home_folder_beneficiaires",
             children: [
               { id: "liste-benef", kind: "leaf", accent: "teal", icon: UsersIcon, title: "Liste des bénéficiaires", subtitle: "Consulter et modifier les fiches existantes", actionId: "home_nav_liste_benef", href: "/mediation/rencontres-numeriques/liste-beneficiaires" },
               { id: "emargement-docs", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Émargements & Doc. internes", subtitle: "Accéder aux feuilles archivées", actionId: "home_nav_emargement_docs", href: "/mediation/rencontres-numeriques/emargements" },
@@ -124,7 +123,7 @@ const NAV_TREE: NavNode[] = [
       {
         id: "bilans", kind: "folder", accent: "teal", icon: ClipboardDocumentCheckIcon,
         title: "Bilans", subtitle: "Fiches bilan, bilan tech et suivi collectes",
-        actionId: "home_folder_bilans", dots: ["teal", "orange-40"],
+        actionId: "home_folder_bilans",
         children: [
           { id: "fiche-bilan", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Fiche Bilan", subtitle: "Accéder aux fiches de synthèses et bilans", actionId: "home_nav_fiche_bilan", href: "/mediation/rencontres-numeriques/fiches-bilans" },
           { id: "bilan-tech", kind: "leaf", accent: "orange", icon: WrenchScrewdriverIcon, title: "Bilan Tech", subtitle: "Effectuer et suivre les bilans techniques", actionId: "home_nav_bilan_tech", href: "/mediation/rencontres-numeriques/bilan_tech" },
@@ -134,7 +133,7 @@ const NAV_TREE: NavNode[] = [
       {
         id: "lieux", kind: "folder", accent: "orange", icon: MapPinIcon,
         title: "Lieux", subtitle: "Rendez-vous par lieu et gestion des adresses",
-        actionId: "home_folder_lieux", dots: ["orange"],
+        actionId: "home_folder_lieux",
         children: [
           { id: "rdv-par-lieu", kind: "leaf", accent: "orange", icon: MapPinIcon, title: "Rendez-vous par lieu", subtitle: "Consulter et planifier les rendez-vous selon les lieux", actionId: "home_nav_rdv_par_lieu", href: "/mediation/rencontres-numeriques/rendez-vous-par-lieu" },
           { id: "ajouter-lieu", kind: "leaf", accent: "orange", icon: BuildingOffice2Icon, title: "Ajouter un lieu", subtitle: "Gérer les adresses et localisations prédéfinies", actionId: "home_nav_ajouter_lieu", href: "/mediation/localisations" },
@@ -144,7 +143,7 @@ const NAV_TREE: NavNode[] = [
       {
         id: "stats", kind: "folder", accent: "teal", icon: ChartBarIcon,
         title: "Statistiques & Bilans", subtitle: "Rapports globaux et impact Suresnes",
-        actionId: "home_folder_stats", dots: ["orange", "teal"],
+        actionId: "home_folder_stats",
         children: [
           { id: "stats-glob", kind: "leaf", accent: "orange", icon: ChartBarIcon, title: "Bilan & Stats Globaux", subtitle: "Consulter les rapports et indicateurs transversaux de la plateforme", actionId: "home_nav_stats_glob", href: "/mediation/statistiques" },
           { id: "bilan-suresnes", kind: "leaf", accent: "teal", icon: BuildingOfficeIcon, title: "Analyse par Territoire", subtitle: "Édition et étude du bilan d'impact annuel du Relais Numérique", actionId: "home_nav_bilan_suresnes", href: "/mediation/bilan-suresnes" },
@@ -180,11 +179,18 @@ const DOT_CLASS: Record<Dot, string> = {
   "orange-40": "bg-[#EA601F]/40",
 };
 
-function TileDots({ dots }: { dots: Dot[] }) {
+// Un point par case contenue dans le dossier, coloré selon son accent —
+// reflète toujours le contenu réel, sans liste à maintenir à la main.
+function dotsForFolder(node: FolderNode): Dot[] {
+  return node.children.map((c) => c.accent);
+}
+
+function TileDots({ dots, compact }: { dots: Dot[]; compact?: boolean }) {
+  if (dots.length === 0) return null;
   return (
-    <div className="mt-4 flex gap-1.5 p-1.5 rounded-lg bg-[#F3F3F2] border border-[#404040]/10">
+    <div className={`flex ${compact ? "mt-2 gap-1 p-1" : "mt-4 gap-1.5 p-1.5"} rounded-lg bg-[#F3F3F2] border border-[#404040]/10`}>
       {dots.map((d, i) => (
-        <div key={i} className={`w-2 h-2 rounded-full ${DOT_CLASS[d]}`}></div>
+        <div key={i} className={`${compact ? "w-1.5 h-1.5" : "w-2 h-2"} rounded-full ${DOT_CLASS[d]}`}></div>
       ))}
     </div>
   );
@@ -225,7 +231,7 @@ function FolderTile({ node, onOpen }: { node: FolderNode; onOpen: () => void }) 
       </div>
       <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F] transition-colors">{node.title}</h2>
       <p className="text-xs text-[#404040]/70 font-medium mt-2 leading-relaxed">{node.subtitle}</p>
-      {node.dots && <TileDots dots={node.dots} />}
+      <TileDots dots={dotsForFolder(node)} />
     </button>
   );
 }
@@ -273,6 +279,7 @@ export default function HomePage() {
               </div>
               <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F]">{node.title}</h2>
               <p className="text-[9px] text-[#404040]/70 font-medium mt-1 leading-relaxed max-w-[200px]">{node.subtitle}</p>
+              <TileDots dots={dotsForFolder(node)} compact />
             </button>
           )}
         </PermissionGuard>
