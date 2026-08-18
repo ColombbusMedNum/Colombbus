@@ -76,7 +76,7 @@ const NAV_TREE: NavNode[] = [
     children: [
       {
         id: "rencontres-numeriques", kind: "folder", accent: "teal", icon: UsersIcon,
-        title: "Rencontres Numériques", subtitle: "Bénéficiaires, bilans, lieux, équipe et statistiques",
+        title: "Rencontres Numériques", subtitle: "Fiches, émargements et actions collectives",
         actionId: "home_folder_rencontres_numeriques",
         children: [
           {
@@ -90,41 +90,10 @@ const NAV_TREE: NavNode[] = [
               { id: "actions-coll", kind: "leaf", accent: "teal", icon: UserGroupIcon, title: "Actions Collectives", subtitle: "Saisir les bilans simplifiés d'ateliers", actionId: "home_nav_actions_coll", href: "/mediation/rencontres-numeriques/actions-collectives" },
             ],
           },
-          {
-            id: "bilans", kind: "folder", accent: "teal", icon: ClipboardDocumentCheckIcon,
-            title: "Bilans", subtitle: "Fiches bilan, bilan tech et suivi collectes",
-            actionId: "home_folder_bilans", dots: ["teal", "orange-40"],
-            children: [
-              { id: "fiche-bilan", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Fiche Bilan", subtitle: "Accéder aux fiches de synthèses et bilans", actionId: "home_nav_fiche_bilan", href: "/mediation/rencontres-numeriques/fiches-bilans" },
-              { id: "bilan-tech", kind: "leaf", accent: "orange", icon: WrenchScrewdriverIcon, title: "Bilan Tech", subtitle: "Effectuer et suivre les bilans techniques", actionId: "home_nav_bilan_tech", href: "/mediation/rencontres-numeriques/bilan_tech" },
-              { id: "collectes", kind: "leaf", accent: "teal", icon: CpuChipIcon, title: "Suivi Collectes Tech", subtitle: "Tableau d'activité synchrone type Excel / IdF", actionId: "home_nav_collectes", href: "/mediation/rencontres-numeriques/suivi-collecte" },
-            ],
-          },
-          {
-            id: "lieux", kind: "folder", accent: "orange", icon: MapPinIcon,
-            title: "Lieux", subtitle: "Rendez-vous par lieu et gestion des adresses",
-            actionId: "home_folder_lieux", dots: ["orange"],
-            children: [
-              { id: "rdv-par-lieu", kind: "leaf", accent: "orange", icon: MapPinIcon, title: "Rendez-vous par lieu", subtitle: "Consulter et planifier les rendez-vous selon les lieux", actionId: "home_nav_rdv_par_lieu", href: "/mediation/rencontres-numeriques/rendez-vous-par-lieu" },
-              { id: "ajouter-lieu", kind: "leaf", accent: "orange", icon: BuildingOffice2Icon, title: "Ajouter un lieu", subtitle: "Gérer les adresses et localisations prédéfinies", actionId: "home_nav_ajouter_lieu", href: "/mediation/localisations" },
-            ],
-          },
-          { id: "equipe", kind: "leaf", accent: "teal", icon: UserGroupIcon, title: "Équipe", subtitle: "Gérer et créer les fiches du staff", actionId: "home_nav_equipe", fallbackLocked: true, href: "/mediation/equipe" },
-          {
-            id: "stats", kind: "folder", accent: "teal", icon: ChartBarIcon,
-            title: "Statistiques & Bilans", subtitle: "Rapports globaux et impact Suresnes",
-            actionId: "home_folder_stats", dots: ["orange", "teal"],
-            children: [
-              { id: "stats-glob", kind: "leaf", accent: "orange", icon: ChartBarIcon, title: "Bilan & Stats Globaux", subtitle: "Consulter les rapports et indicateurs transversaux de la plateforme", actionId: "home_nav_stats_glob", href: "/mediation/statistiques" },
-              { id: "bilan-suresnes", kind: "leaf", accent: "teal", icon: BuildingOfficeIcon, title: "Analyse par Territoire", subtitle: "Édition et étude du bilan d'impact annuel du Relais Numérique", actionId: "home_nav_bilan_suresnes", href: "/mediation/bilan-suresnes" },
-              { id: "volume-horaire", kind: "leaf", accent: "orange", icon: ClockIcon, title: "Volume Horaire", subtitle: "Analyser le temps de travail et coûts RH", actionId: "home_nav_volume_horaire", href: "/mediation/volume-horaire" },
-              { id: "admin-droits", kind: "leaf", accent: "teal", icon: CpuChipIcon, title: "Gérer les Droits", subtitle: "Matrice de sécurité et modification des rôles de l'équipe", actionId: "home_nav_admin_droits", href: "/mediation/analyse" },
-            ],
-          },
-          { id: "faq", kind: "leaf", accent: "teal", icon: BookOpenIcon, title: "F.A.Q", subtitle: "Le guide de toutes les pages, page par page", actionId: "home_nav_guide", href: "/mediation/guide" },
         ],
       },
       { id: "digital-up", kind: "leaf", accent: "orange", icon: RocketLaunchIcon, title: "Digital'UP", subtitle: "Programme Digital'UP", actionId: "home_nav_digital_up", href: "/mediation/rencontres-numeriques/actions-collectives/digital-up" },
+      { id: "programmes-inscriptions-inclusion", kind: "leaf", accent: "teal", icon: DocumentPlusIcon, title: "Programmes & Inscriptions", subtitle: "Formulaires, réponses et programmes collectifs", actionId: "home_nav_programmes_inscriptions", href: "/mediation/rencontres-numeriques/actions-collectives/accueil" },
     ],
   },
   {
@@ -133,6 +102,7 @@ const NAV_TREE: NavNode[] = [
     actionId: "home_folder_decouvertes_metiers",
     children: [
       { id: "nkup", kind: "leaf", accent: "teal", icon: CpuChipIcon, title: "NKUP", subtitle: "Préinscriptions, apprenant·e·s et suivi Numérik'UP", actionId: "home_nav_nkup", href: "/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up" },
+      { id: "programmes-inscriptions-decouvertes", kind: "leaf", accent: "teal", icon: DocumentPlusIcon, title: "Programmes & Inscriptions", subtitle: "Formulaires, réponses et programmes collectifs", actionId: "home_nav_programmes_inscriptions", href: "/mediation/rencontres-numeriques/actions-collectives/accueil" },
     ],
   },
   {
@@ -141,8 +111,50 @@ const NAV_TREE: NavNode[] = [
     actionId: "home_folder_insertion_pro",
     children: [
       { id: "nkpro-tech", kind: "leaf", accent: "orange", icon: BriefcaseIcon, title: "NKPRO Tech", subtitle: "Programme Numérik'UP Pro", actionId: "home_nav_nkpro_tech", href: "/mediation/rencontres-numeriques/actions-collectives/numerik-up-pro" },
+      { id: "programmes-inscriptions-insertion", kind: "leaf", accent: "teal", icon: DocumentPlusIcon, title: "Programmes & Inscriptions", subtitle: "Formulaires, réponses et programmes collectifs", actionId: "home_nav_programmes_inscriptions", href: "/mediation/rencontres-numeriques/actions-collectives/accueil" },
     ],
   },
+  {
+    // Réservée aux permanents (médiateurs + coordinateurs) — masquée pour les
+    // ACI, cf. actionId non accordé à ce rôle dans permissionsCatalog.ts.
+    id: "gestion-colombbus", kind: "folder", accent: "teal", icon: BuildingOfficeIcon,
+    title: "Gestion Colombbus", subtitle: "Bilans, lieux, équipe et statistiques",
+    actionId: "home_folder_gestion_colombbus",
+    children: [
+      {
+        id: "bilans", kind: "folder", accent: "teal", icon: ClipboardDocumentCheckIcon,
+        title: "Bilans", subtitle: "Fiches bilan, bilan tech et suivi collectes",
+        actionId: "home_folder_bilans", dots: ["teal", "orange-40"],
+        children: [
+          { id: "fiche-bilan", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Fiche Bilan", subtitle: "Accéder aux fiches de synthèses et bilans", actionId: "home_nav_fiche_bilan", href: "/mediation/rencontres-numeriques/fiches-bilans" },
+          { id: "bilan-tech", kind: "leaf", accent: "orange", icon: WrenchScrewdriverIcon, title: "Bilan Tech", subtitle: "Effectuer et suivre les bilans techniques", actionId: "home_nav_bilan_tech", href: "/mediation/rencontres-numeriques/bilan_tech" },
+          { id: "collectes", kind: "leaf", accent: "teal", icon: CpuChipIcon, title: "Suivi Collectes Tech", subtitle: "Tableau d'activité synchrone type Excel / IdF", actionId: "home_nav_collectes", href: "/mediation/rencontres-numeriques/suivi-collecte" },
+        ],
+      },
+      {
+        id: "lieux", kind: "folder", accent: "orange", icon: MapPinIcon,
+        title: "Lieux", subtitle: "Rendez-vous par lieu et gestion des adresses",
+        actionId: "home_folder_lieux", dots: ["orange"],
+        children: [
+          { id: "rdv-par-lieu", kind: "leaf", accent: "orange", icon: MapPinIcon, title: "Rendez-vous par lieu", subtitle: "Consulter et planifier les rendez-vous selon les lieux", actionId: "home_nav_rdv_par_lieu", href: "/mediation/rencontres-numeriques/rendez-vous-par-lieu" },
+          { id: "ajouter-lieu", kind: "leaf", accent: "orange", icon: BuildingOffice2Icon, title: "Ajouter un lieu", subtitle: "Gérer les adresses et localisations prédéfinies", actionId: "home_nav_ajouter_lieu", href: "/mediation/localisations" },
+        ],
+      },
+      { id: "equipe", kind: "leaf", accent: "teal", icon: UserGroupIcon, title: "Équipe", subtitle: "Gérer et créer les fiches du staff", actionId: "home_nav_equipe", fallbackLocked: true, href: "/mediation/equipe" },
+      {
+        id: "stats", kind: "folder", accent: "teal", icon: ChartBarIcon,
+        title: "Statistiques & Bilans", subtitle: "Rapports globaux et impact Suresnes",
+        actionId: "home_folder_stats", dots: ["orange", "teal"],
+        children: [
+          { id: "stats-glob", kind: "leaf", accent: "orange", icon: ChartBarIcon, title: "Bilan & Stats Globaux", subtitle: "Consulter les rapports et indicateurs transversaux de la plateforme", actionId: "home_nav_stats_glob", href: "/mediation/statistiques" },
+          { id: "bilan-suresnes", kind: "leaf", accent: "teal", icon: BuildingOfficeIcon, title: "Analyse par Territoire", subtitle: "Édition et étude du bilan d'impact annuel du Relais Numérique", actionId: "home_nav_bilan_suresnes", href: "/mediation/bilan-suresnes" },
+          { id: "volume-horaire", kind: "leaf", accent: "orange", icon: ClockIcon, title: "Volume Horaire", subtitle: "Analyser le temps de travail et coûts RH", actionId: "home_nav_volume_horaire", href: "/mediation/volume-horaire" },
+          { id: "admin-droits", kind: "leaf", accent: "teal", icon: CpuChipIcon, title: "Gérer les Droits", subtitle: "Matrice de sécurité et modification des rôles de l'équipe", actionId: "home_nav_admin_droits", href: "/mediation/analyse" },
+        ],
+      },
+    ],
+  },
+  { id: "faq", kind: "leaf", accent: "teal", icon: BookOpenIcon, title: "F.A.Q", subtitle: "Le guide de toutes les pages, page par page", actionId: "home_nav_guide", href: "/mediation/guide" },
 ];
 
 function findChild(nodes: NavNode[], id: string): NavNode | undefined {

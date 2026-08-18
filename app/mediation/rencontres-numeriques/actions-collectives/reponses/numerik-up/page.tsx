@@ -57,6 +57,12 @@ const PARCOURS_DEFAUT: Parcours[] = [
 
 const inputEditClass = "w-full min-w-[140px] px-2 py-1.5 bg-[#F3F3F2] border border-[#404040]/10 focus:border-[#005259] focus:bg-white rounded-lg text-[11px] text-[#404040] outline-none font-medium transition-colors";
 
+// Signale les mineur·e·s avec le même jaune que les groupes ACI de l'agenda.
+const estMineur = (age?: string) => {
+  const n = parseInt(age || "", 10);
+  return !isNaN(n) && n < 18;
+};
+
 export default function ReponsesNumerikUpPage() {
   const router = useRouter();
   const [inscriptions, setInscriptions] = useState<Inscription[]>([]);
@@ -268,7 +274,13 @@ export default function ReponsesNumerikUpPage() {
                         <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{i.Prénom || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">{i.Nom || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Téléphone || "—"}</td>
-                        <td className="px-3 py-2 text-center whitespace-nowrap">{i.Age || "—"}</td>
+                        <td className="px-3 py-2 text-center whitespace-nowrap">
+                          {i.Age ? (
+                            estMineur(i.Age) ? (
+                              <span className="inline-block px-2 py-0.5 rounded bg-[#F9C44E]/20 text-[#005259] border border-[#F9C44E] text-[10px] font-bold">{i.Age}</span>
+                            ) : i.Age
+                          ) : "—"}
+                        </td>
                         <td className="px-3 py-2 max-w-[180px] truncate">{i.Email || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Niveau_Etudes || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{sexeDeCivilite(i.Civilité)}</td>

@@ -15,7 +15,6 @@ import {
   PencilSquareIcon,
   CheckIcon,
   XMarkIcon,
-  RocketLaunchIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
@@ -295,14 +294,6 @@ export default function ActionsCollectivesPage() {
             >
               <HomeIcon className="w-4 h-4 text-[#EA601F]" />
               <span>Accueil</span>
-            </Link>
-
-            <Link
-              href="/mediation/rencontres-numeriques/actions-collectives/accueil"
-              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
-            >
-              <RocketLaunchIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Programmes & Inscriptions</span>
             </Link>
 
             <div className="flex items-center gap-3">

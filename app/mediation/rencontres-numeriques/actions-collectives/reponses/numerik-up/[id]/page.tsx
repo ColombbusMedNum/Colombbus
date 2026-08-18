@@ -60,6 +60,12 @@ const inputEditClass = "w-full min-w-[140px] px-2 py-1.5 bg-[#F3F3F2] border bor
 
 const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
 
+// Signale les mineur·e·s avec le même jaune que les groupes ACI de l'agenda.
+const estMineur = (age?: string) => {
+  const n = parseInt(age || "", 10);
+  return !isNaN(n) && n < 18;
+};
+
 // Duplicata de reponses/numerik-up, paramétré par un identifiant de session :
 // n'affiche que les personnes affectées à cette session précise (case
 // "Suivi recrutement" cochée sur la page générale des réponses).
@@ -315,7 +321,13 @@ export default function ReponsesNumerikUpSessionPage() {
                         <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{i.Prénom || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">{i.Nom || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Téléphone || "—"}</td>
-                        <td className="px-3 py-2 text-center whitespace-nowrap">{i.Age || "—"}</td>
+                        <td className="px-3 py-2 text-center whitespace-nowrap">
+                          {i.Age ? (
+                            estMineur(i.Age) ? (
+                              <span className="inline-block px-2 py-0.5 rounded bg-[#F9C44E]/20 text-[#005259] border border-[#F9C44E] text-[10px] font-bold">{i.Age}</span>
+                            ) : i.Age
+                          ) : "—"}
+                        </td>
                         <td className="px-3 py-2 max-w-[180px] truncate">{i.Email || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Niveau_Etudes || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{sexeDeCivilite(i.Civilité)}</td>

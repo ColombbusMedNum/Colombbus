@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
-import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, ChartBarIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, ChartBarIcon, DocumentPlusIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 
 const quicksand = Quicksand({
@@ -57,6 +57,12 @@ interface Apprenant {
 const inputEditClass = "w-full min-w-[70px] px-1.5 py-1 bg-[#F3F3F2] border border-[#404040]/10 focus:border-[#005259] focus:bg-white rounded-md text-[11px] text-[#404040] outline-none font-medium transition-colors text-center";
 const checkboxClass = "w-4 h-4 accent-[#005259] cursor-pointer";
 
+// Signale les mineur·e·s avec le même jaune que les groupes ACI de l'agenda.
+const estMineur = (age?: string) => {
+  const n = parseInt(age || "", 10);
+  return !isNaN(n) && n < 18;
+};
+
 const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
 
 // Ne liste que les apprenant·e·s retenu·e·s (OK) pour cette session précise
@@ -104,6 +110,17 @@ export default function ApprenantsSessionPage() {
     () => inscriptions.filter((i) => i.Session === sessionId && i.Suivi_Recrutement && i.OK_NOK === "OK"),
     [inscriptions, sessionId]
   );
+
+  // Transmet la liste des apprenant·e·s au générateur d'émargement pour que
+  // les lignes NOM/Prénom soient pré-remplies automatiquement.
+  const hrefEmargement = useMemo(() => {
+    const noms = apprenantsSession
+      .map((a) => `${encodeURIComponent(a.Prénom || "")}|${encodeURIComponent(a.Nom || "")}`)
+      .join(";");
+    const params = new URLSearchParams({ intitule: "Numérik'UP" });
+    if (noms) params.set("noms", noms);
+    return `/mediation/rencontres-numeriques/emargement?${params.toString()}`;
+  }, [apprenantsSession]);
 
   // Territoire(s) auxquels appartient la session sélectionnée, d'après la
   // configuration définie sur la page de paramètres.
@@ -255,6 +272,13 @@ export default function ApprenantsSessionPage() {
               <span>Évolution</span>
             </Link>
             <Link
+              href={hrefEmargement}
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+            >
+              <DocumentPlusIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Générateur d'émargement</span>
+            </Link>
+            <Link
               href={`/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up/${encodeURIComponent(sessionId)}`}
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >
@@ -377,7 +401,13 @@ export default function ApprenantsSessionPage() {
                         <td className="px-3 py-2 whitespace-nowrap">{i.Civilité || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{i.Prénom || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">{i.Nom || "—"}</td>
-                        <td className="px-3 py-2 text-center whitespace-nowrap">{i.Age || "—"}</td>
+                        <td className="px-3 py-2 text-center whitespace-nowrap">
+                          {i.Age ? (
+                            estMineur(i.Age) ? (
+                              <span className="inline-block px-2 py-0.5 rounded bg-[#F9C44E]/20 text-[#005259] border border-[#F9C44E] text-[10px] font-bold">{i.Age}</span>
+                            ) : i.Age
+                          ) : "—"}
+                        </td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Ville || "—"}</td>
                         <td className="px-3 py-2 text-center">{i.Territoire || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.QPV || "—"}</td>

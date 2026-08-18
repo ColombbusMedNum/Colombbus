@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { PrinterIcon, BookOpenIcon, SquaresPlusIcon, PlusIcon, MinusIcon, HomeIcon } from "@heroicons/react/24/outline";
@@ -19,11 +20,31 @@ interface LogoEmargement {
   url: string;
 }
 
-export default function GenerateurEmargementPagesIdentiques() {
+// Décode la liste "Prénom|Nom;Prénom|Nom" transmise en query (ex. depuis la
+// page Apprenants Numérik'UP) pour pré-remplir les lignes du tableau.
+function decoderNoms(param: string | null): { prenom: string; nom: string }[] {
+  if (!param) return [];
+  return param.split(";").filter(Boolean).map((paire) => {
+    const [prenom, nom] = paire.split("|");
+    return { prenom: decodeURIComponent(prenom || ""), nom: decodeURIComponent(nom || "") };
+  });
+}
+
+export default function GenerateurEmargementPage() {
+  return (
+    <Suspense fallback={null}>
+      <GenerateurEmargementPagesIdentiques />
+    </Suspense>
+  );
+}
+
+function GenerateurEmargementPagesIdentiques() {
+  const searchParams = useSearchParams();
   const [logosBank, setLogosBank] = useState<LogoEmargement[]>([]);
   const [selectedLogos, setSelectedLogos] = useState<string[]>([]);
   const [nbLignesVoulues, setNbLignesVoulues] = useState<number>(12);
-  
+  const [nomsPreremplis, setNomsPreremplis] = useState<{ prenom: string; nom: string }[]>([]);
+
   const [form, setForm] = useState({
     intitule: "Café numérique",
     thematique: "",
@@ -32,6 +53,19 @@ export default function GenerateurEmargementPagesIdentiques() {
     intervenantNom: "",
     horaires: ""
   });
+
+  // Pré-remplissage depuis l'URL (ex. liste des apprenant·e·s d'une session
+  // Numérik'UP) — s'applique une seule fois à l'arrivée sur la page.
+  useEffect(() => {
+    const noms = decoderNoms(searchParams.get("noms"));
+    if (noms.length > 0) {
+      setNomsPreremplis(noms);
+      setNbLignesVoulues((prev) => Math.max(prev, noms.length));
+    }
+    const intitule = searchParams.get("intitule");
+    if (intitule) setForm((prev) => ({ ...prev, intitule }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 1. Récupération des logos de la bibliothèque Firestore. Chargement
   // unique : cette bibliothèque change rarement (upload manuel), pas besoin
@@ -250,11 +284,12 @@ export default function GenerateurEmargementPagesIdentiques() {
                   {/* LES 12 LIGNES DE LA PAGE ACTUELLE */}
                   {Array.from({ length: 12 }).map((_, i) => {
                     const numeroLigne = (pageIdx * 12) + (i + 1);
+                    const apprenant = nomsPreremplis[numeroLigne - 1];
                     return (
                       <tr key={i} className="h-11">
                         <td className="border border-black p-2 text-center text-gray-400 font-light">{numeroLigne}</td>
-                        <td className="border border-black p-2"></td>
-                        <td className="border border-black p-2"></td>
+                        <td className="border border-black p-2 text-left pl-4 font-bold uppercase">{apprenant?.nom || ""}</td>
+                        <td className="border border-black p-2 text-left pl-4 font-medium">{apprenant?.prenom || ""}</td>
                         <td className="border border-black p-2"></td>
                       </tr>
                     );

@@ -19,10 +19,17 @@ const quicksand = Quicksand({
   weight: ["300", "400", "500", "600", "700"],
 });
 
+function normaliser(texte: string): string {
+  return texte.trim().toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
+}
+
 export default function StatsMediateursAnalytique() {
   const [actions, setActions] = useState<any[]>([]);
   const { mediateurs: mediateursBruts } = useMediateurs();
   const [selectedMedId, setSelectedMedId] = useState<string>("");
+  const [rechercheMed, setRechercheMed] = useState("");
+  const [dropdownOuvert, setDropdownOuvert] = useState(false);
+  const comboboxRef = React.useRef<HTMLDivElement>(null);
 
   // États de session : source unique de vérité (Firestore via PermissionsProvider),
   // au lieu de relire un rôle potentiellement obsolète dans localStorage.
@@ -64,6 +71,34 @@ export default function StatsMediateursAnalytique() {
   const currentMediateur = selectedMedId === "all"
     ? { id: "all", prenom: "Tous les", nom: "Médiateurs", poste: "Vue Globale", statut: "Tous les statuts" }
     : mediateurs.find(m => m.id === selectedMedId);
+
+  const libelleMediateur = (m: any) => (m.id === "all" ? "Tous les médiateurs" : `${m.nom?.toUpperCase()} ${m.prenom}`);
+
+  // Reflète le médiateur sélectionné dans le champ de recherche tant que la
+  // liste n'est pas ouverte (évite d'écraser la saisie en cours de frappe).
+  useEffect(() => {
+    if (dropdownOuvert) return;
+    setRechercheMed(currentMediateur ? libelleMediateur(currentMediateur) : "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMedId, dropdownOuvert]);
+
+  // Ferme la liste au clic en dehors du champ.
+  useEffect(() => {
+    const surClicExterieur = (e: MouseEvent) => {
+      if (comboboxRef.current && !comboboxRef.current.contains(e.target as Node)) {
+        setDropdownOuvert(false);
+      }
+    };
+    document.addEventListener("mousedown", surClicExterieur);
+    return () => document.removeEventListener("mousedown", surClicExterieur);
+  }, []);
+
+  const mediateursFiltres = React.useMemo(() => {
+    const terme = normaliser(rechercheMed);
+    const options = [{ id: "all", prenom: "Tous les", nom: "Médiateurs" }, ...mediateurs];
+    if (!terme) return options;
+    return options.filter((m) => normaliser(libelleMediateur(m)).includes(terme));
+  }, [mediateurs, rechercheMed]);
 
   // 3. Filtrage des actions
   const currentMedActions = actions.filter(a => {
@@ -137,20 +172,33 @@ export default function StatsMediateursAnalytique() {
           
           {/* CONDITION UNIQUE : Seulement si l'utilisateur connecté est un Admin */}
           {userRole === "admin" ? (
-            <div className="w-full sm:w-72">
-              <select
-                value={selectedMedId}
-                onChange={(e) => setSelectedMedId(e.target.value)}
-                className="w-full px-3 py-2.5 bg-[#F3F3F2] border border-[#404040]/15 rounded-xl text-xs font-bold text-[#404040] outline-none focus:border-[#005259] focus:ring-1 focus:ring-[#005259] transition-all cursor-pointer"
-              >
-                <option value="" disabled>-- Sélectionner un médiateur --</option>
-                <option value="all">Tous les médiateurs</option>
-                {mediateurs.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.prenom} {m.nom?.toUpperCase()}
-                  </option>
-                ))}
-              </select>
+            <div className="w-full sm:w-72 relative" ref={comboboxRef}>
+              <input
+                type="text"
+                value={rechercheMed}
+                onFocus={(e) => { setDropdownOuvert(true); e.target.select(); }}
+                onChange={(e) => { setRechercheMed(e.target.value); setDropdownOuvert(true); }}
+                placeholder="Rechercher un médiateur..."
+                className="w-full px-3 py-2.5 bg-[#F3F3F2] border border-[#404040]/15 rounded-xl text-xs font-bold text-[#404040] outline-none focus:border-[#005259] focus:ring-1 focus:ring-[#005259] transition-all"
+              />
+              {dropdownOuvert && (
+                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-[#404040]/15 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                  {mediateursFiltres.length > 0 ? (
+                    mediateursFiltres.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => { setSelectedMedId(m.id); setDropdownOuvert(false); }}
+                        className={`w-full text-left px-3 py-2 text-xs font-bold hover:bg-[#005259] hover:text-white transition-colors cursor-pointer ${m.id === selectedMedId ? "text-[#EA601F]" : "text-[#404040]"}`}
+                      >
+                        {libelleMediateur(m)}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-xs text-[#404040]/50 font-medium">Aucun résultat</div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             // Si c'est un Médiateur, on affiche un petit badge sécurisé
