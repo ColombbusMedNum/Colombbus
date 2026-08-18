@@ -94,6 +94,22 @@ service cloud.firestore {
       allow write: if isCoordinateurOuPlus();
     }
 
+    // Sessions disponibles par parcours pour le formulaire d'inscription
+    // Numérik'Up (voir actions-collectives/inscription/numerik-up) : lecture
+    // ouverte à tout le staff, édition réservée à l'admin (seul rôle à voir
+    // le panneau de gestion des sessions dans l'UI).
+    match /configuration_numerikup/{docId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+    // Inscriptions au parcours Numérik'Up : distinctes de "utilisateurs" car
+    // ce sont des candidat.e.s au programme, pas encore des bénéficiaires
+    // suivis par Colombbus.
+    match /inscriptions_numerikup/{docId} {
+      allow read, create: if isStaff();
+      allow update, delete: if isCoordinateurOuPlus();
+    }
+
     // Données opérationnelles : accessibles à tout le staff authentifié
     // (peu importe le rôle précis). C'est la même politique que celle qui
     // prévalait de fait avant cette mise en place de rules (aucune

@@ -13,7 +13,17 @@ const quicksand = Quicksand({
 // Coquille commune aux pages Actions Collectives pas encore développées
 // (formulaire d'inscription, réponses, Numérik'UP, Digital'UP, Numérik'UP
 // Pro) — évite de dupliquer 5 fois le même habillage de page.
-export default function PlaceholderActionsCollectives({ titre, sousTitre }: { titre: string; sousTitre: string }) {
+export default function PlaceholderActionsCollectives({
+  titre,
+  sousTitre,
+  retourHref = "/mediation/rencontres-numeriques/actions-collectives/accueil",
+  retourLabel = "Actions Collectives",
+}: {
+  titre: string;
+  sousTitre: string;
+  retourHref?: string;
+  retourLabel?: string;
+}) {
   return (
     <PageGuard pageId="page_access_actions_collectives_accueil">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] flex items-center justify-center p-4 md:p-8 relative overflow-hidden font-medium antialiased`}>
@@ -32,11 +42,11 @@ export default function PlaceholderActionsCollectives({ titre, sousTitre }: { ti
 
         <div className="flex justify-center flex-wrap gap-2">
           <Link
-            href="/mediation/rencontres-numeriques/actions-collectives/accueil"
+            href={retourHref}
             className="inline-flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
           >
             <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
-            <span>Actions Collectives</span>
+            <span>{retourLabel}</span>
           </Link>
           <Link
             href="/"
