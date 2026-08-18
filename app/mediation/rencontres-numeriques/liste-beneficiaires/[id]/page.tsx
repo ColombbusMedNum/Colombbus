@@ -27,7 +27,6 @@ import {
   BriefcaseIcon,
   PlusCircleIcon,
   PencilSquareIcon,
-  CheckIcon,
   XMarkIcon,
   ClockIcon,
   UserGroupIcon,
@@ -124,9 +123,10 @@ export default function FicheBeneficiaire() {
     QPV: "Non", Lieu_RDV: "", lieuRDV: "", Statut_Blacklist: "Non"
   });
 
-  // Édition en ligne d'une visite
+  // Rendez-vous en cours d'édition (ré-ouvre la modale de création avec les
+  // valeurs déjà remplies — voir startEditing) ; null = création d'un nouveau
+  // rendez-vous.
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editFormData, setEditFormData] = useState<Visite | null>(null);
 
   const aujourdhuiStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
 
@@ -353,69 +353,63 @@ export default function FicheBeneficiaire() {
     }
   };
 
+  // Sert à la fois pour créer un nouveau rendez-vous et pour éditer un
+  // existant : editingId (posé par startEditing) fait basculer vers un
+  // updateDoc plutôt qu'un addDoc, dans la même modale — plus de formulaire
+  // d'édition inline séparé sur la ligne du tableau.
   const handleAddRDV = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userExists) return showToast("Créez d'abord le profil.", "error");
 
     if (!formData.lieu || !formData.mediateur) return showToast("Champs obligatoires manquants.", "error");
 
+    const donnees = {
+      mediateur: formData.mediateur,
+      thematique: formData.statut === "Absent" ? "" : formData.thematique,
+      lieu: formData.lieu,
+      details: formData.statut === "Absent" ? "" : formData.details.trim(),
+      statut: formData.statut,
+      absencePar: formData.statut === "Absent" ? formData.absencePar : "",
+      satisfaction: formData.statut === "Absent" ? 0 : Number(formData.satisfaction),
+      date: formData.dateChoisie,
+      moment: formData.momentChoisi,
+    };
+
     try {
-      await addDoc(collection(db, "utilisateurs", userId, "visites"), {
-        mediateur: formData.mediateur,
-        thematique: formData.statut === "Absent" ? "" : formData.thematique,
-        lieu: formData.lieu,
-        details: formData.statut === "Absent" ? "" : formData.details.trim(),
-        statut: formData.statut,
-        absencePar: formData.statut === "Absent" ? formData.absencePar : "",
-        satisfaction: formData.statut === "Absent" ? 0 : Number(formData.satisfaction),
-        date: formData.dateChoisie,
-        moment: formData.momentChoisi,
-        createdAt: serverTimestamp()
-      });
+      if (editingId) {
+        await updateDoc(doc(db, "utilisateurs", userId, "visites", editingId), donnees);
+        setEditingId(null);
+      } else {
+        await addDoc(collection(db, "utilisateurs", userId, "visites"), { ...donnees, createdAt: serverTimestamp() });
 
-      setIsModalRdvOpen(false);
-
-      if (formData.statut === "Présent" && formData.thematique) {
-        const visitesMemeThematique = rdvs.filter(
-          r => r.statut === "Présent" && 
-          r.thematique === formData.thematique &&
-          !["Diagnostic Initial", "Diagnostic Final", "Questionnaire de satisfaction", "Collecte Tech"].includes(r.moment)
-        );
-        
-        const nouveauTotal = visitesMemeThematique.length + 1;
-
-        if (nouveauTotal % 5 === 0) {
-          const reponse = await confirm(
-            `🚨 Alerte : Ce bénéficiaire vient d'atteindre ${nouveauTotal} rendez-vous sur la thématique "${formData.thematique}".\n\nSouhaitez-vous le rediriger immédiatement vers le formulaire pour passer un nouveau diagnostic ?`
+        if (formData.statut === "Présent" && formData.thematique) {
+          const visitesMemeThematique = rdvs.filter(
+            r => r.statut === "Présent" &&
+            r.thematique === formData.thematique &&
+            !["Diagnostic Initial", "Diagnostic Final", "Questionnaire de satisfaction", "Collecte Tech"].includes(r.moment)
           );
-          if (reponse) {
-            router.push(`/mediation/rencontres-numeriques/diagnosticform?id=${userId}`);
+
+          const nouveauTotal = visitesMemeThematique.length + 1;
+
+          if (nouveauTotal % 5 === 0) {
+            const reponse = await confirm(
+              `🚨 Alerte : Ce bénéficiaire vient d'atteindre ${nouveauTotal} rendez-vous sur la thématique "${formData.thematique}".\n\nSouhaitez-vous le rediriger immédiatement vers le formulaire pour passer un nouveau diagnostic ?`
+            );
+            if (reponse) {
+              router.push(`/mediation/rencontres-numeriques/diagnosticform?id=${userId}`);
+            }
           }
         }
       }
 
-      setFormData(prev => ({ 
-        ...prev, 
-        details: "", 
-        satisfaction: "5", 
+      setIsModalRdvOpen(false);
+      setFormData(prev => ({
+        ...prev,
+        details: "",
+        satisfaction: "5",
         statut: "Présent",
         absencePar: "Bénéficiaire"
       }));
-    } catch (error) { console.error(error); }
-  };
-
-  const handleUpdateRDV = async (rdvId: string) => {
-    if (!editFormData) return;
-    try {
-      await updateDoc(doc(db, "utilisateurs", userId, "visites", rdvId), { 
-        ...editFormData, 
-        thematique: editFormData.statut === "Absent" ? "" : editFormData.thematique,
-        details: editFormData.statut === "Absent" ? "" : editFormData.details,
-        absencePar: editFormData.statut === "Absent" ? (editFormData.absencePar || "Bénéficiaire") : "",
-        satisfaction: editFormData.statut === "Absent" ? 0 : Number(editFormData.satisfaction)
-      });
-
-      setEditingId(null); setEditFormData(null);
     } catch (error) { console.error(error); }
   };
 
@@ -432,10 +426,19 @@ export default function FicheBeneficiaire() {
 
   const startEditing = (rdv: Visite) => {
     setEditingId(rdv.id);
-    setEditFormData({ 
-      ...rdv,
-      absencePar: rdv.absencePar || "Bénéficiaire"
+    const satisfactionNum = rdv.satisfaction && typeof rdv.satisfaction === "object" ? rdv.satisfaction.evaluationGlobale : rdv.satisfaction;
+    setFormData({
+      mediateur: rdv.mediateur,
+      thematique: rdv.thematique || "",
+      lieu: rdv.lieu,
+      details: rdv.details || "",
+      satisfaction: String(satisfactionNum || 5),
+      dateChoisie: rdv.date,
+      momentChoisi: rdv.moment,
+      statut: rdv.statut,
+      absencePar: (rdv.absencePar as "Bénéficiaire" | "Colombbus") || "Bénéficiaire",
     });
+    setIsModalRdvOpen(true);
   };
 
   const rencontresStandards = rdvs.filter(r => r.moment !== "Diagnostic Initial" && r.moment !== "Diagnostic Final" && r.moment !== "Questionnaire de satisfaction" && r.moment !== "Collecte Tech");
@@ -624,7 +627,7 @@ export default function FicheBeneficiaire() {
               </div>
               <PermissionGuard actionId="fiche_add_action">
                 <button
-                  onClick={() => setIsModalRdvOpen(true)}
+                  onClick={() => { setEditingId(null); setIsModalRdvOpen(true); }}
                   className="mt-2 w-full inline-flex items-center justify-center gap-2 bg-[#EA601F] hover:bg-[#EF736A] text-white font-bold py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
                 >
                   <PlusCircleIcon className="w-4 h-4" />
@@ -678,162 +681,64 @@ export default function FicheBeneficiaire() {
                     </thead>
                     <tbody className="divide-y divide-[#404040]/5">
                       {rencontresStandards.map((rdv) => {
-                        const isEditing = editingId === rdv.id;
                         const rdvSatisfactionNode = rdv.satisfaction && typeof rdv.satisfaction === "object" ? rdv.satisfaction.evaluationGlobale : rdv.satisfaction;
 
                         return (
                           <tr key={rdv.id} className="hover:bg-[#F3F3F2]/60 transition-colors">
                             <td className="py-3 px-3">
-                              {isEditing && editFormData ? (
-                                <div className="space-y-1">
-                                  <input type="date" value={editFormData.date} onChange={e => setEditFormData({...editFormData, date: e.target.value})} className="bg-white border border-[#404040]/15 text-[11px] p-1 rounded text-[#404040] outline-none w-full" />
-                                  <select value={editFormData.moment} onChange={e => setEditFormData({...editFormData, moment: e.target.value})} className="bg-white border border-[#404040]/15 text-[11px] p-1 rounded text-[#404040] outline-none w-full">
-                                    <option value="Matin">Matin</option>
-                                    <option value="Après-midi">Après-midi</option>
-                                  </select>
-                                </div>
-                              ) : (
-                                <div>
-                                  <p className="font-bold text-[#005259]">{new Date(rdv.date).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'})}</p>
-                                  <p className="text-[10px] text-[#404040]/60 uppercase tracking-wider font-bold">{rdv.moment}</p>
-                                </div>
-                              )}
+                              <div>
+                                <p className="font-bold text-[#005259]">{new Date(rdv.date).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'})}</p>
+                                <p className="text-[10px] text-[#404040]/60 uppercase tracking-wider font-bold">{rdv.moment}</p>
+                              </div>
                             </td>
 
                             <td className="py-3 px-3">
-                              {isEditing && editFormData ? (
-                                <div className="space-y-1">
-                                  <select value={editFormData.mediateur} onChange={e => setEditFormData({...editFormData, mediateur: e.target.value})} className="bg-white border border-[#404040]/15 text-[11px] p-1 rounded text-[#404040] outline-none w-full">
-                                    {listeMediateurs.map(m => <option key={m.id} value={m.nom}>{m.nom}</option>)}
-                                  </select>
-                                  <select value={editFormData.thematique} onChange={e => setEditFormData({...editFormData, thematique: e.target.value})} className="bg-white border border-[#404040]/15 text-[11px] p-1 rounded text-[#404040] outline-none w-full">
-                                    <ThematiqueOptions />
-                                  </select>
-                                </div>
-                              ) : (
-                                <div>
-                                  <p className="text-[#404040] font-bold">{rdv.mediateur}</p>
-                                  <p className="text-[10px] font-bold text-[#EA601F] tracking-wide">{rdv.statut === "Absent" ? "—" : rdv.thematique}</p>
-                                </div>
-                              )}
+                              <div>
+                                <p className="text-[#404040] font-bold">{rdv.mediateur}</p>
+                                <p className="text-[10px] font-bold text-[#EA601F] tracking-wide">{rdv.statut === "Absent" ? "—" : rdv.thematique}</p>
+                              </div>
                             </td>
 
                             <td className="py-3 px-3 max-w-[200px]">
-                              {isEditing && editFormData ? (
-                                <div className="space-y-1">
-                                  <select 
-                                    value={editFormData.lieu} 
-                                    onChange={e => setEditFormData({...editFormData, lieu: e.target.value})} 
-                                    className="bg-white border border-[#404040]/15 text-[11px] p-1 rounded text-[#404040] outline-none w-full"
-                                  >
-                                    {lieuxGlobaux.map((l) => (
-                                      <option key={l.id} value={l.nomCourt}>
-                                        {l.nomCourt}
-                                      </option>
-                                    ))}
-                                    {editFormData.lieu && !lieuxGlobaux.some(l => l.nomCourt === editFormData.lieu) && (
-                                      <option value={editFormData.lieu}>{editFormData.lieu}</option>
-                                    )}
-                                  </select>
-                                  {editFormData.statut === "Présent" && (
-                                    <textarea value={editFormData.details} onChange={e => setEditFormData({...editFormData, details: e.target.value})} rows={2} className="bg-white border border-[#404040]/15 text-[11px] p-1 rounded text-[#404040] outline-none w-full resize-none" />
-                                  )}
-                                </div>
-                              ) : (
-                                <div>
-                                  <p className="text-[#404040]/60 italic text-[11px] truncate uppercase font-bold">{rdv.lieu}</p>
-                                  <p className="text-[#404040] line-clamp-2 text-[11px] leading-relaxed mt-0.5">{rdv.statut === "Absent" ? "— (Absent)" : (rdv.details || "Aucune note rédigée.")}</p>
-                                </div>
-                              )}
+                              <div>
+                                <p className="text-[#404040]/60 italic text-[11px] truncate uppercase font-bold">{rdv.lieu}</p>
+                                <p className="text-[#404040] line-clamp-2 text-[11px] leading-relaxed mt-0.5">{rdv.statut === "Absent" ? "— (Absent)" : (rdv.details || "Aucune note rédigée.")}</p>
+                              </div>
                             </td>
 
                             <td className="py-3 px-3 text-center">
-                              {isEditing && editFormData ? (
-                                <div className="space-y-1 inline-block text-left">
-                                  <select value={editFormData.statut} onChange={e => setEditFormData({...editFormData, statut: e.target.value as "Présent" | "Absent"})} className="bg-white border border-[#404040]/15 text-[11px] p-1 rounded text-[#404040] outline-none">
-                                    <option value="Présent">Présent</option>
-                                    <option value="Absent">Absent</option>
-                                  </select>
-
-                                  {editFormData.statut === "Présent" ? (
-                                    <select value={editFormData.satisfaction} onChange={e => setEditFormData({...editFormData, satisfaction: e.target.value})} className="bg-white border border-[#404040]/15 text-[11px] p-1 rounded text-[#EA601F] outline-none block w-full font-bold">
-                                      {[1,2,3,4,5].map(n => <option key={n} value={n}>⭐ {n}</option>)}
-                                    </select>
-                                  ) : (
-                                    <div className="space-y-1 pt-1">
-                                      <label className="text-[10px] font-bold text-[#EF736A] block uppercase">Absence de :</label>
-                                      <div className="flex flex-col gap-1 text-[10px]">
-                                        <label className="flex items-center gap-1 cursor-pointer">
-                                          <input 
-                                            type="radio" 
-                                            name={`absencePar_${rdv.id}`} 
-                                            value="Bénéficiaire" 
-                                            checked={editFormData.absencePar === "Bénéficiaire"} 
-                                            onChange={() => setEditFormData({...editFormData, absencePar: "Bénéficiaire"})}
-                                          />
-                                          <span>Bénéficiaire</span>
-                                        </label>
-                                        <label className="flex items-center gap-1 cursor-pointer">
-                                          <input 
-                                            type="radio" 
-                                            name={`absencePar_${rdv.id}`} 
-                                            value="Colombbus" 
-                                            checked={editFormData.absencePar === "Colombbus"} 
-                                            onChange={() => setEditFormData({...editFormData, absencePar: "Colombbus"})}
-                                          />
-                                          <span>Colombbus</span>
-                                        </label>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="flex flex-col items-center gap-1">
-                                  {rdv.statut === "Présent" ? (
-                                    <>
-                                      <span className="inline-flex items-center gap-1 bg-[#A9E0C9]/30 border border-[#A9E0C9] text-[#005259] px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider">Présent</span>
-                                      <span className="text-[11px] font-bold text-[#EA601F]">⭐ {rdvSatisfactionNode}/5</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <span className="inline-flex items-center gap-1 bg-[#EF736A]/15 border border-[#EF736A]/30 text-[#EF736A] px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider">
-                                        Absent
-                                      </span>
-                                      <span className="text-[10px] font-bold text-[#EF736A]/90">
-                                        ({rdv.absencePar || "Bénéficiaire"})
-                                      </span>
-                                    </>
-                                  )}
-                                </div>
-                              )}
+                              <div className="flex flex-col items-center gap-1">
+                                {rdv.statut === "Présent" ? (
+                                  <>
+                                    <span className="inline-flex items-center gap-1 bg-[#A9E0C9]/30 border border-[#A9E0C9] text-[#005259] px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider">Présent</span>
+                                    <span className="text-[11px] font-bold text-[#EA601F]">⭐ {rdvSatisfactionNode}/5</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="inline-flex items-center gap-1 bg-[#EF736A]/15 border border-[#EF736A]/30 text-[#EF736A] px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider">
+                                      Absent
+                                    </span>
+                                    <span className="text-[10px] font-bold text-[#EF736A]/90">
+                                      ({rdv.absencePar || "Bénéficiaire"})
+                                    </span>
+                                  </>
+                                )}
+                              </div>
                             </td>
 
                             <td className="py-3 px-3 text-right">
-                              {isEditing ? (
-                                <div className="flex justify-end gap-1.5">
-                                  <PermissionGuard actionId="fiche_action_save_rdv">
-                                    <button onClick={() => handleUpdateRDV(rdv.id)} className="p-1 bg-[#005259] text-white hover:bg-[#EA601F] rounded shadow-sm">
-                                      <CheckIcon className="w-4 h-4 stroke-[3]" />
-                                    </button>
-                                  </PermissionGuard>
-                                  <button onClick={() => { setEditingId(null); setEditFormData(null); }} className="p-1 bg-[#F3F3F2] border border-[#404040]/10 text-[#404040] hover:bg-[#404040]/10 rounded">
-                                    <XMarkIcon className="w-4 h-4" />
+                              <div className="flex justify-end gap-2">
+                                <PermissionGuard actionId="fiche_action_edit_rdv">
+                                  <button onClick={() => startEditing(rdv)} className="p-1.5 bg-[#F3F3F2] border border-[#404040]/10 hover:border-[#005259] text-[#005259] hover:bg-[#005259] hover:text-white rounded-lg transition-colors">
+                                    <PencilSquareIcon className="w-4 h-4" />
                                   </button>
-                                </div>
-                              ) : (
-                                <div className="flex justify-end gap-2">
-                                  <PermissionGuard actionId="fiche_action_edit_rdv">
-                                    <button onClick={() => startEditing(rdv)} className="p-1.5 bg-[#F3F3F2] border border-[#404040]/10 hover:border-[#005259] text-[#005259] hover:bg-[#005259] hover:text-white rounded-lg transition-colors">
-                                      <PencilSquareIcon className="w-4 h-4" />
-                                    </button>
-                                  </PermissionGuard>
-                                  <PermissionGuard actionId="fiche_action_delete_rdv">
-                                    <button onClick={() => handleDeleteRDV(rdv.id)} className="p-1.5 bg-[#EF736A]/10 border border-[#EF736A]/30 hover:bg-[#EF736A] hover:text-white text-[#EF736A] rounded-lg transition-colors">
-                                      <TrashIcon className="w-4 h-4" />
-                                    </button>
-                                  </PermissionGuard>
-                                </div>
-                              )}
+                                </PermissionGuard>
+                                <PermissionGuard actionId="fiche_action_delete_rdv">
+                                  <button onClick={() => handleDeleteRDV(rdv.id)} className="p-1.5 bg-[#EF736A]/10 border border-[#EF736A]/30 hover:bg-[#EF736A] hover:text-white text-[#EF736A] rounded-lg transition-colors">
+                                    <TrashIcon className="w-4 h-4" />
+                                  </button>
+                                </PermissionGuard>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -938,11 +843,11 @@ export default function FicheBeneficiaire() {
               <div className="flex justify-between items-center mb-6 pb-2 border-b border-[#404040]/10">
                 <div className="flex items-center gap-2">
                   <PlusCircleIcon className="w-5 h-5 text-[#005259]" />
-                  <h2 className="text-sm font-bold uppercase tracking-wider text-[#005259]">Nouvelle Action</h2>
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-[#005259]">{editingId ? "Modifier l'action" : "Nouvelle Action"}</h2>
                 </div>
-                <button 
-                  type="button" 
-                  onClick={() => setIsModalRdvOpen(false)} 
+                <button
+                  type="button"
+                  onClick={() => { setIsModalRdvOpen(false); setEditingId(null); }}
                   className="text-[#404040]/50 hover:text-[#005259] p-1 rounded-lg hover:bg-[#F3F3F2] transition-colors"
                 >
                   <XMarkIcon className="w-5 h-5" />
@@ -952,16 +857,16 @@ export default function FicheBeneficiaire() {
               <form onSubmit={handleAddRDV} className="space-y-4">
                 <div>
                   <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Médiateur Référent</label>
-                  <select 
-                    value={formData.mediateur} 
-                    onChange={e => setFormData({...formData, mediateur: e.target.value})} 
+                  <input
+                    list="mediateurs-referents"
+                    value={formData.mediateur}
+                    onChange={e => setFormData({...formData, mediateur: e.target.value})}
+                    placeholder={listeMediateurs.length === 0 ? "Chargement de l'équipe..." : "Taper pour rechercher..."}
                     className={inputClass}
-                  >
-                    {listeMediateurs.length === 0 && (
-                      <option value="">Chargement de l'équipe...</option>
-                    )}
-                    {listeMediateurs.map(m => <option key={m.id} value={m.nom}>{m.nom}</option>)}
-                  </select>
+                  />
+                  <datalist id="mediateurs-referents">
+                    {listeMediateurs.map(m => <option key={m.id} value={m.nom} />)}
+                  </datalist>
                 </div>
 
                 <div>
@@ -1082,19 +987,19 @@ export default function FicheBeneficiaire() {
                 )}
 
                 <div className="flex justify-end gap-3 border-t border-[#404040]/10 pt-4 mt-2">
-                  <button 
-                    type="button" 
-                    onClick={() => setIsModalRdvOpen(false)} 
+                  <button
+                    type="button"
+                    onClick={() => { setIsModalRdvOpen(false); setEditingId(null); }}
                     className="px-4 py-2 rounded-xl text-xs font-bold uppercase bg-white border border-[#404040]/10 text-[#404040] hover:bg-[#F3F3F2] transition-colors"
                   >
                     Annuler
                   </button>
-                  <PermissionGuard actionId="fiche_add_action">
+                  <PermissionGuard actionId={editingId ? "fiche_action_save_rdv" : "fiche_add_action"}>
                     <button
                       type="submit"
                       className="px-5 py-2.5 bg-[#EA601F] hover:bg-[#EF736A] text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md active:scale-95"
                     >
-                      Enregistrer l'action
+                      {editingId ? "Enregistrer les modifications" : "Enregistrer l'action"}
                     </button>
                   </PermissionGuard>
                 </div>

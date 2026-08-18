@@ -121,6 +121,7 @@ export default function HomePage() {
                   <div className="mt-4 flex gap-1.5 p-1.5 rounded-lg bg-[#F3F3F2] border border-[#404040]/10">
                     <div className="w-2 h-2 rounded-full bg-[#005259]"></div>
                     <div className="w-2 h-2 rounded-full bg-[#EA601F]"></div>
+                    <div className="w-2 h-2 rounded-full bg-[#A9E0C9]"></div>
                   </div>
                 </button>
               </PermissionGuard>
@@ -623,7 +624,7 @@ export default function HomePage() {
                       <BuildingOfficeIcon className="w-5 h-5" />
                     </div>
                     <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">
-                      Analyse Actions Suresnes
+                      Analyse par Territoire
                     </h2>
                     <p className="text-[10px] text-[#404040]/70 font-medium mt-1.5 leading-relaxed">
                       Édition et étude du bilan d'impact annuel du Relais Numérique

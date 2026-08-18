@@ -36,6 +36,19 @@ const quicksand = Quicksand({
   weight: ["300", "400", "500", "600", "700"],
 });
 
+// Vocabulaire fixe du <select> Thématique ci-dessous — une valeur importée
+// (texte libre du fichier Google Forms) qui n'y figure pas doit être ajoutée
+// comme option supplémentaire, sinon le <select> l'affiche vide alors que la
+// donnée est bien présente en base.
+const THEMATIQUES_CONNUES = [
+  "", "Ordinateur", "Smartphone", "Premiers pas vers le numérique", "Gestion documentaire",
+  "Communiquer par internet", "Utilisation sécurisée d’internet", "Le numérique au quotidien",
+  "Accès aux droits et aux offres de soin", "Les outils pour la vie professionnelle",
+  "Recherche d’emploi sur internet", "Choisir ses logiciels informatiques", "Création multimédia",
+  "Outils informatiques pour la fabrication", "Collecte Tech", "Collecte Tech - Remise de matériel",
+  "Collecte Tech - Tests de positionnement",
+];
+
 interface Beneficiaire {
   id: string;
   nom: string;
@@ -56,21 +69,62 @@ export default function PlanningSuresnes() {
     });
   }, [mediateursBruts]);
   const [beneficiaires, setBeneficiaires] = useState<Beneficiaire[]>([]);
+  const [reassignCreneau, setReassignCreneau] = useState<{ id: string; currentName: string; site: string; isRND: boolean } | null>(null);
+  const [reassignSearch, setReassignSearch] = useState("");
   const [viewDate, setViewDate] = useState(new Date());
   const [filterTodayOnly, setFilterTodayOnly] = useState(false);
-  // Un même agenda héberge plusieurs sites RN, distingués par le champ
-  // "site" posé à la création du créneau (voir lib/activitesTypes.ts et
+  // Un même agenda héberge plusieurs sites, distingués par le champ "site"
+  // posé à la création du créneau (voir lib/activitesTypes.ts et
   // app/agenda/page.tsx) — absent sur les anciens créneaux, qui sont donc
-  // considérés "suresnes" par défaut.
-  const [siteActif, setSiteActif] = useState<"suresnes" | "rn91">("suresnes");
-  const SITES = [
-    { id: "suresnes" as const, label: "Suresnes" },
-    { id: "rn91" as const, label: "RN - 91" },
-  ];
+  // considérés "suresnes" par défaut. Suresnes/RN-91 sont les deux sites
+  // historiques (toujours affichés) ; tout autre lieu reconstitué depuis un
+  // import (voir liste-beneficiaires → "Mettre à jour l'agenda") ajoute son
+  // propre onglet, nommé d'après le lieu lui-même.
+  const [siteActif, setSiteActif] = useState<string>("suresnes");
+  const SITES = React.useMemo(() => {
+    const base = [
+      { id: "suresnes", label: "Suresnes" },
+      { id: "rn91", label: "RN - 91" },
+    ];
+    const autres = Array.from(new Set(
+      creneaux.map(c => c.site || "suresnes").filter(id => id !== "suresnes" && id !== "rn91")
+    )).sort((a, b) => a.localeCompare(b, 'fr'));
+    return [...base, ...autres.map(id => ({ id, label: id }))];
+  }, [creneaux]);
   const creneauxDuSite = React.useMemo(
     () => creneaux.filter(c => (c.site || "suresnes") === siteActif),
     [creneaux, siteActif]
   );
+
+  // Certains lieux reconstitués depuis un import (ex : plusieurs "Paris
+  // Résidence Autonomie ...") partagent un même préfixe et encombreraient le
+  // sélecteur avec un onglet chacun — on les regroupe sous un seul menu
+  // déroulant, le reste des sites restant affiché en onglets directs.
+  // Les libellés réels utilisent des tirets ("Paris - Résidence Autonomie -
+  // Ave Maria") : on cherche donc la mention n'importe où dans le texte,
+  // pas un préfixe strict.
+  const normaliserTexteSite = (s: string) => (s || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+  const MARQUEUR_GROUPE_PRA = "residence autonomie";
+  const { sitesPrincipaux, sitesGroupePRA } = React.useMemo(() => {
+    const autresSites = SITES.filter(s => s.id !== "suresnes" && s.id !== "rn91");
+    const groupePRA = autresSites.filter(s => normaliserTexteSite(s.label).includes(MARQUEUR_GROUPE_PRA));
+    const principaux = [
+      ...SITES.filter(s => s.id === "suresnes" || s.id === "rn91"),
+      ...autresSites.filter(s => !normaliserTexteSite(s.label).includes(MARQUEUR_GROUPE_PRA)),
+    ];
+    return { sitesPrincipaux: principaux, sitesGroupePRA: groupePRA };
+  }, [SITES]);
+  const [groupePRAOuvert, setGroupePRAOuvert] = useState(false);
+  const groupePRARef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (groupePRARef.current && !groupePRARef.current.contains(event.target as Node)) {
+        setGroupePRAOuvert(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
   
   // États synchronisés en temps réel depuis les fiches de visites
   const [rawVisites, setRawVisites] = useState<any[]>([]);
@@ -465,8 +519,8 @@ export default function PlanningSuresnes() {
         </div>
 
         {/* SÉLECTEUR DE SITE */}
-        <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-2xl border border-[#404040]/10 shadow-sm w-fit">
-          {SITES.map(site => (
+        <div className="flex items-center flex-wrap gap-1.5 bg-white p-1.5 rounded-2xl border border-[#404040]/10 shadow-sm w-fit max-w-full">
+          {sitesPrincipaux.map(site => (
             <button
               key={site.id}
               onClick={() => setSiteActif(site.id)}
@@ -477,6 +531,35 @@ export default function PlanningSuresnes() {
               {site.label}
             </button>
           ))}
+
+          {sitesGroupePRA.length > 0 && (
+            <div ref={groupePRARef} className="relative">
+              <button
+                onClick={() => setGroupePRAOuvert(v => !v)}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                  sitesGroupePRA.some(s => s.id === siteActif) ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/70 hover:text-[#005259] hover:bg-[#F3F3F2]"
+                }`}
+              >
+                <span>{sitesGroupePRA.find(s => s.id === siteActif)?.label || "Paris Résidence Autonomie"}</span>
+                <ChevronRightIcon className={`w-3.5 h-3.5 transition-transform ${groupePRAOuvert ? "rotate-90" : ""}`} />
+              </button>
+              {groupePRAOuvert && (
+                <div className="absolute left-0 top-full mt-1 min-w-[220px] bg-white border border-[#404040]/15 rounded-xl shadow-xl z-[100] overflow-hidden divide-y divide-[#404040]/5">
+                  {sitesGroupePRA.map(site => (
+                    <button
+                      key={site.id}
+                      onClick={() => { setSiteActif(site.id); setGroupePRAOuvert(false); }}
+                      className={`w-full text-left px-3 py-2 text-xs font-bold transition-colors cursor-pointer ${
+                        siteActif === site.id ? "bg-[#005259]/10 text-[#005259]" : "text-[#404040] hover:bg-[#F3F3F2]"
+                      }`}
+                    >
+                      {site.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ANALYTICS / KPIs */}
@@ -497,7 +580,7 @@ export default function PlanningSuresnes() {
               </div>
               <div className="flex gap-2 text-right">
                 <div>
-                  <span className="text-[8px] text-[#404040]/60 block font-bold uppercase">{siteActif === "rn91" ? "RN91" : "RN"}</span>
+                  <span className="text-[8px] text-[#404040]/60 block font-bold uppercase">{siteActif === "rn91" ? "RN91" : siteActif === "suresnes" ? "RN" : SITES.find(s => s.id === siteActif)?.label}</span>
                   <span className="text-[11px] font-bold text-[#005259]">{totalRemplisRN}</span>
                 </div>
                 {siteActif === "suresnes" && (
@@ -537,7 +620,7 @@ export default function PlanningSuresnes() {
             <span className="block text-[10px] uppercase font-bold tracking-widest text-[#005259]">Public unique (Mois)</span>
             <div className="flex flex-col gap-1.5 mt-2">
               <div className="flex items-center justify-between text-[11px]">
-                <span className="text-[#404040]/70 font-bold uppercase text-[9px] tracking-wide">{siteActif === "rn91" ? "RN91 :" : "RN :"}</span>
+                <span className="text-[#404040]/70 font-bold uppercase text-[9px] tracking-wide">{siteActif === "rn91" ? "RN91 :" : siteActif === "suresnes" ? "RN :" : `${SITES.find(s => s.id === siteActif)?.label} :`}</span>
                 <div className="flex gap-2 text-[#404040]">
                   <span>H:<b className="text-[#005259]">{rnHommesUniques}</b></span>
                   <span>F:<b className="text-[#EA601F]">{rnFemmesUniques}</b></span>
@@ -639,9 +722,19 @@ export default function PlanningSuresnes() {
                                       <span className={`truncate min-w-0 ${isOrphan ? "text-[#EF736A]" : "text-[#005259]"}`}>{nomAffiche}</span>
                                       {isRND && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#EA601F]/10 border border-[#EA601F]/30 text-[#EA601F] shrink-0">RND</span>}
                                     </div>
+                                    {isOrphan && (
+                                      <PermissionGuard actionId="suresnes_reassign">
+                                        <button onClick={() => {
+                                          setReassignSearch("");
+                                          setReassignCreneau({ id: c.id, currentName: nomAffiche || c.mediateurNom || "", site: c.site || "suresnes", isRND });
+                                        }} className="mt-1 px-2 py-0.5 bg-[#EF736A]/20 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/40 rounded-lg text-[9px] font-bold uppercase tracking-wide transition-colors cursor-pointer">
+                                          Réaffecter
+                                        </button>
+                                      </PermissionGuard>
+                                    )}
                                   </div>
                                 </div>
-                                
+
                                 <div className="xl:col-span-1 flex items-center gap-2 text-[#404040]">
                                   <ClockIcon className="w-4 h-4 text-[#EA601F]" />
                                   <span className="text-xs font-bold">{c.horaire}</span>
@@ -678,6 +771,9 @@ export default function PlanningSuresnes() {
                                       <option value="Collecte Tech" className="text-[#EA601F] font-bold">🧺 Collecte Tech</option>
                                       <option value="Collecte Tech - Remise de matériel" className="text-[#EA601F] font-bold">🧺 Collecte Tech - Remise de matériel</option>
                                       <option value="Collecte Tech - Tests de positionnement" className="text-[#EA601F] font-bold">🧺 Collecte Tech - Tests de positionnement</option>
+                                      {c.thematique && !THEMATIQUES_CONNUES.includes(c.thematique) && (
+                                        <option value={c.thematique}>{c.thematique}</option>
+                                      )}
                                     </select>
                                   </div>
                                   </PermissionGuard>
@@ -726,16 +822,7 @@ export default function PlanningSuresnes() {
                                 </div>
                                 
                                 <div className="xl:col-span-1 text-left xl:text-right shrink-0">
-                                  {isOrphan ? (
-                                    <PermissionGuard actionId="suresnes_reassign">
-                                      <button onClick={() => {
-                                        const n = prompt("Attribuer à un autre médiateur ?");
-                                        if(n) updateDoc(doc(db, "planning_suresnes", c.id), { mediateurNom: n });
-                                      }} className="px-2.5 py-1 bg-[#EF736A]/20 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/40 rounded-xl text-[11px] font-bold transition-colors cursor-pointer w-full text-center">
-                                        Réaffecter
-                                      </button>
-                                    </PermissionGuard>
-                                  ) : !bTrouve ? (
+                                  {!bTrouve ? (
                                     <span className="inline-block text-center w-full text-[#404040]/50 bg-white border border-[#404040]/10 px-2 py-1 rounded-lg text-[9px] font-bold tracking-wider uppercase shadow-sm">
                                       À attribuer
                                     </span>
@@ -780,6 +867,78 @@ export default function PlanningSuresnes() {
         </div>
 
       </div>
+
+      {/* MODALE DE RÉAFFECTATION — recherche dans la vraie liste des
+          médiateurs plutôt qu'un prompt() en texte libre, pour éviter de
+          retaper un nom orphelin qui redéclencherait l'alerte. */}
+      {reassignCreneau && (() => {
+        const suggestions = mediateursBruts
+          .map((m: any) => `${(m.prenom || "").trim()} ${(m.nom || "").trim()}`.trim())
+          .filter((nom: string) => nom && nom.toLowerCase().includes(reassignSearch.toLowerCase()));
+
+        const confirmerReaffectation = async (nomChoisi: string) => {
+          const nomComplet = reassignCreneau.isRND
+            ? `${nomChoisi} (RND)`
+            : reassignCreneau.site === "rn91"
+              ? `${nomChoisi} (RN91)`
+              : reassignCreneau.site === "suresnes"
+                ? `${nomChoisi} (RN)`
+                : nomChoisi;
+          try {
+            await updateDoc(doc(db, "planning_suresnes", reassignCreneau.id), { mediateurNom: nomComplet });
+          } catch (e) { console.error(e); }
+          setReassignCreneau(null);
+        };
+
+        return (
+          <div className="fixed inset-0 bg-[#404040]/50 backdrop-blur-sm flex items-center justify-center z-[150] p-4">
+            <div className="bg-white border border-[#404040]/10 p-6 rounded-2xl w-full max-w-sm space-y-4 shadow-2xl">
+              <h3 className="font-bold text-sm text-[#005259] uppercase tracking-wide">Réaffecter le créneau</h3>
+
+              <div className="bg-[#EF736A]/10 border border-[#EF736A]/30 rounded-xl p-3 text-xs">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-[#EF736A]/70">Actuellement affecté à</span>
+                <span className="font-bold text-[#EF736A]">{reassignCreneau.currentName || "—"}</span>
+              </div>
+
+              <div>
+                <label className="text-[10px] text-[#404040]/70 font-bold uppercase tracking-wider block mb-1">Nouveau médiateur</label>
+                <input
+                  autoFocus
+                  type="text"
+                  value={reassignSearch}
+                  onChange={(e) => setReassignSearch(e.target.value)}
+                  placeholder="Rechercher un médiateur..."
+                  className="w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-xs text-[#404040] placeholder-[#404040]/40 outline-none font-medium"
+                />
+              </div>
+
+              <div className="max-h-48 overflow-y-auto border border-[#404040]/10 rounded-xl divide-y divide-[#404040]/5">
+                {suggestions.length > 0 ? suggestions.map((nom: string) => (
+                  <button
+                    key={nom}
+                    onClick={() => confirmerReaffectation(nom)}
+                    className="w-full text-left px-3 py-2 text-xs font-bold text-[#404040] hover:bg-[#F3F3F2] hover:text-[#005259] transition-colors cursor-pointer"
+                  >
+                    {nom}
+                  </button>
+                )) : (
+                  <div className="px-3 py-4 text-center text-[11px] text-[#404040]/50 font-medium">Aucun médiateur trouvé.</div>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setReassignCreneau(null)}
+                  className="text-[#404040]/60 hover:text-[#404040] text-xs px-3 cursor-pointer transition-colors font-bold"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </main>
     </PageGuard>
   );
