@@ -97,6 +97,7 @@ export default function BilanSuresnesPage() {
   const [ageOuvert, setAgeOuvert] = useState(false);
   const [genreOuvert, setGenreOuvert] = useState(false);
   const [venuesOuvert, setVenuesOuvert] = useState(false);
+  const [absentsOuvert, setAbsentsOuvert] = useState(false);
 
   useEffect(() => {
     const chargerDonnees = async () => {
@@ -232,6 +233,47 @@ export default function BilanSuresnesPage() {
 
     return { totalSuresnes: totalCompteur, trimestres: structureTrimestres, moisDetail: detailFormate };
   }, [rawCreneaux, listeUsagers, siteFiltre]);
+
+  // Bénéficiaires ayant réellement une visite enregistrée mais absents du
+  // planning (site sélectionné) — écart entre "Bénéficiaires reçus" (basé
+  // sur l'historique de visites) et "Bénéficiaires distincts de l'agenda"
+  // (basé sur planning_suresnes). Vient surtout des créneaux jamais créés
+  // faute de place lors de l'ancienne reconstruction (2 créneaux max par
+  // médiateur/jour/moment) ou d'un nom écrit différemment dans l'agenda.
+  const beneficiairesAbsentsDeLAgenda = useMemo(() => {
+    const creneauxDuSite = siteFiltre === SITE_GLOBAL
+      ? rawCreneaux
+      : rawCreneaux.filter(c => normaliserSiteId(c.site) === siteFiltre);
+
+    const usagersDansAgenda = new Set(
+      creneauxDuSite
+        .map(c => (c.usager || "").trim().toLowerCase().replace(/\s+/g, " "))
+        .filter(Boolean)
+    );
+
+    return beneficiairesComplet
+      .map((b) => {
+        const docsVisites = visitesParUtilisateur.get(b.id) || [];
+        const nbVisites = docsVisites.filter((v) => v.statut !== "Absent" && v.statut !== "Annulé").length;
+        return { b, nbVisites };
+      })
+      .filter(({ nbVisites }) => nbVisites > 0)
+      .filter(({ b }) => {
+        const nom = (b.Nom || b.nom || "").trim().toLowerCase().replace(/\s+/g, " ");
+        const prenom = (b.Prénom || b.prenom || "").trim().toLowerCase().replace(/\s+/g, " ");
+        const combinPrenomNom = `${prenom} ${nom}`.trim();
+        const combinNomPrenom = `${nom} ${prenom}`.trim();
+        return !usagersDansAgenda.has(combinPrenomNom) && !usagersDansAgenda.has(combinNomPrenom);
+      })
+      .map(({ b, nbVisites }) => ({
+        id: b.id,
+        nom: b.Nom || b.nom || "",
+        prenom: b.Prénom || b.prenom || "",
+        ville: b.Ville || "",
+        nbVisites,
+      }))
+      .sort((a, b) => (a.nom || "").localeCompare(b.nom || "", 'fr', { sensitivity: 'base' }));
+  }, [rawCreneaux, beneficiairesComplet, visitesParUtilisateur, siteFiltre]);
 
   // Répartition des tranches d'âge par territoire : l'âge n'est pas stocké
   // tel quel (seul Date_Naissance existe), donc on le déduit à la volée.
@@ -464,6 +506,49 @@ export default function BilanSuresnesPage() {
             </div>
           </div>
         </div>
+
+        {/* BÉNÉFICIAIRES REÇUS MAIS ABSENTS DE L'AGENDA (site sélectionné) */}
+        <Accordion
+          title={`Bénéficiaires reçus mais absents de l'agenda (${beneficiairesAbsentsDeLAgenda.length})`}
+          open={absentsOuvert}
+          onToggle={() => setAbsentsOuvert(!absentsOuvert)}
+        >
+          {beneficiairesAbsentsDeLAgenda.length === 0 ? (
+            <p className="text-xs text-[#404040]/60 py-2">Aucun écart : tous les bénéficiaires reçus apparaissent dans l'agenda de ce site.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-[#404040]/10">
+                    <th className="text-left py-2 px-2 font-bold text-[#404040]/60 uppercase tracking-wider text-[10px]">Nom</th>
+                    <th className="text-left py-2 px-2 font-bold text-[#404040]/60 uppercase tracking-wider text-[10px]">Prénom</th>
+                    <th className="text-left py-2 px-2 font-bold text-[#404040]/60 uppercase tracking-wider text-[10px]">Ville</th>
+                    <th className="text-center py-2 px-2 font-bold text-[#005259] uppercase tracking-wider text-[10px]">Visites</th>
+                    <th className="text-right py-2 px-2 font-bold text-[#404040]/60 uppercase tracking-wider text-[10px]">Fiche</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {beneficiairesAbsentsDeLAgenda.map((b) => (
+                    <tr key={b.id} className="border-b border-[#404040]/5 last:border-0">
+                      <td className="py-2 px-2 font-bold text-[#404040] uppercase">{b.nom || "—"}</td>
+                      <td className="py-2 px-2 text-[#404040]">{b.prenom || "—"}</td>
+                      <td className="py-2 px-2 text-[#404040]/70">{b.ville || "—"}</td>
+                      <td className="text-center py-2 px-2 font-bold text-[#005259]">{b.nbVisites}</td>
+                      <td className="text-right py-2 px-2">
+                        <Link
+                          href={`/mediation/rencontres-numeriques/liste-beneficiaires/${b.id}`}
+                          className="text-[#EA601F] hover:underline font-bold text-[10px] uppercase tracking-wide"
+                        >
+                          Ouvrir
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Accordion>
 
         {/* RÉPARTITION DES TRANCHES D'ÂGE PAR TERRITOIRE */}
         <Accordion title="Répartition des tranches d'âge par territoire" open={ageOuvert} onToggle={() => setAgeOuvert(!ageOuvert)}>
