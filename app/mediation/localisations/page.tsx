@@ -47,6 +47,14 @@ interface Lieu {
   actif?: boolean;
 }
 
+// Même construction d'URL que app/mediation/adresses/page.tsx, pour ouvrir
+// l'adresse du lieu directement dans Google Maps.
+function googleMapsUrl(lieu: Pick<Lieu, "nomCourt" | "adresse" | "codePostal" | "ville">): string | null {
+  if (!lieu.adresse) return null;
+  const requete = `${lieu.nomCourt} ${lieu.adresse} ${lieu.codePostal || ""} ${lieu.ville || ""}`.trim();
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(requete)}`;
+}
+
 export default function LocalisationsPage() {
   return (
     <Suspense fallback={null}>
@@ -459,10 +467,23 @@ function LocalisationsPageContent() {
                               </div>
                             </div>
                           ) : (
-                            <div>
-                              <p className="truncate">{lieu.adresse || "—"}</p>
-                              {(lieu.codePostal || lieu.ville) && (
-                                <p className="text-[10px] text-[#404040]/60">{lieu.codePostal} {lieu.ville}</p>
+                            <div className="flex items-center gap-1.5">
+                              <div className="min-w-0">
+                                <p className="truncate">{lieu.adresse || "—"}</p>
+                                {(lieu.codePostal || lieu.ville) && (
+                                  <p className="text-[10px] text-[#404040]/60">{lieu.codePostal} {lieu.ville}</p>
+                                )}
+                              </div>
+                              {googleMapsUrl(lieu) && (
+                                <a
+                                  href={googleMapsUrl(lieu)!}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="Ouvrir dans Google Maps"
+                                  className="p-1 text-[#EA601F] hover:text-white hover:bg-[#EA601F] rounded-lg transition-colors shrink-0"
+                                >
+                                  <MapPinIcon className="w-4 h-4" />
+                                </a>
                               )}
                             </div>
                           )}
@@ -564,10 +585,25 @@ function LocalisationsPageContent() {
                     </p>
 
                     <div className="text-xs text-[#404040]/70 space-y-0.5 border-t border-[#404040]/10 pt-2">
-                      <p className="truncate">{lieu.adresse || "Adresse non spécifiée"}</p>
-                      {(lieu.codePostal || lieu.ville) && (
-                        <p className="text-[11px] text-[#404040] font-bold">{lieu.codePostal} {lieu.ville}</p>
-                      )}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate">{lieu.adresse || "Adresse non spécifiée"}</p>
+                          {(lieu.codePostal || lieu.ville) && (
+                            <p className="text-[11px] text-[#404040] font-bold">{lieu.codePostal} {lieu.ville}</p>
+                          )}
+                        </div>
+                        {googleMapsUrl(lieu) && (
+                          <a
+                            href={googleMapsUrl(lieu)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Ouvrir dans Google Maps"
+                            className="p-1.5 bg-white border border-[#404040]/10 hover:border-[#EA601F] text-[#EA601F] rounded-lg transition-colors shrink-0 shadow-sm"
+                          >
+                            <MapPinIcon className="w-4 h-4" />
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
 
