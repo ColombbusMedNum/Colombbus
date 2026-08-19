@@ -384,7 +384,7 @@ export default function ListeBeneficiaires() {
                   : "bg-white text-[#404040] border border-[#404040]/10 hover:border-[#005259] hover:text-[#005259]"
               }`}
             >
-              💼 Public France Travail ({countDE})
+              💼 France Travail ({countDE})
             </button>
           </PermissionGuard>
 
@@ -412,16 +412,7 @@ export default function ListeBeneficiaires() {
             ✅ Adhérents ({countAdherents})
           </button>
 
-          <button
-            onClick={() => setFiltreActif("VilleNonRenseignee")}
-            className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-              filtreActif === "VilleNonRenseignee"
-                ? "bg-[#005259] text-white shadow-sm"
-                : "bg-white text-[#404040] border border-[#404040]/10 hover:border-[#005259] hover:text-[#005259]"
-            }`}
-          >
-            🏙️ Ville non renseignée ({countVilleNonRenseignee})
-          </button>
+          
         </div>
 
         {/* RÉSULTATS — ACCORDÉONS PAR INITIALE */}
