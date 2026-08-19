@@ -107,7 +107,10 @@ export default function ApprenantsSessionPage() {
   }, []);
 
   const apprenantsSession = useMemo(
-    () => inscriptions.filter((i) => i.Session === sessionId && i.Suivi_Recrutement && i.OK_NOK === "OK"),
+    () =>
+      inscriptions
+        .filter((i) => i.Session === sessionId && i.Suivi_Recrutement && i.OK_NOK === "OK")
+        .sort((a, b) => (a.Nom || "").localeCompare(b.Nom || "", "fr")),
     [inscriptions, sessionId]
   );
 
@@ -134,14 +137,19 @@ export default function ApprenantsSessionPage() {
     return Array.from(trouves).join(" / ");
   }, [sessions, sessionId]);
 
+  // Synchronise toujours le territoire affiché sur celui de la session en
+  // cours dès qu'il est connu — sans ce "toujours" (et avec un simple garde
+  // "si déjà défini, ne pas y toucher"), changer de territoire déclenchait
+  // une navigation vers une nouvelle session dont les données arrivent après
+  // le rendu : le repli sur territoiresListe[0] ("91") se posait en premier
+  // et restait bloqué, empêchant la vraie valeur de session de s'appliquer.
   useEffect(() => {
-    if (territoireSelectionne) return;
     if (territoireDeSession) {
       setTerritoireSelectionne(territoireDeSession.split(" / ")[0]);
-    } else if (territoiresListe.length > 0) {
+    } else if (territoiresListe.length > 0 && !territoireSelectionne) {
       setTerritoireSelectionne(territoiresListe[0]);
     }
-  }, [territoireDeSession, territoiresListe, territoireSelectionne]);
+  }, [territoireDeSession, territoiresListe]);
 
   const sessionsDuTerritoire = useMemo(
     () => Array.from(new Set(Object.values(sessions).flatMap((parTerritoire) => parTerritoire[territoireSelectionne] || []))).sort((a, b) => a.localeCompare(b, "fr")),

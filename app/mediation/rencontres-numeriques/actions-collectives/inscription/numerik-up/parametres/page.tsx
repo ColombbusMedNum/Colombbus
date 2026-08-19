@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
-import { HomeIcon, ArrowLeftIcon, PlusIcon, XMarkIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ArrowLeftIcon, PlusIcon, XMarkIcon, TrashIcon, TagIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
 
@@ -42,6 +42,31 @@ function slugifier(texte: string, dejaUtilises: string[]): string {
 }
 
 const MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+const JOURS_FR = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+
+// "YYYY-MM-DD" (valeur d'un <input type="date">) → Date locale, sans décalage
+// de fuseau horaire (contrairement à new Date("YYYY-MM-DD") qui est en UTC).
+function parseDateInput(valeur: string): Date | null {
+  const m = valeur.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+// Reconstruit le libellé "Du lundi 7 septembre 2026 au vendredi 2 octobre
+// 2026" à partir des deux dates saisies séparément.
+function formaterLibelleSession(debut: Date, fin: Date): string {
+  const formater = (d: Date) => `${JOURS_FR[d.getDay()]} ${d.getDate()} ${MOIS_FR[d.getMonth()]} ${d.getFullYear()}`;
+  return `Du ${formater(debut)} au ${formater(fin)}`;
+}
+
+// Extrait les dates de début et de fin d'un libellé de session (première et
+// dernière occurrence "jour mois année") pour les réafficher séparément.
+function extraireDebutFin(texte: string): { debut: string; fin: string } | null {
+  const regex = new RegExp(`\\d{1,2}\\s+(?:${MOIS_FR.join("|")})\\s+\\d{4}`, "gi");
+  const correspondances = texte.match(regex);
+  if (!correspondances || correspondances.length === 0) return null;
+  return { debut: correspondances[0], fin: correspondances[correspondances.length - 1] };
+}
 
 // Les dates de session sont du texte libre (ex. "Du lundi 7 septembre au
 // vendredi 2 octobre 2026") : on extrait la première occurrence "jour mois
@@ -68,11 +93,15 @@ export default function ParametresNumerikUpPage() {
   const [nouveauTerritoire, setNouveauTerritoire] = useState("");
   // sessions[parcoursId][territoire] = liste de dates de session.
   const [sessions, setSessions] = useState<Record<string, Record<string, string[]>>>({});
+  // codes["parcoursId|territoire|date"] = code interne, jamais affiché sur le
+  // formulaire public — sert uniquement en usage interne (Drive, suivi...).
+  const [codes, setCodes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   const [nouvelleSessionParcours, setNouvelleSessionParcours] = useState("crea");
   const [nouvelleSessionTerritoire, setNouvelleSessionTerritoire] = useState("91");
-  const [nouvelleSessionDate, setNouvelleSessionDate] = useState("");
+  const [nouvelleSessionDebut, setNouvelleSessionDebut] = useState("");
+  const [nouvelleSessionFin, setNouvelleSessionFin] = useState("");
 
   useEffect(() => {
     const charger = async () => {
@@ -81,13 +110,34 @@ export default function ParametresNumerikUpPage() {
         getDoc(doc(db, "configuration_numerikup", "parcours")),
         getDoc(doc(db, "configuration_numerikup", "territoires")),
       ]);
-      if (snapSessions.exists()) {
-        setSessions(snapSessions.data().parTerritoire || {});
-      }
+      const parcoursCharges = snapParcours.exists() && Array.isArray(snapParcours.data().liste) && snapParcours.data().liste.length > 0
+        ? snapParcours.data().liste
+        : PARCOURS_DEFAUT;
       if (snapParcours.exists() && Array.isArray(snapParcours.data().liste) && snapParcours.data().liste.length > 0) {
-        const liste = snapParcours.data().liste;
-        setParcoursListe(liste);
-        setNouvelleSessionParcours(liste[0].id);
+        setParcoursListe(parcoursCharges);
+        setNouvelleSessionParcours(parcoursCharges[0].id);
+      }
+      if (snapSessions.exists()) {
+        const sessionsChargees: Record<string, Record<string, string[]>> = snapSessions.data().parTerritoire || {};
+        const codesCharges: Record<string, string> = snapSessions.data().codes || {};
+        // Nettoie les sessions orphelines d'un parkours déjà supprimé, puis
+        // les codes qui ne correspondent plus à aucune session existante
+        // (parkours supprimé, ou simplement session supprimée entre-temps —
+        // les deux cas laissaient un code fantôme avant la correction du
+        // merge Firestore).
+        const parcoursIdsValides = parcoursCharges.map((p: Parcours) => p.id);
+        const sessionsNettoyees = Object.fromEntries(Object.entries(sessionsChargees).filter(([id]) => parcoursIdsValides.includes(id)));
+        const codesNettoyes = Object.fromEntries(
+          Object.entries(codesCharges).filter(([cle]) => {
+            const [parcoursId, territoire, date] = (cle as string).split("|");
+            return (sessionsNettoyees[parcoursId]?.[territoire] || []).includes(date);
+          })
+        );
+        setSessions(sessionsNettoyees);
+        setCodes(codesNettoyes);
+        if (Object.keys(sessionsNettoyees).length !== Object.keys(sessionsChargees).length || Object.keys(codesNettoyes).length !== Object.keys(codesCharges).length) {
+          await sauvegarderSessions(sessionsNettoyees, codesNettoyes);
+        }
       }
       if (snapTerritoires.exists() && Array.isArray(snapTerritoires.data().liste) && snapTerritoires.data().liste.length > 0) {
         const liste = snapTerritoires.data().liste;
@@ -98,6 +148,14 @@ export default function ParametresNumerikUpPage() {
     };
     charger();
   }, []);
+
+  // Écrit tout le document "sessions" en une fois (jamais de merge partiel) :
+  // { merge: true } fusionne les maps en profondeur au lieu de les remplacer,
+  // donc une clé supprimée localement (session, code) réapparaîtrait après
+  // rechargement si on l'utilisait ici.
+  const sauvegarderSessions = async (parTerritoire: Record<string, Record<string, string[]>>, codesActuels: Record<string, string>) => {
+    await setDoc(doc(db, "configuration_numerikup", "sessions"), { parTerritoire, codes: codesActuels });
+  };
 
   const ajouterParcours = async () => {
     const label = nouveauParcoursLabel.trim();
@@ -113,6 +171,15 @@ export default function ParametresNumerikUpPage() {
     const misesAJour = parcoursListe.filter((p) => p.id !== id);
     setParcoursListe(misesAJour);
     await setDoc(doc(db, "configuration_numerikup", "parcours"), { liste: misesAJour });
+
+    // Purge les sessions et codes internes rattachés à ce parkours, sinon ils
+    // restent orphelins (le libellé du parkours ne se résout plus nulle part).
+    const sessionsMisesAJour = { ...sessions };
+    delete sessionsMisesAJour[id];
+    setSessions(sessionsMisesAJour);
+    const codesMisAJour = Object.fromEntries(Object.entries(codes).filter(([cle]) => cle.split("|")[0] !== id));
+    setCodes(codesMisAJour);
+    await sauvegarderSessions(sessionsMisesAJour, codesMisAJour);
   };
 
   const ajouterTerritoire = async () => {
@@ -131,16 +198,19 @@ export default function ParametresNumerikUpPage() {
   };
 
   const ajouterSession = async () => {
-    const valeur = nouvelleSessionDate.trim();
-    if (!valeur) return;
+    const debut = parseDateInput(nouvelleSessionDebut);
+    const fin = parseDateInput(nouvelleSessionFin);
+    if (!debut || !fin) return;
+    const valeur = formaterLibelleSession(debut, fin);
     const pourParcours = sessions[nouvelleSessionParcours] || {};
     const misesAJour = {
       ...sessions,
       [nouvelleSessionParcours]: { ...pourParcours, [nouvelleSessionTerritoire]: [...(pourParcours[nouvelleSessionTerritoire] || []), valeur] },
     };
     setSessions(misesAJour);
-    setNouvelleSessionDate("");
-    await setDoc(doc(db, "configuration_numerikup", "sessions"), { parTerritoire: misesAJour });
+    setNouvelleSessionDebut("");
+    setNouvelleSessionFin("");
+    await sauvegarderSessions(misesAJour, codes);
   };
 
   const supprimerSession = async (parcours: string, territoire: string, valeur: string) => {
@@ -150,7 +220,34 @@ export default function ParametresNumerikUpPage() {
       [parcours]: { ...pourParcours, [territoire]: (pourParcours[territoire] || []).filter((s) => s !== valeur) },
     };
     setSessions(misesAJour);
-    await setDoc(doc(db, "configuration_numerikup", "sessions"), { parTerritoire: misesAJour });
+    const cle = `${parcours}|${territoire}|${valeur}`;
+    const codesMisAJour = { ...codes };
+    delete codesMisAJour[cle];
+    setCodes(codesMisAJour);
+    await sauvegarderSessions(misesAJour, codesMisAJour);
+  };
+
+  // Code interne "MN{AA}_NKUP-{territoire}_{NN}" — jamais affiché sur le
+  // formulaire public, numéroté séquentiellement par territoire.
+  const genererCode = async (ligne: { parcoursId: string; territoire: string; date: string }) => {
+    const cle = `${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`;
+    if (codes[cle]) return;
+    const anneeMatch = ligne.date.match(/(\d{4})/);
+    const annee = anneeMatch ? anneeMatch[1].slice(-2) : String(new Date().getFullYear()).slice(-2);
+    const nombreExistant = Object.keys(codes).filter((c) => c.split("|")[1] === ligne.territoire).length;
+    const numero = String(nombreExistant + 1).padStart(2, "0");
+    const code = `MN${annee}_NKUP-${ligne.territoire}_${numero}`;
+    const misesAJour = { ...codes, [cle]: code };
+    setCodes(misesAJour);
+    await sauvegarderSessions(sessions, misesAJour);
+  };
+
+  // Le code auto-généré reste librement modifiable (ex. pour aligner avec une
+  // convention déjà utilisée ailleurs, comme dans le suivi des absences).
+  const modifierCode = async (cle: string, valeur: string) => {
+    const misesAJour = { ...codes, [cle]: valeur };
+    setCodes(misesAJour);
+    await sauvegarderSessions(sessions, misesAJour);
   };
 
   // Table à plat de toutes les sessions, tous parkours/territoires
@@ -294,7 +391,7 @@ export default function ParametresNumerikUpPage() {
           <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Sessions ({lignesSessions.length})</h2>
 
           {/* Ajout d'une nouvelle session */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 items-end">
             <div>
               <label className={labelClass}>Parkours</label>
               <select value={nouvelleSessionParcours} onChange={(e) => setNouvelleSessionParcours(e.target.value)} className={inputClass}>
@@ -307,14 +404,22 @@ export default function ParametresNumerikUpPage() {
                 {territoiresListe.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-            <div className="sm:col-span-2 flex gap-2">
+            <div>
+              <label className={labelClass}>Date de début</label>
+              <input
+                type="date"
+                value={nouvelleSessionDebut}
+                onChange={(e) => setNouvelleSessionDebut(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div className="flex gap-2">
               <div className="flex-1">
-                <label className={labelClass}>Date de session</label>
+                <label className={labelClass}>Date de fin</label>
                 <input
-                  type="text"
-                  value={nouvelleSessionDate}
-                  onChange={(e) => setNouvelleSessionDate(e.target.value)}
-                  placeholder="Ex : Du lundi 7 septembre au vendredi 2 octobre 2026"
+                  type="date"
+                  value={nouvelleSessionFin}
+                  onChange={(e) => setNouvelleSessionFin(e.target.value)}
                   className={inputClass}
                 />
               </div>
@@ -344,15 +449,35 @@ export default function ParametresNumerikUpPage() {
                       <td className="px-4 py-2.5 font-bold text-[#005259]">{ligne.parcoursLabel}</td>
                       <td className="px-4 py-2.5">{ligne.territoire}</td>
                       <td className="px-4 py-2.5">{ligne.date}</td>
-                      <td className="px-4 py-2.5 text-right">
-                        <button
-                          type="button"
-                          onClick={() => supprimerSession(ligne.parcoursId, ligne.territoire, ligne.date)}
-                          className="p-1.5 bg-[#EF736A]/10 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/30 rounded-lg transition-colors cursor-pointer"
-                          title="Supprimer cette session"
-                        >
-                          <TrashIcon className="w-3.5 h-3.5" />
-                        </button>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center justify-end gap-2">
+                          {codes[`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`] ? (
+                            <input
+                              key={`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}|${codes[`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`]}`}
+                              type="text"
+                              defaultValue={codes[`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`]}
+                              onBlur={(e) => modifierCode(`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`, e.target.value)}
+                              className="font-mono text-[10px] font-bold text-[#005259] bg-[#005259]/5 border border-[#005259]/15 focus:border-[#005259] focus:bg-white rounded px-1.5 py-1 w-32 outline-none"
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => genererCode(ligne)}
+                              className="p-1.5 bg-[#005259]/10 hover:bg-[#005259] text-[#005259] hover:text-white border border-[#005259]/30 rounded-lg transition-colors cursor-pointer"
+                              title="Générer un code interne (non visible sur le formulaire)"
+                            >
+                              <PlusIcon className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => supprimerSession(ligne.parcoursId, ligne.territoire, ligne.date)}
+                            className="p-1.5 bg-[#EF736A]/10 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/30 rounded-lg transition-colors cursor-pointer"
+                            title="Supprimer cette session"
+                          >
+                            <TrashIcon className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                     );
@@ -368,6 +493,47 @@ export default function ParametresNumerikUpPage() {
             </table>
           </div>
         </div>
+
+        {/* CODES INTERNES */}
+        {Object.keys(codes).length > 0 && (
+          <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-3">
+            <div className="flex items-center gap-2">
+              <TagIcon className="w-4 h-4 text-[#EA601F]" />
+              <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Codes internes</h2>
+            </div>
+            <p className="text-[10px] text-[#404040]/50">Non visibles sur le formulaire d'inscription — pour usage interne (suivi, Drive partagé...).</p>
+            <div className="border border-[#404040]/10 rounded-xl overflow-hidden">
+              <div className="grid grid-cols-[1fr_2fr_1fr_1fr] gap-3 px-4 py-2 bg-[#F3F3F2] border-b border-[#404040]/10 text-[10px] font-bold uppercase tracking-widest text-[#005259]">
+                <span>Code</span>
+                <span>Parkours</span>
+                <span>Début</span>
+                <span>Fin</span>
+              </div>
+              <div className="divide-y divide-[#404040]/5">
+                {Object.entries(codes)
+                  .sort(([, a], [, b]) => a.localeCompare(b))
+                  .map(([cle, code]) => {
+                    const [parcoursId, , date] = cle.split("|");
+                    const parcoursLabel = parcoursListe.find((p) => p.id === parcoursId)?.label || parcoursId;
+                    const debutFin = extraireDebutFin(date);
+                    return (
+                      <div key={`${cle}|${code}`} className="grid grid-cols-[1fr_2fr_1fr_1fr] items-center gap-3 px-4 py-2.5 text-xs">
+                        <input
+                          type="text"
+                          defaultValue={code}
+                          onBlur={(e) => modifierCode(cle, e.target.value)}
+                          className="font-mono font-bold text-[#005259] bg-transparent border border-transparent hover:border-[#404040]/15 focus:border-[#005259] focus:bg-[#F3F3F2] rounded px-1.5 py-1 outline-none transition-colors"
+                        />
+                        <span className="text-[#404040]/70">{parcoursLabel}</span>
+                        <span className="text-[#404040]/70">{debutFin?.debut || "—"}</span>
+                        <span className="text-[#404040]/70">{debutFin?.fin || "—"}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </main>

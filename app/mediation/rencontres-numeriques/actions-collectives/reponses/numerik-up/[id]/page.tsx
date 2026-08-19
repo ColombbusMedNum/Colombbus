@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
-import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, AcademicCapIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, MagnifyingGlassIcon, AcademicCapIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 
 const quicksand = Quicksand({
@@ -60,6 +60,14 @@ const inputEditClass = "w-full min-w-[140px] px-2 py-1.5 bg-[#F3F3F2] border bor
 
 const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
 
+// Colonnes figées (#, Civilité, Prénom, Nom, Téléphone) — restent visibles
+// pendant le défilement horizontal du tableau, très large avec ses colonnes
+// de suivi. Les colonnes gardent leur largeur naturelle (auto, comme le
+// reste du tableau) : on mesure leur position réelle après rendu plutôt que
+// de figer une largeur en dur, qui désynchronisait "left" du contenu réel.
+const classeFigee = "sticky z-10";
+const ombreDerniereFigee = "shadow-[6px_0_8px_-6px_rgba(0,0,0,0.25)]";
+
 // Signale les mineur·e·s avec le même jaune que les groupes ACI de l'agenda.
 const estMineur = (age?: string) => {
   const n = parseInt(age || "", 10);
@@ -82,6 +90,45 @@ export default function ReponsesNumerikUpSessionPage() {
   const [sessions, setSessions] = useState<Record<string, Record<string, string[]>>>({});
   const [territoiresListe, setTerritoiresListe] = useState<string[]>(TERRITOIRES_DEFAUT);
   const [territoireSelectionne, setTerritoireSelectionne] = useState("");
+
+  // Décalages "left" des colonnes figées, calculés à partir de la largeur
+  // réelle (offsetWidth) de chaque colonne — offsetLeft est peu fiable à
+  // l'intérieur d'un <table> (offsetParent ambigu selon les navigateurs), on
+  // additionne donc nous-mêmes les largeurs mesurées des colonnes qui précèdent.
+  const refNum = useRef<HTMLTableCellElement>(null);
+  const refCivilite = useRef<HTMLTableCellElement>(null);
+  const refPrenom = useRef<HTMLTableCellElement>(null);
+  const refNom = useRef<HTMLTableCellElement>(null);
+  const refTelephone = useRef<HTMLTableCellElement>(null);
+  const [decalages, setDecalages] = useState({ num: 0, civilite: 0, prenom: 0, nom: 0, telephone: 0 });
+
+  useEffect(() => {
+    const mesurer = () => {
+      const largeurNum = refNum.current?.offsetWidth || 0;
+      const largeurCivilite = refCivilite.current?.offsetWidth || 0;
+      const largeurPrenom = refPrenom.current?.offsetWidth || 0;
+      const largeurNom = refNom.current?.offsetWidth || 0;
+      const suivant = {
+        num: 0,
+        civilite: largeurNum,
+        prenom: largeurNum + largeurCivilite,
+        nom: largeurNum + largeurCivilite + largeurPrenom,
+        telephone: largeurNum + largeurCivilite + largeurPrenom + largeurNom,
+      };
+      // Ne déclenche un nouveau rendu que si les valeurs mesurées ont
+      // réellement changé — sans cet garde, l'effet (sans tableau de
+      // dépendances, pour se remesurer si le contenu change) provoque une
+      // boucle de rendu infinie (setState -> rendu -> effet -> setState...).
+      setDecalages((prev) =>
+        prev.civilite === suivant.civilite && prev.prenom === suivant.prenom && prev.nom === suivant.nom && prev.telephone === suivant.telephone
+          ? prev
+          : suivant
+      );
+    };
+    mesurer();
+    window.addEventListener("resize", mesurer);
+    return () => window.removeEventListener("resize", mesurer);
+  });
 
   useEffect(() => {
     const charger = async () => {
@@ -128,14 +175,19 @@ export default function ReponsesNumerikUpSessionPage() {
 
   // Initialise le territoire sélectionné sur celui de la session en cours
   // dès que la configuration est chargée, sinon le premier disponible.
+  // Synchronise toujours le territoire affiché sur celui de la session en
+  // cours dès qu'il est connu — sans ce "toujours" (et avec un simple garde
+  // "si déjà défini, ne pas y toucher"), changer de territoire déclenchait
+  // une navigation vers une nouvelle session dont les données arrivent après
+  // le rendu : le repli sur territoiresListe[0] ("91") se posait en premier
+  // et restait bloqué, empêchant la vraie valeur de session de s'appliquer.
   useEffect(() => {
-    if (territoireSelectionne) return;
     if (territoireDeSession) {
       setTerritoireSelectionne(territoireDeSession.split(" / ")[0]);
-    } else if (territoiresListe.length > 0) {
+    } else if (territoiresListe.length > 0 && !territoireSelectionne) {
       setTerritoireSelectionne(territoiresListe[0]);
     }
-  }, [territoireDeSession, territoiresListe, territoireSelectionne]);
+  }, [territoireDeSession, territoiresListe]);
 
   // Sessions du territoire sélectionné, tous parkours confondus — reprend
   // la configuration définie sur la page de paramètres.
@@ -241,13 +293,6 @@ export default function ReponsesNumerikUpSessionPage() {
               <span>Apprenant·e·s</span>
             </Link>
             <Link
-              href="/mediation/rencontres-numeriques/actions-collectives/reponses"
-              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
-            >
-              <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Réponses au formulaire</span>
-            </Link>
-            <Link
               href="/"
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >
@@ -274,14 +319,18 @@ export default function ReponsesNumerikUpSessionPage() {
         {/* TABLEAU */}
         <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="border-collapse text-xs">
+            {/* border-separate (et non border-collapse) : indispensable pour que les
+                colonnes figées (position: sticky) masquent correctement le contenu
+                des colonnes défilantes qui passent dessous — avec border-collapse,
+                les navigateurs laissent transparaître ce contenu par-dessous. */}
+            <table className="border-separate border-spacing-0 text-xs">
               <thead>
                 <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
-                  <th className="px-3 py-3 text-center">#</th>
-                  <th className="px-3 py-3">Civilité</th>
-                  <th className="px-3 py-3">Prénom</th>
-                  <th className="px-3 py-3">Nom</th>
-                  <th className="px-3 py-3">Téléphone</th>
+                  <th ref={refNum} className={`${classeFigee} px-3 py-3 text-center bg-[#F3F3F2]`} style={{ left: decalages.num }}>#</th>
+                  <th ref={refCivilite} className={`${classeFigee} px-3 py-3 bg-[#F3F3F2]`} style={{ left: decalages.civilite }}>Civilité</th>
+                  <th ref={refPrenom} className={`${classeFigee} px-3 py-3 bg-[#F3F3F2]`} style={{ left: decalages.prenom }}>Prénom</th>
+                  <th ref={refNom} className={`${classeFigee} px-3 py-3 bg-[#F3F3F2]`} style={{ left: decalages.nom }}>Nom</th>
+                  <th ref={refTelephone} className={`${classeFigee} ${ombreDerniereFigee} px-3 py-3 bg-[#F3F3F2]`} style={{ left: decalages.telephone }}>Téléphone</th>
                   <th className="px-3 py-3">Âge</th>
                   <th className="px-3 py-3">Email</th>
                   <th className="px-3 py-3">Diplôme</th>
@@ -315,12 +364,12 @@ export default function ReponsesNumerikUpSessionPage() {
                   inscriptionsFiltrees.map((i, index) => {
                     const prescripteur = [...(i.Structures_Accompagnement || []), i.Structure_Autre].filter(Boolean).join(", ");
                     return (
-                      <tr key={i.id} className="hover:bg-[#F3F3F2]/60 transition-colors align-top">
-                        <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{index + 1}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{i.Civilité || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{i.Prénom || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">{i.Nom || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{i.Téléphone || "—"}</td>
+                      <tr key={i.id} className="group hover:bg-[#F3F3F2]/60 transition-colors align-top">
+                        <td className={`${classeFigee} px-3 py-2 text-center text-[#404040]/50 font-bold bg-white group-hover:bg-[#F3F3F2]/60`} style={{ left: decalages.num }}>{index + 1}</td>
+                        <td className={`${classeFigee} px-3 py-2 whitespace-nowrap bg-white group-hover:bg-[#F3F3F2]/60`} style={{ left: decalages.civilite }}>{i.Civilité || "—"}</td>
+                        <td className={`${classeFigee} px-3 py-2 whitespace-nowrap font-bold text-[#005259] bg-white group-hover:bg-[#F3F3F2]/60`} style={{ left: decalages.prenom }}>{i.Prénom || "—"}</td>
+                        <td className={`${classeFigee} px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase bg-white group-hover:bg-[#F3F3F2]/60`} style={{ left: decalages.nom }}>{i.Nom || "—"}</td>
+                        <td className={`${classeFigee} ${ombreDerniereFigee} px-3 py-2 whitespace-nowrap bg-white group-hover:bg-[#F3F3F2]/60`} style={{ left: decalages.telephone }}>{i.Téléphone || "—"}</td>
                         <td className="px-3 py-2 text-center whitespace-nowrap">
                           {i.Age ? (
                             estMineur(i.Age) ? (

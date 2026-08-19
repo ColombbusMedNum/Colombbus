@@ -1,21 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, doc, getDoc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import { useRouter } from "next/navigation";
-import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, ClipboardDocumentCheckIcon, ChartPieIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, MagnifyingGlassIcon, ClipboardDocumentCheckIcon, ChartPieIcon, DocumentArrowUpIcon, TrashIcon, DocumentDuplicateIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, PencilSquareIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
+import { usePermissions } from "@/lib/PermissionsProvider";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
 });
 
-// Champs issus du formulaire de pré-inscription (lecture seule ici — ce sont
-// les réponses telles que soumises).
+// Champs issus du formulaire de pré-inscription — modifiables ici par
+// l'équipe pour corriger une réponse ou fusionner un doublon.
 interface Inscription {
   id: string;
   Civilité?: string;
@@ -55,6 +56,11 @@ const PARCOURS_DEFAUT: Parcours[] = [
   { id: "tech", label: "Numérik'Up Tech : Développement Web + Maintenance informatique" },
 ];
 
+const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
+
+const NIVEAUX_ETUDES = ["Brevet, CAP, BEP", "Bac", "Bac+2 (L2, BTS, DUT, DEUST)", "Bac+3 (Licence, licence professionnelle)", "Bac+4/5 et plus"];
+const STRUCTURES_ACCOMPAGNEMENT = ["Mission locale", "E2C (Ecole de la deuxième chance)", "Pôle Emploi", "PLIE", "Epide", "PJJ", "Aucune"];
+
 const inputEditClass = "w-full min-w-[140px] px-2 py-1.5 bg-[#F3F3F2] border border-[#404040]/10 focus:border-[#005259] focus:bg-white rounded-lg text-[11px] text-[#404040] outline-none font-medium transition-colors";
 
 // Signale les mineur·e·s avec le même jaune que les groupes ACI de l'agenda.
@@ -63,27 +69,110 @@ const estMineur = (age?: string) => {
   return !isNaN(n) && n < 18;
 };
 
+// Normalisation pour comparer deux valeurs sans être sensible à la casse, aux
+// accents ou aux espaces superflus (utilisé pour détecter les doublons).
+const normaliser = (s?: string) =>
+  (s || "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ");
+
+// Clé de regroupement des doublons : email si présent, sinon nom + prénom +
+// téléphone (une même personne soumet parfois plusieurs fois le formulaire
+// avec des adresses email légèrement différentes ou absentes).
+const cleDoublon = (i: Inscription) => {
+  const email = normaliser(i.Email);
+  if (email) return `email:${email}`;
+  const nomPrenomTel = normaliser(`${i.Nom || ""}${i.Prénom || ""}${i.Téléphone || ""}`);
+  return nomPrenomTel ? `identite:${nomPrenomTel}` : "";
+};
+
 export default function ReponsesNumerikUpPage() {
   const router = useRouter();
+  const { role } = usePermissions();
   const [inscriptions, setInscriptions] = useState<Inscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [recherche, setRecherche] = useState("");
   const [parcoursListe, setParcoursListe] = useState<Parcours[]>(PARCOURS_DEFAUT);
+  const [territoiresListe, setTerritoiresListe] = useState<string[]>(TERRITOIRES_DEFAUT);
+  const [territoireFiltre, setTerritoireFiltre] = useState("");
+  // "preinscrits" = pas encore affecté·e·s à une session (liste principale) ;
+  // "affectes" = déjà cochés pour le suivi de recrutement (retirés de la
+  // liste principale pour ne pas l'encombrer une fois pris en charge).
+  const [onglet, setOnglet] = useState<"preinscrits" | "affectes" | "doublons">("preinscrits");
+  // Tri par colonne, activé en cliquant sur les flèches dans les entêtes du
+  // tableau — asc -> desc -> retour à l'ordre par défaut.
+  const [tri, setTri] = useState<{ colonne: string; direction: "asc" | "desc" } | null>(null);
+  // Sélection multiple — utilisée dans l'onglet "Doublons" pour supprimer
+  // plusieurs fiches en une seule fois.
+  const [selection, setSelection] = useState<Set<string>>(new Set());
+  // Fiche en cours de modification dans le panneau d'édition (copie de
+  // travail — les changements ne sont enregistrés qu'au clic sur "Enregistrer").
+  const [edition, setEdition] = useState<Inscription | null>(null);
+  const [enregistrementEnCours, setEnregistrementEnCours] = useState(false);
   // sessions[parcoursId][territoire] = liste de dates de session — permet de
   // proposer les sessions disponibles pour le territoire de chaque inscrit.
   const [sessions, setSessions] = useState<Record<string, Record<string, string[]>>>({});
 
+  // Barre de défilement horizontal dupliquée en haut du tableau — synchronisée
+  // avec le défilement réel pour éviter d'avoir à descendre tout en bas.
+  const scrollHautRef = useRef<HTMLDivElement>(null);
+  const scrollTableRef = useRef<HTMLDivElement>(null);
+  const [largeurTable, setLargeurTable] = useState(0);
+  const synchroniseEnCours = useRef(false);
+
+  useEffect(() => {
+    const mettreAJourLargeur = () => {
+      if (scrollTableRef.current) setLargeurTable(scrollTableRef.current.scrollWidth);
+    };
+    mettreAJourLargeur();
+    window.addEventListener("resize", mettreAJourLargeur);
+    return () => window.removeEventListener("resize", mettreAJourLargeur);
+  });
+
+  const surScrollHaut = () => {
+    if (synchroniseEnCours.current) { synchroniseEnCours.current = false; return; }
+    if (scrollHautRef.current && scrollTableRef.current) {
+      synchroniseEnCours.current = true;
+      scrollTableRef.current.scrollLeft = scrollHautRef.current.scrollLeft;
+    }
+  };
+
+  // La sélection multiple n'a de sens que dans l'onglet Doublons — on la vide
+  // en changeant d'onglet pour éviter de supprimer une fiche par erreur.
+  useEffect(() => {
+    setSelection(new Set());
+  }, [onglet]);
+
+  const basculerSelection = (id: string) => {
+    setSelection((prev) => {
+      const suivant = new Set(prev);
+      if (suivant.has(id)) suivant.delete(id);
+      else suivant.add(id);
+      return suivant;
+    });
+  };
+
+  const surScrollTable = () => {
+    if (synchroniseEnCours.current) { synchroniseEnCours.current = false; return; }
+    if (scrollHautRef.current && scrollTableRef.current) {
+      synchroniseEnCours.current = true;
+      scrollHautRef.current.scrollLeft = scrollTableRef.current.scrollLeft;
+    }
+  };
+
   useEffect(() => {
     const charger = async () => {
       try {
-        const [snapInscriptions, snapParcours, snapSessions] = await Promise.all([
+        const [snapInscriptions, snapParcours, snapTerritoires, snapSessions] = await Promise.all([
           getDocs(query(collection(db, "inscriptions_numerikup"), orderBy("createdAt", "desc"))),
           getDoc(doc(db, "configuration_numerikup", "parcours")),
+          getDoc(doc(db, "configuration_numerikup", "territoires")),
           getDoc(doc(db, "configuration_numerikup", "sessions")),
         ]);
         setInscriptions(snapInscriptions.docs.map((d) => ({ id: d.id, ...d.data() } as Inscription)));
         if (snapParcours.exists() && Array.isArray(snapParcours.data().liste) && snapParcours.data().liste.length > 0) {
           setParcoursListe(snapParcours.data().liste);
+        }
+        if (snapTerritoires.exists() && Array.isArray(snapTerritoires.data().liste) && snapTerritoires.data().liste.length > 0) {
+          setTerritoiresListe(snapTerritoires.data().liste);
         }
         if (snapSessions.exists()) {
           setSessions(snapSessions.data().parTerritoire || {});
@@ -113,11 +202,86 @@ export default function ReponsesNumerikUpPage() {
     );
   }, [sessions]);
 
+  // Regroupe les inscriptions par clé de doublon (email, ou à défaut
+  // nom+prénom+téléphone) — tout groupe de 2 ou plus est un doublon.
+  const groupesDoublons = useMemo(() => {
+    const groupes = new Map<string, Inscription[]>();
+    inscriptions.forEach((i) => {
+      const cle = cleDoublon(i);
+      if (!cle) return;
+      if (!groupes.has(cle)) groupes.set(cle, []);
+      groupes.get(cle)!.push(i);
+    });
+    return groupes;
+  }, [inscriptions]);
+
+  // id -> { cle, taille } pour les inscriptions faisant partie d'un doublon,
+  // utilisé pour filtrer l'onglet "Doublons" et afficher le badge de comptage.
+  const infosDoublons = useMemo(() => {
+    const map = new Map<string, { cle: string; taille: number }>();
+    groupesDoublons.forEach((liste, cle) => {
+      if (liste.length > 1) liste.forEach((i) => map.set(i.id, { cle, taille: liste.length }));
+    });
+    return map;
+  }, [groupesDoublons]);
+
+  const sexeDeCivilite = (civilite?: string) => (civilite === "Mme" ? "Femme" : civilite === "M." ? "Homme" : "—");
+
+  // Valeur affichée pour une colonne donnée — sert à la fois au filtre et,
+  // pour les colonnes calculées (Sexe, Prescripteur), reste cohérente avec ce
+  // qui est rendu dans la cellule.
+  const valeurColonne = (i: Inscription, cle: string): string => {
+    switch (cle) {
+      case "civilite": return i.Civilité || "";
+      case "prenom": return i.Prénom || "";
+      case "nom": return i.Nom || "";
+      case "telephone": return i.Téléphone || "";
+      case "age": return i.Age || "";
+      case "email": return i.Email || "";
+      case "diplome": return i.Niveau_Etudes || "";
+      case "sexe": return sexeDeCivilite(i.Civilité);
+      case "ville": return i.Ville || "";
+      case "territoire": return i.Territoire || "";
+      case "qpv": return i.QPV || "";
+      case "prescripteur": return [...(i.Structures_Accompagnement || []), i.Structure_Autre].filter(Boolean).join(", ");
+      case "ase": return i.ASE || "";
+      case "conseillerPrenom": return i.Conseiller_Prenom || "";
+      case "conseillerNom": return i.Conseiller_Nom || "";
+      case "conseillerTelephone": return i.Conseiller_Telephone || "";
+      case "conseillerEmail": return i.Conseiller_Email || "";
+      default: return "";
+    }
+  };
+
+  // Bascule le tri sur une colonne : asc -> desc -> retour à l'ordre par défaut.
+  const basculerTri = (colonne: string) => {
+    setTri((prev) => {
+      if (prev?.colonne === colonne) return prev.direction === "asc" ? { colonne, direction: "desc" } : null;
+      return { colonne, direction: "asc" };
+    });
+  };
+
   const inscriptionsFiltrees = useMemo(() => {
     const terme = recherche.trim().toLowerCase();
-    if (!terme) return inscriptions;
-    return inscriptions.filter((i) => `${i.Prénom || ""} ${i.Nom || ""}`.toLowerCase().includes(terme));
-  }, [inscriptions, recherche]);
+    const resultat = inscriptions.filter((i) => {
+      if (onglet === "preinscrits" && i.Suivi_Recrutement) return false;
+      if (onglet === "affectes" && !i.Suivi_Recrutement) return false;
+      if (onglet === "doublons" && !infosDoublons.has(i.id)) return false;
+      if (territoireFiltre && i.Territoire !== territoireFiltre) return false;
+      if (terme && !`${i.Prénom || ""} ${i.Nom || ""}`.toLowerCase().includes(terme)) return false;
+      return true;
+    });
+    if (tri) {
+      const dir = tri.direction === "asc" ? 1 : -1;
+      return [...resultat].sort((a, b) => valeurColonne(a, tri.colonne).localeCompare(valeurColonne(b, tri.colonne), "fr", { numeric: true }) * dir);
+    }
+    // Dans l'onglet Doublons, on regroupe visuellement les fiches d'une même
+    // personne en les triant par clé de doublon plutôt que par date.
+    if (onglet === "doublons") {
+      return [...resultat].sort((a, b) => (infosDoublons.get(a.id)?.cle || "").localeCompare(infosDoublons.get(b.id)?.cle || ""));
+    }
+    return resultat;
+  }, [inscriptions, recherche, onglet, territoireFiltre, infosDoublons, tri]);
 
   // Sessions définies sur la page de paramètres — sert uniquement à pointer
   // le bouton "Suivi recrutement" vers une première session valide (le choix
@@ -154,7 +318,63 @@ export default function ReponsesNumerikUpPage() {
     }
   };
 
-  const sexeDeCivilite = (civilite?: string) => (civilite === "Mme" ? "Femme" : civilite === "M." ? "Homme" : "—");
+  // Supprime définitivement une préinscription — utilisé notamment pour
+  // nettoyer les doublons repérés dans l'onglet dédié.
+  const supprimerInscription = async (i: Inscription) => {
+    const nom = `${i.Prénom || ""} ${i.Nom || ""}`.trim() || "cette personne";
+    if (!window.confirm(`Supprimer définitivement la préinscription de ${nom} ? Cette action est irréversible.`)) return;
+    setInscriptions((prev) => prev.filter((x) => x.id !== i.id));
+    try {
+      await deleteDoc(doc(db, "inscriptions_numerikup", i.id));
+    } catch (error) {
+      console.error("Erreur lors de la suppression de la préinscription :", error);
+    }
+  };
+
+  // Supprime en une fois toutes les fiches actuellement sélectionnées.
+  const supprimerSelection = async () => {
+    if (selection.size === 0) return;
+    if (!window.confirm(`Supprimer définitivement ${selection.size} préinscription(s) sélectionnée(s) ? Cette action est irréversible.`)) return;
+    const ids = Array.from(selection);
+    setInscriptions((prev) => prev.filter((x) => !selection.has(x.id)));
+    setSelection(new Set());
+    try {
+      await Promise.all(ids.map((id) => deleteDoc(doc(db, "inscriptions_numerikup", id))));
+    } catch (error) {
+      console.error("Erreur lors de la suppression groupée des préinscriptions :", error);
+    }
+  };
+
+  const ouvrirEdition = (i: Inscription) => setEdition({ ...i });
+  const fermerEdition = () => setEdition(null);
+
+  const majEdition = <K extends keyof Inscription>(champ: K, valeur: Inscription[K]) => {
+    setEdition((prev) => (prev ? { ...prev, [champ]: valeur } : prev));
+  };
+
+  const basculerStructureEdition = (structure: string) => {
+    setEdition((prev) => {
+      if (!prev) return prev;
+      const actuelles = prev.Structures_Accompagnement || [];
+      const suivantes = actuelles.includes(structure) ? actuelles.filter((s) => s !== structure) : [...actuelles, structure];
+      return { ...prev, Structures_Accompagnement: suivantes };
+    });
+  };
+
+  const enregistrerEdition = async () => {
+    if (!edition) return;
+    setEnregistrementEnCours(true);
+    const { id, ...donnees } = { ...edition, Nom: (edition.Nom || "").toUpperCase() };
+    try {
+      await updateDoc(doc(db, "inscriptions_numerikup", id), donnees);
+      setInscriptions((prev) => prev.map((i) => (i.id === id ? { ...i, ...donnees } : i)));
+      setEdition(null);
+    } catch (error) {
+      console.error("Erreur lors de l'enregistrement de la fiche :", error);
+    } finally {
+      setEnregistrementEnCours(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -204,13 +424,15 @@ export default function ReponsesNumerikUpPage() {
               <ChartPieIcon className="w-4 h-4 text-[#EA601F]" />
               <span>Statistiques</span>
             </Link>
-            <Link
-              href="/mediation/rencontres-numeriques/actions-collectives/reponses"
-              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
-            >
-              <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Réponses au formulaire</span>
-            </Link>
+            {role === "admin" && (
+              <Link
+                href="/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up/importer"
+                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+              >
+                <DocumentArrowUpIcon className="w-4 h-4 text-[#EA601F]" />
+                <span>Importer</span>
+              </Link>
+            )}
             <Link
               href="/"
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
@@ -221,46 +443,137 @@ export default function ReponsesNumerikUpPage() {
           </div>
         </div>
 
-        {/* RECHERCHE */}
-        <div className="relative group max-w-md">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            <MagnifyingGlassIcon className="h-5 w-5 text-[#404040]/40 group-focus-within:text-[#005259] transition-colors" />
+        {/* ONGLETS */}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setOnglet("preinscrits")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+              onglet === "preinscrits" ? "bg-[#005259] text-white shadow-sm" : "bg-white text-[#005259] border border-[#404040]/10 hover:border-[#005259]"
+            }`}
+          >
+            Préinscrits ({inscriptions.filter((i) => !i.Suivi_Recrutement).length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setOnglet("affectes")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+              onglet === "affectes" ? "bg-[#005259] text-white shadow-sm" : "bg-white text-[#005259] border border-[#404040]/10 hover:border-[#005259]"
+            }`}
+          >
+            Affectés à une session ({inscriptions.filter((i) => i.Suivi_Recrutement).length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setOnglet("doublons")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+              onglet === "doublons" ? "bg-[#EA601F] text-white shadow-sm" : "bg-white text-[#EA601F] border border-[#404040]/10 hover:border-[#EA601F]"
+            }`}
+          >
+            <DocumentDuplicateIcon className="w-3.5 h-3.5" />
+            Doublons ({infosDoublons.size})
+          </button>
+          {onglet === "doublons" && selection.size > 0 && (
+            <button
+              type="button"
+              onClick={supprimerSelection}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer bg-[#C0392B] hover:bg-[#a3311f] text-white shadow-sm"
+            >
+              <TrashIcon className="w-3.5 h-3.5" />
+              Supprimer la sélection ({selection.size})
+            </button>
+          )}
+        </div>
+
+        {/* RECHERCHE & FILTRE TERRITOIRE */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative group max-w-md flex-1">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <MagnifyingGlassIcon className="h-5 w-5 text-[#404040]/40 group-focus-within:text-[#005259] transition-colors" />
+            </div>
+            <input
+              type="text"
+              placeholder="Rechercher par nom ou prénom..."
+              className="w-full bg-white border border-[#404040]/15 rounded-2xl pl-12 pr-4 py-3.5 text-sm text-[#404040] placeholder-[#404040]/40 focus:border-[#005259] focus:ring-1 focus:ring-[#005259] outline-none transition-all shadow-sm font-medium"
+              value={recherche}
+              onChange={(e) => setRecherche(e.target.value)}
+            />
           </div>
-          <input
-            type="text"
-            placeholder="Rechercher par nom ou prénom..."
-            className="w-full bg-white border border-[#404040]/15 rounded-2xl pl-12 pr-4 py-3.5 text-sm text-[#404040] placeholder-[#404040]/40 focus:border-[#005259] focus:ring-1 focus:ring-[#005259] outline-none transition-all shadow-sm font-medium"
-            value={recherche}
-            onChange={(e) => setRecherche(e.target.value)}
-          />
+          <select
+            value={territoireFiltre}
+            onChange={(e) => setTerritoireFiltre(e.target.value)}
+            className="bg-white border border-[#404040]/15 rounded-2xl px-4 py-3.5 text-sm text-[#404040] outline-none focus:border-[#005259] focus:ring-1 focus:ring-[#005259] transition-all shadow-sm font-medium"
+          >
+            <option value="">Tous les territoires</option>
+            {territoiresListe.map((t) => (
+              <option key={t} value={t}>Territoire {t}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* BARRE DE DÉFILEMENT HORIZONTAL (haut) */}
+        <div ref={scrollHautRef} onScroll={surScrollHaut} className="overflow-x-auto overflow-y-hidden">
+          <div style={{ width: largeurTable, height: 1 }}></div>
         </div>
 
         {/* TABLEAU */}
         <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          <div ref={scrollTableRef} onScroll={surScrollTable} className="overflow-x-auto">
             <table className="border-collapse text-xs">
               <thead>
                 <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
-                  <th className="px-3 py-3 text-center">#</th>
-                  <th className="px-3 py-3">Civilité</th>
-                  <th className="px-3 py-3">Prénom</th>
-                  <th className="px-3 py-3">Nom</th>
-                  <th className="px-3 py-3">Téléphone</th>
-                  <th className="px-3 py-3">Âge</th>
-                  <th className="px-3 py-3">Email</th>
-                  <th className="px-3 py-3">Diplôme</th>
-                  <th className="px-3 py-3">Sexe</th>
-                  <th className="px-3 py-3">Ville</th>
-                  <th className="px-3 py-3">Dpt.</th>
-                  <th className="px-3 py-3">QPV</th>
-                  <th className="px-3 py-3">Prescripteur</th>
-                  <th className="px-3 py-3">ASE ?</th>
-                  <th className="px-3 py-3">Prénom Référent</th>
-                  <th className="px-3 py-3">Nom Référent</th>
-                  <th className="px-3 py-3">Tél Référent</th>
-                  <th className="px-3 py-3">Mail Référent</th>
-                  <th className="px-3 py-3">Session</th>
+                  {onglet === "doublons" && (
+                    <th className="px-3 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={inscriptionsFiltrees.length > 0 && inscriptionsFiltrees.every((i) => selection.has(i.id))}
+                        onChange={(e) =>
+                          setSelection(e.target.checked ? new Set(inscriptionsFiltrees.map((i) => i.id)) : new Set())
+                        }
+                        title="Tout sélectionner / tout désélectionner"
+                        className="w-4 h-4 accent-[#EA601F] cursor-pointer"
+                      />
+                    </th>
+                  )}
                   <th className="px-3 py-3 text-center">Suivi recrutement</th>
+                  <th className="px-3 py-3">Session</th>
+                  <th className="px-3 py-3 text-center">Actions</th>
+                  <th className="px-3 py-3 text-center">#</th>
+                  {([
+                    ["civilite", "Civilité"],
+                    ["prenom", "Prénom"],
+                    ["nom", "Nom"],
+                    ["telephone", "Téléphone"],
+                    ["age", "Âge"],
+                    ["email", "Email"],
+                    ["diplome", "Diplôme"],
+                    ["sexe", "Sexe"],
+                    ["ville", "Ville"],
+                    ["territoire", "Dpt."],
+                    ["qpv", "QPV"],
+                    ["prescripteur", "Prescripteur"],
+                    ["ase", "ASE ?"],
+                    ["conseillerPrenom", "Prénom Référent"],
+                    ["conseillerNom", "Nom Référent"],
+                    ["conseillerTelephone", "Tél Référent"],
+                    ["conseillerEmail", "Mail Référent"],
+                  ] as const).map(([cle, libelle]) => (
+                    <th key={cle} className="px-3 py-3">
+                      <button
+                        type="button"
+                        onClick={() => basculerTri(cle)}
+                        className="flex items-center gap-1 hover:text-[#EA601F] transition-colors cursor-pointer"
+                        title={`Trier par ${libelle}`}
+                      >
+                        <span>{libelle}</span>
+                        {tri?.colonne === cle ? (
+                          tri.direction === "asc" ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />
+                        ) : (
+                          <ChevronUpDownIcon className="w-3 h-3 opacity-30" />
+                        )}
+                      </button>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#404040]/5">
@@ -269,10 +582,76 @@ export default function ReponsesNumerikUpPage() {
                     const prescripteur = [...(i.Structures_Accompagnement || []), i.Structure_Autre].filter(Boolean).join(", ");
                     return (
                       <tr key={i.id} className="hover:bg-[#F3F3F2]/60 transition-colors align-top">
+                        {onglet === "doublons" && (
+                          <td className="px-3 py-2 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selection.has(i.id)}
+                              onChange={() => basculerSelection(i.id)}
+                              className="w-4 h-4 accent-[#EA601F] cursor-pointer"
+                            />
+                          </td>
+                        )}
+                        <td className="px-3 py-2 text-center">
+                          <input
+                            type="checkbox"
+                            checked={i.Suivi_Recrutement || false}
+                            onChange={(e) => basculerSuiviRecrutement(i.id, e.target.checked)}
+                            title="Affecter au suivi de recrutement de sa session"
+                            className="w-4 h-4 accent-[#EA601F] cursor-pointer"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            value={i.Session || ""}
+                            onChange={(e) => mettreAJourChamp(i.id, "Session", e.target.value)}
+                            className={inputEditClass}
+                          >
+                            <option value="">-- Choisir une session --</option>
+                            {i.Session && !Object.values(sessionsParTerritoire).some((dates) => dates.includes(i.Session as string)) && (
+                              <option value={i.Session}>{i.Session}</option>
+                            )}
+                            {Object.entries(sessionsParTerritoire).map(([territoire, dates]) => (
+                              <optgroup key={territoire} label={`Territoire ${territoire}`}>
+                                {dates.map((s) => (
+                                  <option key={s} value={s}>{s}</option>
+                                ))}
+                              </optgroup>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2 text-center whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => ouvrirEdition(i)}
+                            title="Modifier cette fiche"
+                            className="p-1.5 rounded-lg text-[#404040]/40 hover:text-white hover:bg-[#005259] transition-colors cursor-pointer"
+                          >
+                            <PencilSquareIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => supprimerInscription(i)}
+                            title="Supprimer définitivement cette préinscription"
+                            className="p-1.5 rounded-lg text-[#404040]/40 hover:text-white hover:bg-[#C0392B] transition-colors cursor-pointer"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </td>
                         <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{index + 1}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Civilité || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{i.Prénom || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">{i.Nom || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">
+                          {i.Nom || "—"}
+                          {infosDoublons.has(i.id) && (
+                            <span
+                              title="Fait partie d'un groupe de doublons probable (même email, ou même nom+prénom+téléphone)"
+                              className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded bg-[#EA601F]/15 text-[#EA601F] text-[9px] font-bold normal-case align-middle"
+                            >
+                              ×{infosDoublons.get(i.id)?.taille}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Téléphone || "—"}</td>
                         <td className="px-3 py-2 text-center whitespace-nowrap">
                           {i.Age ? (
@@ -293,40 +672,12 @@ export default function ReponsesNumerikUpPage() {
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Nom || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Telephone || "—"}</td>
                         <td className="px-3 py-2 max-w-[160px] truncate">{i.Conseiller_Email || "—"}</td>
-                        <td className="px-3 py-2">
-                          <select
-                            value={i.Session || ""}
-                            onChange={(e) => mettreAJourChamp(i.id, "Session", e.target.value)}
-                            className={inputEditClass}
-                          >
-                            <option value="">-- Choisir une session --</option>
-                            {i.Session && !Object.values(sessionsParTerritoire).some((dates) => dates.includes(i.Session as string)) && (
-                              <option value={i.Session}>{i.Session}</option>
-                            )}
-                            {Object.entries(sessionsParTerritoire).map(([territoire, dates]) => (
-                              <optgroup key={territoire} label={`Territoire ${territoire}`}>
-                                {dates.map((s) => (
-                                  <option key={s} value={s}>{s}</option>
-                                ))}
-                              </optgroup>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          <input
-                            type="checkbox"
-                            checked={i.Suivi_Recrutement || false}
-                            onChange={(e) => basculerSuiviRecrutement(i.id, e.target.checked)}
-                            title="Affecter au suivi de recrutement de sa session"
-                            className="w-4 h-4 accent-[#EA601F] cursor-pointer"
-                          />
-                        </td>
                       </tr>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan={20} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
+                    <td colSpan={onglet === "doublons" ? 22 : 21} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
                       🔍 Aucune inscription trouvée.
                     </td>
                   </tr>
@@ -337,6 +688,161 @@ export default function ReponsesNumerikUpPage() {
         </div>
 
       </div>
+
+      {/* PANNEAU D'ÉDITION DE FICHE */}
+      {edition && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#404040]/40 backdrop-blur-sm" onClick={fermerEdition}>
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-[#404040]/10">
+              <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259]">
+                Modifier la fiche de {edition.Prénom || ""} {edition.Nom || ""}
+              </h2>
+              <button type="button" onClick={fermerEdition} className="p-1.5 rounded-lg text-[#404040]/50 hover:bg-[#F3F3F2] cursor-pointer">
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Civilité</label>
+                <select value={edition.Civilité || ""} onChange={(e) => majEdition("Civilité", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="M.">M.</option>
+                  <option value="Mme">Mme</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Prénom</label>
+                <input type="text" value={edition.Prénom || ""} onChange={(e) => majEdition("Prénom", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Nom</label>
+                <input type="text" value={edition.Nom || ""} onChange={(e) => majEdition("Nom", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Téléphone</label>
+                <input type="text" value={edition.Téléphone || ""} onChange={(e) => majEdition("Téléphone", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Âge</label>
+                <input type="text" value={edition.Age || ""} onChange={(e) => majEdition("Age", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Email</label>
+                <input type="text" value={edition.Email || ""} onChange={(e) => majEdition("Email", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Niveau d'études</label>
+                <select value={edition.Niveau_Etudes || ""} onChange={(e) => majEdition("Niveau_Etudes", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  {NIVEAUX_ETUDES.map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Ville</label>
+                <input type="text" value={edition.Ville || ""} onChange={(e) => majEdition("Ville", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Territoire</label>
+                <select value={edition.Territoire || ""} onChange={(e) => majEdition("Territoire", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  {territoiresListe.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">QPV</label>
+                <select value={edition.QPV || ""} onChange={(e) => majEdition("QPV", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                  <option value="Je ne sais pas">Je ne sais pas</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">ASE ?</label>
+                <select value={edition.ASE || ""} onChange={(e) => majEdition("ASE", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1.5">Structure(s) d'accompagnement</label>
+              <div className="flex flex-wrap gap-2">
+                {STRUCTURES_ACCOMPAGNEMENT.map((s) => (
+                  <label
+                    key={s}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-medium cursor-pointer transition-colors ${
+                      (edition.Structures_Accompagnement || []).includes(s) ? "bg-[#005259] text-white border-[#005259]" : "bg-[#F3F3F2] border-[#404040]/10 text-[#404040]"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={(edition.Structures_Accompagnement || []).includes(s)}
+                      onChange={() => basculerStructureEdition(s)}
+                      className="hidden"
+                    />
+                    {s}
+                  </label>
+                ))}
+              </div>
+              <input
+                type="text"
+                value={edition.Structure_Autre || ""}
+                onChange={(e) => majEdition("Structure_Autre", e.target.value)}
+                placeholder="Autre structure (texte libre)"
+                className={`${inputEditClass} mt-2`}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Prénom référent</label>
+                <input type="text" value={edition.Conseiller_Prenom || ""} onChange={(e) => majEdition("Conseiller_Prenom", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Nom référent</label>
+                <input type="text" value={edition.Conseiller_Nom || ""} onChange={(e) => majEdition("Conseiller_Nom", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Téléphone référent</label>
+                <input type="text" value={edition.Conseiller_Telephone || ""} onChange={(e) => majEdition("Conseiller_Telephone", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Email référent</label>
+                <input type="text" value={edition.Conseiller_Email || ""} onChange={(e) => majEdition("Conseiller_Email", e.target.value)} className={inputEditClass} />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#404040]/10">
+              <button
+                type="button"
+                onClick={fermerEdition}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-[#404040]/60 hover:bg-[#F3F3F2] transition-colors cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={enregistrerEdition}
+                disabled={enregistrementEnCours}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EA601F] hover:bg-[#EF736A] disabled:opacity-50 text-white transition-colors cursor-pointer"
+              >
+                {enregistrementEnCours ? "Enregistrement..." : "Enregistrer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
     </PageGuard>
   );

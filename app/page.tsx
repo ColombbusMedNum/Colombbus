@@ -86,13 +86,12 @@ const NAV_TREE: NavNode[] = [
               { id: "liste-benef", kind: "leaf", accent: "teal", icon: UsersIcon, title: "Liste des bénéficiaires", subtitle: "Consulter et modifier les fiches existantes", actionId: "home_nav_liste_benef", href: "/mediation/rencontres-numeriques/liste-beneficiaires" },
               { id: "emargement-docs", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Émargements & Doc. internes", subtitle: "Accéder aux feuilles archivées", actionId: "home_nav_emargement_docs", href: "/mediation/rencontres-numeriques/emargements" },
               { id: "emargement-gen", kind: "leaf", accent: "orange", icon: DocumentPlusIcon, title: "Générateur d'Émargements", subtitle: "Éditer de nouvelles feuilles A4 prêtes à imprimer", actionId: "home_nav_emargement_gen", href: "/mediation/rencontres-numeriques/emargement" },
-              { id: "actions-coll", kind: "leaf", accent: "teal", icon: UserGroupIcon, title: "Actions Collectives", subtitle: "Saisir les bilans simplifiés d'ateliers", actionId: "home_nav_actions_coll", href: "/mediation/rencontres-numeriques/actions-collectives" },
             ],
           },
         ],
       },
+      { id: "actions-coll", kind: "leaf", accent: "teal", icon: UserGroupIcon, title: "Actions Collectives", subtitle: "Saisir les bilans simplifiés d'ateliers", actionId: "home_nav_actions_coll", href: "/mediation/rencontres-numeriques/actions-collectives" },
       { id: "digital-up", kind: "leaf", accent: "orange", icon: RocketLaunchIcon, title: "Digital'UP", subtitle: "Programme Digital'UP", actionId: "home_nav_digital_up", href: "/mediation/rencontres-numeriques/actions-collectives/digital-up" },
-      { id: "programmes-inscriptions-inclusion", kind: "leaf", accent: "teal", icon: DocumentPlusIcon, title: "Programmes & Inscriptions", subtitle: "Formulaires, réponses et programmes collectifs", actionId: "home_nav_programmes_inscriptions", href: "/mediation/rencontres-numeriques/actions-collectives/accueil" },
     ],
   },
   {
@@ -100,8 +99,16 @@ const NAV_TREE: NavNode[] = [
     title: "Découvertes Métiers", subtitle: "Programme Numérik'UP",
     actionId: "home_folder_decouvertes_metiers",
     children: [
-      { id: "nkup", kind: "leaf", accent: "teal", icon: CpuChipIcon, title: "NKUP", subtitle: "Préinscriptions, apprenant·e·s et suivi Numérik'UP", actionId: "home_nav_nkup", href: "/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up" },
-      { id: "programmes-inscriptions-decouvertes", kind: "leaf", accent: "teal", icon: DocumentPlusIcon, title: "Programmes & Inscriptions", subtitle: "Formulaires, réponses et programmes collectifs", actionId: "home_nav_programmes_inscriptions", href: "/mediation/rencontres-numeriques/actions-collectives/accueil" },
+      {
+        id: "nkup", kind: "folder", accent: "teal", icon: CpuChipIcon,
+        title: "NKUP", subtitle: "Préinscriptions, apprenant·e·s et suivi Numérik'UP",
+        actionId: "home_nav_nkup",
+        children: [
+          { id: "nkup-inscription", kind: "leaf", accent: "teal", icon: DocumentPlusIcon, title: "Formulaire d'inscription Numérik'UP", subtitle: "Inscription au programme Numérik'UP", actionId: "home_nav_nkup_inscription", href: "/mediation/rencontres-numeriques/actions-collectives/inscription/numerik-up" },
+          { id: "nkup-reponses", kind: "leaf", accent: "orange", icon: ClipboardDocumentCheckIcon, title: "Réponses au formulaire Numérik'UP", subtitle: "Préinscriptions reçues au programme Numérik'UP", actionId: "home_nav_nkup_reponses", href: "/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up" },
+          { id: "nkup-suivi", kind: "leaf", accent: "teal", icon: UsersIcon, title: "Suivi de recrutement", subtitle: "Apprenant·e·s retenu·e·s, session par session", actionId: "home_nav_nkup_suivi", href: "/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up/suivi-recrutement" },
+        ],
+      },
     ],
   },
   {

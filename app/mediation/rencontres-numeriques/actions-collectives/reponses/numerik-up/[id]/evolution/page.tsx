@@ -24,6 +24,10 @@ interface Apprenant {
   // Un code par jour (la session entière se déroule le matin OU l'après-midi,
   // jamais les deux), clé "AAAA-MM-JJ".
   Evolution?: Record<string, string>;
+  // Nombre d'heures manquées un jour donné en cas de grand retard, même clé
+  // "AAAA-MM-JJ" — n'a de sens qu'à côté d'un code de présence (G/D/GR/SK),
+  // et vient réduire les heures/le taux de présence comptabilisés ce jour-là.
+  Evolution_Retards?: Record<string, string>;
   // Coché = apprenant·e suivi·e dans le calcul du taux de présence.
   Evolution_Actif?: boolean;
   // Journal des absences justifiées (une entrée par évènement signalé).
@@ -62,6 +66,13 @@ const HEURES_PAR_JOUR = 3;
 
 function versISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Affiche une date stockée au format ISO ("AAAA-MM-JJ", tel que renvoyé par
+// un <input type="date">) au format français "JJ/MM/AAAA".
+function formaterDateFr(iso: string): string {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }
 
 // Extrait la date de début d'une session à partir de son libellé texte libre
@@ -130,7 +141,10 @@ export default function EvolutionSessionPage() {
   }, []);
 
   const apprenantsSession = useMemo(
-    () => apprenants.filter((a) => a.Session === sessionId && a.Suivi_Recrutement && a.OK_NOK === "OK"),
+    () =>
+      apprenants
+        .filter((a) => a.Session === sessionId && a.Suivi_Recrutement && a.OK_NOK === "OK")
+        .sort((a, b) => (a.Nom || "").localeCompare(b.Nom || "", "fr")),
     [apprenants, sessionId]
   );
 
@@ -160,6 +174,18 @@ export default function EvolutionSessionPage() {
     }
   };
 
+  // Note le nombre d'heures manquées un jour donné (grand retard) —
+  // indépendant du code de présence, qui reste sélectionné normalement à
+  // côté, mais vient réduire les heures/le taux comptabilisés ce jour-là.
+  const mettreAJourRetard = async (id: string, cle: string, valeur: string) => {
+    setApprenants((prev) => prev.map((a) => (a.id === id ? { ...a, Evolution_Retards: { ...a.Evolution_Retards, [cle]: valeur } } : a)));
+    try {
+      await updateDoc(doc(db, "inscriptions_numerikup", id), { [`Evolution_Retards.${cle}`]: valeur });
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour du retard :", error);
+    }
+  };
+
   const basculerActif = async (id: string, valeur: boolean) => {
     setApprenants((prev) => prev.map((a) => (a.id === id ? { ...a, Evolution_Actif: valeur } : a)));
     try {
@@ -169,24 +195,30 @@ export default function EvolutionSessionPage() {
     }
   };
 
-  // Présence sur un ensemble de jours donné : les cases Férié (et les cases
-  // pas encore renseignées) sont exclues, les codes d'activité comptent
-  // comme présent. Sert au calcul par semaine comme au calcul global.
-  const calculerPresence = (apprenant: Apprenant, jours: Date[]): { numerateur: number; denominateur: number } => {
-    let numerateur = 0;
-    let denominateur = 0;
+  // Présence sur un ensemble de jours donné, en heures : les cases Férié (et
+  // les cases pas encore renseignées) sont exclues ; un jour codé comme
+  // activité (G/D/GR/SK) compte pour sa durée normale (HEURES_PAR_JOUR),
+  // réduite des heures manquées si un grand retard a été noté ce jour-là.
+  // Sert au calcul par semaine comme au calcul global.
+  const calculerPresence = (apprenant: Apprenant, jours: Date[]): { heuresPresence: number; heuresPrevues: number } => {
+    let heuresPresence = 0;
+    let heuresPrevues = 0;
     jours.forEach((jour) => {
-      const valeur = apprenant.Evolution?.[versISO(jour)];
+      const iso = versISO(jour);
+      const valeur = apprenant.Evolution?.[iso];
       if (!valeur || valeur === "F") return;
-      denominateur++;
-      if (CODES_PRESENCE.includes(valeur)) numerateur++;
+      heuresPrevues += HEURES_PAR_JOUR;
+      if (CODES_PRESENCE.includes(valeur)) {
+        const retard = Math.max(0, Math.min(HEURES_PAR_JOUR, parseFloat((apprenant.Evolution_Retards?.[iso] || "0").replace(",", ".")) || 0));
+        heuresPresence += HEURES_PAR_JOUR - retard;
+      }
     });
-    return { numerateur, denominateur };
+    return { heuresPresence, heuresPrevues };
   };
 
   const tauxSemaine = (apprenant: Apprenant, jours: Date[]): number | null => {
-    const { numerateur, denominateur } = calculerPresence(apprenant, jours);
-    return denominateur > 0 ? Math.round((numerateur / denominateur) * 100) : null;
+    const { heuresPresence, heuresPrevues } = calculerPresence(apprenant, jours);
+    return heuresPrevues > 0 ? Math.round((heuresPresence / heuresPrevues) * 100) : null;
   };
 
   // Tous les jours des 4 semaines, pour le tableau récapitulatif GLOBAL.
@@ -195,14 +227,14 @@ export default function EvolutionSessionPage() {
   // Moyenne du groupe : total des jours de présence sur total des jours
   // comptabilisés, pour les apprenant·e·s coché·e·s "Actif" uniquement.
   const moyenneGroupe = useMemo(() => {
-    let numerateur = 0;
-    let denominateur = 0;
+    let heuresPresence = 0;
+    let heuresPrevues = 0;
     apprenantsSession.filter((a) => a.Evolution_Actif).forEach((a) => {
       const p = calculerPresence(a, tousLesJours);
-      numerateur += p.numerateur;
-      denominateur += p.denominateur;
+      heuresPresence += p.heuresPresence;
+      heuresPrevues += p.heuresPrevues;
     });
-    return denominateur > 0 ? Math.round((numerateur / denominateur) * 100) : null;
+    return heuresPrevues > 0 ? Math.round((heuresPresence / heuresPrevues) * 100) : null;
   }, [apprenantsSession, tousLesJours]);
 
   const basculerSemaine = (index: number) => {
@@ -376,16 +408,15 @@ export default function EvolutionSessionPage() {
                 </thead>
                 <tbody className="divide-y divide-[#404040]/5">
                   {apprenantsSession.map((a, index) => {
-                    const { numerateur, denominateur } = calculerPresence(a, tousLesJours);
-                    const taux = denominateur > 0 ? (numerateur / denominateur) * 100 : null;
-                    const heures = numerateur * HEURES_PAR_JOUR;
+                    const { heuresPresence, heuresPrevues } = calculerPresence(a, tousLesJours);
+                    const taux = heuresPrevues > 0 ? (heuresPresence / heuresPrevues) * 100 : null;
                     return (
                       <tr key={a.id} className="hover:bg-[#F3F3F2]/60 transition-colors">
                         <td className="px-3 py-2 text-center font-bold text-[#005259]">
                           {index === 0 && moyenneGroupe !== null ? `${moyenneGroupe.toFixed(2)}%` : ""}
                         </td>
                         <td className="px-3 py-2 text-center font-bold">
-                          {a.Evolution_Actif && denominateur > 0 ? heures.toFixed(2) : ""}
+                          {a.Evolution_Actif && heuresPrevues > 0 ? heuresPresence.toFixed(2) : ""}
                         </td>
                         <td className="px-3 py-2 text-center font-bold text-[#005259]">
                           {a.Evolution_Actif && taux !== null ? `${taux.toFixed(2)}%` : ""}
@@ -454,13 +485,22 @@ export default function EvolutionSessionPage() {
                                 <select
                                   value={a.Evolution?.[iso] || ""}
                                   onChange={(e) => mettreAJourCase(a.id, iso, e.target.value)}
-                                  className="w-full h-full px-1 py-2 text-[10px] font-bold text-center outline-none cursor-pointer border-0"
+                                  className="w-full px-1 py-2 text-[10px] font-bold text-center outline-none cursor-pointer border-0"
                                   style={styleCode(a.Evolution?.[iso])}
                                 >
                                   {CODES.map((c) => (
                                     <option key={c.code} value={c.code}>{c.code || "—"}</option>
                                   ))}
                                 </select>
+                                <input
+                                  key={a.Evolution_Retards?.[iso] || ""}
+                                  type="text"
+                                  defaultValue={a.Evolution_Retards?.[iso] || ""}
+                                  onBlur={(e) => mettreAJourRetard(a.id, iso, e.target.value)}
+                                  placeholder="0h"
+                                  title="Heures manquées en cas de grand retard (ex : 1 ou 0.5) — réduit le taux de présence du jour"
+                                  className="w-full px-1 py-0.5 text-[9px] text-center outline-none border-0 border-t border-[#404040]/10 bg-[#F3F3F2] text-[#404040] placeholder-[#404040]/30 focus:bg-white"
+                                />
                               </td>
                             );
                           })}
@@ -571,7 +611,7 @@ export default function EvolutionSessionPage() {
                     }
                     return (
                     <tr key={`${rec.apprenant.id}-${rec.indexRecord}`} className="hover:bg-[#F3F3F2]/60 transition-colors">
-                      <td className="px-3 py-2 whitespace-nowrap">{rec.date}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{formaterDateFr(rec.date)}</td>
                       <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{rec.indexRoster}</td>
                       <td className="px-3 py-2 text-center">{rec.justifiee ? "✔" : ""}</td>
                       <td className="px-3 py-2 text-center">{String(rec.indexRecord + 1).padStart(2, "0")}</td>
