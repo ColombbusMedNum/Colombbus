@@ -8,7 +8,7 @@ export default function ReponsesPage() {
     <HubActionsCollectives
       titre="Réponses au formulaire"
       sousTitre="Choisir le programme concerné"
-      retourHref="/mediation/rencontres-numeriques/actions-collectives/accueil"
+      retourHref="/mediation/rencontres-numeriques/actions-collectives"
       retourLabel="Actions Collectives"
       tuiles={[
         {

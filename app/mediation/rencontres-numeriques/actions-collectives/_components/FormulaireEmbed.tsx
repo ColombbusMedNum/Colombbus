@@ -18,7 +18,7 @@ export default function FormulaireEmbed({
   titre,
   sousTitre,
   formUrl,
-  retourHref = "/mediation/rencontres-numeriques/actions-collectives/accueil",
+  retourHref = "/mediation/rencontres-numeriques/actions-collectives",
   retourLabel = "Actions Collectives",
 }: {
   titre: string;

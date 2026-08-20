@@ -136,8 +136,11 @@ export default function ListeAdresses() {
             {lieuxSemaine.map((act) => {
               const aUneAdresseValide = act.adresse && act.adresse !== "-";
               
+              // N'utilise que l'adresse exacte (sans le nom du lieu devant) : le nom
+              // fausse parfois la géolocalisation vers un point différent de la
+              // véritable adresse postale.
               const googleMapsUrl = aUneAdresseValide
-                ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${act.lieu} ${act.adresse}`)}`
+                ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(act.adresse)}`
                 : null;
 
               return (

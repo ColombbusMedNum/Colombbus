@@ -8,7 +8,7 @@ export default function InscriptionPage() {
     <HubActionsCollectives
       titre="Formulaire d'inscription"
       sousTitre="Choisir le programme concerné"
-      retourHref="/mediation/rencontres-numeriques/actions-collectives/accueil"
+      retourHref="/mediation/rencontres-numeriques/actions-collectives"
       retourLabel="Actions Collectives"
       tuiles={[
         {

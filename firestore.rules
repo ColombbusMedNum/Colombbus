@@ -110,6 +110,26 @@ service cloud.firestore {
       allow update, delete: if isCoordinateurOuPlus();
     }
 
+    // Même architecture que Numérik'Up ci-dessus, dupliquée pour Digital'UP et
+    // Numérik'UP Pro (voir actions-collectives/reponses/digital-up et
+    // .../numerik-up-pro) — mêmes règles, collections distinctes.
+    match /configuration_digitalup/{docId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+    match /inscriptions_digitalup/{docId} {
+      allow read, create: if isStaff();
+      allow update, delete: if isCoordinateurOuPlus();
+    }
+    match /configuration_numerikuppro/{docId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+    match /inscriptions_numerikuppro/{docId} {
+      allow read, create: if isStaff();
+      allow update, delete: if isCoordinateurOuPlus();
+    }
+
     // Données opérationnelles : accessibles à tout le staff authentifié
     // (peu importe le rôle précis). C'est la même politique que celle qui
     // prévalait de fait avant cette mise en place de rules (aucune

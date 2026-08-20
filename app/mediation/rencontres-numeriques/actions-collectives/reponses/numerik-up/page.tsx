@@ -6,7 +6,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, updateDoc 
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import { useRouter } from "next/navigation";
-import { HomeIcon, MagnifyingGlassIcon, ClipboardDocumentCheckIcon, ChartPieIcon, DocumentArrowUpIcon, TrashIcon, DocumentDuplicateIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, PencilSquareIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, MagnifyingGlassIcon, ClipboardDocumentCheckIcon, DocumentArrowUpIcon, TrashIcon, DocumentDuplicateIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, PencilSquareIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
 
@@ -25,10 +25,18 @@ interface Inscription {
   Téléphone?: string;
   Age?: string;
   Email?: string;
+  Adresse_Postale?: string;
+  Code_Postal?: string;
   Niveau_Etudes?: string;
   Ville?: string;
   Territoire?: string;
   QPV?: string;
+  NEET?: string;
+  CEJ?: string;
+  RSA?: string;
+  RQTH?: string;
+  Situation_Plus_26?: string;
+  Comment_Connu?: string;
   Structures_Accompagnement?: string[];
   Structure_Autre?: string;
   ASE?: string;
@@ -36,6 +44,7 @@ interface Inscription {
   Conseiller_Nom?: string;
   Conseiller_Telephone?: string;
   Conseiller_Email?: string;
+  RGPD?: boolean;
   // Parcours et session choisis à l'inscription — la session est parfois
   // générique (ancienne réponse, ou aucune session ne convenait) : dans ce
   // cas elle doit être affectée manuellement par l'équipe.
@@ -57,6 +66,10 @@ const PARCOURS_DEFAUT: Parcours[] = [
 ];
 
 const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
+
+// Valeur sentinelle du filtre territoire pour repérer les préinscriptions
+// sans territoire renseigné — distincte de "" qui signifie "tous".
+const TERRITOIRE_NON_AFFECTE = "__non_affecte__";
 
 const NIVEAUX_ETUDES = ["Brevet, CAP, BEP", "Bac", "Bac+2 (L2, BTS, DUT, DEUST)", "Bac+3 (Licence, licence professionnelle)", "Bac+4/5 et plus"];
 const STRUCTURES_ACCOMPAGNEMENT = ["Mission locale", "E2C (Ecole de la deuxième chance)", "Pôle Emploi", "PLIE", "Epide", "PJJ", "Aucune"];
@@ -241,10 +254,20 @@ export default function ReponsesNumerikUpPage() {
       case "diplome": return i.Niveau_Etudes || "";
       case "sexe": return sexeDeCivilite(i.Civilité);
       case "ville": return i.Ville || "";
+      case "adresse": return i.Adresse_Postale || "";
+      case "codePostal": return i.Code_Postal || "";
       case "territoire": return i.Territoire || "";
       case "qpv": return i.QPV || "";
+      case "parcours": return i.Parcours || "";
       case "prescripteur": return [...(i.Structures_Accompagnement || []), i.Structure_Autre].filter(Boolean).join(", ");
       case "ase": return i.ASE || "";
+      case "rqth": return i.RQTH || "";
+      case "neet": return i.NEET || "";
+      case "cej": return i.CEJ || "";
+      case "rsa": return i.RSA || "";
+      case "situationPlus26": return i.Situation_Plus_26 || "";
+      case "commentConnu": return i.Comment_Connu || "";
+      case "rgpd": return i.RGPD ? "Oui" : "Non";
       case "conseillerPrenom": return i.Conseiller_Prenom || "";
       case "conseillerNom": return i.Conseiller_Nom || "";
       case "conseillerTelephone": return i.Conseiller_Telephone || "";
@@ -267,7 +290,8 @@ export default function ReponsesNumerikUpPage() {
       if (onglet === "preinscrits" && i.Suivi_Recrutement) return false;
       if (onglet === "affectes" && !i.Suivi_Recrutement) return false;
       if (onglet === "doublons" && !infosDoublons.has(i.id)) return false;
-      if (territoireFiltre && i.Territoire !== territoireFiltre) return false;
+      if (territoireFiltre === TERRITOIRE_NON_AFFECTE && i.Territoire) return false;
+      else if (territoireFiltre && territoireFiltre !== TERRITOIRE_NON_AFFECTE && i.Territoire !== territoireFiltre) return false;
       if (terme && !`${i.Prénom || ""} ${i.Nom || ""}`.toLowerCase().includes(terme)) return false;
       return true;
     });
@@ -417,13 +441,6 @@ export default function ReponsesNumerikUpPage() {
                 <span>Suivi recrutement</span>
               </button>
             )}
-            <Link
-              href="/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up/statistiques"
-              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
-            >
-              <ChartPieIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Statistiques</span>
-            </Link>
             {role === "admin" && (
               <Link
                 href="/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up/importer"
@@ -508,6 +525,7 @@ export default function ReponsesNumerikUpPage() {
             {territoiresListe.map((t) => (
               <option key={t} value={t}>Territoire {t}</option>
             ))}
+            <option value={TERRITOIRE_NON_AFFECTE}>Territoire non renseigné</option>
           </select>
         </div>
 
@@ -549,10 +567,20 @@ export default function ReponsesNumerikUpPage() {
                     ["diplome", "Diplôme"],
                     ["sexe", "Sexe"],
                     ["ville", "Ville"],
+                    ["adresse", "Adresse"],
+                    ["codePostal", "Code Postal"],
                     ["territoire", "Dpt."],
                     ["qpv", "QPV"],
+                    ["parcours", "Parcours"],
                     ["prescripteur", "Prescripteur"],
                     ["ase", "ASE ?"],
+                    ["rqth", "RQTH ?"],
+                    ["neet", "NEET ?"],
+                    ["cej", "CEJ ?"],
+                    ["rsa", "RSA ?"],
+                    ["situationPlus26", "Situation (+26 ans)"],
+                    ["commentConnu", "Comment connu"],
+                    ["rgpd", "RGPD"],
                     ["conseillerPrenom", "Prénom Référent"],
                     ["conseillerNom", "Nom Référent"],
                     ["conseillerTelephone", "Tél Référent"],
@@ -664,10 +692,20 @@ export default function ReponsesNumerikUpPage() {
                         <td className="px-3 py-2 whitespace-nowrap">{i.Niveau_Etudes || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{sexeDeCivilite(i.Civilité)}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Ville || "—"}</td>
+                        <td className="px-3 py-2 max-w-[160px] truncate" title={i.Adresse_Postale}>{i.Adresse_Postale || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.Code_Postal || "—"}</td>
                         <td className="px-3 py-2 text-center">{i.Territoire || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.QPV || "—"}</td>
+                        <td className="px-3 py-2 max-w-[200px] truncate" title={i.Parcours}>{i.Parcours || "—"}</td>
                         <td className="px-3 py-2 max-w-[160px] truncate" title={prescripteur}>{prescripteur || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.ASE || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.RQTH || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.NEET || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.CEJ || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.RSA || "—"}</td>
+                        <td className="px-3 py-2 max-w-[180px] truncate" title={i.Situation_Plus_26}>{i.Situation_Plus_26 || "—"}</td>
+                        <td className="px-3 py-2 max-w-[160px] truncate" title={i.Comment_Connu}>{i.Comment_Connu || "—"}</td>
+                        <td className="px-3 py-2 text-center">{i.RGPD ? "Oui" : "Non"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Prenom || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Nom || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Telephone || "—"}</td>
@@ -677,7 +715,7 @@ export default function ReponsesNumerikUpPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={onglet === "doublons" ? 22 : 21} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
+                    <td colSpan={onglet === "doublons" ? 32 : 31} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
                       🔍 Aucune inscription trouvée.
                     </td>
                   </tr>
@@ -744,6 +782,14 @@ export default function ReponsesNumerikUpPage() {
                 </select>
               </div>
               <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Adresse postale</label>
+                <input type="text" value={edition.Adresse_Postale || ""} onChange={(e) => majEdition("Adresse_Postale", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Code postal</label>
+                <input type="text" value={edition.Code_Postal || ""} onChange={(e) => majEdition("Code_Postal", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Ville</label>
                 <input type="text" value={edition.Ville || ""} onChange={(e) => majEdition("Ville", e.target.value)} className={inputEditClass} />
               </div>
@@ -766,12 +812,73 @@ export default function ReponsesNumerikUpPage() {
                 </select>
               </div>
               <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Parcours</label>
+                <select value={edition.Parcours || ""} onChange={(e) => majEdition("Parcours", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  {edition.Parcours && !parcoursListe.some((p) => p.label === edition.Parcours) && (
+                    <option value={edition.Parcours}>{edition.Parcours}</option>
+                  )}
+                  {parcoursListe.map((p) => (
+                    <option key={p.id} value={p.label}>{p.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">ASE ?</label>
                 <select value={edition.ASE || ""} onChange={(e) => majEdition("ASE", e.target.value)} className={inputEditClass}>
                   <option value="">—</option>
                   <option value="Oui">Oui</option>
                   <option value="Non">Non</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">RQTH ?</label>
+                <select value={edition.RQTH || ""} onChange={(e) => majEdition("RQTH", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">NEET ?</label>
+                <select value={edition.NEET || ""} onChange={(e) => majEdition("NEET", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">CEJ ?</label>
+                <select value={edition.CEJ || ""} onChange={(e) => majEdition("CEJ", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">RSA ?</label>
+                <select value={edition.RSA || ""} onChange={(e) => majEdition("RSA", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                </select>
+              </div>
+              <div className="flex items-end pb-1.5">
+                <label className="flex items-center gap-2 text-[11px] font-medium text-[#404040]">
+                  <input type="checkbox" checked={edition.RGPD || false} onChange={(e) => majEdition("RGPD", e.target.checked)} className="w-4 h-4 accent-[#005259] cursor-pointer" />
+                  Consentement RGPD
+                </label>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Situation (+26 ans)</label>
+                <input type="text" value={edition.Situation_Plus_26 || ""} onChange={(e) => majEdition("Situation_Plus_26", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Comment connu·e</label>
+                <input type="text" value={edition.Comment_Connu || ""} onChange={(e) => majEdition("Comment_Connu", e.target.value)} className={inputEditClass} />
               </div>
             </div>
 

@@ -26,7 +26,7 @@ export default function HubActionsCollectives({
   titre,
   sousTitre,
   tuiles,
-  retourHref = "/mediation/rencontres-numeriques/actions-collectives/accueil",
+  retourHref = "/mediation/rencontres-numeriques/actions-collectives",
   retourLabel = "Actions Collectives",
 }: {
   titre: string;

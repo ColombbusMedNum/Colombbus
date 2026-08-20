@@ -48,10 +48,12 @@ interface Lieu {
 }
 
 // Même construction d'URL que app/mediation/adresses/page.tsx, pour ouvrir
-// l'adresse du lieu directement dans Google Maps.
+// l'adresse du lieu directement dans Google Maps. N'utilise que l'adresse
+// exacte (sans le nom du lieu devant) : le nom fausse parfois la
+// géolocalisation vers un point différent de la véritable adresse postale.
 function googleMapsUrl(lieu: Pick<Lieu, "nomCourt" | "adresse" | "codePostal" | "ville">): string | null {
   if (!lieu.adresse) return null;
-  const requete = `${lieu.nomCourt} ${lieu.adresse} ${lieu.codePostal || ""} ${lieu.ville || ""}`.trim();
+  const requete = `${lieu.adresse} ${lieu.codePostal || ""} ${lieu.ville || ""}`.trim();
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(requete)}`;
 }
 
