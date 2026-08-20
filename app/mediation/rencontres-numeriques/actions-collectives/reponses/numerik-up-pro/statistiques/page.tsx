@@ -20,7 +20,6 @@ interface Apprenant {
   Niveau_Etudes?: string;
   Territoire?: string;
   QPV?: string;
-  ASE?: string;
   Session?: string;
   Suivi_Recrutement?: boolean;
   OK_NOK?: string;
@@ -97,7 +96,6 @@ interface Stats {
   age: Record<string, number>;
   diplome: Record<string, number>;
   qpv: Record<string, number>;
-  ase: Record<string, number>;
 }
 
 function calculerStats(apprenants: Apprenant[]): Stats {
@@ -105,7 +103,6 @@ function calculerStats(apprenants: Apprenant[]): Stats {
   const age: Record<string, number> = { "Moins de 18 ans": 0, "18 à 25 ans": 0, "26 ans et +": 0, "Non renseigné": 0 };
   const diplome: Record<string, number> = {};
   const qpv: Record<string, number> = { Oui: 0, Non: 0, "Je ne sais pas": 0, "Non renseigné": 0 };
-  const ase: Record<string, number> = { Oui: 0, Non: 0, "Non renseigné": 0 };
   apprenants.forEach((a) => {
     if (a.Civilité === "Mme") sexe.Femme++;
     else if (a.Civilité === "M.") sexe.Homme++;
@@ -123,11 +120,8 @@ function calculerStats(apprenants: Apprenant[]): Stats {
 
     const valeurQpv = a.QPV?.trim();
     qpv[valeurQpv && qpv[valeurQpv] !== undefined ? valeurQpv : "Non renseigné"]++;
-
-    const valeurAse = a.ASE?.trim();
-    ase[valeurAse && ase[valeurAse] !== undefined ? valeurAse : "Non renseigné"]++;
   });
-  return { total: apprenants.length, sexe, age, diplome, qpv, ase };
+  return { total: apprenants.length, sexe, age, diplome, qpv };
 }
 
 function BlocStats({ titre, stats }: { titre: string; stats: Stats }) {
@@ -137,7 +131,7 @@ function BlocStats({ titre, stats }: { titre: string; stats: Stats }) {
         <div className="text-xs font-bold uppercase tracking-widest text-[#005259]">{titre}</div>
         <div className="text-xs font-bold text-[#EA601F]">{stats.total} apprenant{stats.total > 1 ? "s" : ""}</div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
           <div className="text-[10px] font-bold uppercase tracking-widest text-[#404040]/60 mb-1">Sexe</div>
           <div className="space-y-1">
@@ -175,17 +169,6 @@ function BlocStats({ titre, stats }: { titre: string; stats: Stats }) {
           <div className="text-[10px] font-bold uppercase tracking-widest text-[#404040]/60 mb-1">QPV</div>
           <div className="space-y-1">
             {Object.entries(stats.qpv).filter(([, n]) => n > 0).map(([label, n]) => (
-              <div key={label} className="flex justify-between text-xs">
-                <span className="text-[#404040]/70">{label}</span>
-                <span className="font-bold text-[#005259]">{n}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="text-[10px] font-bold uppercase tracking-widest text-[#404040]/60 mb-1">ASE</div>
-          <div className="space-y-1">
-            {Object.entries(stats.ase).filter(([, n]) => n > 0).map(([label, n]) => (
               <div key={label} className="flex justify-between text-xs">
                 <span className="text-[#404040]/70">{label}</span>
                 <span className="font-bold text-[#005259]">{n}</span>

@@ -29,7 +29,7 @@ interface Apprenant {
   Ville?: string;
   Territoire?: string;
   QPV?: string;
-  Structures_Accompagnement?: string[];
+  Structure_Accompagnement?: string;
   Structure_Autre?: string;
   Session?: string;
   Suivi_Recrutement?: boolean;
@@ -402,7 +402,7 @@ export default function ApprenantsNumerikUpProSessionPage() {
               <tbody className="divide-y divide-[#404040]/5">
                 {apprenantsFiltres.length > 0 ? (
                   apprenantsFiltres.map((i, index) => {
-                    const prescripteur = [...(i.Structures_Accompagnement || []), i.Structure_Autre].filter(Boolean).join(", ");
+                    const prescripteur = i.Structure_Accompagnement === "Autre" ? (i.Structure_Autre || "Autre") : (i.Structure_Accompagnement || "");
                     return (
                       <tr key={i.id} className="hover:bg-[#F3F3F2]/60 transition-colors align-top">
                         <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{index + 1}</td>

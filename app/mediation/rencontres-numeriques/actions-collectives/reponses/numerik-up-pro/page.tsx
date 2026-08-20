@@ -25,26 +25,29 @@ interface Inscription {
   Téléphone?: string;
   Age?: string;
   Email?: string;
-  Adresse_Postale?: string;
   Code_Postal?: string;
   Niveau_Etudes?: string;
   Ville?: string;
   Territoire?: string;
   QPV?: string;
+  Situation_Handicap?: string;
   NEET?: string;
   CEJ?: string;
   RSA?: string;
   RQTH?: string;
-  Situation_Plus_26?: string;
+  France_Travail?: string;
+  Identifiant_France_Travail?: string;
   Comment_Connu?: string;
-  Structures_Accompagnement?: string[];
+  Structure_Accompagnement?: string;
   Structure_Autre?: string;
-  ASE?: string;
+  Projet_Professionnel?: string;
+  Formation_Acces?: string;
   Conseiller_Prenom?: string;
   Conseiller_Nom?: string;
   Conseiller_Telephone?: string;
   Conseiller_Email?: string;
   RGPD?: boolean;
+  Consentement_Partage_Simulation?: boolean;
   // Parcours et session choisis à l'inscription — la session est parfois
   // générique (ancienne réponse, ou aucune session ne convenait) : dans ce
   // cas elle doit être affectée manuellement par l'équipe.
@@ -71,7 +74,7 @@ const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
 const TERRITOIRE_NON_AFFECTE = "__non_affecte__";
 
 const NIVEAUX_ETUDES = ["Brevet, CAP, BEP", "Bac", "Bac+2 (L2, BTS, DUT, DEUST)", "Bac+3 (Licence, licence professionnelle)", "Bac+4/5 et plus"];
-const STRUCTURES_ACCOMPAGNEMENT = ["Mission locale", "E2C (Ecole de la deuxième chance)", "Pôle Emploi", "PLIE", "Epide", "PJJ", "Aucune"];
+const STRUCTURES_ACCOMPAGNEMENT = ["Mission locale", "E2C (Ecole de la deuxième chance)", "Pôle Emploi", "PLIE", "Epide", "PJJ", "Aucune", "Autre"];
 
 const inputEditClass = "w-full min-w-[140px] px-2 py-1.5 bg-[#F3F3F2] border border-[#404040]/10 focus:border-[#005259] focus:bg-white rounded-lg text-[11px] text-[#404040] outline-none font-medium transition-colors";
 
@@ -253,20 +256,23 @@ export default function ReponsesNumerikUpProPage() {
       case "diplome": return i.Niveau_Etudes || "";
       case "sexe": return sexeDeCivilite(i.Civilité);
       case "ville": return i.Ville || "";
-      case "adresse": return i.Adresse_Postale || "";
       case "codePostal": return i.Code_Postal || "";
       case "territoire": return i.Territoire || "";
       case "qpv": return i.QPV || "";
       case "parcours": return i.Parcours || "";
-      case "prescripteur": return [...(i.Structures_Accompagnement || []), i.Structure_Autre].filter(Boolean).join(", ");
-      case "ase": return i.ASE || "";
+      case "prescripteur": return i.Structure_Accompagnement === "Autre" ? (i.Structure_Autre || "Autre") : (i.Structure_Accompagnement || "");
+      case "situationHandicap": return i.Situation_Handicap || "";
       case "rqth": return i.RQTH || "";
       case "neet": return i.NEET || "";
       case "cej": return i.CEJ || "";
       case "rsa": return i.RSA || "";
-      case "situationPlus26": return i.Situation_Plus_26 || "";
+      case "franceTravail": return i.France_Travail || "";
+      case "identifiantFranceTravail": return i.Identifiant_France_Travail || "";
       case "commentConnu": return i.Comment_Connu || "";
+      case "projetProfessionnel": return i.Projet_Professionnel || "";
+      case "formationAcces": return i.Formation_Acces || "";
       case "rgpd": return i.RGPD ? "Oui" : "Non";
+      case "consentementPartage": return i.Consentement_Partage_Simulation ? "Oui" : "Non";
       case "conseillerPrenom": return i.Conseiller_Prenom || "";
       case "conseillerNom": return i.Conseiller_Nom || "";
       case "conseillerTelephone": return i.Conseiller_Telephone || "";
@@ -373,15 +379,6 @@ export default function ReponsesNumerikUpProPage() {
 
   const majEdition = <K extends keyof Inscription>(champ: K, valeur: Inscription[K]) => {
     setEdition((prev) => (prev ? { ...prev, [champ]: valeur } : prev));
-  };
-
-  const basculerStructureEdition = (structure: string) => {
-    setEdition((prev) => {
-      if (!prev) return prev;
-      const actuelles = prev.Structures_Accompagnement || [];
-      const suivantes = actuelles.includes(structure) ? actuelles.filter((s) => s !== structure) : [...actuelles, structure];
-      return { ...prev, Structures_Accompagnement: suivantes };
-    });
   };
 
   const enregistrerEdition = async () => {
@@ -566,20 +563,23 @@ export default function ReponsesNumerikUpProPage() {
                     ["diplome", "Diplôme"],
                     ["sexe", "Sexe"],
                     ["ville", "Ville"],
-                    ["adresse", "Adresse"],
                     ["codePostal", "Code Postal"],
                     ["territoire", "Dpt."],
                     ["qpv", "QPV"],
                     ["parcours", "Parcours"],
                     ["prescripteur", "Prescripteur"],
-                    ["ase", "ASE ?"],
+                    ["situationHandicap", "Situation handicap"],
                     ["rqth", "RQTH ?"],
+                    ["rsa", "RSA ?"],
                     ["neet", "NEET ?"],
                     ["cej", "CEJ ?"],
-                    ["rsa", "RSA ?"],
-                    ["situationPlus26", "Situation (+26 ans)"],
+                    ["franceTravail", "France Travail"],
+                    ["identifiantFranceTravail", "Identifiant France Travail"],
                     ["commentConnu", "Comment connu"],
+                    ["projetProfessionnel", "Projet professionnel"],
+                    ["formationAcces", "Formation — accès"],
                     ["rgpd", "RGPD"],
+                    ["consentementPartage", "Partage simulation"],
                     ["conseillerPrenom", "Prénom Référent"],
                     ["conseillerNom", "Nom Référent"],
                     ["conseillerTelephone", "Tél Référent"],
@@ -606,7 +606,7 @@ export default function ReponsesNumerikUpProPage() {
               <tbody className="divide-y divide-[#404040]/5">
                 {inscriptionsFiltrees.length > 0 ? (
                   inscriptionsFiltrees.map((i, index) => {
-                    const prescripteur = [...(i.Structures_Accompagnement || []), i.Structure_Autre].filter(Boolean).join(", ");
+                    const prescripteur = i.Structure_Accompagnement === "Autre" ? (i.Structure_Autre || "Autre") : (i.Structure_Accompagnement || "");
                     return (
                       <tr key={i.id} className="hover:bg-[#F3F3F2]/60 transition-colors align-top">
                         {onglet === "doublons" && (
@@ -691,20 +691,23 @@ export default function ReponsesNumerikUpProPage() {
                         <td className="px-3 py-2 whitespace-nowrap">{i.Niveau_Etudes || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{sexeDeCivilite(i.Civilité)}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Ville || "—"}</td>
-                        <td className="px-3 py-2 max-w-[160px] truncate" title={i.Adresse_Postale}>{i.Adresse_Postale || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Code_Postal || "—"}</td>
                         <td className="px-3 py-2 text-center">{i.Territoire || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.QPV || "—"}</td>
                         <td className="px-3 py-2 max-w-[200px] truncate" title={i.Parcours}>{i.Parcours || "—"}</td>
                         <td className="px-3 py-2 max-w-[160px] truncate" title={prescripteur}>{prescripteur || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{i.ASE || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.Situation_Handicap || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.RQTH || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.RSA || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.NEET || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.CEJ || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{i.RSA || "—"}</td>
-                        <td className="px-3 py-2 max-w-[180px] truncate" title={i.Situation_Plus_26}>{i.Situation_Plus_26 || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.France_Travail || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.Identifiant_France_Travail || "—"}</td>
                         <td className="px-3 py-2 max-w-[160px] truncate" title={i.Comment_Connu}>{i.Comment_Connu || "—"}</td>
+                        <td className="px-3 py-2 max-w-[180px] truncate" title={i.Projet_Professionnel}>{i.Projet_Professionnel || "—"}</td>
+                        <td className="px-3 py-2 max-w-[180px] truncate" title={i.Formation_Acces}>{i.Formation_Acces || "—"}</td>
                         <td className="px-3 py-2 text-center">{i.RGPD ? "Oui" : "Non"}</td>
+                        <td className="px-3 py-2 text-center">{i.Consentement_Partage_Simulation ? "Oui" : "Non"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Prenom || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Nom || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Telephone || "—"}</td>
@@ -714,7 +717,7 @@ export default function ReponsesNumerikUpProPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={onglet === "doublons" ? 32 : 31} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
+                    <td colSpan={onglet === "doublons" ? 35 : 34} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
                       🔍 Aucune inscription trouvée.
                     </td>
                   </tr>
@@ -781,10 +784,6 @@ export default function ReponsesNumerikUpProPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Adresse postale</label>
-                <input type="text" value={edition.Adresse_Postale || ""} onChange={(e) => majEdition("Adresse_Postale", e.target.value)} className={inputEditClass} />
-              </div>
-              <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Code postal</label>
                 <input type="text" value={edition.Code_Postal || ""} onChange={(e) => majEdition("Code_Postal", e.target.value)} className={inputEditClass} />
               </div>
@@ -823,8 +822,8 @@ export default function ReponsesNumerikUpProPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">ASE ?</label>
-                <select value={edition.ASE || ""} onChange={(e) => majEdition("ASE", e.target.value)} className={inputEditClass}>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Situation de handicap ?</label>
+                <select value={edition.Situation_Handicap || ""} onChange={(e) => majEdition("Situation_Handicap", e.target.value)} className={inputEditClass}>
                   <option value="">—</option>
                   <option value="Oui">Oui</option>
                   <option value="Non">Non</option>
@@ -862,52 +861,68 @@ export default function ReponsesNumerikUpProPage() {
                   <option value="Non">Non</option>
                 </select>
               </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Inscrit·e à France Travail ?</label>
+                <select value={edition.France_Travail || ""} onChange={(e) => majEdition("France_Travail", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                </select>
+              </div>
+              {edition.France_Travail === "Oui" && (
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Identifiant France Travail</label>
+                  <input type="text" value={edition.Identifiant_France_Travail || ""} onChange={(e) => majEdition("Identifiant_France_Travail", e.target.value)} className={inputEditClass} />
+                </div>
+              )}
               <div className="flex items-end pb-1.5">
                 <label className="flex items-center gap-2 text-[11px] font-medium text-[#404040]">
                   <input type="checkbox" checked={edition.RGPD || false} onChange={(e) => majEdition("RGPD", e.target.checked)} className="w-4 h-4 accent-[#005259] cursor-pointer" />
                   Consentement RGPD
                 </label>
               </div>
+              <div className="flex items-end pb-1.5">
+                <label className="flex items-center gap-2 text-[11px] font-medium text-[#404040]">
+                  <input type="checkbox" checked={edition.Consentement_Partage_Simulation || false} onChange={(e) => majEdition("Consentement_Partage_Simulation", e.target.checked)} className="w-4 h-4 accent-[#005259] cursor-pointer" />
+                  Consentement partage simulation
+                </label>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Situation (+26 ans)</label>
-                <input type="text" value={edition.Situation_Plus_26 || ""} onChange={(e) => majEdition("Situation_Plus_26", e.target.value)} className={inputEditClass} />
-              </div>
-              <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Comment connu·e</label>
                 <input type="text" value={edition.Comment_Connu || ""} onChange={(e) => majEdition("Comment_Connu", e.target.value)} className={inputEditClass} />
               </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Structure d'accompagnement</label>
+                <select value={edition.Structure_Accompagnement || ""} onChange={(e) => majEdition("Structure_Accompagnement", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  {STRUCTURES_ACCOMPAGNEMENT.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+                {edition.Structure_Accompagnement === "Autre" && (
+                  <input
+                    type="text"
+                    value={edition.Structure_Autre || ""}
+                    onChange={(e) => majEdition("Structure_Autre", e.target.value)}
+                    placeholder="Préciser la structure"
+                    className={`${inputEditClass} mt-2`}
+                  />
+                )}
+              </div>
             </div>
 
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1.5">Structure(s) d'accompagnement</label>
-              <div className="flex flex-wrap gap-2">
-                {STRUCTURES_ACCOMPAGNEMENT.map((s) => (
-                  <label
-                    key={s}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-medium cursor-pointer transition-colors ${
-                      (edition.Structures_Accompagnement || []).includes(s) ? "bg-[#005259] text-white border-[#005259]" : "bg-[#F3F3F2] border-[#404040]/10 text-[#404040]"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={(edition.Structures_Accompagnement || []).includes(s)}
-                      onChange={() => basculerStructureEdition(s)}
-                      className="hidden"
-                    />
-                    {s}
-                  </label>
-                ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Projet professionnel</label>
+                <textarea value={edition.Projet_Professionnel || ""} onChange={(e) => majEdition("Projet_Professionnel", e.target.value)} rows={3} className={inputEditClass} />
               </div>
-              <input
-                type="text"
-                value={edition.Structure_Autre || ""}
-                onChange={(e) => majEdition("Structure_Autre", e.target.value)}
-                placeholder="Autre structure (texte libre)"
-                className={`${inputEditClass} mt-2`}
-              />
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Formation — accès au projet</label>
+                <textarea value={edition.Formation_Acces || ""} onChange={(e) => majEdition("Formation_Acces", e.target.value)} rows={3} className={inputEditClass} />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

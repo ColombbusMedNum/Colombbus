@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase";
 import { collection, doc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
-import { HomeIcon, ArrowLeftIcon, ChevronDownIcon, TrashIcon, PlusIcon, PencilSquareIcon, CheckIcon, XMarkIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ArrowLeftIcon, ChevronDownIcon, ClipboardDocumentListIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 
 const quicksand = Quicksand({
@@ -30,20 +30,7 @@ interface Apprenant {
   Evolution_Retards?: Record<string, string>;
   // Coché = apprenant·e suivi·e dans le calcul du taux de présence.
   Evolution_Actif?: boolean;
-  // Journal des absences justifiées (une entrée par évènement signalé).
-  Absences?: AbsenceRecord[];
 }
-
-interface AbsenceRecord {
-  date: string;
-  justifiee: boolean;
-  type: string;
-  raison: string;
-  reference: string;
-  lien: string;
-}
-
-const TYPES_JUSTIFICATIF = ["Email", "SMS", "Téléphone", "Autre"];
 
 const MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 const JOURS_FR = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
@@ -68,13 +55,6 @@ function versISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-// Affiche une date stockée au format ISO ("AAAA-MM-JJ", tel que renvoyé par
-// un <input type="date">) au format français "JJ/MM/AAAA".
-function formaterDateFr(iso: string): string {
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
-}
-
 // Extrait la date de début d'une session à partir de son libellé texte libre
 // (ex. "Du lundi 7 septembre au vendredi 2 octobre 2026").
 function extraireDateDebut(texte: string): Date | null {
@@ -91,11 +71,31 @@ function extraireDateDebut(texte: string): Date | null {
   return new Date(Math.min(...dates.map((d) => d.getTime())));
 }
 
-// Génère les N prochains jours ouvrés (lun-ven) à partir d'une date de début.
-function genererJoursOuvres(debut: Date, nombre: number): Date[] {
+// Extrait la date de fin d'une session à partir de son libellé texte libre
+// (ex. "Du lundi 7 septembre au vendredi 2 octobre 2026") — symétrique de
+// extraireDateDebut, mais garde la date la PLUS TARDIVE plutôt que la plus
+// ancienne.
+function extraireDateFin(texte: string): Date | null {
+  const regex = new RegExp(`(\\d{1,2})\\s+(${MOIS_FR.join("|")})(?:\\s+(\\d{4}))?`, "gi");
+  const trouvees: { jour: number; mois: number; annee?: number }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(texte.toLowerCase())) !== null) {
+    trouvees.push({ jour: parseInt(m[1], 10), mois: MOIS_FR.indexOf(m[2].toLowerCase()), annee: m[3] ? parseInt(m[3], 10) : undefined });
+  }
+  if (trouvees.length === 0) return null;
+  const anneeParDefaut = [...trouvees].reverse().find((d) => d.annee !== undefined)?.annee;
+  if (anneeParDefaut === undefined) return null;
+  const dates = trouvees.map((d) => new Date(d.annee ?? anneeParDefaut, d.mois, d.jour));
+  return new Date(Math.max(...dates.map((d) => d.getTime())));
+}
+
+// Génère tous les jours ouvrés (lun-ven) entre deux dates incluses — le
+// nombre de semaines de la grille doit refléter la durée réelle de la
+// session (parfois bien plus que 4 semaines), pas un nombre fixe.
+function genererJoursOuvresEntre(debut: Date, fin: Date): Date[] {
   const jours: Date[] = [];
   const curseur = new Date(debut);
-  while (jours.length < nombre) {
+  while (curseur <= fin) {
     const jourSemaine = curseur.getDay();
     if (jourSemaine !== 0 && jourSemaine !== 6) {
       jours.push(new Date(curseur));
@@ -122,8 +122,6 @@ export default function EvolutionSessionPage() {
   const [apprenants, setApprenants] = useState<Apprenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [semainesFermees, setSemainesFermees] = useState<Set<number>>(new Set());
-  const [nouvelleAbsence, setNouvelleAbsence] = useState({ apprenantId: "", date: "", justifiee: true, type: "", raison: "", reference: "", lien: "" });
-  const [brouillonAbsence, setBrouillonAbsence] = useState<{ apprenantId: string; indexRecord: number; valeurs: AbsenceRecord } | null>(null);
   const [alerteANJ, setAlerteANJ] = useState<{ prenom: string; nom: string; nombre: number } | null>(null);
 
   useEffect(() => {
@@ -148,12 +146,14 @@ export default function EvolutionSessionPage() {
     [apprenants, sessionId]
   );
 
-  // 4 semaines de 5 jours ouvrés, calculées depuis la date de début de la
-  // session (extraite de son libellé texte).
+  // Semaines de 5 jours ouvrés, calculées depuis les dates de début ET de fin
+  // de la session (extraites de son libellé texte) — le nombre de semaines
+  // varie donc selon la durée réelle de chaque session.
   const semaines = useMemo(() => {
     const debut = extraireDateDebut(sessionId);
-    if (!debut) return [];
-    return decouperEnSemaines(genererJoursOuvres(debut, 20), 5);
+    const fin = extraireDateFin(sessionId);
+    if (!debut || !fin) return [];
+    return decouperEnSemaines(genererJoursOuvresEntre(debut, fin), 5);
   }, [sessionId]);
 
   const mettreAJourCase = async (id: string, cle: string, valeur: string) => {
@@ -246,74 +246,6 @@ export default function EvolutionSessionPage() {
     });
   };
 
-  // Journal des absences, à plat, trié par date — une ligne par évènement.
-  const journalAbsences = useMemo(
-    () =>
-      apprenantsSession
-        .flatMap((a, indexRoster) =>
-          (a.Absences || []).map((rec, indexRecord) => ({ ...rec, apprenant: a, indexRoster: indexRoster + 1, indexRecord }))
-        )
-        .sort((x, y) => x.date.localeCompare(y.date)),
-    [apprenantsSession]
-  );
-
-  const ajouterAbsence = async () => {
-    const apprenant = apprenantsSession.find((a) => a.id === nouvelleAbsence.apprenantId);
-    if (!apprenant || !nouvelleAbsence.date) return;
-    const enregistrement: AbsenceRecord = {
-      date: nouvelleAbsence.date,
-      justifiee: nouvelleAbsence.justifiee,
-      type: nouvelleAbsence.type,
-      raison: nouvelleAbsence.raison,
-      reference: nouvelleAbsence.reference,
-      lien: nouvelleAbsence.lien,
-    };
-    const nouvelleListe = [...(apprenant.Absences || []), enregistrement];
-    setApprenants((prev) => prev.map((a) => (a.id === apprenant.id ? { ...a, Absences: nouvelleListe } : a)));
-    try {
-      await updateDoc(doc(db, "inscriptions_numerikup", apprenant.id), { Absences: nouvelleListe });
-    } catch (error) {
-      console.error("Erreur lors de l'ajout de l'absence :", error);
-    }
-    setNouvelleAbsence({ apprenantId: "", date: "", justifiee: true, type: "", raison: "", reference: "", lien: "" });
-  };
-
-  // Édition d'une absence : un brouillon local, rien n'est écrit tant que
-  // "Enregistrer" n'est pas cliqué — évite tout effacement accidentel au fil
-  // de la frappe.
-  const debuterModificationAbsence = (apprenantId: string, indexRecord: number, valeurs: AbsenceRecord) => {
-    setBrouillonAbsence({ apprenantId, indexRecord, valeurs: { ...valeurs } });
-  };
-
-  const annulerModificationAbsence = () => setBrouillonAbsence(null);
-
-  const enregistrerModificationAbsence = async () => {
-    if (!brouillonAbsence) return;
-    const { apprenantId, indexRecord, valeurs } = brouillonAbsence;
-    const apprenant = apprenants.find((a) => a.id === apprenantId);
-    if (!apprenant) return;
-    const nouvelleListe = (apprenant.Absences || []).map((r, i) => (i === indexRecord ? valeurs : r));
-    setApprenants((prev) => prev.map((a) => (a.id === apprenantId ? { ...a, Absences: nouvelleListe } : a)));
-    try {
-      await updateDoc(doc(db, "inscriptions_numerikup", apprenantId), { Absences: nouvelleListe });
-    } catch (error) {
-      console.error("Erreur lors de la modification de l'absence :", error);
-    }
-    setBrouillonAbsence(null);
-  };
-
-  const supprimerAbsence = async (apprenantId: string, indexRecord: number) => {
-    const apprenant = apprenants.find((a) => a.id === apprenantId);
-    if (!apprenant) return;
-    const nouvelleListe = (apprenant.Absences || []).filter((_, i) => i !== indexRecord);
-    setApprenants((prev) => prev.map((a) => (a.id === apprenantId ? { ...a, Absences: nouvelleListe } : a)));
-    try {
-      await updateDoc(doc(db, "inscriptions_numerikup", apprenantId), { Absences: nouvelleListe });
-    } catch (error) {
-      console.error("Erreur lors de la suppression de l'absence :", error);
-    }
-  };
-
   const styleCode = (valeur?: string) => {
     const info = CODES.find((c) => c.code === (valeur || "")) || CODES[0];
     return { backgroundColor: info.bg, color: info.text };
@@ -356,6 +288,13 @@ export default function EvolutionSessionPage() {
             >
               <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
               <span>Apprenant·e·s</span>
+            </Link>
+            <Link
+              href={`/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up/${encodeURIComponent(sessionId)}/absences`}
+              className="flex items-center gap-2 bg-[#EA601F] hover:bg-[#EF736A] text-white px-3.5 py-2 rounded-xl transition-colors text-xs font-bold uppercase tracking-wider shadow-sm"
+            >
+              <ClipboardDocumentListIcon className="w-4 h-4" />
+              <span>Suivi des absences</span>
             </Link>
             <Link
               href="/"
@@ -514,173 +453,6 @@ export default function EvolutionSessionPage() {
             </div>
             );
           })}
-
-          {/* SUIVI DES ABSENCES */}
-          <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-4 pt-4 pb-1 text-xs font-bold uppercase tracking-widest text-[#005259]">
-              Suivi des absences
-            </div>
-
-            {/* Cumul par apprenant·e */}
-            <div className="overflow-x-auto">
-              <table className="border-collapse text-xs w-full">
-                <thead>
-                  <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
-                    <th className="px-3 py-3 text-center">Δ</th>
-                    <th className="px-3 py-3">Prénom</th>
-                    <th className="px-3 py-3">Nom</th>
-                    <th className="px-3 py-3 text-center">Cumul absences justifiées</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#404040]/5">
-                  {apprenantsSession.map((a, index) => (
-                    <tr key={a.id} className="hover:bg-[#F3F3F2]/60 transition-colors">
-                      <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{index + 1}</td>
-                      <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{a.Prénom || "—"}</td>
-                      <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">{a.Nom || "—"}</td>
-                      <td className="px-3 py-2 text-center font-bold text-[#005259]">
-                        {(a.Absences || []).filter((r) => r.justifiee).length}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Journal des absences */}
-            <div className="overflow-x-auto border-t border-[#404040]/10">
-              <table className="border-collapse text-xs w-full">
-                <thead>
-                  <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
-                    <th className="px-3 py-3">Date</th>
-                    <th className="px-3 py-3 text-center">Δ</th>
-                    <th className="px-3 py-3 text-center">JA</th>
-                    <th className="px-3 py-3 text-center">Nb</th>
-                    <th className="px-3 py-3">Prénom</th>
-                    <th className="px-3 py-3">Nom</th>
-                    <th className="px-3 py-3">Type justificatif</th>
-                    <th className="px-3 py-3">Raison</th>
-                    <th className="px-3 py-3">N° enregistrement Drive partagé</th>
-                    <th className="px-3 py-3"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#404040]/5">
-                  {journalAbsences.map((rec) => {
-                    const enEdition = brouillonAbsence?.apprenantId === rec.apprenant.id && brouillonAbsence?.indexRecord === rec.indexRecord;
-                    if (enEdition && brouillonAbsence) {
-                      const b = brouillonAbsence.valeurs;
-                      const maj = <K extends keyof AbsenceRecord>(champ: K, valeur: AbsenceRecord[K]) =>
-                        setBrouillonAbsence({ ...brouillonAbsence, valeurs: { ...b, [champ]: valeur } });
-                      return (
-                        <tr key={`${rec.apprenant.id}-${rec.indexRecord}`} className="bg-[#005259]/5">
-                          <td className="px-3 py-2">
-                            <input type="date" value={b.date} onChange={(e) => maj("date", e.target.value)} className="w-full px-2 py-1.5 bg-white border border-[#404040]/15 rounded-lg text-[11px] outline-none" />
-                          </td>
-                          <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{rec.indexRoster}</td>
-                          <td className="px-3 py-2 text-center">
-                            <input type="checkbox" checked={b.justifiee} onChange={(e) => maj("justifiee", e.target.checked)} className="w-4 h-4 accent-[#005259] cursor-pointer" />
-                          </td>
-                          <td className="px-3 py-2 text-center">{String(rec.indexRecord + 1).padStart(2, "0")}</td>
-                          <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{rec.apprenant.Prénom || "—"}</td>
-                          <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">{rec.apprenant.Nom || "—"}</td>
-                          <td className="px-3 py-2">
-                            <select value={b.type} onChange={(e) => maj("type", e.target.value)} className="w-full px-2 py-1.5 bg-white border border-[#404040]/15 rounded-lg text-[11px] outline-none">
-                              <option value="">-- Type --</option>
-                              {TYPES_JUSTIFICATIF.map((t) => (
-                                <option key={t} value={t}>{t}</option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-3 py-2">
-                            <input type="text" value={b.raison} onChange={(e) => maj("raison", e.target.value)} placeholder="Raison" className="w-full px-2 py-1.5 bg-white border border-[#404040]/15 rounded-lg text-[11px] outline-none" />
-                          </td>
-                          <td className="px-3 py-2 space-y-1">
-                            <input type="text" value={b.reference} onChange={(e) => maj("reference", e.target.value)} placeholder="Nom du fichier Drive" className="w-full px-2 py-1.5 bg-white border border-[#404040]/15 rounded-lg text-[11px] outline-none" />
-                            <input type="url" value={b.lien} onChange={(e) => maj("lien", e.target.value)} placeholder="Lien Drive (https://...)" className="w-full px-2 py-1.5 bg-white border border-[#404040]/15 rounded-lg text-[11px] outline-none" />
-                          </td>
-                          <td className="px-3 py-2 text-center whitespace-nowrap">
-                            <button type="button" onClick={enregistrerModificationAbsence} className="p-1.5 mr-1 bg-[#005259]/10 hover:bg-[#005259] text-[#005259] hover:text-white border border-[#005259]/30 rounded-lg transition-colors cursor-pointer" title="Enregistrer">
-                              <CheckIcon className="w-3.5 h-3.5" />
-                            </button>
-                            <button type="button" onClick={annulerModificationAbsence} className="p-1.5 bg-[#404040]/10 hover:bg-[#404040] text-[#404040] hover:text-white border border-[#404040]/20 rounded-lg transition-colors cursor-pointer" title="Annuler">
-                              <XMarkIcon className="w-3.5 h-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    }
-                    return (
-                    <tr key={`${rec.apprenant.id}-${rec.indexRecord}`} className="hover:bg-[#F3F3F2]/60 transition-colors">
-                      <td className="px-3 py-2 whitespace-nowrap">{formaterDateFr(rec.date)}</td>
-                      <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{rec.indexRoster}</td>
-                      <td className="px-3 py-2 text-center">{rec.justifiee ? "✔" : ""}</td>
-                      <td className="px-3 py-2 text-center">{String(rec.indexRecord + 1).padStart(2, "0")}</td>
-                      <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{rec.apprenant.Prénom || "—"}</td>
-                      <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">{rec.apprenant.Nom || "—"}</td>
-                      <td className="px-3 py-2 whitespace-nowrap">{rec.type || "—"}</td>
-                      <td className="px-3 py-2 max-w-[200px] truncate" title={rec.raison}>{rec.raison || "—"}</td>
-                      <td className="px-3 py-2 max-w-[220px] truncate" title={rec.reference}>
-                        {rec.reference ? (
-                          rec.lien ? (
-                            <a href={rec.lien} target="_blank" rel="noopener noreferrer" className="text-[#005259] font-bold underline hover:text-[#EA601F]">
-                              {rec.reference}
-                            </a>
-                          ) : (
-                            rec.reference
-                          )
-                        ) : "—"}
-                      </td>
-                      <td className="px-3 py-2 text-center whitespace-nowrap">
-                        <button type="button" onClick={() => debuterModificationAbsence(rec.apprenant.id, rec.indexRecord, rec)} className="p-1.5 mr-1 bg-[#005259]/10 hover:bg-[#005259] text-[#005259] hover:text-white border border-[#005259]/30 rounded-lg transition-colors cursor-pointer" title="Modifier">
-                          <PencilSquareIcon className="w-3.5 h-3.5" />
-                        </button>
-                        <button type="button" onClick={() => supprimerAbsence(rec.apprenant.id, rec.indexRecord)} className="p-1.5 bg-[#EF736A]/10 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/30 rounded-lg transition-colors cursor-pointer" title="Supprimer">
-                          <TrashIcon className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                    );
-                  })}
-                  <tr className="bg-[#F3F3F2]/40">
-                    <td className="px-3 py-2">
-                      <input type="date" value={nouvelleAbsence.date} onChange={(e) => setNouvelleAbsence({ ...nouvelleAbsence, date: e.target.value })} className="w-full px-2 py-1.5 bg-white border border-[#404040]/15 rounded-lg text-[11px] outline-none" />
-                    </td>
-                    <td colSpan={2} className="px-3 py-2 text-center">
-                      <input type="checkbox" checked={nouvelleAbsence.justifiee} onChange={(e) => setNouvelleAbsence({ ...nouvelleAbsence, justifiee: e.target.checked })} className="w-4 h-4 accent-[#005259] cursor-pointer" />
-                    </td>
-                    <td colSpan={2} className="px-3 py-2">
-                      <select value={nouvelleAbsence.apprenantId} onChange={(e) => setNouvelleAbsence({ ...nouvelleAbsence, apprenantId: e.target.value })} className="w-full px-2 py-1.5 bg-white border border-[#404040]/15 rounded-lg text-[11px] outline-none">
-                        <option value="">-- Apprenant·e --</option>
-                        {apprenantsSession.map((a) => (
-                          <option key={a.id} value={a.id}>{a.Prénom} {a.Nom}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-3 py-2">
-                      <select value={nouvelleAbsence.type} onChange={(e) => setNouvelleAbsence({ ...nouvelleAbsence, type: e.target.value })} className="w-full px-2 py-1.5 bg-white border border-[#404040]/15 rounded-lg text-[11px] outline-none">
-                        <option value="">-- Type --</option>
-                        {TYPES_JUSTIFICATIF.map((t) => (
-                          <option key={t} value={t}>{t}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-3 py-2">
-                      <input type="text" value={nouvelleAbsence.raison} onChange={(e) => setNouvelleAbsence({ ...nouvelleAbsence, raison: e.target.value })} placeholder="Raison" className="w-full px-2 py-1.5 bg-white border border-[#404040]/15 rounded-lg text-[11px] outline-none" />
-                    </td>
-                    <td className="px-3 py-2 space-y-1">
-                      <input type="text" value={nouvelleAbsence.reference} onChange={(e) => setNouvelleAbsence({ ...nouvelleAbsence, reference: e.target.value })} placeholder="Nom du fichier Drive" className="w-full px-2 py-1.5 bg-white border border-[#404040]/15 rounded-lg text-[11px] outline-none" />
-                      <input type="url" value={nouvelleAbsence.lien} onChange={(e) => setNouvelleAbsence({ ...nouvelleAbsence, lien: e.target.value })} placeholder="Lien Drive (https://...)" className="w-full px-2 py-1.5 bg-white border border-[#404040]/15 rounded-lg text-[11px] outline-none" />
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <button type="button" onClick={ajouterAbsence} className="p-1.5 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-lg transition-colors cursor-pointer">
-                        <PlusIcon className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
           </>
         )}
 

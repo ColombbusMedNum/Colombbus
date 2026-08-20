@@ -28,9 +28,8 @@ interface Inscription {
   Ville?: string;
   Territoire?: string;
   QPV?: string;
-  Structures_Accompagnement?: string[];
+  Structure_Accompagnement?: string;
   Structure_Autre?: string;
-  ASE?: string;
   Conseiller_Prenom?: string;
   Conseiller_Nom?: string;
   Conseiller_Telephone?: string;
@@ -339,7 +338,6 @@ export default function ReponsesNumerikUpProSessionPage() {
                   <th className="px-3 py-3">Dpt.</th>
                   <th className="px-3 py-3">QPV</th>
                   <th className="px-3 py-3">Prescripteur</th>
-                  <th className="px-3 py-3">ASE ?</th>
                   <th className="px-3 py-3">Prénom Référent</th>
                   <th className="px-3 py-3">Nom Référent</th>
                   <th className="px-3 py-3">Tél Référent</th>
@@ -362,7 +360,7 @@ export default function ReponsesNumerikUpProSessionPage() {
               <tbody className="divide-y divide-[#404040]/5">
                 {inscriptionsFiltrees.length > 0 ? (
                   inscriptionsFiltrees.map((i, index) => {
-                    const prescripteur = [...(i.Structures_Accompagnement || []), i.Structure_Autre].filter(Boolean).join(", ");
+                    const prescripteur = i.Structure_Accompagnement === "Autre" ? (i.Structure_Autre || "Autre") : (i.Structure_Accompagnement || "");
                     return (
                       <tr key={i.id} className="group hover:bg-[#F3F3F2]/60 transition-colors align-top">
                         <td className={`${classeFigee} px-3 py-2 text-center text-[#404040]/50 font-bold bg-white group-hover:bg-[#F3F3F2]/60`} style={{ left: decalages.num }}>{index + 1}</td>
@@ -384,7 +382,6 @@ export default function ReponsesNumerikUpProSessionPage() {
                         <td className="px-3 py-2 text-center">{i.Territoire || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.QPV || "—"}</td>
                         <td className="px-3 py-2 max-w-[160px] truncate" title={prescripteur}>{prescripteur || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{i.ASE || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Prenom || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Nom || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Telephone || "—"}</td>
@@ -454,7 +451,7 @@ export default function ReponsesNumerikUpProSessionPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={30} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
+                    <td colSpan={29} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
                       🔍 Aucune inscription trouvée.
                     </td>
                   </tr>

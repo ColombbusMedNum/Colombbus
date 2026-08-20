@@ -14,7 +14,7 @@ const quicksand = Quicksand({
   weight: ["300", "400", "500", "600", "700"],
 });
 
-const STRUCTURES = ["Mission locale", "E2C (Ecole de la deuxième chance)", "Pôle Emploi", "PLIE", "Epide", "PJJ", "Aucune"];
+const STRUCTURES = ["Mission locale", "E2C (Ecole de la deuxième chance)", "Pôle Emploi", "PLIE", "Epide", "PJJ", "Aucune", "Autre"];
 
 interface LigneImportee {
   Civilité: string;
@@ -22,29 +22,32 @@ interface LigneImportee {
   Prénom: string;
   Téléphone: string;
   Email: string;
-  Adresse_Postale: string;
   Code_Postal: string;
   Ville: string;
   QPV: string;
   Age: string;
+  Situation_Handicap: string;
   NEET: string;
   CEJ: string;
-  Situation_Plus_26: string;
   RSA: string;
   RQTH: string;
   Niveau_Etudes: string;
-  Structures_Accompagnement: string[];
+  France_Travail: string;
+  Identifiant_France_Travail: string;
+  Structure_Accompagnement: string;
   Structure_Autre: string;
-  ASE: string;
   Conseiller_Nom: string;
   Conseiller_Prenom: string;
   Conseiller_Email: string;
   Conseiller_Telephone: string;
   Comment_Connu: string;
   Parcours: string;
+  Projet_Professionnel: string;
+  Formation_Acces: string;
   Territoire: string;
   Session: string;
   RGPD: boolean;
+  Consentement_Partage_Simulation: boolean;
   _horodateur: Date | null;
 }
 
@@ -137,13 +140,12 @@ function parseHorodateur(brut: string): Date | null {
 // Construit une ligne exploitable à partir d'un tableau de cellules brutes et
 // de la carte des colonnes détectées pour ce fichier.
 function mapperLigne(ligne: string[], colonnes: Record<string, number[]>): LigneImportee {
-  const structureBrute = valeur(ligne, colonnes.structure);
-  const structuresDetectees = structureBrute
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const structuresConnues = structuresDetectees.filter((s) => STRUCTURES.some((ref) => normaliser(ref) === normaliser(s)));
-  const structuresInconnues = structuresDetectees.filter((s) => !STRUCTURES.some((ref) => normaliser(ref) === normaliser(s)));
+  const structureBrute = valeur(ligne, colonnes.structure).trim();
+  const structureConnue = STRUCTURES.find((ref) => normaliser(ref) === normaliser(structureBrute));
+  const structureAccompagnement = structureConnue || (structureBrute ? "Autre" : "");
+  const structureAutre = structureConnue ? "" : structureBrute;
+
+  const franceTravail = normaliserOuiNon(valeur(ligne, colonnes.franceTravail));
 
   return {
     Civilité: normaliserCivilite(valeur(ligne, colonnes.civilite)),
@@ -151,29 +153,32 @@ function mapperLigne(ligne: string[], colonnes: Record<string, number[]>): Ligne
     Prénom: valeur(ligne, colonnes.prenom),
     Téléphone: valeur(ligne, colonnes.telephone),
     Email: valeur(ligne, colonnes.email),
-    Adresse_Postale: valeur(ligne, colonnes.adresse),
     Code_Postal: valeur(ligne, colonnes.codePostal),
     Ville: valeur(ligne, colonnes.ville),
     QPV: valeur(ligne, colonnes.qpv) || "Je ne sais pas",
     Age: normaliserAge(valeur(ligne, colonnes.age)),
+    Situation_Handicap: normaliserOuiNon(valeur(ligne, colonnes.situationHandicap)),
     NEET: normaliserOuiNon(valeur(ligne, colonnes.neet)),
     CEJ: normaliserOuiNon(valeur(ligne, colonnes.cej)),
-    Situation_Plus_26: valeur(ligne, colonnes.situationPlus26),
     RSA: normaliserOuiNon(valeur(ligne, colonnes.rsa)),
     RQTH: normaliserOuiNon(valeur(ligne, colonnes.rqth)),
     Niveau_Etudes: valeur(ligne, colonnes.niveauEtudes),
-    Structures_Accompagnement: structuresConnues,
-    Structure_Autre: structuresInconnues.join(", "),
-    ASE: normaliserOuiNon(valeur(ligne, colonnes.ase)),
+    France_Travail: franceTravail,
+    Identifiant_France_Travail: franceTravail === "Oui" ? valeur(ligne, colonnes.identifiantFranceTravail) : "",
+    Structure_Accompagnement: structureAccompagnement,
+    Structure_Autre: structureAutre,
     Conseiller_Nom: valeur(ligne, colonnes.conseillerNom),
     Conseiller_Prenom: valeur(ligne, colonnes.conseillerPrenom),
     Conseiller_Email: valeur(ligne, colonnes.conseillerEmail),
     Conseiller_Telephone: valeur(ligne, colonnes.conseillerTelephone),
     Comment_Connu: valeur(ligne, colonnes.commentConnu),
     Parcours: valeur(ligne, colonnes.parcours),
+    Projet_Professionnel: valeur(ligne, colonnes.projetProfessionnel),
+    Formation_Acces: valeur(ligne, colonnes.formationAcces),
     Territoire: valeur(ligne, colonnes.territoire),
     Session: valeur(ligne, colonnes.session),
     RGPD: normaliser(valeur(ligne, colonnes.rgpd)).startsWith("oui") || !colonnes.rgpd.length,
+    Consentement_Partage_Simulation: normaliser(valeur(ligne, colonnes.consentementPartage)).startsWith("oui") || !colonnes.consentementPartage.length,
     _horodateur: parseHorodateur(valeur(ligne, colonnes.horodateur)),
   };
 }
@@ -184,27 +189,30 @@ function detecterColonnes(entetes: string[]): Record<string, number[]> {
     nom: trouverColonnes(entetes, /nom du participant/),
     prenom: trouverColonnes(entetes, /prenom du participant/),
     telephone: trouverColonnes(entetes, /telephone du participant/),
-    email: trouverColonnes(entetes, /mail/, /conseiller/),
-    adresse: trouverColonnes(entetes, /adresse postale/),
+    email: trouverColonnes(entetes, /mail du participant/, /conseiller/),
     codePostal: trouverColonnes(entetes, /code postal/),
     ville: trouverColonnes(entetes, /ville de residence/),
     qpv: trouverColonnes(entetes, /qpv/),
     age: trouverColonnes(entetes, /age du participant/),
+    situationHandicap: trouverColonnes(entetes, /situation de handicap/),
+    rqth: trouverColonnes(entetes, /rqth/),
+    rsa: trouverColonnes(entetes, /rsa/),
+    niveauEtudes: trouverColonnes(entetes, /niveau d.?etude/),
+    franceTravail: trouverColonnes(entetes, /inscrit a france travail/),
+    identifiantFranceTravail: trouverColonnes(entetes, /identifiant france travail/),
     neet: trouverColonnes(entetes, /n\.?e\.?e\.?t/),
     cej: trouverColonnes(entetes, /engagement jeune/),
-    situationPlus26: trouverColonnes(entetes, /26 ans.*situation|situation.*26 ans/),
-    rsa: trouverColonnes(entetes, /rsa/),
-    rqth: trouverColonnes(entetes, /rqth|situation de handicap/),
-    niveauEtudes: trouverColonnes(entetes, /niveau d.?etude/),
     structure: trouverColonnes(entetes, /structure d.?accompagnement/),
-    ase: trouverColonnes(entetes, /aide sociale a l.?enfance|\(ase\)/),
     conseillerNom: trouverColonnes(entetes, /nom du conseiller/),
     conseillerPrenom: trouverColonnes(entetes, /prenom du conseiller/),
     conseillerEmail: trouverColonnes(entetes, /mail du conseiller/),
     conseillerTelephone: trouverColonnes(entetes, /telephone conseiller/),
     commentConnu: trouverColonnes(entetes, /comment avez-vous connu/),
+    parcours: trouverColonnes(entetes, /parcours de formation/),
+    projetProfessionnel: trouverColonnes(entetes, /projet professionnel/),
+    formationAcces: trouverColonnes(entetes, /formation.*permettre|permettre.*acceder/),
     rgpd: trouverColonnes(entetes, /rgpd/),
-    parcours: trouverColonnes(entetes, /type de parkour|parcours de formation/),
+    consentementPartage: trouverColonnes(entetes, /coordonnees.*partagees|partagees.*simulation/),
     territoire: trouverColonnes(entetes, /territoire|departement de residence/),
     session: trouverColonnes(entetes, /session souhait/),
     horodateur: trouverColonnes(entetes, /horodateur/),
