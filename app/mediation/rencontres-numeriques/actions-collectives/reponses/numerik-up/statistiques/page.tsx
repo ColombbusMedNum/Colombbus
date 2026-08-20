@@ -204,19 +204,30 @@ export default function StatistiquesNumerikUpPage() {
   const anneeCourante = new Date().getFullYear();
   const [apprenants, setApprenants] = useState<Apprenant[]>([]);
   const [territoiresListe, setTerritoiresListe] = useState<string[]>(TERRITOIRES_DEFAUT);
+  // sessions[parcoursId][territoire] = liste de dates de session ;
+  // codes["parcoursId|territoire|date"] = code interne — reprend la
+  // configuration définie sur la page paramètres, pour afficher le code
+  // plutôt que la date en toutes lettres dans le tableau des taux.
+  const [sessions, setSessions] = useState<Record<string, Record<string, string[]>>>({});
+  const [codes, setCodes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [annee, setAnnee] = useState(anneeCourante);
 
   useEffect(() => {
     const charger = async () => {
       try {
-        const [snapInscriptions, snapTerritoires] = await Promise.all([
+        const [snapInscriptions, snapTerritoires, snapSessions] = await Promise.all([
           getDocs(query(collection(db, "inscriptions_numerikup"), orderBy("createdAt", "desc"))),
           getDoc(doc(db, "configuration_numerikup", "territoires")),
+          getDoc(doc(db, "configuration_numerikup", "sessions")),
         ]);
         setApprenants(snapInscriptions.docs.map((d) => ({ id: d.id, ...d.data() } as Apprenant)));
         if (snapTerritoires.exists() && Array.isArray(snapTerritoires.data().liste) && snapTerritoires.data().liste.length > 0) {
           setTerritoiresListe(snapTerritoires.data().liste);
+        }
+        if (snapSessions.exists()) {
+          setSessions(snapSessions.data().parTerritoire || {});
+          setCodes(snapSessions.data().codes || {});
         }
       } catch (error) {
         console.error("Erreur lors du chargement des statistiques :", error);
@@ -278,21 +289,67 @@ export default function StatistiquesNumerikUpPage() {
   // Taux de présence par session, puis cumulé par territoire et tous
   // territoires confondus, pour l'année choisie.
   const tauxParSession = useMemo(() => {
+    // Regroupe à partir de TOUTES les préinscriptions de l'année (pas
+    // seulement les retenu·e·s) pour qu'une session apparaisse même si
+    // personne n'y a encore été retenu·e, et pour pouvoir afficher son
+    // nombre de préinscrit·e·s à côté du nombre de retenu·e·s.
+    const preinscritsParSession = new Map<string, Apprenant[]>();
+    preinscriptionsAnnee.forEach((a) => {
+      const session = a.Session || "Session non renseignée";
+      if (!preinscritsParSession.has(session)) preinscritsParSession.set(session, []);
+      preinscritsParSession.get(session)!.push(a);
+    });
     const parSession = new Map<string, Apprenant[]>();
     retenusAnnee.forEach((a) => {
       const session = a.Session || "Session non renseignée";
       if (!parSession.has(session)) parSession.set(session, []);
       parSession.get(session)!.push(a);
     });
-    return Array.from(parSession.entries())
-      .map(([session, liste]) => ({
-        session,
-        territoire: liste[0]?.Territoire || "—",
-        nombre: liste.filter((a) => a.Evolution_Actif).length,
-        taux: tauxDe(liste),
-      }))
-      .sort((a, b) => a.territoire.localeCompare(b.territoire, "fr") || a.session.localeCompare(b.session, "fr"));
-  }, [retenusAnnee]);
+    // Le territoire vient de la configuration des sessions (page paramètres),
+    // pas du champ Territoire déclaré par le/la premier·ère apprenant·e de la
+    // liste — ce dernier peut être vide ou incohérent avec la session réelle,
+    // alors que le territoire de la session elle-même est fiable à 100 %.
+    const territoireDeSession = (date: string): string => {
+      for (const [parcoursId, parTerritoire] of Object.entries(sessions)) {
+        for (const [territoire, dates] of Object.entries(parTerritoire)) {
+          if (dates.includes(date)) return territoire;
+        }
+      }
+      return "—";
+    };
+    // Même logique que codeDeSession plus bas (dupliquée ici, car un const
+    // défini plus loin dans le composant n'est pas encore initialisé au
+    // moment où ce useMemo s'exécute) — sert à trier par code plutôt que par
+    // date brute, pour un ordre "01, 02, 03..." lisible au lieu de l'ordre
+    // chronologique des dates de session.
+    const codeDeSessionLocal = (date: string): string => {
+      for (const [parcoursId, parTerritoire] of Object.entries(sessions)) {
+        for (const [territoire, dates] of Object.entries(parTerritoire)) {
+          if (dates.includes(date)) return codes[`${parcoursId}|${territoire}|${date}`] || date;
+        }
+      }
+      return date;
+    };
+    // Un abandon en cours de parcours se traduit par un code "AB" dans la
+    // feuille Évolution — le comportement en cascade de la page Évolution
+    // (voir mettreAJourCase) marque tous les jours suivants en "AB" dès que
+    // l'un d'eux l'est, donc chercher au moins une occurrence suffit.
+    const estAbandonne = (a: Apprenant) => Object.values(a.Evolution || {}).includes("AB");
+    return Array.from(preinscritsParSession.keys())
+      .map((session) => {
+        const liste = parSession.get(session) || [];
+        return {
+          session,
+          territoire: territoireDeSession(session),
+          preinscrits: preinscritsParSession.get(session)!.length,
+          retenus: liste.length,
+          abandons: liste.filter(estAbandonne).length,
+          nombre: liste.filter((a) => a.Evolution_Actif).length,
+          taux: tauxDe(liste),
+        };
+      })
+      .sort((a, b) => codeDeSessionLocal(a.session).localeCompare(codeDeSessionLocal(b.session), "fr", { numeric: true }));
+  }, [preinscriptionsAnnee, retenusAnnee, sessions, codes]);
 
   const tauxParTerritoire = useMemo(
     () => territoiresListe.map((t) => ({ territoire: t, taux: tauxDe(retenusAnnee.filter((a) => a.Territoire === t)) })),
@@ -300,6 +357,18 @@ export default function StatistiquesNumerikUpPage() {
   );
 
   const tauxGlobal = useMemo(() => tauxDe(retenusAnnee), [retenusAnnee]);
+
+  // Retrouve le code interne d'une session à partir de sa date, en cherchant
+  // le parkours/territoire auquel elle appartient — retombe sur la date si
+  // aucun code n'a encore été généré sur la page paramètres.
+  const codeDeSession = (date: string) => {
+    for (const [parcoursId, parTerritoire] of Object.entries(sessions)) {
+      for (const [territoire, dates] of Object.entries(parTerritoire)) {
+        if (dates.includes(date)) return codes[`${parcoursId}|${territoire}|${date}`] || date;
+      }
+    }
+    return date;
+  };
 
   if (loading) {
     return (
@@ -442,23 +511,32 @@ export default function StatistiquesNumerikUpPage() {
                 <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
                   <th className="px-3 py-2">Territoire</th>
                   <th className="px-3 py-2">Session</th>
+                  <th className="px-3 py-2 text-center">Préinscrit·e·s</th>
+                  <th className="px-3 py-2 text-center">Retenu·e·s</th>
+                  <th className="px-3 py-2 text-center">Abandons</th>
                   <th className="px-3 py-2 text-center">Apprenant·e·s actifs</th>
                   <th className="px-3 py-2 text-center">Taux</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#404040]/5">
                 {tauxParSession.length > 0 ? (
-                  tauxParSession.map(({ session, territoire, nombre, taux }) => (
+                  tauxParSession.map(({ session, territoire, preinscrits, retenus, abandons, nombre, taux }) => (
                     <tr key={session} className="hover:bg-[#F3F3F2]/60 transition-colors">
                       <td className="px-3 py-2 text-center font-bold text-[#005259]">{territoire}</td>
-                      <td className="px-3 py-2">{session}</td>
+                      <td className="px-3 py-2">
+                        <span className="font-bold text-[#005259]">{codeDeSession(session)}</span>
+                        {codeDeSession(session) !== session && <span className="text-[#404040]/50"> — {session}</span>}
+                      </td>
+                      <td className="px-3 py-2 text-center">{preinscrits}</td>
+                      <td className="px-3 py-2 text-center">{retenus}</td>
+                      <td className="px-3 py-2 text-center">{abandons > 0 ? <span className="font-bold text-[#EF736A]">{abandons}</span> : abandons}</td>
                       <td className="px-3 py-2 text-center">{nombre}</td>
                       <td className="px-3 py-2 text-center font-bold text-[#005259]">{taux !== null ? `${taux}%` : "—"}</td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="px-6 py-10 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
+                    <td colSpan={7} className="px-6 py-10 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
                       Aucune donnée de présence pour cette année.
                     </td>
                   </tr>

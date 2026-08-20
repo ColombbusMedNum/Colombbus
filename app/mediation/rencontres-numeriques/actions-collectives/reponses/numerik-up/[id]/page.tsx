@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
-import { HomeIcon, MagnifyingGlassIcon, AcademicCapIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, MagnifyingGlassIcon, AcademicCapIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import SessionSelect from "@/components/SessionSelect";
 
@@ -85,6 +85,15 @@ export default function ReponsesNumerikUpSessionPage() {
   const [inscriptions, setInscriptions] = useState<Inscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [recherche, setRecherche] = useState("");
+  // "en_attente" = pas encore de décision (OK_NOK vide) ; "affectes" = décision
+  // déjà prise (OK ou NOK) — cliquer sur OK/NOK fait donc disparaître la ligne
+  // de l'onglet "en attente" sans avoir à la supprimer.
+  const [onglet, setOnglet] = useState<"en_attente" | "affectes">("en_attente");
+  // Tri sur la colonne Nom — asc -> desc -> retour à l'ordre par défaut.
+  const [triNom, setTriNom] = useState<"asc" | "desc" | null>(null);
+  const basculerTriNom = () => {
+    setTriNom((prev) => (prev === "asc" ? "desc" : prev === "desc" ? null : "asc"));
+  };
   // sessions[parcoursId][territoire] = liste de dates de session, telles que
   // définies sur la page de paramètres — sert de source pour les sélecteurs.
   const [sessions, setSessions] = useState<Record<string, Record<string, string[]>>>({});
@@ -233,9 +242,18 @@ export default function ReponsesNumerikUpSessionPage() {
 
   const inscriptionsFiltrees = useMemo(() => {
     const terme = recherche.trim().toLowerCase();
-    if (!terme) return inscriptionsSession;
-    return inscriptionsSession.filter((i) => `${i.Prénom || ""} ${i.Nom || ""}`.toLowerCase().includes(terme));
-  }, [inscriptionsSession, recherche]);
+    const resultat = inscriptionsSession.filter((i) => {
+      if (onglet === "en_attente" && i.OK_NOK) return false;
+      if (onglet === "affectes" && !i.OK_NOK) return false;
+      if (terme && !`${i.Prénom || ""} ${i.Nom || ""}`.toLowerCase().includes(terme)) return false;
+      return true;
+    });
+    if (triNom) {
+      const dir = triNom === "asc" ? 1 : -1;
+      return [...resultat].sort((a, b) => (a.Nom || "").localeCompare(b.Nom || "", "fr") * dir);
+    }
+    return resultat;
+  }, [inscriptionsSession, recherche, onglet, triNom]);
 
   // Mise à jour optimiste locale + écriture Firestore d'un seul champ de
   // suivi — chaque cellule éditable enregistre indépendamment des autres.
@@ -306,18 +324,36 @@ export default function ReponsesNumerikUpSessionPage() {
           </div>
         </div>
 
-        {/* RECHERCHE */}
-        <div className="relative group max-w-md">
-          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-            <MagnifyingGlassIcon className="h-5 w-5 text-[#404040]/40 group-focus-within:text-[#005259] transition-colors" />
+        {/* BASCULE EN ATTENTE / AFFECTÉ·E·S + RECHERCHE */}
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
+          <div className="inline-flex bg-white border border-[#404040]/10 rounded-2xl p-1.5 shadow-sm w-fit">
+            <button
+              type="button"
+              onClick={() => setOnglet("en_attente")}
+              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${onglet === "en_attente" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/60 hover:text-[#005259]"}`}
+            >
+              En attente ({inscriptionsSession.filter((i) => !i.OK_NOK).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setOnglet("affectes")}
+              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${onglet === "affectes" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/60 hover:text-[#005259]"}`}
+            >
+              Affecté·e·s ({inscriptionsSession.filter((i) => i.OK_NOK).length})
+            </button>
           </div>
-          <input
-            type="text"
-            placeholder="Rechercher par nom ou prénom..."
-            className="w-full bg-white border border-[#404040]/15 rounded-2xl pl-12 pr-4 py-3.5 text-sm text-[#404040] placeholder-[#404040]/40 focus:border-[#005259] focus:ring-1 focus:ring-[#005259] outline-none transition-all shadow-sm font-medium"
-            value={recherche}
-            onChange={(e) => setRecherche(e.target.value)}
-          />
+          <div className="relative group flex-1 max-w-md">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <MagnifyingGlassIcon className="h-5 w-5 text-[#404040]/40 group-focus-within:text-[#005259] transition-colors" />
+            </div>
+            <input
+              type="text"
+              placeholder="Rechercher par nom ou prénom..."
+              className="w-full bg-white border border-[#404040]/15 rounded-2xl pl-12 pr-4 py-3.5 text-sm text-[#404040] placeholder-[#404040]/40 focus:border-[#005259] focus:ring-1 focus:ring-[#005259] outline-none transition-all shadow-sm font-medium"
+              value={recherche}
+              onChange={(e) => setRecherche(e.target.value)}
+            />
+          </div>
         </div>
 
         {/* BARRE DE DÉFILEMENT HORIZONTAL (haut) — collée en haut de l'écran
@@ -340,7 +376,12 @@ export default function ReponsesNumerikUpSessionPage() {
                   <th ref={refNum} className={`${classeFigee} px-3 py-3 text-center bg-[#F3F3F2]`} style={{ left: decalages.num }}>#</th>
                   <th ref={refCivilite} className={`${classeFigee} px-3 py-3 bg-[#F3F3F2]`} style={{ left: decalages.civilite }}>Civilité</th>
                   <th ref={refPrenom} className={`${classeFigee} px-3 py-3 bg-[#F3F3F2]`} style={{ left: decalages.prenom }}>Prénom</th>
-                  <th ref={refNom} className={`${classeFigee} px-3 py-3 bg-[#F3F3F2]`} style={{ left: decalages.nom }}>Nom</th>
+                  <th ref={refNom} className={`${classeFigee} px-3 py-3 bg-[#F3F3F2]`} style={{ left: decalages.nom }}>
+                    <button type="button" onClick={basculerTriNom} className="flex items-center gap-1 cursor-pointer">
+                      <span>Nom</span>
+                      {triNom === "asc" ? <ChevronUpIcon className="w-3 h-3" /> : triNom === "desc" ? <ChevronDownIcon className="w-3 h-3" /> : <ChevronUpDownIcon className="w-3 h-3 opacity-30" />}
+                    </button>
+                  </th>
                   <th ref={refTelephone} className={`${classeFigee} ${ombreDerniereFigee} px-3 py-3 bg-[#F3F3F2]`} style={{ left: decalages.telephone }}>Téléphone</th>
                   <th className="px-3 py-3">Âge</th>
                   <th className="px-3 py-3">Email</th>
