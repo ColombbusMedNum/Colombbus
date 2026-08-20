@@ -358,12 +358,16 @@ export default function RendezVousParLieuPage() {
                           </td>
 
                           {/* Axe / Médiateur */}
-                          <td className="py-3.5 px-4 whitespace-nowrap">
+                          <td className="py-3.5 px-4">
                             <div className="space-y-1">
                               {rdv.thematique && (
-                                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-[#005259]/10 text-[#005259] border border-[#005259]/20 uppercase tracking-wider">
-                                  <TagIcon className="w-3 h-3 text-[#EA601F]" />
-                                  <span>{rdv.thematique}</span>
+                                <div className="flex flex-col gap-1">
+                                  {rdv.thematique.split(",").map((axe) => axe.trim()).filter(Boolean).map((axe, index) => (
+                                    <div key={index} className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-[#005259]/10 text-[#005259] border border-[#005259]/20 uppercase tracking-wider w-fit whitespace-nowrap">
+                                      <TagIcon className="w-3 h-3 text-[#EA601F] shrink-0" />
+                                      <span>{axe}</span>
+                                    </div>
+                                  ))}
                                 </div>
                               )}
                               {rdv.mediateur && (
