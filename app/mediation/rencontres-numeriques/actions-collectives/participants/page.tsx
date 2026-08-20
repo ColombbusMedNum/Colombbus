@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { db } from "@/lib/firebase";
-import { addDoc, collection, doc, getDoc, getDocs, serverTimestamp, updateDoc } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, updateDoc } from "firebase/firestore";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
-import { HomeIcon, MagnifyingGlassIcon, UsersIcon, IdentificationIcon, ArrowPathIcon, PencilSquareIcon, CheckIcon, XMarkIcon, BuildingOffice2Icon } from "@heroicons/react/24/outline";
+import { HomeIcon, MagnifyingGlassIcon, UsersIcon, IdentificationIcon, ArrowPathIcon, PencilSquareIcon, CheckIcon, XMarkIcon, BuildingOffice2Icon, TrashIcon, DocumentDuplicateIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { chargerPrescripteurs, Prescripteur } from "@/lib/prescripteurs";
 import { formatPhoneNumber, formatPhoneForStorage } from "@/lib/formatPhone";
@@ -182,6 +182,7 @@ const inputClass = "w-full px-2.5 py-1.5 bg-white border border-[#404040]/15 foc
 
 interface BrouillonPrescripteur {
   id?: string;
+  cleOrigine: string;
   organisme: string;
   referentPrenom: string;
   referentNom: string;
@@ -203,6 +204,7 @@ export default function ParticipantsPage() {
   const [synchronisation, setSynchronisation] = useState<{ enCours: boolean; ajoutes: number } | null>(null);
   const [brouillon, setBrouillon] = useState<BrouillonPrescripteur | null>(null);
   const [enregistrementEnCours, setEnregistrementEnCours] = useState(false);
+  const [voirDoublons, setVoirDoublons] = useState(false);
 
   // Barre de défilement horizontal dupliquée en haut du tableau — synchronisée
   // avec le défilement réel pour éviter d'avoir à descendre tout en bas
@@ -334,6 +336,21 @@ export default function ParticipantsPage() {
     return prescripteursAgg.filter((p) => `${p.organisme || ""} ${p.referentPrenom || ""} ${p.referentNom || ""} ${p.referentEmail || ""}`.toLowerCase().includes(terme));
   }, [prescripteursAgg, recherche]);
 
+  // Fiches prescripteur strictement en double dans l'annuaire (même nom +
+  // prénom normalisés) : la vue habituelle les fusionne déjà à l'affichage,
+  // mais les documents Firestore, eux, restent bien distincts — cette liste
+  // permet de repérer ces doublons et d'en supprimer les fiches redondantes.
+  const doublonsPrescripteurs = useMemo(() => {
+    const carte = new Map<string, Prescripteur[]>();
+    prescripteurs.forEach((p) => {
+      const cle = cleMatchPrescripteur(p);
+      const liste = carte.get(cle) || [];
+      liste.push(p);
+      carte.set(cle, liste);
+    });
+    return Array.from(carte.values()).filter((liste) => liste.length > 1);
+  }, [prescripteurs]);
+
   // Regroupe les prescripteurs par nom de domaine d'email — un domaine
   // "métier" (ex. "@francetravail.net") révèle une vraie structure partagée
   // par plusieurs référent·e·s, contrairement aux fournisseurs grand public
@@ -402,6 +419,7 @@ export default function ParticipantsPage() {
   const debuterEdition = (p: PrescripteurAgg) => {
     setBrouillon({
       id: p.id,
+      cleOrigine: p.cle,
       organisme: p.organisme || "",
       referentPrenom: p.referentPrenom || "",
       referentNom: p.referentNom || "",
@@ -413,6 +431,13 @@ export default function ParticipantsPage() {
   // Une fiche prescripteur peut ne pas encore exister dans l'annuaire (ligne
   // reconstituée depuis une inscription seulement) : dans ce cas l'édition la
   // crée directement, plutôt que de mettre à jour un document qui n'existe pas.
+  // La ligne affichée est recalculée à chaque rendu à partir des inscriptions
+  // elles-mêmes (voir prescripteursAgg) : modifier uniquement la fiche de
+  // l'annuaire ne suffit donc pas, sans quoi l'ancienne version (issue du
+  // champ Conseiller_* resté inchangé sur les inscriptions) réapparaît aussitôt
+  // et donne l'impression que la modification "ne se garde pas". On corrige
+  // donc aussi Conseiller_Nom/Prenom/Telephone/Email sur toutes les
+  // inscriptions déjà rattachées à l'ancien nom + prénom, sur les 3 programmes.
   const enregistrerPrescripteur = async () => {
     if (!brouillon) return;
     setEnregistrementEnCours(true);
@@ -429,12 +454,41 @@ export default function ParticipantsPage() {
       } else {
         await addDoc(collection(db, "prescripteurs"), { ...champs, createdAt: serverTimestamp() });
       }
-      setPrescripteurs(await chargerPrescripteurs());
+      const inscriptionsAMettreAJour = PROGRAMMES.flatMap((prog) =>
+        (donnees[prog.id] || [])
+          .filter((i) => clePrescripteurDeInscription(i) === brouillon.cleOrigine)
+          .map((i) => ({ prog, id: i.id }))
+      );
+      await Promise.all(
+        inscriptionsAMettreAJour.map(({ prog, id }) =>
+          updateDoc(doc(db, prog.collection, id), {
+            Conseiller_Nom: champs.referentNom,
+            Conseiller_Prenom: champs.referentPrenom,
+            Conseiller_Telephone: champs.referentTelephone,
+            Conseiller_Email: champs.referentEmail,
+          })
+        )
+      );
+      if (inscriptionsAMettreAJour.length > 0) {
+        await charger();
+      } else {
+        setPrescripteurs(await chargerPrescripteurs());
+      }
       setBrouillon(null);
     } catch (error) {
       console.error("Erreur lors de l'enregistrement du prescripteur :", error);
     } finally {
       setEnregistrementEnCours(false);
+    }
+  };
+
+  const supprimerPrescripteur = async (id: string) => {
+    if (!confirm("Supprimer cette fiche prescripteur de l'annuaire ? Les inscriptions déjà enregistrées ne sont pas modifiées.")) return;
+    try {
+      await deleteDoc(doc(db, "prescripteurs", id));
+      setPrescripteurs((prev) => prev.filter((p) => p.id !== id));
+    } catch (error) {
+      console.error("Erreur lors de la suppression du prescripteur :", error);
     }
   };
 
@@ -527,16 +581,27 @@ export default function ParticipantsPage() {
               />
             </div>
             {vue === "prescripteurs" && (
-              <button
-                type="button"
-                onClick={synchroniser}
-                disabled={synchronisation?.enCours}
-                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2.5 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm disabled:opacity-50 cursor-pointer"
-                title="Créer une fiche prescripteur pour chaque conseiller·e déjà présent dans les inscriptions mais absent de l'annuaire"
-              >
-                <ArrowPathIcon className={`w-4 h-4 ${synchronisation?.enCours ? "animate-spin" : ""}`} />
-                <span>Synchroniser</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setVoirDoublons((v) => !v)}
+                  className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl transition-all text-xs font-bold uppercase tracking-wider shadow-sm cursor-pointer border ${voirDoublons ? "bg-[#005259] text-white border-[#005259]" : "bg-white text-[#005259] border-[#404040]/10 hover:bg-[#005259] hover:text-white"}`}
+                  title="Repère les fiches prescripteur en double dans l'annuaire (même nom + prénom) pour en supprimer les redondantes"
+                >
+                  <DocumentDuplicateIcon className="w-4 h-4" />
+                  <span>Doublons ({doublonsPrescripteurs.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={synchroniser}
+                  disabled={synchronisation?.enCours}
+                  className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2.5 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm disabled:opacity-50 cursor-pointer"
+                  title="Créer une fiche prescripteur pour chaque conseiller·e déjà présent dans les inscriptions mais absent de l'annuaire"
+                >
+                  <ArrowPathIcon className={`w-4 h-4 ${synchronisation?.enCours ? "animate-spin" : ""}`} />
+                  <span>Synchroniser</span>
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -639,6 +704,50 @@ export default function ParticipantsPage() {
                   )}
                 </tbody>
               </table>
+            ) : voirDoublons ? (
+              <table className="border-collapse text-xs w-full">
+                <thead>
+                  <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
+                    <th className="px-3 py-3 text-center">Groupe</th>
+                    <th className="px-3 py-3">Organisme</th>
+                    <th className="px-3 py-3">Référent·e</th>
+                    <th className="px-3 py-3">Téléphone</th>
+                    <th className="px-3 py-3">Email</th>
+                    <th className="px-3 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#404040]/5">
+                  {doublonsPrescripteurs.length > 0 ? (
+                    doublonsPrescripteurs.flatMap((groupe, indexGroupe) =>
+                      groupe.map((p, indexDoc) => (
+                        <tr key={p.id} className={`hover:bg-[#F3F3F2]/60 transition-colors ${indexDoc === 0 && indexGroupe > 0 ? "border-t-2 border-t-[#005259]/30" : ""}`}>
+                          <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{indexGroupe + 1}</td>
+                          <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{p.organisme || "—"}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{`${formatPrenom(p.referentPrenom)} ${formatNom(p.referentNom)}`.trim() || "—"}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">{formatPhoneNumber(p.referentTelephone)}</td>
+                          <td className="px-3 py-2 max-w-[200px] truncate">{p.referentEmail || "—"}</td>
+                          <td className="px-3 py-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => supprimerPrescripteur(p.id)}
+                              className="p-1.5 bg-[#EF736A]/10 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/30 rounded-lg transition-colors cursor-pointer"
+                              title="Supprimer cette fiche en double"
+                            >
+                              <TrashIcon className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
+                        ✅ Aucun doublon détecté dans l'annuaire.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             ) : (
               <table className="border-collapse text-xs w-full">
                 <thead>
@@ -670,15 +779,25 @@ export default function ParticipantsPage() {
                             ))}
                           </div>
                         </td>
-                        <td className="px-3 py-2 text-center">
+                        <td className="px-3 py-2 text-center whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => debuterEdition(p)}
-                            className="p-1.5 bg-[#005259]/10 hover:bg-[#005259] text-[#005259] hover:text-white border border-[#005259]/30 rounded-lg transition-colors cursor-pointer"
+                            className="p-1.5 mr-1 bg-[#005259]/10 hover:bg-[#005259] text-[#005259] hover:text-white border border-[#005259]/30 rounded-lg transition-colors cursor-pointer"
                             title="Modifier ce prescripteur"
                           >
                             <PencilSquareIcon className="w-3.5 h-3.5" />
                           </button>
+                          {p.id && (
+                            <button
+                              type="button"
+                              onClick={() => supprimerPrescripteur(p.id!)}
+                              className="p-1.5 bg-[#EF736A]/10 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/30 rounded-lg transition-colors cursor-pointer"
+                              title="Supprimer ce prescripteur de l'annuaire"
+                            >
+                              <TrashIcon className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))

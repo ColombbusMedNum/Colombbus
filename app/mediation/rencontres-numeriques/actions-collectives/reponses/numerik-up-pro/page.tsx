@@ -2,15 +2,31 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import { useRouter } from "next/navigation";
-import { HomeIcon, MagnifyingGlassIcon, ClipboardDocumentCheckIcon, DocumentArrowUpIcon, TrashIcon, DocumentDuplicateIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, PencilSquareIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, MagnifyingGlassIcon, ClipboardDocumentCheckIcon, DocumentArrowUpIcon, TrashIcon, DocumentDuplicateIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, PencilSquareIcon, XMarkIcon, CheckIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
+import SessionSelect from "@/components/SessionSelect";
 import { usePermissions } from "@/lib/PermissionsProvider";
 import { formatNom, formatPrenom } from "@/lib/formatName";
 import { formatPhoneForStorage } from "@/lib/formatPhone";
+
+// Champs personnels copiés lors d'une duplication vers une autre session (un
+// même bénéficiaire peut légitimement participer à deux sessions — le champ
+// Session étant unique par inscription, on crée un second document plutôt
+// que de transformer Session en liste, ce qui aurait fallu répercuter dans
+// toutes les pages de suivi/évolution/statistiques). Volontairement exclus :
+// Session, Suivi_Recrutement et tout champ de suivi propre à une session
+// précise, qui ne doivent jamais être copiés d'une session à l'autre.
+const CHAMPS_PERSONNELS_A_DUPLIQUER = [
+  "Civilité", "Nom", "Prénom", "Téléphone", "Age", "Email", "Code_Postal", "Niveau_Etudes", "Ville",
+  "Territoire", "QPV", "Situation_Handicap", "NEET", "CEJ", "RSA", "RQTH", "France_Travail",
+  "Identifiant_France_Travail", "Comment_Connu", "Structure_Accompagnement", "Structure_Autre",
+  "Projet_Professionnel", "Formation_Acces", "Conseiller_Prenom", "Conseiller_Nom",
+  "Conseiller_Telephone", "Conseiller_Email", "RGPD", "Consentement_Partage_Simulation", "Parcours",
+] as const;
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -123,6 +139,11 @@ export default function ReponsesNumerikUpProPage() {
   // Fiche en cours de modification dans le panneau d'édition (copie de
   // travail — les changements ne sont enregistrés qu'au clic sur "Enregistrer").
   const [edition, setEdition] = useState<Inscription | null>(null);
+  // Duplication vers une autre session (voir CHAMPS_PERSONNELS_A_DUPLIQUER) —
+  // fiche source en cours de duplication + session choisie pour la copie.
+  const [dupliquer, setDupliquer] = useState<Inscription | null>(null);
+  const [sessionCible, setSessionCible] = useState("");
+  const [duplicationEnCours, setDuplicationEnCours] = useState(false);
   const [enregistrementEnCours, setEnregistrementEnCours] = useState(false);
   // sessions[parcoursId][territoire] = liste de dates de session — permet de
   // proposer les sessions disponibles pour le territoire de chaque inscrit.
@@ -247,6 +268,14 @@ export default function ReponsesNumerikUpProPage() {
     }
     return date;
   };
+
+  // Liste plate de toutes les sessions, tous territoires confondus, triée
+  // par code interne — sert au sélecteur de session cible lors d'une
+  // duplication vers une autre session.
+  const toutesLesSessions = useMemo(
+    () => Array.from(new Set(Object.values(sessionsParTerritoire).flat())).sort((a, b) => codeDeSession(a).localeCompare(codeDeSession(b), "fr")),
+    [sessionsParTerritoire, codes]
+  );
 
   // Regroupe les inscriptions par clé de doublon (email, ou à défaut
   // nom+prénom+téléphone) — tout groupe de 2 ou plus est un doublon.
@@ -388,6 +417,34 @@ export default function ReponsesNumerikUpProPage() {
       await deleteDoc(doc(db, "inscriptions_numerikuppro", i.id));
     } catch (error) {
       console.error("Erreur lors de la suppression de la préinscription :", error);
+    }
+  };
+
+  // Crée une nouvelle inscription pour la même personne sur une autre
+  // session, sans copier les champs de suivi propres à la session d'origine
+  // (Suivi_Recrutement repart à false, aucun champ Evolution/Absences/etc.).
+  const confirmerDuplication = async () => {
+    if (!dupliquer || !sessionCible) return;
+    setDuplicationEnCours(true);
+    const champs: Record<string, unknown> = {};
+    CHAMPS_PERSONNELS_A_DUPLIQUER.forEach((champ) => {
+      if (dupliquer[champ] !== undefined) champs[champ] = dupliquer[champ];
+    });
+    try {
+      await addDoc(collection(db, "inscriptions_numerikuppro"), {
+        ...champs,
+        Session: sessionCible,
+        Suivi_Recrutement: false,
+        createdAt: serverTimestamp(),
+      });
+      const snap = await getDocs(query(collection(db, "inscriptions_numerikuppro"), orderBy("createdAt", "desc")));
+      setInscriptions(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Inscription)));
+      setDupliquer(null);
+      setSessionCible("");
+    } catch (error) {
+      console.error("Erreur lors de la duplication de l'inscription :", error);
+    } finally {
+      setDuplicationEnCours(false);
     }
   };
 
@@ -694,6 +751,14 @@ export default function ReponsesNumerikUpProPage() {
                           </button>
                           <button
                             type="button"
+                            onClick={() => setDupliquer(i)}
+                            title="Dupliquer vers une autre session (même personne, deux sessions)"
+                            className="p-1.5 rounded-lg text-[#404040]/40 hover:text-white hover:bg-[#EA601F] transition-colors cursor-pointer"
+                          >
+                            <DocumentDuplicateIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => supprimerInscription(i)}
                             title="Supprimer définitivement cette préinscription"
                             className="p-1.5 rounded-lg text-[#404040]/40 hover:text-white hover:bg-[#C0392B] transition-colors cursor-pointer"
@@ -984,6 +1049,41 @@ export default function ReponsesNumerikUpProPage() {
                 className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#EA601F] hover:bg-[#EF736A] disabled:opacity-50 text-white transition-colors cursor-pointer"
               >
                 {enregistrementEnCours ? "Enregistrement..." : "Enregistrer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DUPLICATION VERS UNE AUTRE SESSION */}
+      {dupliquer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4">
+            <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259]">Dupliquer vers une autre session</h2>
+            <p className="text-xs text-[#404040]/70">
+              Crée une nouvelle préinscription pour {dupliquer.Prénom || ""} {dupliquer.Nom || ""} sur la session choisie, avec les mêmes informations personnelles — le suivi (recrutement, présence...) reste indépendant entre les deux sessions.
+            </p>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wide text-[#404040]/60 mb-1">Session cible</label>
+              <SessionSelect value={sessionCible} options={toutesLesSessions} resoudreLabel={codeDeSession} onChange={setSessionCible} className="w-full flex items-center justify-between gap-2 bg-[#F3F3F2] border border-[#404040]/10 rounded-xl px-3 py-2.5 text-xs text-[#404040] font-medium cursor-pointer" />
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-[#404040]/10">
+              <button
+                type="button"
+                onClick={() => { setDupliquer(null); setSessionCible(""); }}
+                className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-[#F3F3F2] border border-[#404040]/10 text-[#404040] rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+              >
+                <XMarkIcon className="w-4 h-4" />
+                <span>Annuler</span>
+              </button>
+              <button
+                type="button"
+                onClick={confirmerDuplication}
+                disabled={!sessionCible || duplicationEnCours}
+                className="flex items-center gap-2 px-4 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50"
+              >
+                <CheckIcon className="w-4 h-4" />
+                <span>{duplicationEnCours ? "Duplication..." : "Dupliquer"}</span>
               </button>
             </div>
           </div>

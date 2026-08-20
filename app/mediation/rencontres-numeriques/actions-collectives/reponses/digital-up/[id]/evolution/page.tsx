@@ -122,6 +122,7 @@ export default function EvolutionDigitalUpSessionPage() {
   const [apprenants, setApprenants] = useState<Apprenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [semainesFermees, setSemainesFermees] = useState<Set<number>>(new Set());
+  const [globalFermee, setGlobalFermee] = useState(false);
   const [nouvelleAbsence, setNouvelleAbsence] = useState({ apprenantId: "", date: "", justifiee: true, type: "", raison: "", reference: "", lien: "" });
   const [brouillonAbsence, setBrouillonAbsence] = useState<{ apprenantId: string; indexRecord: number; valeurs: AbsenceRecord } | null>(null);
   const [alerteANJ, setAlerteANJ] = useState<{ prenom: string; nom: string; nombre: number } | null>(null);
@@ -439,11 +440,17 @@ export default function EvolutionDigitalUpSessionPage() {
           </div>
         ) : (
           <>
-          {/* RÉCAPITULATIF GLOBAL — cumul des 4 semaines */}
+          {/* RÉCAPITULATIF GLOBAL — cumul de toutes les semaines */}
           <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-4 pt-4 pb-1 text-xs font-bold uppercase tracking-widest text-[#005259]">
-              Global
-            </div>
+            <button
+              type="button"
+              onClick={() => setGlobalFermee((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-[#F3F3F2]/60 transition-colors cursor-pointer"
+            >
+              <span className="text-xs font-bold uppercase tracking-widest text-[#005259]">Global</span>
+              <ChevronDownIcon className={`w-4 h-4 text-[#EA601F] transition-transform duration-200 ${globalFermee ? "" : "rotate-180"}`} />
+            </button>
+            {!globalFermee && (
             <div className="overflow-x-auto">
               <table className="border-collapse text-xs w-full">
                 <thead>
@@ -484,6 +491,7 @@ export default function EvolutionDigitalUpSessionPage() {
                 </tbody>
               </table>
             </div>
+            )}
           </div>
 
           {semaines.map((jours, indexSemaine) => {
