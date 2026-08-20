@@ -9,6 +9,8 @@ import { useRouter } from "next/navigation";
 import { HomeIcon, MagnifyingGlassIcon, ClipboardDocumentCheckIcon, DocumentArrowUpIcon, TrashIcon, DocumentDuplicateIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, PencilSquareIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
+import { formatNom, formatPrenom } from "@/lib/formatName";
+import { formatPhoneForStorage } from "@/lib/formatPhone";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -64,7 +66,8 @@ interface Parcours {
 }
 
 const PARCOURS_DEFAUT: Parcours[] = [
-  { id: "numerikup-pro", label: "Numérik'UP Pro" },
+  { id: "numerikpro-tech", label: "Numérik'Pro Tech" },
+  { id: "numerikpro-marketing", label: "Numérik'Pro Marketing" },
 ];
 
 const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
@@ -73,8 +76,7 @@ const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
 // sans territoire renseigné — distincte de "" qui signifie "tous".
 const TERRITOIRE_NON_AFFECTE = "__non_affecte__";
 
-const NIVEAUX_ETUDES = ["Brevet, CAP, BEP", "Bac", "Bac+2 (L2, BTS, DUT, DEUST)", "Bac+3 (Licence, licence professionnelle)", "Bac+4/5 et plus"];
-const STRUCTURES_ACCOMPAGNEMENT = ["Mission locale", "E2C (Ecole de la deuxième chance)", "Pôle Emploi", "PLIE", "Epide", "PJJ", "Aucune", "Autre"];
+const NIVEAUX_ETUDES = ["Infra brevet", "Brevet, CAP, BEP", "Bac", "Bac+2 (L2, BTS, DUT, DEUST)", "Bac+3 (Licence, licence professionnelle)", "Bac+4/5 et plus", "Supérieur à Bac +3"];
 
 const inputEditClass = "w-full min-w-[140px] px-2 py-1.5 bg-[#F3F3F2] border border-[#404040]/10 focus:border-[#005259] focus:bg-white rounded-lg text-[11px] text-[#404040] outline-none font-medium transition-colors";
 
@@ -125,6 +127,10 @@ export default function ReponsesNumerikUpProPage() {
   // sessions[parcoursId][territoire] = liste de dates de session — permet de
   // proposer les sessions disponibles pour le territoire de chaque inscrit.
   const [sessions, setSessions] = useState<Record<string, Record<string, string[]>>>({});
+  // codes["parcoursId|territoire|date"] = code interne défini sur la page de
+  // paramètres — jamais affiché sur le formulaire public, mais utile ici pour
+  // identifier une session sans avoir à lire ses dates en toutes lettres.
+  const [codes, setCodes] = useState<Record<string, string>>({});
 
   // Barre de défilement horizontal dupliquée en haut du tableau — synchronisée
   // avec le défilement réel pour éviter d'avoir à descendre tout en bas.
@@ -191,6 +197,7 @@ export default function ReponsesNumerikUpProPage() {
         }
         if (snapSessions.exists()) {
           setSessions(snapSessions.data().parTerritoire || {});
+          setCodes(snapSessions.data().codes || {});
         }
       } catch (error) {
         console.error("Erreur lors du chargement des inscriptions Numérik'UP Pro :", error);
@@ -216,6 +223,30 @@ export default function ReponsesNumerikUpProPage() {
       Object.entries(parTerritoire).map(([t, dates]) => [t, Array.from(dates).sort((a, b) => a.localeCompare(b, "fr"))])
     );
   }, [sessions]);
+
+  // Quand un territoire est filtré sur la page, le sélecteur de session par
+  // ligne ne propose que les sessions de ce territoire — évite de faire
+  // défiler tous les autres territoires alors qu'on travaille déjà dans un
+  // seul. Le filtre "non affecté" ne restreint rien : la personne n'a par
+  // définition pas de territoire, donc aucune session à privilégier.
+  const sessionsAffichees = useMemo(() => {
+    if (territoireFiltre && territoireFiltre !== TERRITOIRE_NON_AFFECTE && sessionsParTerritoire[territoireFiltre]) {
+      return { [territoireFiltre]: sessionsParTerritoire[territoireFiltre] };
+    }
+    return sessionsParTerritoire;
+  }, [sessionsParTerritoire, territoireFiltre]);
+
+  // Retrouve le code interne d'une session à partir de sa date, en cherchant
+  // le parkours/territoire auquel elle appartient — retombe sur la date si
+  // aucun code n'a encore été généré sur la page paramètres.
+  const codeDeSession = (date: string) => {
+    for (const [parcoursId, parTerritoire] of Object.entries(sessions)) {
+      for (const [territoire, dates] of Object.entries(parTerritoire)) {
+        if (dates.includes(date)) return codes[`${parcoursId}|${territoire}|${date}`] || date;
+      }
+    }
+    return date;
+  };
 
   // Regroupe les inscriptions par clé de doublon (email, ou à défaut
   // nom+prénom+téléphone) — tout groupe de 2 ou plus est un doublon.
@@ -384,7 +415,12 @@ export default function ReponsesNumerikUpProPage() {
   const enregistrerEdition = async () => {
     if (!edition) return;
     setEnregistrementEnCours(true);
-    const { id, ...donnees } = { ...edition, Nom: (edition.Nom || "").toUpperCase() };
+    const { id, ...donnees } = {
+      ...edition,
+      Nom: formatNom(edition.Nom),
+      Prénom: formatPrenom(edition.Prénom),
+      Téléphone: formatPhoneForStorage(edition.Téléphone),
+    };
     try {
       await updateDoc(doc(db, "inscriptions_numerikuppro", id), donnees);
       setInscriptions((prev) => prev.map((i) => (i.id === id ? { ...i, ...donnees } : i)));
@@ -636,12 +672,12 @@ export default function ReponsesNumerikUpProPage() {
                           >
                             <option value="">-- Choisir une session --</option>
                             {i.Session && !Object.values(sessionsParTerritoire).some((dates) => dates.includes(i.Session as string)) && (
-                              <option value={i.Session}>{i.Session}</option>
+                              <option value={i.Session}>{codeDeSession(i.Session)}</option>
                             )}
-                            {Object.entries(sessionsParTerritoire).map(([territoire, dates]) => (
+                            {Object.entries(sessionsAffichees).map(([territoire, dates]) => (
                               <optgroup key={territoire} label={`Territoire ${territoire}`}>
                                 {dates.map((s) => (
-                                  <option key={s} value={s}>{s}</option>
+                                  <option key={s} value={s}>{codeDeSession(s)}</option>
                                 ))}
                               </optgroup>
                             ))}
@@ -778,6 +814,9 @@ export default function ReponsesNumerikUpProPage() {
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Niveau d'études</label>
                 <select value={edition.Niveau_Etudes || ""} onChange={(e) => majEdition("Niveau_Etudes", e.target.value)} className={inputEditClass}>
                   <option value="">—</option>
+                  {edition.Niveau_Etudes && !NIVEAUX_ETUDES.includes(edition.Niveau_Etudes) && (
+                    <option value={edition.Niveau_Etudes}>{edition.Niveau_Etudes}</option>
+                  )}
                   {NIVEAUX_ETUDES.map((n) => (
                     <option key={n} value={n}>{n}</option>
                   ))}
@@ -896,21 +935,7 @@ export default function ReponsesNumerikUpProPage() {
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Structure d'accompagnement</label>
-                <select value={edition.Structure_Accompagnement || ""} onChange={(e) => majEdition("Structure_Accompagnement", e.target.value)} className={inputEditClass}>
-                  <option value="">—</option>
-                  {STRUCTURES_ACCOMPAGNEMENT.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-                {edition.Structure_Accompagnement === "Autre" && (
-                  <input
-                    type="text"
-                    value={edition.Structure_Autre || ""}
-                    onChange={(e) => majEdition("Structure_Autre", e.target.value)}
-                    placeholder="Préciser la structure"
-                    className={`${inputEditClass} mt-2`}
-                  />
-                )}
+                <input type="text" value={edition.Structure_Accompagnement || ""} onChange={(e) => majEdition("Structure_Accompagnement", e.target.value)} className={inputEditClass} />
               </div>
             </div>
 

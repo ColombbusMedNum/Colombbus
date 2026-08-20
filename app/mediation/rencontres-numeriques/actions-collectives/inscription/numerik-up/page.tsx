@@ -9,6 +9,10 @@ import { HomeIcon, ArrowLeftIcon, Cog6ToothIcon } from "@heroicons/react/24/outl
 import PageGuard from "@/components/PageGuard";
 import { useToast } from "@/components/ToastProvider";
 import { usePermissions } from "@/lib/PermissionsProvider";
+import PrescripteurAutocomplete from "@/components/PrescripteurAutocomplete";
+import { chargerPrescripteurs, upsertPrescripteur } from "@/lib/prescripteurs";
+import { formatNom, formatPrenom } from "@/lib/formatName";
+import { formatPhoneForStorage } from "@/lib/formatPhone";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -182,9 +186,9 @@ export default function FormulaireNumerikUpPage() {
     try {
       await addDoc(collection(db, "inscriptions_numerikup"), {
         Civilité: formData.civilite,
-        Nom: formData.nom.toUpperCase(),
-        Prénom: formData.prenom,
-        Téléphone: formData.telephone,
+        Nom: formatNom(formData.nom),
+        Prénom: formatPrenom(formData.prenom),
+        Téléphone: formatPhoneForStorage(formData.telephone),
         Email: formData.email,
         Adresse_Postale: formData.adressePostale,
         Code_Postal: formData.codePostal,
@@ -200,10 +204,10 @@ export default function FormulaireNumerikUpPage() {
         Structures_Accompagnement: formData.structures,
         Structure_Autre: formData.structureAutre,
         ASE: formData.ase,
-        Conseiller_Nom: formData.conseillerNom,
-        Conseiller_Prenom: formData.conseillerPrenom,
+        Conseiller_Nom: formatNom(formData.conseillerNom),
+        Conseiller_Prenom: formatPrenom(formData.conseillerPrenom),
         Conseiller_Email: formData.conseillerEmail,
-        Conseiller_Telephone: formData.conseillerTelephone,
+        Conseiller_Telephone: formatPhoneForStorage(formData.conseillerTelephone),
         Comment_Connu: formData.commentConnu === "Autre" ? formData.commentConnuAutre : formData.commentConnu,
         Parcours: parcoursListe.find((p) => p.id === formData.parcours)?.label || formData.parcours,
         Territoire: formData.territoire,
@@ -211,6 +215,18 @@ export default function FormulaireNumerikUpPage() {
         RGPD: formData.rgpd,
         createdAt: serverTimestamp(),
       });
+
+      try {
+        const prescripteurs = await chargerPrescripteurs();
+        await upsertPrescripteur(prescripteurs, {
+          referentPrenom: formatPrenom(formData.conseillerPrenom),
+          referentNom: formatNom(formData.conseillerNom),
+          referentTelephone: formatPhoneForStorage(formData.conseillerTelephone),
+          referentEmail: formData.conseillerEmail,
+        });
+      } catch (error) {
+        console.error("Erreur lors de la mise à jour de l'annuaire des prescripteurs :", error);
+      }
 
       showToast("Inscription enregistrée avec succès.", "success");
       setFormData(FORM_VIDE);
@@ -247,11 +263,11 @@ export default function FormulaireNumerikUpPage() {
 
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
             <Link
-              href="/mediation/rencontres-numeriques/actions-collectives/inscription"
+              href="/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up"
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >
               <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Formulaire d'inscription</span>
+              <span>Réponses</span>
             </Link>
             <Link
               href="/"
@@ -508,24 +524,15 @@ export default function FormulaireNumerikUpPage() {
           {etape === 4 && (
           <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-4">
             <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Conseiller.e référent.e</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className={labelClass}>Nom (majuscules)</label>
-                <input type="text" value={formData.conseillerNom} onChange={(e) => setFormData({ ...formData, conseillerNom: e.target.value })} className={inputClass} />
-              </div>
-              <div>
-                <label className={labelClass}>Prénom</label>
-                <input type="text" value={formData.conseillerPrenom} onChange={(e) => setFormData({ ...formData, conseillerPrenom: e.target.value })} className={inputClass} />
-              </div>
-              <div>
-                <label className={labelClass}>Email</label>
-                <input type="email" value={formData.conseillerEmail} onChange={(e) => setFormData({ ...formData, conseillerEmail: e.target.value })} className={inputClass} />
-              </div>
-              <div>
-                <label className={labelClass}>Téléphone</label>
-                <input type="tel" value={formData.conseillerTelephone} onChange={(e) => setFormData({ ...formData, conseillerTelephone: e.target.value })} className={inputClass} />
-              </div>
-            </div>
+            <PrescripteurAutocomplete
+              prenom={formData.conseillerPrenom}
+              nom={formData.conseillerNom}
+              telephone={formData.conseillerTelephone}
+              email={formData.conseillerEmail}
+              onChange={({ prenom, nom, telephone, email }) => setFormData({ ...formData, conseillerPrenom: prenom, conseillerNom: nom, conseillerTelephone: telephone, conseillerEmail: email })}
+              inputClass={inputClass}
+              labelClass={labelClass}
+            />
 
             <div className="flex justify-between pt-2 border-t border-[#404040]/10">
               <button type="button" onClick={etapePrecedente} className="px-5 py-2 bg-white hover:bg-[#F3F3F2] border border-[#404040]/10 text-[#404040] rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer">

@@ -17,9 +17,15 @@ export function middleware(request: Request) {
   const token = req.cookies.get("session_token")?.value;
   const userRole = normalizeRole(req.cookies.get("user_role")?.value);
 
+  // Pages publiques accessibles sans être connecté — /reset-password reçoit
+  // le lien d'activation/réinitialisation envoyé par e-mail (voir
+  // app/login/page.tsx et app/mediation/equipe/page.tsx), donc forcément
+  // visité avant toute connexion.
+  const pagesPubliques = ["/login", "/reset-password"];
+
   // 2. CAS 1 : L'utilisateur n'est pas connecté
   if (!token) {
-    if (pathname !== "/login") {
+    if (!pagesPubliques.includes(pathname)) {
       return NextResponse.redirect(new URL("/login", req.url));
     }
     return NextResponse.next();

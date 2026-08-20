@@ -130,6 +130,39 @@ export default function ReponsesDigitalUpSessionPage() {
     return () => window.removeEventListener("resize", mesurer);
   });
 
+  // Barre de défilement horizontal dupliquée en haut du tableau — synchronisée
+  // avec le défilement réel pour éviter d'avoir à descendre tout en bas
+  // (même mécanisme que sur les pages Réponses).
+  const scrollHautRef = useRef<HTMLDivElement>(null);
+  const scrollTableRef = useRef<HTMLDivElement>(null);
+  const [largeurTable, setLargeurTable] = useState(0);
+  const synchroniseEnCours = useRef(false);
+
+  useEffect(() => {
+    const mettreAJourLargeur = () => {
+      if (scrollTableRef.current) setLargeurTable(scrollTableRef.current.scrollWidth);
+    };
+    mettreAJourLargeur();
+    window.addEventListener("resize", mettreAJourLargeur);
+    return () => window.removeEventListener("resize", mettreAJourLargeur);
+  });
+
+  const surScrollHaut = () => {
+    if (synchroniseEnCours.current) { synchroniseEnCours.current = false; return; }
+    if (scrollHautRef.current && scrollTableRef.current) {
+      synchroniseEnCours.current = true;
+      scrollTableRef.current.scrollLeft = scrollHautRef.current.scrollLeft;
+    }
+  };
+
+  const surScrollTable = () => {
+    if (synchroniseEnCours.current) { synchroniseEnCours.current = false; return; }
+    if (scrollHautRef.current && scrollTableRef.current) {
+      synchroniseEnCours.current = true;
+      scrollHautRef.current.scrollLeft = scrollTableRef.current.scrollLeft;
+    }
+  };
+
   useEffect(() => {
     const charger = async () => {
       try {
@@ -316,9 +349,16 @@ export default function ReponsesDigitalUpSessionPage() {
           />
         </div>
 
+        {/* BARRE DE DÉFILEMENT HORIZONTAL (haut) — collée en haut de l'écran
+            au défilement vertical, sinon elle sort du cadre et devient
+            inutilisable dès qu'on descend dans le tableau. */}
+        <div ref={scrollHautRef} onScroll={surScrollHaut} className="sticky top-0 z-30 bg-[#F3F3F2] py-1.5 overflow-x-auto overflow-y-hidden">
+          <div style={{ width: largeurTable, height: 1 }}></div>
+        </div>
+
         {/* TABLEAU */}
         <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          <div ref={scrollTableRef} onScroll={surScrollTable} className="overflow-x-auto">
             {/* border-separate (et non border-collapse) : indispensable pour que les
                 colonnes figées (position: sticky) masquent correctement le contenu
                 des colonnes défilantes qui passent dessous — avec border-collapse,

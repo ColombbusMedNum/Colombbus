@@ -9,6 +9,8 @@ import { useRouter } from "next/navigation";
 import { HomeIcon, MagnifyingGlassIcon, ClipboardDocumentCheckIcon, DocumentArrowUpIcon, TrashIcon, DocumentDuplicateIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, PencilSquareIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
+import { formatNom, formatPrenom } from "@/lib/formatName";
+import { formatPhoneForStorage } from "@/lib/formatPhone";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -124,6 +126,10 @@ export default function ReponsesDigitalUpPage() {
   // sessions[parcoursId][territoire] = liste de dates de session — permet de
   // proposer les sessions disponibles pour le territoire de chaque inscrit.
   const [sessions, setSessions] = useState<Record<string, Record<string, string[]>>>({});
+  // codes["parcoursId|territoire|date"] = code interne défini sur la page de
+  // paramètres — jamais affiché sur le formulaire public, mais utile ici pour
+  // identifier une session sans avoir à lire ses dates en toutes lettres.
+  const [codes, setCodes] = useState<Record<string, string>>({});
 
   // Barre de défilement horizontal dupliquée en haut du tableau — synchronisée
   // avec le défilement réel pour éviter d'avoir à descendre tout en bas.
@@ -190,6 +196,7 @@ export default function ReponsesDigitalUpPage() {
         }
         if (snapSessions.exists()) {
           setSessions(snapSessions.data().parTerritoire || {});
+          setCodes(snapSessions.data().codes || {});
         }
       } catch (error) {
         console.error("Erreur lors du chargement des inscriptions Digital'UP :", error);
@@ -215,6 +222,30 @@ export default function ReponsesDigitalUpPage() {
       Object.entries(parTerritoire).map(([t, dates]) => [t, Array.from(dates).sort((a, b) => a.localeCompare(b, "fr"))])
     );
   }, [sessions]);
+
+  // Quand un territoire est filtré sur la page, le sélecteur de session par
+  // ligne ne propose que les sessions de ce territoire — évite de faire
+  // défiler tous les autres territoires alors qu'on travaille déjà dans un
+  // seul. Le filtre "non affecté" ne restreint rien : la personne n'a par
+  // définition pas de territoire, donc aucune session à privilégier.
+  const sessionsAffichees = useMemo(() => {
+    if (territoireFiltre && territoireFiltre !== TERRITOIRE_NON_AFFECTE && sessionsParTerritoire[territoireFiltre]) {
+      return { [territoireFiltre]: sessionsParTerritoire[territoireFiltre] };
+    }
+    return sessionsParTerritoire;
+  }, [sessionsParTerritoire, territoireFiltre]);
+
+  // Retrouve le code interne d'une session à partir de sa date, en cherchant
+  // le parkours/territoire auquel elle appartient — retombe sur la date si
+  // aucun code n'a encore été généré sur la page paramètres.
+  const codeDeSession = (date: string) => {
+    for (const [parcoursId, parTerritoire] of Object.entries(sessions)) {
+      for (const [territoire, dates] of Object.entries(parTerritoire)) {
+        if (dates.includes(date)) return codes[`${parcoursId}|${territoire}|${date}`] || date;
+      }
+    }
+    return date;
+  };
 
   // Regroupe les inscriptions par clé de doublon (email, ou à défaut
   // nom+prénom+téléphone) — tout groupe de 2 ou plus est un doublon.
@@ -389,7 +420,12 @@ export default function ReponsesDigitalUpPage() {
   const enregistrerEdition = async () => {
     if (!edition) return;
     setEnregistrementEnCours(true);
-    const { id, ...donnees } = { ...edition, Nom: (edition.Nom || "").toUpperCase() };
+    const { id, ...donnees } = {
+      ...edition,
+      Nom: formatNom(edition.Nom),
+      Prénom: formatPrenom(edition.Prénom),
+      Téléphone: formatPhoneForStorage(edition.Téléphone),
+    };
     try {
       await updateDoc(doc(db, "inscriptions_digitalup", id), donnees);
       setInscriptions((prev) => prev.map((i) => (i.id === id ? { ...i, ...donnees } : i)));
@@ -638,12 +674,12 @@ export default function ReponsesDigitalUpPage() {
                           >
                             <option value="">-- Choisir une session --</option>
                             {i.Session && !Object.values(sessionsParTerritoire).some((dates) => dates.includes(i.Session as string)) && (
-                              <option value={i.Session}>{i.Session}</option>
+                              <option value={i.Session}>{codeDeSession(i.Session)}</option>
                             )}
-                            {Object.entries(sessionsParTerritoire).map(([territoire, dates]) => (
+                            {Object.entries(sessionsAffichees).map(([territoire, dates]) => (
                               <optgroup key={territoire} label={`Territoire ${territoire}`}>
                                 {dates.map((s) => (
-                                  <option key={s} value={s}>{s}</option>
+                                  <option key={s} value={s}>{codeDeSession(s)}</option>
                                 ))}
                               </optgroup>
                             ))}

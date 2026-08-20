@@ -9,6 +9,8 @@ import { useRouter } from "next/navigation";
 import { HomeIcon, MagnifyingGlassIcon, ClipboardDocumentCheckIcon, DocumentArrowUpIcon, TrashIcon, DocumentDuplicateIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, PencilSquareIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
+import { formatNom, formatPrenom } from "@/lib/formatName";
+import { formatPhoneForStorage } from "@/lib/formatPhone";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -67,9 +69,9 @@ const PARCOURS_DEFAUT: Parcours[] = [
 
 const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
 
-// Valeur sentinelle du filtre territoire pour repérer les préinscriptions
-// sans territoire renseigné — distincte de "" qui signifie "tous".
-const TERRITOIRE_NON_AFFECTE = "__non_affecte__";
+// Valeur sentinelle du filtre session pour repérer les préinscriptions sans
+// session affectée — distincte de "" qui signifie "toutes".
+const SESSION_NON_AFFECTEE = "__non_affectee__";
 
 const NIVEAUX_ETUDES = ["Brevet, CAP, BEP", "Bac", "Bac+2 (L2, BTS, DUT, DEUST)", "Bac+3 (Licence, licence professionnelle)", "Bac+4/5 et plus"];
 const STRUCTURES_ACCOMPAGNEMENT = ["Mission locale", "E2C (Ecole de la deuxième chance)", "Pôle Emploi", "PLIE", "Epide", "PJJ", "Aucune"];
@@ -105,7 +107,7 @@ export default function ReponsesNumerikUpPage() {
   const [recherche, setRecherche] = useState("");
   const [parcoursListe, setParcoursListe] = useState<Parcours[]>(PARCOURS_DEFAUT);
   const [territoiresListe, setTerritoiresListe] = useState<string[]>(TERRITOIRES_DEFAUT);
-  const [territoireFiltre, setTerritoireFiltre] = useState("");
+  const [sessionFiltre, setSessionFiltre] = useState("");
   // "preinscrits" = pas encore affecté·e·s à une session (liste principale) ;
   // "affectes" = déjà cochés pour le suivi de recrutement (retirés de la
   // liste principale pour ne pas l'encombrer une fois pris en charge).
@@ -123,6 +125,10 @@ export default function ReponsesNumerikUpPage() {
   // sessions[parcoursId][territoire] = liste de dates de session — permet de
   // proposer les sessions disponibles pour le territoire de chaque inscrit.
   const [sessions, setSessions] = useState<Record<string, Record<string, string[]>>>({});
+  // codes["parcoursId|territoire|date"] = code interne défini sur la page de
+  // paramètres — jamais affiché sur le formulaire public, mais utile ici pour
+  // identifier une session sans avoir à lire ses dates en toutes lettres.
+  const [codes, setCodes] = useState<Record<string, string>>({});
 
   // Barre de défilement horizontal dupliquée en haut du tableau — synchronisée
   // avec le défilement réel pour éviter d'avoir à descendre tout en bas.
@@ -189,6 +195,7 @@ export default function ReponsesNumerikUpPage() {
         }
         if (snapSessions.exists()) {
           setSessions(snapSessions.data().parTerritoire || {});
+          setCodes(snapSessions.data().codes || {});
         }
       } catch (error) {
         console.error("Erreur lors du chargement des inscriptions Numérik'UP :", error);
@@ -214,6 +221,27 @@ export default function ReponsesNumerikUpPage() {
       Object.entries(parTerritoire).map(([t, dates]) => [t, Array.from(dates).sort((a, b) => a.localeCompare(b, "fr"))])
     );
   }, [sessions]);
+
+  // Retrouve le code interne d'une session à partir de sa date, en cherchant
+  // le parkours/territoire auquel elle appartient — retombe sur la date si
+  // aucun code n'a encore été généré sur la page paramètres.
+  const codeDeSession = (date: string) => {
+    for (const [parcoursId, parTerritoire] of Object.entries(sessions)) {
+      for (const [territoire, dates] of Object.entries(parTerritoire)) {
+        if (dates.includes(date)) return codes[`${parcoursId}|${territoire}|${date}`] || date;
+      }
+    }
+    return date;
+  };
+
+  // Liste plate de toutes les sessions, tous territoires confondus, triée
+  // par code interne — sert au filtre principal de la page (remplace le
+  // filtre par territoire, moins précis maintenant que chaque session a son
+  // propre code).
+  const toutesLesSessions = useMemo(
+    () => Array.from(new Set(Object.values(sessionsParTerritoire).flat())).sort((a, b) => codeDeSession(a).localeCompare(codeDeSession(b), "fr")),
+    [sessionsParTerritoire, codes]
+  );
 
   // Regroupe les inscriptions par clé de doublon (email, ou à défaut
   // nom+prénom+téléphone) — tout groupe de 2 ou plus est un doublon.
@@ -290,8 +318,8 @@ export default function ReponsesNumerikUpPage() {
       if (onglet === "preinscrits" && i.Suivi_Recrutement) return false;
       if (onglet === "affectes" && !i.Suivi_Recrutement) return false;
       if (onglet === "doublons" && !infosDoublons.has(i.id)) return false;
-      if (territoireFiltre === TERRITOIRE_NON_AFFECTE && i.Territoire) return false;
-      else if (territoireFiltre && territoireFiltre !== TERRITOIRE_NON_AFFECTE && i.Territoire !== territoireFiltre) return false;
+      if (sessionFiltre === SESSION_NON_AFFECTEE && i.Session) return false;
+      else if (sessionFiltre && sessionFiltre !== SESSION_NON_AFFECTEE && i.Session !== sessionFiltre) return false;
       if (terme && !`${i.Prénom || ""} ${i.Nom || ""}`.toLowerCase().includes(terme)) return false;
       return true;
     });
@@ -305,7 +333,7 @@ export default function ReponsesNumerikUpPage() {
       return [...resultat].sort((a, b) => (infosDoublons.get(a.id)?.cle || "").localeCompare(infosDoublons.get(b.id)?.cle || ""));
     }
     return resultat;
-  }, [inscriptions, recherche, onglet, territoireFiltre, infosDoublons, tri]);
+  }, [inscriptions, recherche, onglet, sessionFiltre, infosDoublons, tri]);
 
   // Sessions définies sur la page de paramètres — sert uniquement à pointer
   // le bouton "Suivi recrutement" vers une première session valide (le choix
@@ -388,7 +416,12 @@ export default function ReponsesNumerikUpPage() {
   const enregistrerEdition = async () => {
     if (!edition) return;
     setEnregistrementEnCours(true);
-    const { id, ...donnees } = { ...edition, Nom: (edition.Nom || "").toUpperCase() };
+    const { id, ...donnees } = {
+      ...edition,
+      Nom: formatNom(edition.Nom),
+      Prénom: formatPrenom(edition.Prénom),
+      Téléphone: formatPhoneForStorage(edition.Téléphone),
+    };
     try {
       await updateDoc(doc(db, "inscriptions_numerikup", id), donnees);
       setInscriptions((prev) => prev.map((i) => (i.id === id ? { ...i, ...donnees } : i)));
@@ -517,15 +550,15 @@ export default function ReponsesNumerikUpPage() {
             />
           </div>
           <select
-            value={territoireFiltre}
-            onChange={(e) => setTerritoireFiltre(e.target.value)}
+            value={sessionFiltre}
+            onChange={(e) => setSessionFiltre(e.target.value)}
             className="bg-white border border-[#404040]/15 rounded-2xl px-4 py-3.5 text-sm text-[#404040] outline-none focus:border-[#005259] focus:ring-1 focus:ring-[#005259] transition-all shadow-sm font-medium"
           >
-            <option value="">Tous les territoires</option>
-            {territoiresListe.map((t) => (
-              <option key={t} value={t}>Territoire {t}</option>
+            <option value="">Toutes les sessions</option>
+            {toutesLesSessions.map((s) => (
+              <option key={s} value={s}>{codeDeSession(s)}</option>
             ))}
-            <option value={TERRITOIRE_NON_AFFECTE}>Territoire non renseigné</option>
+            <option value={SESSION_NON_AFFECTEE}>Session non affectée</option>
           </select>
         </div>
 
@@ -637,12 +670,12 @@ export default function ReponsesNumerikUpPage() {
                           >
                             <option value="">-- Choisir une session --</option>
                             {i.Session && !Object.values(sessionsParTerritoire).some((dates) => dates.includes(i.Session as string)) && (
-                              <option value={i.Session}>{i.Session}</option>
+                              <option value={i.Session}>{codeDeSession(i.Session)}</option>
                             )}
                             {Object.entries(sessionsParTerritoire).map(([territoire, dates]) => (
                               <optgroup key={territoire} label={`Territoire ${territoire}`}>
                                 {dates.map((s) => (
-                                  <option key={s} value={s}>{s}</option>
+                                  <option key={s} value={s}>{codeDeSession(s)}</option>
                                 ))}
                               </optgroup>
                             ))}

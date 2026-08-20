@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import { HomeIcon, MagnifyingGlassIcon, AcademicCapIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
+import { useToast } from "@/components/ToastProvider";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -15,7 +16,9 @@ const quicksand = Quicksand({
 });
 
 // Champs issus du formulaire de pré-inscription (lecture seule ici — ce sont
-// les réponses telles que soumises).
+// les réponses telles que soumises), puis champs de suivi de recrutement
+// propres à Numérik'UP Pro (renseignés par l'équipe à la main, d'après la
+// feuille de suivi des candidatures réelle).
 interface Inscription {
   id: string;
   Civilité?: string;
@@ -28,6 +31,12 @@ interface Inscription {
   Ville?: string;
   Territoire?: string;
   QPV?: string;
+  Situation_Handicap?: string;
+  RQTH?: string;
+  RSA?: string;
+  France_Travail?: string;
+  Identifiant_France_Travail?: string;
+  Projet_Professionnel?: string;
   Structure_Accompagnement?: string;
   Structure_Autre?: string;
   Conseiller_Prenom?: string;
@@ -38,21 +47,33 @@ interface Inscription {
   // Coché sur /reponses/numerik-up-pro : détermine si la personne apparaît
   // ici, sur la page de suivi détaillé de sa session.
   Suivi_Recrutement?: boolean;
-  // Champs de suivi de recrutement, renseignés par l'équipe après coup —
-  // absents du formulaire d'origine, ajoutés/modifiés directement ici.
-  Critere_Preinscription_Respecte?: string;
-  Commentaire_Suivi_Recrutement?: string;
-  Date_Mail_Preinscription?: string;
-  Pix_Badges_Etoiles?: string;
-  Abandon_Avant_Parkour?: string;
-  Date_Relance_Pix_1?: string;
-  Date_Relance_Pix_2?: string;
-  Date_Relance_Pix_3?: string;
-  Completion_Pix?: string;
-  Appel_Avant_Parkour?: string;
-  CV_Recu?: string;
+  // Champs de suivi de recrutement propres à Numérik'UP Pro, absents du
+  // formulaire d'origine, renseignés à la main par l'équipe directement ici
+  // — reprennent la feuille "Suivi_Candidatures" réelle (session Paris 9h-13h).
+  Convocation_Info_Collective?: string;
+  Date_Convocation_Info_Collective?: string;
+  Presence_Info_Collective?: string;
+  Convocation_Test_Langue?: string;
+  Date_Test_Pix_Langue?: string;
+  Presence_Test_Langue?: string;
+  A_Un_Ordinateur?: string;
+  Attribution_PC_Colombbus?: string;
+  Competences_Numeriques?: string;
+  Notes_Tests_FR?: string;
+  Niveau_B1_Francais?: string;
+  Recuperation_CV?: string;
+  Date_Heures_Entretien?: string;
+  Presence_Entretien?: string;
+  Informations_Entretien?: string;
+  Fiche_Entretien?: string;
+  // Décision réelle de l'équipe (Oui / Non / File d'attente) — distincte de
+  // OK_NOK ci-dessous, qui reste le seul champ consulté par les pages
+  // Apprenant·e·s / Évolution / Statistiques pour déterminer qui est retenu·e ;
+  // OK_NOK n'est donc pas retiré pour ne rien casser en aval.
+  Decision?: string;
+  Avis_Positif_Negatif?: string;
+  A_Confirme?: string;
   OK_NOK?: string;
-  Date_Mail_Parkour?: string;
 }
 
 const inputEditClass = "w-full min-w-[140px] px-2 py-1.5 bg-[#F3F3F2] border border-[#404040]/10 focus:border-[#005259] focus:bg-white rounded-lg text-[11px] text-[#404040] outline-none font-medium transition-colors";
@@ -79,6 +100,7 @@ const estMineur = (age?: string) => {
 export default function ReponsesNumerikUpProSessionPage() {
   const params = useParams();
   const router = useRouter();
+  const { showToast } = useToast();
   const sessionId = decodeURIComponent((params?.id as string) || "");
 
   const [inscriptions, setInscriptions] = useState<Inscription[]>([]);
@@ -128,6 +150,39 @@ export default function ReponsesNumerikUpProSessionPage() {
     window.addEventListener("resize", mesurer);
     return () => window.removeEventListener("resize", mesurer);
   });
+
+  // Barre de défilement horizontal dupliquée en haut du tableau — synchronisée
+  // avec le défilement réel pour éviter d'avoir à descendre tout en bas
+  // (même mécanisme que sur les pages Réponses).
+  const scrollHautRef = useRef<HTMLDivElement>(null);
+  const scrollTableRef = useRef<HTMLDivElement>(null);
+  const [largeurTable, setLargeurTable] = useState(0);
+  const synchroniseEnCours = useRef(false);
+
+  useEffect(() => {
+    const mettreAJourLargeur = () => {
+      if (scrollTableRef.current) setLargeurTable(scrollTableRef.current.scrollWidth);
+    };
+    mettreAJourLargeur();
+    window.addEventListener("resize", mettreAJourLargeur);
+    return () => window.removeEventListener("resize", mettreAJourLargeur);
+  });
+
+  const surScrollHaut = () => {
+    if (synchroniseEnCours.current) { synchroniseEnCours.current = false; return; }
+    if (scrollHautRef.current && scrollTableRef.current) {
+      synchroniseEnCours.current = true;
+      scrollTableRef.current.scrollLeft = scrollHautRef.current.scrollLeft;
+    }
+  };
+
+  const surScrollTable = () => {
+    if (synchroniseEnCours.current) { synchroniseEnCours.current = false; return; }
+    if (scrollHautRef.current && scrollTableRef.current) {
+      synchroniseEnCours.current = true;
+      scrollHautRef.current.scrollLeft = scrollTableRef.current.scrollLeft;
+    }
+  };
 
   useEffect(() => {
     const charger = async () => {
@@ -216,13 +271,16 @@ export default function ReponsesNumerikUpProSessionPage() {
   }, [inscriptionsSession, recherche]);
 
   // Mise à jour optimiste locale + écriture Firestore d'un seul champ de
-  // suivi — chaque cellule éditable enregistre indépendamment des autres.
+  // suivi — chaque cellule éditable enregistre indépendamment des autres, et
+  // confirme visuellement l'enregistrement (ou l'échec) via un toast.
   const mettreAJourChamp = async (id: string, champ: keyof Inscription, valeur: string) => {
     setInscriptions((prev) => prev.map((i) => (i.id === id ? { ...i, [champ]: valeur } : i)));
     try {
       await updateDoc(doc(db, "inscriptions_numerikuppro", id), { [champ]: valeur });
+      showToast("Champ enregistré.");
     } catch (error) {
       console.error(`Erreur lors de la mise à jour du champ ${champ} :`, error);
+      showToast("Erreur lors de l'enregistrement du champ.", "error");
     }
   };
 
@@ -315,9 +373,16 @@ export default function ReponsesNumerikUpProSessionPage() {
           />
         </div>
 
+        {/* BARRE DE DÉFILEMENT HORIZONTAL (haut) — collée en haut de l'écran
+            au défilement vertical, sinon elle sort du cadre et devient
+            inutilisable dès qu'on descend dans le tableau. */}
+        <div ref={scrollHautRef} onScroll={surScrollHaut} className="sticky top-0 z-30 bg-[#F3F3F2] py-1.5 overflow-x-auto overflow-y-hidden">
+          <div style={{ width: largeurTable, height: 1 }}></div>
+        </div>
+
         {/* TABLEAU */}
         <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          <div ref={scrollTableRef} onScroll={surScrollTable} className="overflow-x-auto">
             {/* border-separate (et non border-collapse) : indispensable pour que les
                 colonnes figées (position: sticky) masquent correctement le contenu
                 des colonnes défilantes qui passent dessous — avec border-collapse,
@@ -331,30 +396,43 @@ export default function ReponsesNumerikUpProSessionPage() {
                   <th ref={refNom} className={`${classeFigee} px-3 py-3 bg-[#F3F3F2]`} style={{ left: decalages.nom }}>Nom</th>
                   <th ref={refTelephone} className={`${classeFigee} ${ombreDerniereFigee} px-3 py-3 bg-[#F3F3F2]`} style={{ left: decalages.telephone }}>Téléphone</th>
                   <th className="px-3 py-3">Âge</th>
-                  <th className="px-3 py-3">Email</th>
-                  <th className="px-3 py-3">Diplôme</th>
                   <th className="px-3 py-3">Sexe</th>
                   <th className="px-3 py-3">Ville</th>
                   <th className="px-3 py-3">Dpt.</th>
                   <th className="px-3 py-3">QPV</th>
+                  <th className="px-3 py-3">Email</th>
+                  <th className="px-3 py-3">Situation handicap</th>
+                  <th className="px-3 py-3">RQTH</th>
+                  <th className="px-3 py-3">RSA</th>
+                  <th className="px-3 py-3">Niveau de diplôme</th>
+                  <th className="px-3 py-3">Inscrit·e France Travail</th>
+                  <th className="px-3 py-3">Identifiant France Travail</th>
+                  <th className="px-3 py-3">Intérêt pour la formation</th>
                   <th className="px-3 py-3">Prescripteur</th>
                   <th className="px-3 py-3">Prénom Référent</th>
                   <th className="px-3 py-3">Nom Référent</th>
                   <th className="px-3 py-3">Tél Référent</th>
                   <th className="px-3 py-3">Mail Référent</th>
-                  <th className="px-3 py-3">Critères pré-inscription respecté ?</th>
-                  <th className="px-3 py-3">Commentaires de suivi de recrutement</th>
-                  <th className="px-3 py-3">Date - Mail envoyé Préinscription</th>
-                  <th className="px-3 py-3">Compétences Pix (Badges / Étoiles)</th>
-                  <th className="px-3 py-3">Abandon avant Parkour</th>
-                  <th className="px-3 py-3">Date 1re relance PIX</th>
-                  <th className="px-3 py-3">Date 2e relance PIX</th>
-                  <th className="px-3 py-3">Date 3e relance PIX</th>
-                  <th className="px-3 py-3">Complétion PIX</th>
-                  <th className="px-3 py-3">Appel avant Parkour</th>
-                  <th className="px-3 py-3">CV reçu</th>
-                  <th className="px-3 py-3">OK / NOK</th>
-                  <th className="px-3 py-3">Date - Mail envoyé Parkour (Lieu, début, horaire)</th>
+                  <th className="px-3 py-3">Convocation info collective</th>
+                  <th className="px-3 py-3">Date convocation info collective</th>
+                  <th className="px-3 py-3">Présence info collective</th>
+                  <th className="px-3 py-3">Convocation test langue</th>
+                  <th className="px-3 py-3">Convocation test Pix/Langue</th>
+                  <th className="px-3 py-3">Présence test langue</th>
+                  <th className="px-3 py-3">Ont-ils un ordi ?</th>
+                  <th className="px-3 py-3">Attribution PC Colombbus</th>
+                  <th className="px-3 py-3">Compétences numériques</th>
+                  <th className="px-3 py-3">Notes tests FR</th>
+                  <th className="px-3 py-3">Niveau B1 Français ?</th>
+                  <th className="px-3 py-3">Récupération CV</th>
+                  <th className="px-3 py-3">Date / heures entretien</th>
+                  <th className="px-3 py-3">Présence entretien</th>
+                  <th className="px-3 py-3">Informations entretien recrutement</th>
+                  <th className="px-3 py-3">Fiche d'entretien</th>
+                  <th className="px-3 py-3">Décision</th>
+                  <th className="px-3 py-3">Avis positif / négatif</th>
+                  <th className="px-3 py-3">A confirmé</th>
+                  <th className="px-3 py-3">OK / NOK (admission finale)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#404040]/5">
@@ -375,12 +453,18 @@ export default function ReponsesNumerikUpProSessionPage() {
                             ) : i.Age
                           ) : "—"}
                         </td>
-                        <td className="px-3 py-2 max-w-[180px] truncate">{i.Email || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{i.Niveau_Etudes || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{sexeDeCivilite(i.Civilité)}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Ville || "—"}</td>
                         <td className="px-3 py-2 text-center">{i.Territoire || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.QPV || "—"}</td>
+                        <td className="px-3 py-2 max-w-[180px] truncate">{i.Email || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.Situation_Handicap || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.RQTH || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.RSA || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.Niveau_Etudes || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.France_Travail || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.Identifiant_France_Travail || "—"}</td>
+                        <td className="px-3 py-2 max-w-[220px] truncate" title={i.Projet_Professionnel}>{i.Projet_Professionnel || "—"}</td>
                         <td className="px-3 py-2 max-w-[160px] truncate" title={prescripteur}>{prescripteur || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Prenom || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Nom || "—"}</td>
@@ -388,49 +472,102 @@ export default function ReponsesNumerikUpProSessionPage() {
                         <td className="px-3 py-2 max-w-[160px] truncate">{i.Conseiller_Email || "—"}</td>
 
                         <td className="px-3 py-2">
-                          <select defaultValue={i.Critere_Preinscription_Respecte || ""} onChange={(e) => mettreAJourChamp(i.id, "Critere_Preinscription_Respecte", e.target.value)} className={inputEditClass}>
+                          <select defaultValue={i.Convocation_Info_Collective || ""} onChange={(e) => mettreAJourChamp(i.id, "Convocation_Info_Collective", e.target.value)} className={inputEditClass}>
                             <option value="">—</option>
                             <option value="Oui">Oui</option>
                             <option value="Non">Non</option>
                           </select>
                         </td>
                         <td className="px-3 py-2">
-                          <input type="text" defaultValue={i.Commentaire_Suivi_Recrutement || ""} onBlur={(e) => mettreAJourChamp(i.id, "Commentaire_Suivi_Recrutement", e.target.value)} className={inputEditClass} />
+                          <input type="text" defaultValue={i.Date_Convocation_Info_Collective || ""} onBlur={(e) => mettreAJourChamp(i.id, "Date_Convocation_Info_Collective", e.target.value)} placeholder="Date, lieu / lien visio" className={inputEditClass} />
                         </td>
                         <td className="px-3 py-2">
-                          <input type="date" defaultValue={i.Date_Mail_Preinscription || ""} onChange={(e) => mettreAJourChamp(i.id, "Date_Mail_Preinscription", e.target.value)} className={inputEditClass} />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input type="text" defaultValue={i.Pix_Badges_Etoiles || ""} onBlur={(e) => mettreAJourChamp(i.id, "Pix_Badges_Etoiles", e.target.value)} className={inputEditClass} />
-                        </td>
-                        <td className="px-3 py-2">
-                          <select defaultValue={i.Abandon_Avant_Parkour || ""} onChange={(e) => mettreAJourChamp(i.id, "Abandon_Avant_Parkour", e.target.value)} className={inputEditClass}>
+                          <select defaultValue={i.Presence_Info_Collective || ""} onChange={(e) => mettreAJourChamp(i.id, "Presence_Info_Collective", e.target.value)} className={inputEditClass}>
                             <option value="">—</option>
                             <option value="Oui">Oui</option>
                             <option value="Non">Non</option>
                           </select>
                         </td>
                         <td className="px-3 py-2">
-                          <input type="date" defaultValue={i.Date_Relance_Pix_1 || ""} onChange={(e) => mettreAJourChamp(i.id, "Date_Relance_Pix_1", e.target.value)} className={inputEditClass} />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input type="date" defaultValue={i.Date_Relance_Pix_2 || ""} onChange={(e) => mettreAJourChamp(i.id, "Date_Relance_Pix_2", e.target.value)} className={inputEditClass} />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input type="date" defaultValue={i.Date_Relance_Pix_3 || ""} onChange={(e) => mettreAJourChamp(i.id, "Date_Relance_Pix_3", e.target.value)} className={inputEditClass} />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input type="text" defaultValue={i.Completion_Pix || ""} onBlur={(e) => mettreAJourChamp(i.id, "Completion_Pix", e.target.value)} placeholder="Ex : 80%" className={inputEditClass} />
-                        </td>
-                        <td className="px-3 py-2">
-                          <select defaultValue={i.Appel_Avant_Parkour || ""} onChange={(e) => mettreAJourChamp(i.id, "Appel_Avant_Parkour", e.target.value)} className={inputEditClass}>
+                          <select defaultValue={i.Convocation_Test_Langue || ""} onChange={(e) => mettreAJourChamp(i.id, "Convocation_Test_Langue", e.target.value)} className={inputEditClass}>
                             <option value="">—</option>
                             <option value="Oui">Oui</option>
                             <option value="Non">Non</option>
                           </select>
                         </td>
                         <td className="px-3 py-2">
-                          <select defaultValue={i.CV_Recu || ""} onChange={(e) => mettreAJourChamp(i.id, "CV_Recu", e.target.value)} className={inputEditClass}>
+                          <input type="text" defaultValue={i.Date_Test_Pix_Langue || ""} onBlur={(e) => mettreAJourChamp(i.id, "Date_Test_Pix_Langue", e.target.value)} placeholder="Date, lieu" className={inputEditClass} />
+                        </td>
+                        <td className="px-3 py-2">
+                          <select defaultValue={i.Presence_Test_Langue || ""} onChange={(e) => mettreAJourChamp(i.id, "Presence_Test_Langue", e.target.value)} className={inputEditClass}>
+                            <option value="">—</option>
+                            <option value="Oui">Oui</option>
+                            <option value="Non">Non</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <select defaultValue={i.A_Un_Ordinateur || ""} onChange={(e) => mettreAJourChamp(i.id, "A_Un_Ordinateur", e.target.value)} className={inputEditClass}>
+                            <option value="">—</option>
+                            <option value="Oui">Oui</option>
+                            <option value="Non">Non</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <select defaultValue={i.Attribution_PC_Colombbus || ""} onChange={(e) => mettreAJourChamp(i.id, "Attribution_PC_Colombbus", e.target.value)} className={inputEditClass}>
+                            <option value="">—</option>
+                            <option value="Oui">Oui</option>
+                            <option value="Non">Non</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <input type="text" defaultValue={i.Competences_Numeriques || ""} onBlur={(e) => mettreAJourChamp(i.id, "Competences_Numeriques", e.target.value)} placeholder="Ex : 97%" className={inputEditClass} />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input type="text" defaultValue={i.Notes_Tests_FR || ""} onBlur={(e) => mettreAJourChamp(i.id, "Notes_Tests_FR", e.target.value)} placeholder="Ex : 18/20" className={inputEditClass} />
+                        </td>
+                        <td className="px-3 py-2">
+                          <select defaultValue={i.Niveau_B1_Francais || ""} onChange={(e) => mettreAJourChamp(i.id, "Niveau_B1_Francais", e.target.value)} className={inputEditClass}>
+                            <option value="">—</option>
+                            <option value="Oui">Oui</option>
+                            <option value="Non">Non</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <select defaultValue={i.Recuperation_CV || ""} onChange={(e) => mettreAJourChamp(i.id, "Recuperation_CV", e.target.value)} className={inputEditClass}>
+                            <option value="">—</option>
+                            <option value="Oui">Oui</option>
+                            <option value="Non">Non</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <input type="text" defaultValue={i.Date_Heures_Entretien || ""} onBlur={(e) => mettreAJourChamp(i.id, "Date_Heures_Entretien", e.target.value)} placeholder="Date, heure, avec qui" className={inputEditClass} />
+                        </td>
+                        <td className="px-3 py-2">
+                          <select defaultValue={i.Presence_Entretien || ""} onChange={(e) => mettreAJourChamp(i.id, "Presence_Entretien", e.target.value)} className={inputEditClass}>
+                            <option value="">—</option>
+                            <option value="Oui">Oui</option>
+                            <option value="Non">Non</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <input type="text" defaultValue={i.Informations_Entretien || ""} onBlur={(e) => mettreAJourChamp(i.id, "Informations_Entretien", e.target.value)} placeholder="Compte-rendu d'entretien" className={inputEditClass} />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input type="text" defaultValue={i.Fiche_Entretien || ""} onBlur={(e) => mettreAJourChamp(i.id, "Fiche_Entretien", e.target.value)} className={inputEditClass} />
+                        </td>
+                        <td className="px-3 py-2">
+                          <select defaultValue={i.Decision || ""} onChange={(e) => mettreAJourChamp(i.id, "Decision", e.target.value)} className={inputEditClass}>
+                            <option value="">—</option>
+                            <option value="Oui">Oui</option>
+                            <option value="Non">Non</option>
+                            <option value="File d'attente">File d'attente</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <input type="text" defaultValue={i.Avis_Positif_Negatif || ""} onBlur={(e) => mettreAJourChamp(i.id, "Avis_Positif_Negatif", e.target.value)} className={inputEditClass} />
+                        </td>
+                        <td className="px-3 py-2">
+                          <select defaultValue={i.A_Confirme || ""} onChange={(e) => mettreAJourChamp(i.id, "A_Confirme", e.target.value)} className={inputEditClass}>
                             <option value="">—</option>
                             <option value="Oui">Oui</option>
                             <option value="Non">Non</option>
@@ -443,15 +580,12 @@ export default function ReponsesNumerikUpProSessionPage() {
                             <option value="NOK">NOK</option>
                           </select>
                         </td>
-                        <td className="px-3 py-2">
-                          <input type="text" defaultValue={i.Date_Mail_Parkour || ""} onBlur={(e) => mettreAJourChamp(i.id, "Date_Mail_Parkour", e.target.value)} placeholder="Lieu, début, horaire" className={inputEditClass} />
-                        </td>
                       </tr>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan={29} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
+                    <td colSpan={43} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
                       🔍 Aucune inscription trouvée.
                     </td>
                   </tr>

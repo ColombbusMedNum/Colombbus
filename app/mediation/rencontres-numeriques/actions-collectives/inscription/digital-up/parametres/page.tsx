@@ -54,10 +54,15 @@ function parseDateInput(valeur: string): Date | null {
 }
 
 // Reconstruit le libellé "Du lundi 7 septembre 2026 au vendredi 2 octobre
-// 2026" à partir des deux dates saisies séparément.
-function formaterLibelleSession(debut: Date, fin: Date): string {
+// 2026 — Matin" à partir des deux dates saisies séparément et du créneau —
+// la session se déroule entièrement le matin OU l'après-midi, jamais les
+// deux (même logique que la grille Évolution). Le créneau fait partie
+// intégrante du libellé, qui sert d'identifiant de session partout ailleurs
+// (champ Session, URLs, codes internes) : l'ajouter ici suffit à le propager
+// sans toucher aucun autre fichier.
+function formaterLibelleSession(debut: Date, fin: Date, creneau: string): string {
   const formater = (d: Date) => `${JOURS_FR[d.getDay()]} ${d.getDate()} ${MOIS_FR[d.getMonth()]} ${d.getFullYear()}`;
-  return `Du ${formater(debut)} au ${formater(fin)}`;
+  return `Du ${formater(debut)} au ${formater(fin)} — ${creneau}`;
 }
 
 // Extrait les dates de début et de fin d'un libellé de session (première et
@@ -103,6 +108,7 @@ export default function ParametresDigitalUpPage() {
   const [nouvelleSessionTerritoire, setNouvelleSessionTerritoire] = useState("91");
   const [nouvelleSessionDebut, setNouvelleSessionDebut] = useState("");
   const [nouvelleSessionFin, setNouvelleSessionFin] = useState("");
+  const [nouvelleSessionCreneau, setNouvelleSessionCreneau] = useState("Matin");
 
   useEffect(() => {
     const charger = async () => {
@@ -202,7 +208,16 @@ export default function ParametresDigitalUpPage() {
     const debut = parseDateInput(nouvelleSessionDebut);
     const fin = parseDateInput(nouvelleSessionFin);
     if (!debut || !fin) return;
-    const valeur = formaterLibelleSession(debut, fin);
+    const valeur = formaterLibelleSession(debut, fin, nouvelleSessionCreneau);
+    // Le libellé de la session sert d'identifiant partout ailleurs (champ
+    // Session sur les inscriptions, URL...) : deux sessions différentes (même
+    // parkours ou non, même territoire ou non) ne doivent jamais partager le
+    // même libellé, sinon impossible de les distinguer une fois affectées.
+    const dejaExistant = Object.values(sessions).some((parTerritoire) => Object.values(parTerritoire).some((dates) => dates.includes(valeur)));
+    if (dejaExistant) {
+      alert("Une session existe déjà avec exactement les mêmes dates et le même créneau (même sur un autre parkours/territoire) — change le créneau ou les dates pour la distinguer.");
+      return;
+    }
     const pourParcours = sessions[nouvelleSessionParcours] || {};
     const misesAJour = {
       ...sessions,
@@ -392,7 +407,7 @@ export default function ParametresDigitalUpPage() {
           <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Sessions ({lignesSessions.length})</h2>
 
           {/* Ajout d'une nouvelle session */}
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-6 gap-2 items-end">
             <div>
               <label className={labelClass}>Parkours</label>
               <select value={nouvelleSessionParcours} onChange={(e) => setNouvelleSessionParcours(e.target.value)} className={inputClass}>
@@ -414,17 +429,24 @@ export default function ParametresDigitalUpPage() {
                 className={inputClass}
               />
             </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className={labelClass}>Date de fin</label>
-                <input
-                  type="date"
-                  value={nouvelleSessionFin}
-                  onChange={(e) => setNouvelleSessionFin(e.target.value)}
-                  className={inputClass}
-                />
-              </div>
-              <button type="button" onClick={ajouterSession} className="shrink-0 self-end px-3 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-xl transition-colors cursor-pointer">
+            <div>
+              <label className={labelClass}>Date de fin</label>
+              <input
+                type="date"
+                value={nouvelleSessionFin}
+                onChange={(e) => setNouvelleSessionFin(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Créneau</label>
+              <select value={nouvelleSessionCreneau} onChange={(e) => setNouvelleSessionCreneau(e.target.value)} className={inputClass}>
+                <option value="Matin">Matin</option>
+                <option value="Après-midi">Après-midi</option>
+              </select>
+            </div>
+            <div className="flex">
+              <button type="button" onClick={ajouterSession} className="w-full self-end px-3 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-xl transition-colors cursor-pointer flex items-center justify-center">
                 <PlusIcon className="w-4 h-4" />
               </button>
             </div>

@@ -12,3 +12,16 @@ export function formatPhoneNumber(phone?: string | null): string {
   }
   return phone;
 }
+
+// Variante pour l'écriture en base (formulaires d'inscription) : contrairement
+// à formatPhoneNumber ci-dessus (pensée pour l'affichage), une valeur vide
+// reste une chaîne vide plutôt que le tiret "—", pour ne jamais enregistrer
+// ce caractère comme numéro de téléphone.
+export function formatPhoneForStorage(phone?: string | null): string {
+  if (!phone) return "";
+  const cleaned = phone.replace(/\D/g, "");
+  if (cleaned.length === 10) {
+    return cleaned.replace(/(\d{2})(?=\d)/g, "$1 ");
+  }
+  return phone.trim();
+}

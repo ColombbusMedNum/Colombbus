@@ -29,29 +29,54 @@ interface Apprenant {
   Ville?: string;
   Territoire?: string;
   QPV?: string;
+  Identifiant_France_Travail?: string;
+  Conseiller_Prenom?: string;
+  Conseiller_Nom?: string;
+  Conseiller_Telephone?: string;
+  Conseiller_Email?: string;
   Structure_Accompagnement?: string;
   Structure_Autre?: string;
   Session?: string;
   Suivi_Recrutement?: boolean;
   OK_NOK?: string;
-  // E2C (École de la 2e Chance) — pièces/démarches administratives.
-  E2C_CS?: boolean;
-  E2C_FR?: boolean;
-  E2C_CW?: boolean;
-  E2C_CV?: boolean;
-  E2C_CE?: boolean;
-  E2C_LinkedIn?: boolean;
-  // DI — statut diplôme intermédiaire.
-  DI_0?: boolean;
-  DI_1?: boolean;
-  DI_D?: boolean;
-  // Productions rendues (Créa/Tech) et leur nombre.
-  Production_GR_Rendu?: boolean;
-  Production_GD_Rendu?: boolean;
-  Production_VSC_Rendu?: boolean;
-  Production_GR_Nombre?: string;
-  Production_GD_Nombre?: string;
-  Production_VSC_Nombre?: string;
+  // Champs de suivi pédagogique/administratif propres au parcours Tech —
+  // reprennent la feuille "Apprenant.es" réelle (session Paris 9h-13h).
+  Ordinateur_Utilise?: string;
+  Planning_Formation?: boolean;
+  Programme_Formation?: boolean;
+  Acces_Openclassroom?: boolean;
+  Convocation_Premier_Jour?: boolean;
+  Charte_Engagement?: boolean;
+  Reglement_Interieur?: boolean;
+  Signature_Droit_Image?: boolean;
+  Integration_Kairos?: boolean;
+  Validation_Kairos?: boolean;
+  Acces_Drive_Apprenant?: boolean;
+  Cotisation_Adhesion?: boolean;
+  Questionnaire_Positionnement_Entree?: string;
+  Questionnaire_Positionnement_Sortie?: string;
+  Date_Convocation_PIX_Certification?: string;
+  Cle_USB_32G?: boolean;
+  Trousse_Outils?: boolean;
+  Date_Bilan_Intermediaire?: string;
+  Satisfaction_Chaud_Mois1?: boolean;
+  Projet_Developpement_Mois2_CV?: boolean;
+  Certification_PIX?: boolean;
+  Certification_HTML_CSS?: boolean;
+  Certification_MYSQL?: boolean;
+  Module_Analyse_Risques_SI?: boolean;
+  Module_Reseau_TCPIP?: boolean;
+  Module_Test_Intrusion_Web?: boolean;
+  Formation_Cisco_Cybersecurite?: boolean;
+  Cisco_Bases_Materiel?: boolean;
+  OC_Monter_PC?: boolean;
+  OC_Installer_Windows11?: boolean;
+  OC_Decouvrir_Metier_Technicien?: boolean;
+  Entretien_Fin_Parcours?: boolean;
+  Satisfaction_Chaud_FinSession?: boolean;
+  Bilan_Individuel_Envoye?: boolean;
+  Satisfaction_Froid_3Mois?: boolean;
+  Satisfaction_Froid_6Mois?: boolean;
 }
 
 const inputEditClass = "w-full min-w-[70px] px-1.5 py-1 bg-[#F3F3F2] border border-[#404040]/10 focus:border-[#005259] focus:bg-white rounded-md text-[11px] text-[#404040] outline-none font-medium transition-colors text-center";
@@ -360,14 +385,18 @@ export default function ApprenantsNumerikUpProSessionPage() {
             <table className="border-collapse text-xs">
               <thead>
                 <tr className="bg-[#F3F3F2] text-[#005259] text-[10px] uppercase tracking-widest font-bold">
-                  <th className="px-3 py-2 border-b border-[#404040]/10" colSpan={12}>Apprenant·e·s</th>
-                  <th className="px-3 py-2 border-b border-l border-[#404040]/10" colSpan={15}>Administratif</th>
+                  <th className="px-3 py-2 border-b border-[#404040]/10" colSpan={16}>Apprenant·e·s</th>
+                  <th className="px-3 py-2 border-b border-l border-[#404040]/10" colSpan={35}>Administratif</th>
                 </tr>
                 <tr className="bg-[#005259]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
-                  <th className="px-3 py-1.5" colSpan={12}></th>
-                  <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={6}>E2C</th>
-                  <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={3}>DI</th>
-                  <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={6}>Productions</th>
+                  <th className="px-3 py-1.5" colSpan={16}></th>
+                  <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={11}>Intégration</th>
+                  <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={3}>Positionnement</th>
+                  <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={2}>Matériel</th>
+                  <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={3}>Suivi pédagogique</th>
+                  <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={3}>Certifications</th>
+                  <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={8}>Modules réseau &amp; cybersécurité</th>
+                  <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={5}>Clôture</th>
                 </tr>
                 <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
                   <th className="px-3 py-3 text-center">#</th>
@@ -376,39 +405,71 @@ export default function ApprenantsNumerikUpProSessionPage() {
                   <th className="px-3 py-3">Nom</th>
                   <th className="px-3 py-3">Âge</th>
                   <th className="px-3 py-3">Ville</th>
+                  <th className="px-3 py-3">Id. France Travail</th>
                   <th className="px-3 py-3">Dpt.</th>
                   <th className="px-3 py-3">QPV</th>
                   <th className="px-3 py-3">Diplôme</th>
                   <th className="px-3 py-3">Téléphone</th>
                   <th className="px-3 py-3">Email</th>
+                  <th className="px-3 py-3">Ordinateur</th>
                   <th className="px-3 py-3">Prescripteur</th>
-                  <th className="px-2 py-3 border-l border-[#404040]/10 text-center">CS</th>
-                  <th className="px-2 py-3 text-center">FR</th>
-                  <th className="px-2 py-3 text-center">CW</th>
-                  <th className="px-2 py-3 text-center">CV</th>
-                  <th className="px-2 py-3 text-center">CE</th>
-                  <th className="px-2 py-3 text-center">LinkedIn</th>
-                  <th className="px-2 py-3 border-l border-[#404040]/10 text-center">0</th>
-                  <th className="px-2 py-3 text-center">1</th>
-                  <th className="px-2 py-3 text-center">D</th>
-                  <th className="px-2 py-3 border-l border-[#404040]/10 text-center">GR</th>
-                  <th className="px-2 py-3 text-center">GD</th>
-                  <th className="px-2 py-3 text-center">VSC</th>
-                  <th className="px-2 py-3 text-center">GR (nb)</th>
-                  <th className="px-2 py-3 text-center">GD (nb)</th>
-                  <th className="px-2 py-3 text-center">VSC (nb)</th>
+                  <th className="px-3 py-3">Mail prescripteur</th>
+                  <th className="px-3 py-3">Tél. prescripteur</th>
+                  <th className="px-2 py-3 border-l border-[#404040]/10 text-center">Planning</th>
+                  <th className="px-2 py-3 text-center">Programme</th>
+                  <th className="px-2 py-3 text-center">Accès OC</th>
+                  <th className="px-2 py-3 text-center">Convoc. 1er jour</th>
+                  <th className="px-2 py-3 text-center">Charte</th>
+                  <th className="px-2 py-3 text-center">Règlement</th>
+                  <th className="px-2 py-3 text-center">Droit image</th>
+                  <th className="px-2 py-3 text-center">Intégration Kairos</th>
+                  <th className="px-2 py-3 text-center">Validation Kairos</th>
+                  <th className="px-2 py-3 text-center">Accès Drive</th>
+                  <th className="px-2 py-3 text-center">Cotisation</th>
+                  <th className="px-2 py-3 border-l border-[#404040]/10 text-center">Positionnement E.</th>
+                  <th className="px-2 py-3 text-center">Positionnement S.</th>
+                  <th className="px-2 py-3 text-center">Convoc. PIX</th>
+                  <th className="px-2 py-3 border-l border-[#404040]/10 text-center">Clé USB</th>
+                  <th className="px-2 py-3 text-center">Trousse à outils</th>
+                  <th className="px-2 py-3 border-l border-[#404040]/10 text-center">Bilan intermédiaire</th>
+                  <th className="px-2 py-3 text-center">Satisfaction M1</th>
+                  <th className="px-2 py-3 text-center">Projet Dev. M2 (CV)</th>
+                  <th className="px-2 py-3 border-l border-[#404040]/10 text-center">PIX</th>
+                  <th className="px-2 py-3 text-center">HTML/CSS</th>
+                  <th className="px-2 py-3 text-center">MYSQL</th>
+                  <th className="px-2 py-3 border-l border-[#404040]/10 text-center">Risques SI</th>
+                  <th className="px-2 py-3 text-center">Réseau TCP/IP</th>
+                  <th className="px-2 py-3 text-center">Test intrusion web</th>
+                  <th className="px-2 py-3 text-center">Cisco CyberS.</th>
+                  <th className="px-2 py-3 text-center">Cisco matériel</th>
+                  <th className="px-2 py-3 text-center">Monter un PC</th>
+                  <th className="px-2 py-3 text-center">Installer W11</th>
+                  <th className="px-2 py-3 text-center">Métier technicien</th>
+                  <th className="px-2 py-3 border-l border-[#404040]/10 text-center">Entretien fin parcours</th>
+                  <th className="px-2 py-3 text-center">Satisfaction fin session</th>
+                  <th className="px-2 py-3 text-center">Bilan envoyé</th>
+                  <th className="px-2 py-3 text-center">Satisfaction 3 mois</th>
+                  <th className="px-2 py-3 text-center">Satisfaction 6 mois</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#404040]/5">
                 {apprenantsFiltres.length > 0 ? (
                   apprenantsFiltres.map((i, index) => {
-                    const prescripteur = i.Structure_Accompagnement === "Autre" ? (i.Structure_Autre || "Autre") : (i.Structure_Accompagnement || "");
+                    const conseiller = `${i.Conseiller_Prenom || ""} ${i.Conseiller_Nom || ""}`.trim();
                     return (
                       <tr key={i.id} className="hover:bg-[#F3F3F2]/60 transition-colors align-top">
                         <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{index + 1}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Civilité || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{i.Prénom || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">{i.Nom || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">
+                          <Link href={`/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(sessionId)}/apprenants/${i.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
+                            {i.Prénom || "—"}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">
+                          <Link href={`/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(sessionId)}/apprenants/${i.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
+                            {i.Nom || "—"}
+                          </Link>
+                        </td>
                         <td className="px-3 py-2 text-center whitespace-nowrap">
                           {i.Age ? (
                             estMineur(i.Age) ? (
@@ -417,63 +478,129 @@ export default function ApprenantsNumerikUpProSessionPage() {
                           ) : "—"}
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Ville || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.Identifiant_France_Travail || "—"}</td>
                         <td className="px-3 py-2 text-center">{i.Territoire || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.QPV || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Niveau_Etudes || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Téléphone || "—"}</td>
                         <td className="px-3 py-2 max-w-[180px] truncate">{i.Email || "—"}</td>
-                        <td className="px-3 py-2 max-w-[160px] truncate" title={prescripteur}>{prescripteur || "—"}</td>
+                        <td className="px-2 py-2">
+                          <input type="text" defaultValue={i.Ordinateur_Utilise || ""} onBlur={(e) => mettreAJourChampTexte(i.id, "Ordinateur_Utilise", e.target.value)} className={inputEditClass} />
+                        </td>
+                        <td className="px-3 py-2 max-w-[160px] truncate" title={conseiller}>{conseiller || "—"}</td>
+                        <td className="px-3 py-2 max-w-[160px] truncate">{i.Conseiller_Email || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Telephone || "—"}</td>
                         <td className="px-2 py-2 border-l border-[#404040]/10 text-center">
-                          <input type="checkbox" checked={i.E2C_CS || false} onChange={(e) => basculerChampBooleen(i.id, "E2C_CS", e.target.checked)} className={checkboxClass} />
+                          <input type="checkbox" checked={i.Planning_Formation || false} onChange={(e) => basculerChampBooleen(i.id, "Planning_Formation", e.target.checked)} className={checkboxClass} />
                         </td>
                         <td className="px-2 py-2 text-center">
-                          <input type="checkbox" checked={i.E2C_FR || false} onChange={(e) => basculerChampBooleen(i.id, "E2C_FR", e.target.checked)} className={checkboxClass} />
+                          <input type="checkbox" checked={i.Programme_Formation || false} onChange={(e) => basculerChampBooleen(i.id, "Programme_Formation", e.target.checked)} className={checkboxClass} />
                         </td>
                         <td className="px-2 py-2 text-center">
-                          <input type="checkbox" checked={i.E2C_CW || false} onChange={(e) => basculerChampBooleen(i.id, "E2C_CW", e.target.checked)} className={checkboxClass} />
+                          <input type="checkbox" checked={i.Acces_Openclassroom || false} onChange={(e) => basculerChampBooleen(i.id, "Acces_Openclassroom", e.target.checked)} className={checkboxClass} />
                         </td>
                         <td className="px-2 py-2 text-center">
-                          <input type="checkbox" checked={i.E2C_CV || false} onChange={(e) => basculerChampBooleen(i.id, "E2C_CV", e.target.checked)} className={checkboxClass} />
+                          <input type="checkbox" checked={i.Convocation_Premier_Jour || false} onChange={(e) => basculerChampBooleen(i.id, "Convocation_Premier_Jour", e.target.checked)} className={checkboxClass} />
                         </td>
                         <td className="px-2 py-2 text-center">
-                          <input type="checkbox" checked={i.E2C_CE || false} onChange={(e) => basculerChampBooleen(i.id, "E2C_CE", e.target.checked)} className={checkboxClass} />
+                          <input type="checkbox" checked={i.Charte_Engagement || false} onChange={(e) => basculerChampBooleen(i.id, "Charte_Engagement", e.target.checked)} className={checkboxClass} />
                         </td>
                         <td className="px-2 py-2 text-center">
-                          <input type="checkbox" checked={i.E2C_LinkedIn || false} onChange={(e) => basculerChampBooleen(i.id, "E2C_LinkedIn", e.target.checked)} className={checkboxClass} />
-                        </td>
-                        <td className="px-2 py-2 border-l border-[#404040]/10 text-center">
-                          <input type="checkbox" checked={i.DI_0 || false} onChange={(e) => basculerChampBooleen(i.id, "DI_0", e.target.checked)} className={checkboxClass} />
+                          <input type="checkbox" checked={i.Reglement_Interieur || false} onChange={(e) => basculerChampBooleen(i.id, "Reglement_Interieur", e.target.checked)} className={checkboxClass} />
                         </td>
                         <td className="px-2 py-2 text-center">
-                          <input type="checkbox" checked={i.DI_1 || false} onChange={(e) => basculerChampBooleen(i.id, "DI_1", e.target.checked)} className={checkboxClass} />
+                          <input type="checkbox" checked={i.Signature_Droit_Image || false} onChange={(e) => basculerChampBooleen(i.id, "Signature_Droit_Image", e.target.checked)} className={checkboxClass} />
                         </td>
                         <td className="px-2 py-2 text-center">
-                          <input type="checkbox" checked={i.DI_D || false} onChange={(e) => basculerChampBooleen(i.id, "DI_D", e.target.checked)} className={checkboxClass} />
-                        </td>
-                        <td className="px-2 py-2 border-l border-[#404040]/10 text-center">
-                          <input type="checkbox" checked={i.Production_GR_Rendu || false} onChange={(e) => basculerChampBooleen(i.id, "Production_GR_Rendu", e.target.checked)} className={checkboxClass} />
+                          <input type="checkbox" checked={i.Integration_Kairos || false} onChange={(e) => basculerChampBooleen(i.id, "Integration_Kairos", e.target.checked)} className={checkboxClass} />
                         </td>
                         <td className="px-2 py-2 text-center">
-                          <input type="checkbox" checked={i.Production_GD_Rendu || false} onChange={(e) => basculerChampBooleen(i.id, "Production_GD_Rendu", e.target.checked)} className={checkboxClass} />
+                          <input type="checkbox" checked={i.Validation_Kairos || false} onChange={(e) => basculerChampBooleen(i.id, "Validation_Kairos", e.target.checked)} className={checkboxClass} />
                         </td>
                         <td className="px-2 py-2 text-center">
-                          <input type="checkbox" checked={i.Production_VSC_Rendu || false} onChange={(e) => basculerChampBooleen(i.id, "Production_VSC_Rendu", e.target.checked)} className={checkboxClass} />
+                          <input type="checkbox" checked={i.Acces_Drive_Apprenant || false} onChange={(e) => basculerChampBooleen(i.id, "Acces_Drive_Apprenant", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={i.Cotisation_Adhesion || false} onChange={(e) => basculerChampBooleen(i.id, "Cotisation_Adhesion", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 border-l border-[#404040]/10">
+                          <input type="text" defaultValue={i.Questionnaire_Positionnement_Entree || ""} onBlur={(e) => mettreAJourChampTexte(i.id, "Questionnaire_Positionnement_Entree", e.target.value)} className={inputEditClass} />
                         </td>
                         <td className="px-2 py-2">
-                          <input type="text" defaultValue={i.Production_GR_Nombre || ""} onBlur={(e) => mettreAJourChampTexte(i.id, "Production_GR_Nombre", e.target.value)} className={inputEditClass} />
+                          <input type="text" defaultValue={i.Questionnaire_Positionnement_Sortie || ""} onBlur={(e) => mettreAJourChampTexte(i.id, "Questionnaire_Positionnement_Sortie", e.target.value)} className={inputEditClass} />
                         </td>
                         <td className="px-2 py-2">
-                          <input type="text" defaultValue={i.Production_GD_Nombre || ""} onBlur={(e) => mettreAJourChampTexte(i.id, "Production_GD_Nombre", e.target.value)} className={inputEditClass} />
+                          <input type="text" defaultValue={i.Date_Convocation_PIX_Certification || ""} onBlur={(e) => mettreAJourChampTexte(i.id, "Date_Convocation_PIX_Certification", e.target.value)} className={inputEditClass} />
                         </td>
-                        <td className="px-2 py-2">
-                          <input type="text" defaultValue={i.Production_VSC_Nombre || ""} onBlur={(e) => mettreAJourChampTexte(i.id, "Production_VSC_Nombre", e.target.value)} className={inputEditClass} />
+                        <td className="px-2 py-2 border-l border-[#404040]/10 text-center">
+                          <input type="checkbox" checked={i.Cle_USB_32G || false} onChange={(e) => basculerChampBooleen(i.id, "Cle_USB_32G", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={i.Trousse_Outils || false} onChange={(e) => basculerChampBooleen(i.id, "Trousse_Outils", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 border-l border-[#404040]/10">
+                          <input type="text" defaultValue={i.Date_Bilan_Intermediaire || ""} onBlur={(e) => mettreAJourChampTexte(i.id, "Date_Bilan_Intermediaire", e.target.value)} className={inputEditClass} />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={i.Satisfaction_Chaud_Mois1 || false} onChange={(e) => basculerChampBooleen(i.id, "Satisfaction_Chaud_Mois1", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={i.Projet_Developpement_Mois2_CV || false} onChange={(e) => basculerChampBooleen(i.id, "Projet_Developpement_Mois2_CV", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 border-l border-[#404040]/10 text-center">
+                          <input type="checkbox" checked={i.Certification_PIX || false} onChange={(e) => basculerChampBooleen(i.id, "Certification_PIX", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={i.Certification_HTML_CSS || false} onChange={(e) => basculerChampBooleen(i.id, "Certification_HTML_CSS", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={i.Certification_MYSQL || false} onChange={(e) => basculerChampBooleen(i.id, "Certification_MYSQL", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 border-l border-[#404040]/10 text-center">
+                          <input type="checkbox" checked={i.Module_Analyse_Risques_SI || false} onChange={(e) => basculerChampBooleen(i.id, "Module_Analyse_Risques_SI", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={i.Module_Reseau_TCPIP || false} onChange={(e) => basculerChampBooleen(i.id, "Module_Reseau_TCPIP", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={i.Module_Test_Intrusion_Web || false} onChange={(e) => basculerChampBooleen(i.id, "Module_Test_Intrusion_Web", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={i.Formation_Cisco_Cybersecurite || false} onChange={(e) => basculerChampBooleen(i.id, "Formation_Cisco_Cybersecurite", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={i.Cisco_Bases_Materiel || false} onChange={(e) => basculerChampBooleen(i.id, "Cisco_Bases_Materiel", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={i.OC_Monter_PC || false} onChange={(e) => basculerChampBooleen(i.id, "OC_Monter_PC", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={i.OC_Installer_Windows11 || false} onChange={(e) => basculerChampBooleen(i.id, "OC_Installer_Windows11", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={i.OC_Decouvrir_Metier_Technicien || false} onChange={(e) => basculerChampBooleen(i.id, "OC_Decouvrir_Metier_Technicien", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 border-l border-[#404040]/10 text-center">
+                          <input type="checkbox" checked={i.Entretien_Fin_Parcours || false} onChange={(e) => basculerChampBooleen(i.id, "Entretien_Fin_Parcours", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={i.Satisfaction_Chaud_FinSession || false} onChange={(e) => basculerChampBooleen(i.id, "Satisfaction_Chaud_FinSession", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={i.Bilan_Individuel_Envoye || false} onChange={(e) => basculerChampBooleen(i.id, "Bilan_Individuel_Envoye", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={i.Satisfaction_Froid_3Mois || false} onChange={(e) => basculerChampBooleen(i.id, "Satisfaction_Froid_3Mois", e.target.checked)} className={checkboxClass} />
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={i.Satisfaction_Froid_6Mois || false} onChange={(e) => basculerChampBooleen(i.id, "Satisfaction_Froid_6Mois", e.target.checked)} className={checkboxClass} />
                         </td>
                       </tr>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan={27} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
+                    <td colSpan={51} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
                       🔍 Aucun·e apprenant·e retenu·e (OK) pour cette session.
                     </td>
                   </tr>

@@ -158,6 +158,26 @@ export default function EvolutionNumerikUpProSessionPage() {
 
   const mettreAJourCase = async (id: string, cle: string, valeur: string) => {
     const apprenant = apprenants.find((a) => a.id === id);
+
+    // Abandon : une fois parti·e, la personne ne revient pas — toutes les
+    // cases à partir de ce jour (inclus) jusqu'à la fin du parcours basculent
+    // aussi en abandon, et elle sort automatiquement du calcul de présence
+    // (case "Actif" décochée), pour ne plus avoir à la noter jour après jour.
+    if (valeur === "AB") {
+      const joursSuivants = tousLesJours.map(versISO).filter((iso) => iso >= cle);
+      const evolutionMaj = { ...(apprenant?.Evolution || {}) };
+      joursSuivants.forEach((iso) => { evolutionMaj[iso] = "AB"; });
+      setApprenants((prev) => prev.map((a) => (a.id === id ? { ...a, Evolution: evolutionMaj, Evolution_Actif: false } : a)));
+      try {
+        const champs: Record<string, string | boolean> = { Evolution_Actif: false };
+        joursSuivants.forEach((iso) => { champs[`Evolution.${iso}`] = "AB"; });
+        await updateDoc(doc(db, "inscriptions_numerikuppro", id), champs);
+      } catch (error) {
+        console.error("Erreur lors de la mise à jour de l'évolution :", error);
+      }
+      return;
+    }
+
     setApprenants((prev) => prev.map((a) => (a.id === id ? { ...a, Evolution: { ...a.Evolution, [cle]: valeur } } : a)));
     try {
       await updateDoc(doc(db, "inscriptions_numerikuppro", id), { [`Evolution.${cle}`]: valeur });
@@ -171,6 +191,21 @@ export default function EvolutionNumerikUpProSessionPage() {
       if (nombre >= 2) {
         setAlerteANJ({ prenom: apprenant.Prénom || "", nom: apprenant.Nom || "", nombre });
       }
+    }
+  };
+
+  // Sélecteur "Tout le groupe" en en-tête de colonne : applique le même code
+  // à tout le monde pour ce jour-là — sauf qui est déjà en abandon ce
+  // jour-là, pour ne pas ressusciter quelqu'un qui est parti. Les cas
+  // particuliers restent modifiables ensuite un par un, cellule par cellule.
+  const mettreAJourCaseGroupe = async (cle: string, valeur: string) => {
+    const concernes = apprenantsSession.filter((a) => a.Evolution?.[cle] !== "AB");
+    const idsConcernes = new Set(concernes.map((a) => a.id));
+    setApprenants((prev) => prev.map((a) => (idsConcernes.has(a.id) ? { ...a, Evolution: { ...a.Evolution, [cle]: valeur } } : a)));
+    try {
+      await Promise.all(concernes.map((a) => updateDoc(doc(db, "inscriptions_numerikuppro", a.id), { [`Evolution.${cle}`]: valeur })));
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour groupée de l'évolution :", error);
     }
   };
 
@@ -246,8 +281,24 @@ export default function EvolutionNumerikUpProSessionPage() {
     });
   };
 
-  const styleCode = (valeur?: string) => {
+  // En cas de grand retard sur un code de présence, la case garde sa couleur
+  // sur toute sa largeur, mais la portion manquante (à droite) se couvre de
+  // hachures — visualise le retard d'un coup d'œil sans perdre la couleur du
+  // code, contrairement à un simple dégradé vers du gris neutre.
+  const styleCode = (valeur?: string, retard?: string) => {
     const info = CODES.find((c) => c.code === (valeur || "")) || CODES[0];
+    const heuresManquees = Math.max(0, Math.min(HEURES_PAR_JOUR, parseFloat((retard || "0").replace(",", ".")) || 0));
+    if (CODES_PRESENCE.includes(info.code) && heuresManquees > 0) {
+      const largeurRayures = Math.round((heuresManquees / HEURES_PAR_JOUR) * 100);
+      return {
+        backgroundColor: info.bg,
+        backgroundImage: "repeating-linear-gradient(45deg, rgba(255,255,255,0.55) 0, rgba(255,255,255,0.55) 3px, transparent 3px, transparent 6px)",
+        backgroundSize: `${largeurRayures}% 100%`,
+        backgroundPosition: "right",
+        backgroundRepeat: "no-repeat",
+        color: info.text,
+      };
+    }
     return { backgroundColor: info.bg, color: info.text };
   };
 
@@ -396,11 +447,25 @@ export default function EvolutionNumerikUpProSessionPage() {
                       <th className="px-3 py-3 text-center">Δ</th>
                       <th className="px-3 py-3">Prénom</th>
                       <th className="px-3 py-3">Nom</th>
-                      {jours.map((jour) => (
-                        <th key={versISO(jour)} className="px-1 py-3 text-center border-l border-[#404040]/10">
-                          {JOURS_FR[jour.getDay()]} {String(jour.getDate()).padStart(2, "0")}/{String(jour.getMonth() + 1).padStart(2, "0")}
-                        </th>
-                      ))}
+                      {jours.map((jour) => {
+                        const iso = versISO(jour);
+                        return (
+                          <th key={iso} className="px-1 py-2 text-center border-l border-[#404040]/10 align-top">
+                            <div className="mb-1">{JOURS_FR[jour.getDay()]} {String(jour.getDate()).padStart(2, "0")}/{String(jour.getMonth() + 1).padStart(2, "0")}</div>
+                            <select
+                              value=""
+                              onChange={(e) => { if (e.target.value) mettreAJourCaseGroupe(iso, e.target.value); e.target.value = ""; }}
+                              title="Applique ce code à tout le groupe pour ce jour — modifiable ensuite personne par personne sans répercussion"
+                              className="w-full px-1 py-1 text-[9px] font-bold text-center outline-none cursor-pointer border border-[#404040]/15 rounded bg-white normal-case tracking-normal"
+                            >
+                              <option value="">Tout le groupe...</option>
+                              {CODES.filter((c) => c.code).map((c) => (
+                                <option key={c.code} value={c.code}>{c.code}</option>
+                              ))}
+                            </select>
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#404040]/5">
@@ -425,7 +490,7 @@ export default function EvolutionNumerikUpProSessionPage() {
                                   value={a.Evolution?.[iso] || ""}
                                   onChange={(e) => mettreAJourCase(a.id, iso, e.target.value)}
                                   className="w-full px-1 py-2 text-[10px] font-bold text-center outline-none cursor-pointer border-0"
-                                  style={styleCode(a.Evolution?.[iso])}
+                                  style={styleCode(a.Evolution?.[iso], a.Evolution_Retards?.[iso])}
                                 >
                                   {CODES.map((c) => (
                                     <option key={c.code} value={c.code}>{c.code || "—"}</option>

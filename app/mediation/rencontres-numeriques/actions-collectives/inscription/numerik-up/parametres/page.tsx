@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
-import { HomeIcon, ArrowLeftIcon, PlusIcon, XMarkIcon, TrashIcon, TagIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ArrowLeftIcon, PlusIcon, XMarkIcon, TrashIcon, TagIcon, WrenchScrewdriverIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
 
@@ -53,10 +53,15 @@ function parseDateInput(valeur: string): Date | null {
 }
 
 // Reconstruit le libellé "Du lundi 7 septembre 2026 au vendredi 2 octobre
-// 2026" à partir des deux dates saisies séparément.
-function formaterLibelleSession(debut: Date, fin: Date): string {
+// 2026 — Matin" à partir des deux dates saisies séparément et du créneau —
+// la session se déroule entièrement le matin OU l'après-midi, jamais les
+// deux (même logique que la grille Évolution). Le créneau fait partie
+// intégrante du libellé, qui sert d'identifiant de session partout ailleurs
+// (champ Session, URLs, codes internes) : l'ajouter ici suffit à le propager
+// sans toucher aucun autre fichier.
+function formaterLibelleSession(debut: Date, fin: Date, creneau: string): string {
   const formater = (d: Date) => `${JOURS_FR[d.getDay()]} ${d.getDate()} ${MOIS_FR[d.getMonth()]} ${d.getFullYear()}`;
-  return `Du ${formater(debut)} au ${formater(fin)}`;
+  return `Du ${formater(debut)} au ${formater(fin)} — ${creneau}`;
 }
 
 // Extrait les dates de début et de fin d'un libellé de session (première et
@@ -102,6 +107,7 @@ export default function ParametresNumerikUpPage() {
   const [nouvelleSessionTerritoire, setNouvelleSessionTerritoire] = useState("91");
   const [nouvelleSessionDebut, setNouvelleSessionDebut] = useState("");
   const [nouvelleSessionFin, setNouvelleSessionFin] = useState("");
+  const [nouvelleSessionCreneau, setNouvelleSessionCreneau] = useState("Matin");
 
   useEffect(() => {
     const charger = async () => {
@@ -201,7 +207,16 @@ export default function ParametresNumerikUpPage() {
     const debut = parseDateInput(nouvelleSessionDebut);
     const fin = parseDateInput(nouvelleSessionFin);
     if (!debut || !fin) return;
-    const valeur = formaterLibelleSession(debut, fin);
+    const valeur = formaterLibelleSession(debut, fin, nouvelleSessionCreneau);
+    // Le libellé de la session sert d'identifiant partout ailleurs (champ
+    // Session sur les inscriptions, URL...) : deux sessions différentes (même
+    // parkours ou non, même territoire ou non) ne doivent jamais partager le
+    // même libellé, sinon impossible de les distinguer une fois affectées.
+    const dejaExistant = Object.values(sessions).some((parTerritoire) => Object.values(parTerritoire).some((dates) => dates.includes(valeur)));
+    if (dejaExistant) {
+      alert("Une session existe déjà avec exactement les mêmes dates et le même créneau (même sur un autre parkours/territoire) — change le créneau ou les dates pour la distinguer.");
+      return;
+    }
     const pourParcours = sessions[nouvelleSessionParcours] || {};
     const misesAJour = {
       ...sessions,
@@ -211,6 +226,73 @@ export default function ParametresNumerikUpPage() {
     setNouvelleSessionDebut("");
     setNouvelleSessionFin("");
     await sauvegarderSessions(misesAJour, codes);
+  };
+
+  // Corrige les libellés de session strictement identiques partagés par
+  // plusieurs parkours/territoires — un bug historique (les inscriptions
+  // affectées à l'une ou l'autre étaient indiscernables, le champ Session
+  // étant le même texte pour toutes), désormais empêché à la création par le
+  // garde-fou de ajouterSession, mais qui pouvait déjà exister avant. Pour
+  // chaque doublon trouvé : la première occurrence garde son libellé
+  // d'origine, les suivantes sont renommées (territoire ajouté), leur code
+  // interne déplacé en conséquence, et les inscriptions déjà sur l'ancien
+  // libellé réaffectées vers le nouveau UNIQUEMENT si leur propre territoire
+  // déclaré correspond à cette occurrence précise — le seul repère fiable
+  // disponible pour savoir de qui il s'agissait vraiment.
+  const corrigerDoublons = async () => {
+    const occurrences: { parcoursId: string; territoire: string; date: string }[] = [];
+    Object.entries(sessions).forEach(([parcoursId, parTerritoire]) => {
+      Object.entries(parTerritoire).forEach(([territoire, dates]) => {
+        dates.forEach((date) => occurrences.push({ parcoursId, territoire, date }));
+      });
+    });
+    const parLibelle = new Map<string, typeof occurrences>();
+    occurrences.forEach((o) => {
+      const liste = parLibelle.get(o.date) || [];
+      liste.push(o);
+      parLibelle.set(o.date, liste);
+    });
+
+    let sessionsMaj = sessions;
+    let codesMaj = codes;
+    let nombreCorrections = 0;
+    let nombreDoublons = 0;
+
+    for (const occs of parLibelle.values()) {
+      if (occs.length <= 1) continue;
+      nombreDoublons++;
+      for (let i = 1; i < occs.length; i++) {
+        const { parcoursId, territoire, date } = occs[i];
+        const nouveauLibelle = `${date} (${territoire})`;
+        const pourParcours = sessionsMaj[parcoursId] || {};
+        const datesActuelles = pourParcours[territoire] || [];
+        sessionsMaj = {
+          ...sessionsMaj,
+          [parcoursId]: { ...pourParcours, [territoire]: datesActuelles.map((d) => (d === date ? nouveauLibelle : d)) },
+        };
+        const ancienneCle = `${parcoursId}|${territoire}|${date}`;
+        const nouvelleCle = `${parcoursId}|${territoire}|${nouveauLibelle}`;
+        if (codesMaj[ancienneCle]) {
+          const { [ancienneCle]: code, ...reste } = codesMaj;
+          codesMaj = { ...reste, [nouvelleCle]: code };
+        }
+        const snapAReaffecter = await getDocs(
+          query(collection(db, "inscriptions_numerikup"), where("Session", "==", date), where("Territoire", "==", territoire))
+        );
+        await Promise.all(snapAReaffecter.docs.map((d) => updateDoc(doc(db, "inscriptions_numerikup", d.id), { Session: nouveauLibelle })));
+        nombreCorrections += snapAReaffecter.size;
+      }
+    }
+
+    if (nombreDoublons === 0) {
+      alert("Aucun doublon de session trouvé.");
+      return;
+    }
+
+    setSessions(sessionsMaj);
+    setCodes(codesMaj);
+    await sauvegarderSessions(sessionsMaj, codesMaj);
+    alert(`${nombreDoublons} doublon(s) corrigé(s) — ${nombreCorrections} inscription(s) réaffectée(s) selon leur territoire.`);
   };
 
   const supprimerSession = async (parcours: string, territoire: string, valeur: string) => {
@@ -388,10 +470,21 @@ export default function ParametresNumerikUpPage() {
 
         {/* SESSIONS */}
         <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-4">
-          <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Sessions ({lignesSessions.length})</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Sessions ({lignesSessions.length})</h2>
+            <button
+              type="button"
+              onClick={corrigerDoublons}
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3 py-1.5 rounded-xl text-[#005259] transition-all text-[10px] font-bold uppercase tracking-wider shadow-sm cursor-pointer"
+              title="Détecte deux sessions au libellé strictement identique et sépare les inscriptions déjà affectées selon leur territoire déclaré"
+            >
+              <WrenchScrewdriverIcon className="w-3.5 h-3.5" />
+              <span>Corriger les doublons</span>
+            </button>
+          </div>
 
           {/* Ajout d'une nouvelle session */}
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-6 gap-2 items-end">
             <div>
               <label className={labelClass}>Parkours</label>
               <select value={nouvelleSessionParcours} onChange={(e) => setNouvelleSessionParcours(e.target.value)} className={inputClass}>
@@ -413,17 +506,24 @@ export default function ParametresNumerikUpPage() {
                 className={inputClass}
               />
             </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className={labelClass}>Date de fin</label>
-                <input
-                  type="date"
-                  value={nouvelleSessionFin}
-                  onChange={(e) => setNouvelleSessionFin(e.target.value)}
-                  className={inputClass}
-                />
-              </div>
-              <button type="button" onClick={ajouterSession} className="shrink-0 self-end px-3 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-xl transition-colors cursor-pointer">
+            <div>
+              <label className={labelClass}>Date de fin</label>
+              <input
+                type="date"
+                value={nouvelleSessionFin}
+                onChange={(e) => setNouvelleSessionFin(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Créneau</label>
+              <select value={nouvelleSessionCreneau} onChange={(e) => setNouvelleSessionCreneau(e.target.value)} className={inputClass}>
+                <option value="Matin">Matin</option>
+                <option value="Après-midi">Après-midi</option>
+              </select>
+            </div>
+            <div className="flex">
+              <button type="button" onClick={ajouterSession} className="w-full self-end px-3 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-xl transition-colors cursor-pointer flex items-center justify-center">
                 <PlusIcon className="w-4 h-4" />
               </button>
             </div>

@@ -7,8 +7,8 @@ export default function FormulaireDigitalUpPage() {
     <PlaceholderActionsCollectives
       titre="Formulaire Digital'UP"
       sousTitre="Inscription au programme Digital'UP"
-      retourHref="/mediation/rencontres-numeriques/actions-collectives/inscription"
-      retourLabel="Formulaire d'inscription"
+      retourHref="/mediation/rencontres-numeriques/actions-collectives/reponses/digital-up"
+      retourLabel="Réponses"
     />
   );
 }

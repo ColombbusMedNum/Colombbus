@@ -130,6 +130,16 @@ service cloud.firestore {
       allow update, delete: if isCoordinateurOuPlus();
     }
 
+    // Annuaire des prescripteurs (organisme + référent·e), partagé par les 3
+    // formulaires d'inscription ci-dessus (voir lib/prescripteurs.ts) — même
+    // politique d'écriture que les inscriptions elles-mêmes : un membre du
+    // staff peut créer/compléter une fiche prescripteur, seul le
+    // coordinateur+ peut en supprimer une (fusion de doublons).
+    match /prescripteurs/{docId} {
+      allow read, create, update: if isStaff();
+      allow delete: if isCoordinateurOuPlus();
+    }
+
     // Données opérationnelles : accessibles à tout le staff authentifié
     // (peu importe le rôle précis). C'est la même politique que celle qui
     // prévalait de fait avant cette mise en place de rules (aucune

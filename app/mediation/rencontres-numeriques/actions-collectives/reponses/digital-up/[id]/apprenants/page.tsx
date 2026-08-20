@@ -407,8 +407,16 @@ export default function ApprenantsDigitalUpSessionPage() {
                       <tr key={i.id} className="hover:bg-[#F3F3F2]/60 transition-colors align-top">
                         <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{index + 1}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Civilité || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{i.Prénom || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">{i.Nom || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">
+                          <Link href={`/mediation/rencontres-numeriques/actions-collectives/reponses/digital-up/${encodeURIComponent(sessionId)}/apprenants/${i.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
+                            {i.Prénom || "—"}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">
+                          <Link href={`/mediation/rencontres-numeriques/actions-collectives/reponses/digital-up/${encodeURIComponent(sessionId)}/apprenants/${i.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
+                            {i.Nom || "—"}
+                          </Link>
+                        </td>
                         <td className="px-3 py-2 text-center whitespace-nowrap">
                           {i.Age ? (
                             estMineur(i.Age) ? (

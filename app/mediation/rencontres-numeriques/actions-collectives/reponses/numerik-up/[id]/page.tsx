@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import { HomeIcon, MagnifyingGlassIcon, AcademicCapIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
+import SessionSelect from "@/components/SessionSelect";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -58,7 +59,6 @@ interface Inscription {
 
 const inputEditClass = "w-full min-w-[140px] px-2 py-1.5 bg-[#F3F3F2] border border-[#404040]/10 focus:border-[#005259] focus:bg-white rounded-lg text-[11px] text-[#404040] outline-none font-medium transition-colors";
 
-const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
 
 // Colonnes figées (#, Civilité, Prénom, Nom, Téléphone) — restent visibles
 // pendant le défilement horizontal du tableau, très large avec ses colonnes
@@ -88,8 +88,10 @@ export default function ReponsesNumerikUpSessionPage() {
   // sessions[parcoursId][territoire] = liste de dates de session, telles que
   // définies sur la page de paramètres — sert de source pour les sélecteurs.
   const [sessions, setSessions] = useState<Record<string, Record<string, string[]>>>({});
-  const [territoiresListe, setTerritoiresListe] = useState<string[]>(TERRITOIRES_DEFAUT);
-  const [territoireSelectionne, setTerritoireSelectionne] = useState("");
+  // codes["parcoursId|territoire|date"] = code interne défini sur la page de
+  // paramètres — jamais affiché sur le formulaire public, mais utile ici pour
+  // identifier une session sans avoir à lire ses dates en toutes lettres.
+  const [codes, setCodes] = useState<Record<string, string>>({});
 
   // Décalages "left" des colonnes figées, calculés à partir de la largeur
   // réelle (offsetWidth) de chaque colonne — offsetLeft est peu fiable à
@@ -130,20 +132,50 @@ export default function ReponsesNumerikUpSessionPage() {
     return () => window.removeEventListener("resize", mesurer);
   });
 
+  // Barre de défilement horizontal dupliquée en haut du tableau — synchronisée
+  // avec le défilement réel pour éviter d'avoir à descendre tout en bas
+  // (même mécanisme que sur les pages Réponses).
+  const scrollHautRef = useRef<HTMLDivElement>(null);
+  const scrollTableRef = useRef<HTMLDivElement>(null);
+  const [largeurTable, setLargeurTable] = useState(0);
+  const synchroniseEnCours = useRef(false);
+
+  useEffect(() => {
+    const mettreAJourLargeur = () => {
+      if (scrollTableRef.current) setLargeurTable(scrollTableRef.current.scrollWidth);
+    };
+    mettreAJourLargeur();
+    window.addEventListener("resize", mettreAJourLargeur);
+    return () => window.removeEventListener("resize", mettreAJourLargeur);
+  });
+
+  const surScrollHaut = () => {
+    if (synchroniseEnCours.current) { synchroniseEnCours.current = false; return; }
+    if (scrollHautRef.current && scrollTableRef.current) {
+      synchroniseEnCours.current = true;
+      scrollTableRef.current.scrollLeft = scrollHautRef.current.scrollLeft;
+    }
+  };
+
+  const surScrollTable = () => {
+    if (synchroniseEnCours.current) { synchroniseEnCours.current = false; return; }
+    if (scrollHautRef.current && scrollTableRef.current) {
+      synchroniseEnCours.current = true;
+      scrollHautRef.current.scrollLeft = scrollTableRef.current.scrollLeft;
+    }
+  };
+
   useEffect(() => {
     const charger = async () => {
       try {
-        const [snapInscriptions, snapSessions, snapTerritoires] = await Promise.all([
+        const [snapInscriptions, snapSessions] = await Promise.all([
           getDocs(query(collection(db, "inscriptions_numerikup"), orderBy("createdAt", "desc"))),
           getDoc(doc(db, "configuration_numerikup", "sessions")),
-          getDoc(doc(db, "configuration_numerikup", "territoires")),
         ]);
         setInscriptions(snapInscriptions.docs.map((d) => ({ id: d.id, ...d.data() } as Inscription)));
         if (snapSessions.exists()) {
           setSessions(snapSessions.data().parTerritoire || {});
-        }
-        if (snapTerritoires.exists() && Array.isArray(snapTerritoires.data().liste) && snapTerritoires.data().liste.length > 0) {
-          setTerritoiresListe(snapTerritoires.data().liste);
+          setCodes(snapSessions.data().codes || {});
         }
       } catch (error) {
         console.error("Erreur lors du chargement des inscriptions Numérik'UP :", error);
@@ -173,42 +205,31 @@ export default function ReponsesNumerikUpSessionPage() {
     return Array.from(trouves).join(" / ");
   }, [sessions, sessionId]);
 
-  // Initialise le territoire sélectionné sur celui de la session en cours
-  // dès que la configuration est chargée, sinon le premier disponible.
-  // Synchronise toujours le territoire affiché sur celui de la session en
-  // cours dès qu'il est connu — sans ce "toujours" (et avec un simple garde
-  // "si déjà défini, ne pas y toucher"), changer de territoire déclenchait
-  // une navigation vers une nouvelle session dont les données arrivent après
-  // le rendu : le repli sur territoiresListe[0] ("91") se posait en premier
-  // et restait bloqué, empêchant la vraie valeur de session de s'appliquer.
-  useEffect(() => {
-    if (territoireDeSession) {
-      setTerritoireSelectionne(territoireDeSession.split(" / ")[0]);
-    } else if (territoiresListe.length > 0 && !territoireSelectionne) {
-      setTerritoireSelectionne(territoiresListe[0]);
-    }
-  }, [territoireDeSession, territoiresListe]);
-
-  // Sessions du territoire sélectionné, tous parkours confondus — reprend
-  // la configuration définie sur la page de paramètres.
-  const sessionsDuTerritoire = useMemo(
-    () => Array.from(new Set(Object.values(sessions).flatMap((parTerritoire) => parTerritoire[territoireSelectionne] || []))).sort((a, b) => a.localeCompare(b, "fr")),
-    [sessions, territoireSelectionne]
-  );
-
   const changerSession = (nouvelleSession: string) => {
     router.push(`/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up/${encodeURIComponent(nouvelleSession)}`);
   };
 
-  // Changer de territoire bascule automatiquement sur sa première session,
-  // puisque la session affichée doit toujours appartenir au territoire choisi.
-  const changerTerritoire = (nouveauTerritoire: string) => {
-    setTerritoireSelectionne(nouveauTerritoire);
-    const datesDuTerritoire = Array.from(new Set(Object.values(sessions).flatMap((parTerritoire) => parTerritoire[nouveauTerritoire] || []))).sort((a, b) => a.localeCompare(b, "fr"));
-    if (datesDuTerritoire.length > 0) {
-      changerSession(datesDuTerritoire[0]);
+  // Retrouve le code interne d'une session à partir de sa date, en cherchant
+  // le parkours/territoire auquel elle appartient — les codes sont
+  // enregistrés par "parcoursId|territoire|date" sur la page de paramètres.
+  // Retombe sur la date si aucun code n'a encore été généré.
+  const codeDeSession = (date: string) => {
+    for (const [parcoursId, parTerritoire] of Object.entries(sessions)) {
+      for (const [territoire, dates] of Object.entries(parTerritoire)) {
+        if (dates.includes(date)) return codes[`${parcoursId}|${territoire}|${date}`] || date;
+      }
     }
+    return date;
   };
+
+  // Toutes les sessions, tous territoires et parkours confondus — le code
+  // interne identifie déjà la session sans ambiguïté (il encode le
+  // territoire, ex. "MN26_NKUP-91_01"), donc plus besoin de filtrer par
+  // territoire pour la retrouver.
+  const toutesLesSessions = useMemo(
+    () => Array.from(new Set(Object.values(sessions).flatMap((parTerritoire) => Object.values(parTerritoire).flat()))).sort((a, b) => codeDeSession(a).localeCompare(codeDeSession(b), "fr")),
+    [sessions, codes]
+  );
 
   const inscriptionsFiltrees = useMemo(() => {
     const terme = recherche.trim().toLowerCase();
@@ -254,36 +275,19 @@ export default function ReponsesNumerikUpSessionPage() {
                 Préinscriptions <span className="text-[#EA601F] font-semibold">Numérik'UP</span>
               </h1>
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
-                Session : {sessionId || "—"}{territoireDeSession && ` — Territoire : ${territoireDeSession}`} — {inscriptionsSession.length} inscription{inscriptionsSession.length > 1 ? "s" : ""} affectée{inscriptionsSession.length > 1 ? "s" : ""} au suivi
+                Session : {sessionId ? codeDeSession(sessionId) : "—"}{territoireDeSession && ` — Territoire : ${territoireDeSession}`} — {inscriptionsSession.length} inscription{inscriptionsSession.length > 1 ? "s" : ""} affectée{inscriptionsSession.length > 1 ? "s" : ""} au suivi
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
-            {territoiresListe.length > 0 && (
-              <select
-                value={territoireSelectionne}
-                onChange={(e) => changerTerritoire(e.target.value)}
-                className="bg-white border border-[#404040]/10 rounded-xl px-3 py-2 text-xs text-[#404040] outline-none font-medium shadow-sm"
-              >
-                {territoiresListe.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            )}
-            {sessionsDuTerritoire.length > 0 && (
-              <select
+            {toutesLesSessions.length > 0 && (
+              <SessionSelect
                 value={sessionId}
-                onChange={(e) => changerSession(e.target.value)}
-                className="bg-white border border-[#404040]/10 rounded-xl px-3 py-2 text-xs text-[#404040] outline-none font-medium shadow-sm max-w-[240px]"
-              >
-                {!sessionsDuTerritoire.includes(sessionId) && sessionId && (
-                  <option value={sessionId}>{sessionId}</option>
-                )}
-                {sessionsDuTerritoire.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+                options={!toutesLesSessions.includes(sessionId) && sessionId ? [sessionId, ...toutesLesSessions] : toutesLesSessions}
+                resoudreLabel={codeDeSession}
+                onChange={(s) => s && changerSession(s)}
+              />
             )}
             <Link
               href={`/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up/${encodeURIComponent(sessionId)}/apprenants`}
@@ -316,9 +320,16 @@ export default function ReponsesNumerikUpSessionPage() {
           />
         </div>
 
+        {/* BARRE DE DÉFILEMENT HORIZONTAL (haut) — collée en haut de l'écran
+            au défilement vertical, sinon elle sort du cadre et devient
+            inutilisable dès qu'on descend dans le tableau. */}
+        <div ref={scrollHautRef} onScroll={surScrollHaut} className="sticky top-0 z-30 bg-[#F3F3F2] py-1.5 overflow-x-auto overflow-y-hidden">
+          <div style={{ width: largeurTable, height: 1 }}></div>
+        </div>
+
         {/* TABLEAU */}
         <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          <div ref={scrollTableRef} onScroll={surScrollTable} className="overflow-x-auto">
             {/* border-separate (et non border-collapse) : indispensable pour que les
                 colonnes figées (position: sticky) masquent correctement le contenu
                 des colonnes défilantes qui passent dessous — avec border-collapse,

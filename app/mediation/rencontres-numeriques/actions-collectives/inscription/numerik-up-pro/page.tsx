@@ -9,6 +9,10 @@ import { HomeIcon, ArrowLeftIcon, Cog6ToothIcon } from "@heroicons/react/24/outl
 import PageGuard from "@/components/PageGuard";
 import { useToast } from "@/components/ToastProvider";
 import { usePermissions } from "@/lib/PermissionsProvider";
+import PrescripteurAutocomplete from "@/components/PrescripteurAutocomplete";
+import { chargerPrescripteurs, upsertPrescripteur } from "@/lib/prescripteurs";
+import { formatNom, formatPrenom } from "@/lib/formatName";
+import { formatPhoneForStorage } from "@/lib/formatPhone";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -21,7 +25,8 @@ interface Parcours {
 }
 
 const PARCOURS_DEFAUT: Parcours[] = [
-  { id: "numerikup-pro", label: "Numérik'UP Pro" },
+  { id: "numerikpro-tech", label: "Numérik'Pro Tech" },
+  { id: "numerikpro-marketing", label: "Numérik'Pro Marketing" },
 ];
 
 // Les dates de session varient selon le territoire (département) : chaque
@@ -30,22 +35,18 @@ const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
 
 const TRANCHES_AGE = ["16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "+ de 26 ans"];
 
+// Reprend les intitulés réels observés dans les réponses Numérik'Pro —
+// plus détaillés que la liste Numérik'UP d'origine ("Infra brevet" et
+// "Supérieur à Bac +3" existent bien comme réponses réelles), plus une
+// option "Autre" en texte libre pour les cas non standard.
 const NIVEAUX_ETUDES = [
+  "Infra brevet",
   "Brevet, CAP, BEP",
   "Bac",
   "Bac+2 (L2, BTS, DUT, DEUST)",
   "Bac+3 (Licence, licence professionnelle)",
   "Bac+4/5 et plus",
-];
-
-const STRUCTURES = [
-  "Mission locale",
-  "E2C (Ecole de la deuxième chance)",
-  "Pôle Emploi",
-  "PLIE",
-  "Epide",
-  "PJJ",
-  "Aucune",
+  "Supérieur à Bac +3",
   "Autre",
 ];
 
@@ -76,11 +77,11 @@ const FORM_VIDE = {
   rsa: "Non",
   neet: "Non",
   cej: "Non",
-  niveauEtudes: NIVEAUX_ETUDES[0],
+  niveauEtudes: "Bac",
+  niveauEtudesAutre: "",
   franceTravail: "Non",
   identifiantFranceTravail: "",
-  structureAccompagnement: STRUCTURES[0],
-  structureAutre: "",
+  structureAccompagnement: "",
   conseillerNom: "",
   conseillerPrenom: "",
   conseillerEmail: "",
@@ -180,9 +181,9 @@ export default function FormulaireNumerikUpProPage() {
     try {
       await addDoc(collection(db, "inscriptions_numerikuppro"), {
         Civilité: formData.civilite,
-        Nom: formData.nom.toUpperCase(),
-        Prénom: formData.prenom,
-        Téléphone: formData.telephone,
+        Nom: formatNom(formData.nom),
+        Prénom: formatPrenom(formData.prenom),
+        Téléphone: formatPhoneForStorage(formData.telephone),
         Email: formData.email,
         Code_Postal: formData.codePostal,
         Ville: formData.ville,
@@ -193,15 +194,14 @@ export default function FormulaireNumerikUpProPage() {
         RSA: formData.rsa,
         NEET: formData.neet,
         CEJ: formData.cej,
-        Niveau_Etudes: formData.niveauEtudes,
+        Niveau_Etudes: formData.niveauEtudes === "Autre" ? formData.niveauEtudesAutre : formData.niveauEtudes,
         France_Travail: formData.franceTravail,
         Identifiant_France_Travail: formData.franceTravail === "Oui" ? formData.identifiantFranceTravail : "",
         Structure_Accompagnement: formData.structureAccompagnement,
-        Structure_Autre: formData.structureAccompagnement === "Autre" ? formData.structureAutre : "",
-        Conseiller_Nom: formData.conseillerNom,
-        Conseiller_Prenom: formData.conseillerPrenom,
+        Conseiller_Nom: formatNom(formData.conseillerNom),
+        Conseiller_Prenom: formatPrenom(formData.conseillerPrenom),
         Conseiller_Email: formData.conseillerEmail,
-        Conseiller_Telephone: formData.conseillerTelephone,
+        Conseiller_Telephone: formatPhoneForStorage(formData.conseillerTelephone),
         Comment_Connu: formData.commentConnu === "Autre" ? formData.commentConnuAutre : formData.commentConnu,
         Parcours: parcoursListe.find((p) => p.id === formData.parcours)?.label || formData.parcours,
         Projet_Professionnel: formData.projetProfessionnel,
@@ -212,6 +212,19 @@ export default function FormulaireNumerikUpProPage() {
         Consentement_Partage_Simulation: formData.consentementPartageSimulation,
         createdAt: serverTimestamp(),
       });
+
+      try {
+        const prescripteurs = await chargerPrescripteurs();
+        await upsertPrescripteur(prescripteurs, {
+          organisme: formData.structureAccompagnement,
+          referentPrenom: formatPrenom(formData.conseillerPrenom),
+          referentNom: formatNom(formData.conseillerNom),
+          referentTelephone: formatPhoneForStorage(formData.conseillerTelephone),
+          referentEmail: formData.conseillerEmail,
+        });
+      } catch (error) {
+        console.error("Erreur lors de la mise à jour de l'annuaire des prescripteurs :", error);
+      }
 
       showToast("Inscription enregistrée avec succès.", "success");
       setFormData(FORM_VIDE);
@@ -248,11 +261,11 @@ export default function FormulaireNumerikUpProPage() {
 
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
             <Link
-              href="/mediation/rencontres-numeriques/actions-collectives/inscription"
+              href="/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up-pro"
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >
               <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Formulaire d'inscription</span>
+              <span>Réponses</span>
             </Link>
             <Link
               href="/"
@@ -439,12 +452,22 @@ export default function FormulaireNumerikUpProPage() {
                 <select value={formData.niveauEtudes} onChange={(e) => setFormData({ ...formData, niveauEtudes: e.target.value })} className={inputClass}>
                   {NIVEAUX_ETUDES.map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
+                {formData.niveauEtudes === "Autre" && (
+                  <input
+                    type="text"
+                    value={formData.niveauEtudesAutre}
+                    onChange={(e) => setFormData({ ...formData, niveauEtudesAutre: e.target.value })}
+                    placeholder="Préciser le niveau d'études"
+                    className={`${inputClass} mt-2`}
+                  />
+                )}
               </div>
               <div>
                 <label className={labelClass}>Inscrit.e à France Travail ?</label>
                 <select value={formData.franceTravail} onChange={(e) => setFormData({ ...formData, franceTravail: e.target.value })} className={inputClass}>
                   <option value="Oui">Oui</option>
                   <option value="Non">Non</option>
+                  <option value="Inscription en cours">Inscription en cours</option>
                 </select>
               </div>
               {formData.franceTravail === "Oui" && (
@@ -471,24 +494,17 @@ export default function FormulaireNumerikUpProPage() {
 
             <div>
               <label className={labelClass}>Quelle est la structure d'accompagnement du / de la participant.e ?</label>
-              <select
+              {/* Texte libre plutôt qu'une liste fermée : les vraies réponses citent
+                  des dizaines de structures différentes (missions locales par
+                  antenne, PLIE, E2C, France Travail, associations locales...),
+                  bien trop variées pour une liste prédéfinie. */}
+              <input
+                type="text"
                 value={formData.structureAccompagnement}
                 onChange={(e) => setFormData({ ...formData, structureAccompagnement: e.target.value })}
+                placeholder="Ex : Mission locale de Paris, France Travail, PLIE, E2C..."
                 className={inputClass}
-              >
-                {STRUCTURES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-              {formData.structureAccompagnement === "Autre" && (
-                <input
-                  type="text"
-                  value={formData.structureAutre}
-                  onChange={(e) => setFormData({ ...formData, structureAutre: e.target.value })}
-                  placeholder="Préciser la structure"
-                  className={`${inputClass} mt-2`}
-                />
-              )}
+              />
             </div>
 
             <div className="flex justify-between pt-2 border-t border-[#404040]/10">
@@ -506,24 +522,24 @@ export default function FormulaireNumerikUpProPage() {
           {etape === 4 && (
           <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-4">
             <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Conseiller.e référent.e</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className={labelClass}>Nom (majuscules)</label>
-                <input type="text" value={formData.conseillerNom} onChange={(e) => setFormData({ ...formData, conseillerNom: e.target.value })} className={inputClass} />
-              </div>
-              <div>
-                <label className={labelClass}>Prénom</label>
-                <input type="text" value={formData.conseillerPrenom} onChange={(e) => setFormData({ ...formData, conseillerPrenom: e.target.value })} className={inputClass} />
-              </div>
-              <div>
-                <label className={labelClass}>Email</label>
-                <input type="email" value={formData.conseillerEmail} onChange={(e) => setFormData({ ...formData, conseillerEmail: e.target.value })} className={inputClass} />
-              </div>
-              <div>
-                <label className={labelClass}>Téléphone</label>
-                <input type="tel" value={formData.conseillerTelephone} onChange={(e) => setFormData({ ...formData, conseillerTelephone: e.target.value })} className={inputClass} />
-              </div>
-            </div>
+            <PrescripteurAutocomplete
+              prenom={formData.conseillerPrenom}
+              nom={formData.conseillerNom}
+              telephone={formData.conseillerTelephone}
+              email={formData.conseillerEmail}
+              onChange={({ prenom, nom, telephone, email, organisme }) =>
+                setFormData({
+                  ...formData,
+                  conseillerPrenom: prenom,
+                  conseillerNom: nom,
+                  conseillerTelephone: telephone,
+                  conseillerEmail: email,
+                  structureAccompagnement: organisme || formData.structureAccompagnement,
+                })
+              }
+              inputClass={inputClass}
+              labelClass={labelClass}
+            />
 
             <div className="flex justify-between pt-2 border-t border-[#404040]/10">
               <button type="button" onClick={etapePrecedente} className="px-5 py-2 bg-white hover:bg-[#F3F3F2] border border-[#404040]/10 text-[#404040] rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer">
@@ -573,7 +589,7 @@ export default function FormulaireNumerikUpProPage() {
                 onChange={(e) => setFormData({ ...formData, rgpd: e.target.checked })}
                 className="mt-0.5 w-4 h-4 accent-[#005259] cursor-pointer"
               />
-              <span>J'autorise le traitement des données collectées en conformité avec la loi RGPD 2018. *</span>
+              <span>J'ai compris les informations ci-dessus et j'accepte que mes données personnelles soient collectées et utilisées aux fins décrites, en conformité avec la loi RGPD 2018. *</span>
             </label>
 
             <label className="flex items-start gap-2.5 text-xs text-[#404040] cursor-pointer">

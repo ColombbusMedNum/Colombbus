@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import { Quicksand } from "next/font/google";
 import { auth, db } from "../../lib/firebase";
 import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from "firebase/auth";
 import { collection, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { normalizeRole } from "../../lib/roles";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { LockClosedIcon, EnvelopeIcon, ShieldExclamationIcon, ArrowRightEndOnRectangleIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 
 const quicksand = Quicksand({
@@ -16,11 +16,24 @@ const quicksand = Quicksand({
 });
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(
+    searchParams.get("motDePasseDefini") === "1"
+      ? "Mot de passe défini avec succès ! Vous pouvez désormais vous connecter avec vos identifiants."
+      : null
+  );
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -139,7 +152,10 @@ export default function LoginPage() {
         return;
       }
 
-      await sendPasswordResetEmail(auth, emailNettoye);
+      await sendPasswordResetEmail(auth, emailNettoye, {
+        url: `${window.location.origin}/reset-password`,
+        handleCodeInApp: true,
+      });
       setSuccessMessage(
         "Un e-mail de configuration / récupération de mot de passe vient de vous être envoyé. Pensez à vérifier vos spams !"
       );

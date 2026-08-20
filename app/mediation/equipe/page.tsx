@@ -382,7 +382,10 @@ export default function GestionEquipe() {
       const { id, ...data } = m;
       await setDoc(doc(db, "liste_mediateurs", credential.user.uid), data);
       await deleteDoc(doc(db, "liste_mediateurs", m.id));
-      await sendPasswordResetEmail(auth, m.email);
+      await sendPasswordResetEmail(auth, m.email, {
+        url: `${window.location.origin}/reset-password`,
+        handleCodeInApp: true,
+      });
       showToast("Compte créé et e-mail de configuration envoyé avec succès.");
     } catch (err: any) {
       console.error(err);

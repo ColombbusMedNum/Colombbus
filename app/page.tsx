@@ -33,6 +33,7 @@ import {
   BriefcaseIcon,
   ChevronLeftIcon,
   Cog6ToothIcon,
+  IdentificationIcon,
 } from "@heroicons/react/24/outline";
 
 const quicksand = Quicksand({
@@ -172,6 +173,7 @@ const NAV_TREE: NavNode[] = [
         ],
       },
       { id: "equipe", kind: "leaf", accent: "teal", icon: UserGroupIcon, title: "Équipe", subtitle: "Gérer et créer les fiches du staff", actionId: "home_nav_equipe", fallbackLocked: true, href: "/mediation/equipe" },
+      { id: "participants", kind: "leaf", accent: "orange", icon: IdentificationIcon, title: "Participants & Prescripteurs", subtitle: "Vue transversale des 3 programmes d'actions collectives", actionId: "home_nav_participants", href: "/mediation/rencontres-numeriques/actions-collectives/participants" },
       {
         id: "stats", kind: "folder", accent: "teal", icon: ChartBarIcon,
         title: "Statistiques & Bilans", subtitle: "Rapports globaux et impact Suresnes",
