@@ -1918,6 +1918,12 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
         const cardBg = hexToRgba(hexColor, isLight ? 0.35 : 0.12);
 
         const peutCliquer = canOpenCommentaire || canCreateSlot;
+        const horaireTexte = a.debut && a.fin ? `${a.debut} - ${a.fin}` : "";
+        const infosBulle = [
+          horaireTexte,
+          hasCommentaire ? `Note : ${a.commentaire}` : "",
+          !hasCommentaire && peutCliquer ? "Cliquer pour modifier ou commenter" : "",
+        ].filter(Boolean).join(" — ") || undefined;
         return (
           <div
             key={a.id}
@@ -1933,9 +1939,9 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
               opacity: idGlisse === a.id ? 0.4 : 1
             }}
             className={`px-1.5 py-0.5 rounded border text-[10px] font-bold flex items-center justify-between w-full min-h-[24px] hover:shadow-sm transition-all relative ${peutCliquer ? "cursor-pointer" : ""} ${peutGlisser ? "cursor-grab active:cursor-grabbing" : ""}`}
-            title={peutCliquer ? (hasCommentaire ? `Note : ${a.commentaire}` : "Cliquer pour modifier ou commenter") : (hasCommentaire ? `Note : ${a.commentaire}` : undefined)}
+            title={infosBulle}
           >
-            <span className="truncate pr-3" title={`${moment} : ${a.lieu}`}>
+            <span className="truncate pr-3" title={[`${moment} : ${a.lieu}`, horaireTexte].filter(Boolean).join(" — ")}>
               {a.lieu} {territorio && <span className="text-[8px] opacity-70">[{territorio}]</span>}
             </span>
 
