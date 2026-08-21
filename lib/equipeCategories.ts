@@ -12,9 +12,11 @@ export interface CategorieEquipe {
 export const CATEGORIES_EQUIPE: CategorieEquipe[] = [
   { key: "cadres", label: "Cadres", filtre: (m) => m.statut === "Cadre" },
   { key: "permanents", label: "Permanents", filtre: (m) => m.statut === "Permanent" },
+  { key: "cip", label: "CIP", filtre: (m) => m.statut === "CIP" },
+  { key: "prestataires", label: "Prestataires", filtre: (m) => m.statut === "Prestataire" },
+  { key: "stagiaires", label: "Stagiaires", filtre: (m) => m.statut === "Stagiaire" },
   { key: "aci_massy", label: "ACI Massy", filtre: (m) => m.statut === "ACI" && (m.rattachementHoraireACI || "Paris") === "Massy" },
   { key: "aci_paris", label: "ACI Paris", filtre: (m) => m.statut === "ACI" && (m.rattachementHoraireACI || "Paris") === "Paris" },
-  { key: "stagiaires", label: "Stagiaires", filtre: (m) => m.statut === "Stagiaire" },
 ];
 
 export function regrouperParCategorie<T extends { id: string }>(membres: T[]): (CategorieEquipe & { membres: T[] })[] {

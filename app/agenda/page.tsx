@@ -156,6 +156,17 @@ export default function PlanningExpertMix() {
     dateStr: string;
   } | null>(null);
   const [promptLieuInput, setPromptLieuInput] = useState("");
+  // Heures optionnelles pour une action créée sans modèle — un modèle porte
+  // déjà ses propres horaires (selectedModel.debut/fin), donc ces champs ne
+  // servent qu'à cette création "libre".
+  const [promptDebutInput, setPromptDebutInput] = useState("");
+  const [promptFinInput, setPromptFinInput] = useState("");
+
+  // Choix "Modifier / Commenter" proposé au clic sur une case déjà remplie,
+  // puis état de la modale de modification (lieu + horaires d'une action
+  // existante) si "Modifier" est choisi.
+  const [choixActionData, setChoixActionData] = useState<ActionPlanning | null>(null);
+  const [editActionData, setEditActionData] = useState<{ id: string; lieu: string; debut: string; fin: string } | null>(null);
 
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -176,8 +187,12 @@ export default function PlanningExpertMix() {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const toggleSection = (key: string) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
   const [categoriesOuvertesAgenda, setCategoriesOuvertesAgenda] = useState<Record<string, boolean>>({
-    cadres: true, permanents: true, aci_massy: true, aci_paris: true, stagiaires: true, autres: true,
+    cadres: true, permanents: true, cip: true, prestataires: true, aci_massy: true, aci_paris: true, stagiaires: true, autres: true,
   });
+  // Case à cocher par catégorie pour masquer entièrement son bloc (en-tête
+  // compris) — distinct du chevron d'Accordion qui ne fait que replier le
+  // contenu en laissant l'en-tête visible.
+  const [categoriesVisibles, setCategoriesVisibles] = useState<Record<string, boolean>>({});
 
   const currentWeekId = getWeekIdentifier(currentDate);
   const estSemaineValidee = !!semainesValidees[currentWeekId];
@@ -199,8 +214,11 @@ export default function PlanningExpertMix() {
   const getStatusPriority = (statut: string) => {
     if (statut === "Cadre") return 1;
     if (statut === "Permanent") return 2;
-    if (statut === "ACI") return 3;
-    return 4;
+    if (statut === "CIP") return 3;
+    if (statut === "Prestataire") return 4;
+    if (statut === "Stagiaire") return 5;
+    if (statut === "ACI") return 6;
+    return 7;
   };
 
   useEffect(() => {
@@ -552,12 +570,13 @@ export default function PlanningExpertMix() {
   }));
 
   const processActionCreation = async (
-    mediatId: string, 
-    prenom: string, 
-    nom: string, 
-    moment: string, 
-    dateStr: string, 
-    lieuInput: string
+    mediatId: string,
+    prenom: string,
+    nom: string,
+    moment: string,
+    dateStr: string,
+    lieuInput: string,
+    horaireManuel?: { debut: string; fin: string } | null
   ) => {
     let lieu = lieuInput;
     if (!lieu) return;
@@ -605,17 +624,26 @@ export default function PlanningExpertMix() {
 
     const aDejaAction = actions.some((a) => estActionDuMediateur(a, { id: mediatId, prenom, nom }) && a.date === dateStr && a.moment === moment);
 
+    // Nouvelle action posée en dernière position de sa demi-journée (voir le
+    // champ "ordre", réordonnable ensuite par glisser-déposer dans DayCell).
+    const ordreMax = actions
+      .filter((x) => estActionDuMediateur(x, { id: mediatId, prenom, nom }) && x.date === dateStr && x.moment === moment)
+      .reduce((max, x) => Math.max(max, x.ordre ?? 0), -1);
+
     await addDoc(collection(db, "planning_mediateurs"), {
-      mediatId: mediatId, 
-      mediateurNom: nomCompletLiaison, 
-      moment, 
-      date: dateStr, 
-      lieu, 
+      mediatId: mediatId,
+      mediateurNom: nomCompletLiaison,
+      moment,
+      date: dateStr,
+      lieu,
       type: "Action",
       commentaire: "",
+      ordre: ordreMax + 1,
       couleur: selectedModel?.couleur || "#005259",
       ...(selectedModel?.adresse ? { adresse: selectedModel.adresse } : {}),
-      ...(horaireOverride
+      ...(horaireManuel
+        ? { debut: horaireManuel.debut, fin: horaireManuel.fin }
+        : horaireOverride
         ? { debut: horaireOverride.debut, fin: horaireOverride.fin }
         : selectedModel?.debut ? { debut: selectedModel.debut, fin: selectedModel.fin } : {}),
       ...(selectedModel?.territoire ? { territoire: selectedModel.territoire } : {}),
@@ -670,6 +698,8 @@ export default function PlanningExpertMix() {
       await processActionCreation(mediatId, prenom, nom, moment, dateStr, selectedModel.lieu);
     } else {
       setPromptLieuInput("");
+      setPromptDebutInput("");
+      setPromptFinInput("");
       setPromptModalData({ mediatId, prenom, nom, moment, dateStr });
     }
   };
@@ -680,11 +710,14 @@ export default function PlanningExpertMix() {
 
     const { mediatId, prenom, nom, moment, dateStr } = promptModalData;
     const lieu = promptLieuInput.trim();
-    
+    const horaireManuel = promptDebutInput && promptFinInput ? { debut: promptDebutInput, fin: promptFinInput } : null;
+
     setPromptModalData(null);
     setPromptLieuInput("");
+    setPromptDebutInput("");
+    setPromptFinInput("");
 
-    await processActionCreation(mediatId, prenom, nom, moment, dateStr, lieu);
+    await processActionCreation(mediatId, prenom, nom, moment, dateStr, lieu, horaireManuel);
   };
 
   const handleEditCommentaire = (actionId: string, currentCommentaire: string) => {
@@ -695,6 +728,42 @@ export default function PlanningExpertMix() {
       inputText: currentCommentaire || "",
       readOnly: estSemaineValidee || !canEditComment
     });
+  };
+
+  // Clic sur une case déjà remplie : propose de la modifier (lieu/horaires)
+  // ou de la commenter, plutôt que d'ouvrir directement le commentaire comme
+  // avant — les deux actions n'étaient pas différenciables au clic.
+  const handleSlotClick = (action: ActionPlanning) => {
+    if (!canCreateSlot && !canViewComment && !canEditComment) return;
+    setChoixActionData(action);
+  };
+
+  const handleDemarrerEditionAction = () => {
+    if (!choixActionData) return;
+    setEditActionData({
+      id: choixActionData.id,
+      lieu: choixActionData.lieu || "",
+      debut: choixActionData.debut || "",
+      fin: choixActionData.fin || ""
+    });
+    setChoixActionData(null);
+  };
+
+  const handleConfirmEditAction = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editActionData || !editActionData.lieu.trim()) return;
+    const { id, lieu, debut, fin } = editActionData;
+    setEditActionData(null);
+    const champs: { lieu: string; debut?: string; fin?: string } = { lieu: lieu.trim() };
+    if (debut && fin) {
+      champs.debut = debut;
+      champs.fin = fin;
+    }
+    try {
+      await updateDoc(doc(db, "planning_mediateurs", id), champs);
+    } catch (error) {
+      console.error("Erreur lors de la modification de l'action :", error);
+    }
   };
 
   const handleSaveCommentaire = async (supprimer = false) => {
@@ -1141,7 +1210,25 @@ export default function PlanningExpertMix() {
             })}
           </div>
 
-          {groupesMediateursAgenda.map(groupe => (
+          {/* Case à cocher par catégorie pour masquer entièrement son bloc
+              (en-tête compris) — le chevron d'Accordion, lui, ne fait que
+              replier le contenu en laissant l'en-tête visible. */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 bg-white border border-[#404040]/10 rounded-xl px-4 py-2 shadow-sm text-xs">
+            <span className="font-extrabold uppercase text-[10px] text-[#404040]/50 tracking-wide">Afficher :</span>
+            {groupesMediateursAgenda.map(groupe => (
+              <label key={groupe.key} className="flex items-center gap-1.5 font-bold text-[#404040] cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={categoriesVisibles[groupe.key] ?? true}
+                  onChange={() => setCategoriesVisibles(prev => ({ ...prev, [groupe.key]: !(prev[groupe.key] ?? true) }))}
+                  className="cursor-pointer"
+                />
+                {groupe.label}
+              </label>
+            ))}
+          </div>
+
+          {groupesMediateursAgenda.filter(groupe => categoriesVisibles[groupe.key] ?? true).map(groupe => (
             <Accordion
               key={groupe.key}
               title={`${groupe.label} (${groupe.membres.length})`}
@@ -1219,8 +1306,8 @@ export default function PlanningExpertMix() {
                             return (
                               <div key={dateStr} className={`p-1 border-b border-l border-[#F3F3F2] align-top ${estFerie ? "bg-[#EF736A]/5" : rowBgClass} ${m.masque ? 'opacity-40' : ''}`}>
                                 <div className="grid grid-cols-2 gap-1 min-h-[38px]">
-                                  <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
-                                  <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
+                                  <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} onSlotClick={handleSlotClick} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
+                                  <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} onSlotClick={handleSlotClick} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
                                 </div>
                               </div>
                             );
@@ -1301,14 +1388,35 @@ export default function PlanningExpertMix() {
 
             <div className="flex flex-col gap-1">
               <label className="text-[10px] text-[#404040] font-bold uppercase">Nom ou lieu de l'action</label>
-              <input 
+              <input
                 autoFocus
                 required
-                placeholder="Ex: Permanence, RN Suresnes..." 
-                value={promptLieuInput} 
+                placeholder="Ex: Permanence, RN Suresnes..."
+                value={promptLieuInput}
                 onChange={(e) => setPromptLieuInput(e.target.value)}
-                className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none font-semibold focus:border-[#005259]" 
+                className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none font-semibold focus:border-[#005259]"
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-[#404040] font-bold uppercase">Heure de début</label>
+                <input
+                  type="time"
+                  value={promptDebutInput}
+                  onChange={(e) => setPromptDebutInput(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none font-semibold focus:border-[#005259]"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-[#404040] font-bold uppercase">Heure de fin</label>
+                <input
+                  type="time"
+                  value={promptFinInput}
+                  onChange={(e) => setPromptFinInput(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none font-semibold focus:border-[#005259]"
+                />
+              </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2 border-t border-[#F3F3F2]">
@@ -1324,6 +1432,103 @@ export default function PlanningExpertMix() {
                 className="bg-[#005259] hover:bg-[#003d42] text-white px-4 py-1.5 rounded-lg text-xs font-bold"
               >
                 Valider
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* MODALE CHOIX MODIFIER / COMMENTER (clic sur une case déjà remplie) */}
+      {choixActionData && (
+        <div className="fixed inset-0 bg-[#005259]/40 backdrop-blur-xs flex items-center justify-center z-[130] p-4" onClick={() => setChoixActionData(null)}>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white border border-[#404040]/10 p-5 rounded-xl w-full max-w-xs space-y-3 shadow-2xl text-[#404040]"
+          >
+            <div className="flex justify-between items-center border-b border-[#F3F3F2] pb-2">
+              <h3 className="font-bold text-sm text-[#005259] truncate pr-2">{choixActionData.lieu}</h3>
+              <button type="button" onClick={() => setChoixActionData(null)} className="text-[#404040]/50 hover:text-[#404040] shrink-0">
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex flex-col gap-2 pt-1">
+              {canCreateSlot && !estSemaineValidee && (
+                <button
+                  type="button"
+                  onClick={handleDemarrerEditionAction}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#005259]/10 hover:bg-[#005259] hover:text-white text-[#005259] text-xs font-bold uppercase tracking-wide transition-colors cursor-pointer"
+                >
+                  <PencilSquareIcon className="w-4 h-4" />
+                  Modifier
+                </button>
+              )}
+              {(canViewComment || canEditComment) && (
+                <button
+                  type="button"
+                  onClick={() => { handleEditCommentaire(choixActionData.id, choixActionData.commentaire || ""); setChoixActionData(null); }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#EA601F]/10 hover:bg-[#EA601F] hover:text-white text-[#EA601F] text-xs font-bold uppercase tracking-wide transition-colors cursor-pointer"
+                >
+                  <ChatBubbleLeftRightIcon className="w-4 h-4" />
+                  Commenter
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODALE MODIFICATION D'UNE ACTION EXISTANTE */}
+      {editActionData && (
+        <div className="fixed inset-0 bg-[#005259]/40 backdrop-blur-xs flex items-center justify-center z-[130] p-4">
+          <form
+            onSubmit={handleConfirmEditAction}
+            className="bg-white border border-[#404040]/10 p-5 rounded-xl w-full max-w-xs space-y-3 shadow-2xl text-[#404040]"
+          >
+            <div className="flex justify-between items-center border-b border-[#F3F3F2] pb-2">
+              <h3 className="font-bold text-sm text-[#005259]">Modifier l'action</h3>
+              <button type="button" onClick={() => setEditActionData(null)} className="text-[#404040]/50 hover:text-[#404040]">
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] text-[#404040] font-bold uppercase">Nom ou lieu de l'action</label>
+              <input
+                autoFocus
+                required
+                value={editActionData.lieu}
+                onChange={(e) => setEditActionData({ ...editActionData, lieu: e.target.value })}
+                className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none font-semibold focus:border-[#005259]"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-[#404040] font-bold uppercase">Heure de début</label>
+                <input
+                  type="time"
+                  value={editActionData.debut}
+                  onChange={(e) => setEditActionData({ ...editActionData, debut: e.target.value })}
+                  className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none font-semibold focus:border-[#005259]"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-[#404040] font-bold uppercase">Heure de fin</label>
+                <input
+                  type="time"
+                  value={editActionData.fin}
+                  onChange={(e) => setEditActionData({ ...editActionData, fin: e.target.value })}
+                  className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none font-semibold focus:border-[#005259]"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-[#F3F3F2]">
+              <button type="button" onClick={() => setEditActionData(null)} className="text-[#404040]/60 text-xs px-2 font-bold">
+                Annuler
+              </button>
+              <button type="submit" className="bg-[#005259] hover:bg-[#003d42] text-white px-4 py-1.5 rounded-lg text-xs font-bold">
+                Enregistrer
               </button>
             </div>
           </form>
@@ -1422,6 +1627,9 @@ export default function PlanningExpertMix() {
             <select className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none font-bold" value={newMed.statut} onChange={e => setNewMed({...newMed, statut: e.target.value})}>
               <option value="Cadre">Cadre</option>
               <option value="Permanent">Permanent</option>
+              <option value="CIP">CIP</option>
+              <option value="Prestataire">Prestataire</option>
+              <option value="Stagiaire">Stagiaire</option>
               <option value="ACI">ACI</option>
             </select>
             <div className="flex gap-2 pt-2">
@@ -1668,15 +1876,36 @@ interface DayCellProps {
   onAdd: () => void;
   onDelete: (id: string) => void;
   onEditCommentaire: (actionId: string, currentCommentaire: string) => void;
+  onSlotClick: (action: ActionPlanning) => void;
   estSemaineValidee: boolean;
   canCreateSlot: boolean;
   canDeleteSlot: boolean;
   canOpenCommentaire: boolean;
 }
 
-function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire, estSemaineValidee, canCreateSlot, canDeleteSlot, canOpenCommentaire }: DayCellProps) {
-  const filtered = actions.filter((a) => estActionDuMediateur(a, m) && a.date === date && a.moment === moment);
-  
+function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire, onSlotClick, estSemaineValidee, canCreateSlot, canDeleteSlot, canOpenCommentaire }: DayCellProps) {
+  const filtered = [...actions]
+    .filter((a) => estActionDuMediateur(a, m) && a.date === date && a.moment === moment)
+    .sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
+
+  const [idGlisse, setIdGlisse] = useState<string | null>(null);
+  const peutGlisser = !estSemaineValidee && canCreateSlot && filtered.length > 1;
+
+  // Glisser-déposer pour réordonner librement les actions d'une même
+  // demi-journée — remplace l'ordre d'arrivée Firestore par le champ "ordre",
+  // recalculé pour toute la cellule à chaque dépôt afin de rester persistant.
+  const deposer = async (idCible: string) => {
+    if (!idGlisse || idGlisse === idCible) { setIdGlisse(null); return; }
+    const indexSource = filtered.findIndex((a) => a.id === idGlisse);
+    const indexCible = filtered.findIndex((a) => a.id === idCible);
+    setIdGlisse(null);
+    if (indexSource === -1 || indexCible === -1) return;
+    const reordonnes = [...filtered];
+    const [retire] = reordonnes.splice(indexSource, 1);
+    reordonnes.splice(indexCible, 0, retire);
+    await Promise.all(reordonnes.map((a, index) => (a.ordre === index ? Promise.resolve() : updateDoc(doc(db, "planning_mediateurs", a.id), { ordre: index }))));
+  };
+
   return (
     <div className="flex flex-col relative group/cell h-full justify-start gap-1 min-h-[36px] bg-[#F3F3F2]/40 p-0.5 rounded border border-transparent hover:border-[#404040]/10 transition-colors">
       {filtered.map((a) => {
@@ -1688,17 +1917,23 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
         const textColor = isLight ? "#1A1A1A" : hexColor;
         const cardBg = hexToRgba(hexColor, isLight ? 0.35 : 0.12);
 
+        const peutCliquer = canOpenCommentaire || canCreateSlot;
         return (
           <div
             key={a.id}
-            onClick={canOpenCommentaire ? () => onEditCommentaire(a.id, a.commentaire || "") : undefined}
+            onClick={peutCliquer ? () => onSlotClick(a) : undefined}
+            draggable={peutGlisser}
+            onDragStart={peutGlisser ? (e) => { e.stopPropagation(); setIdGlisse(a.id); } : undefined}
+            onDragOver={peutGlisser ? (e) => e.preventDefault() : undefined}
+            onDrop={peutGlisser ? (e) => { e.preventDefault(); e.stopPropagation(); deposer(a.id); } : undefined}
             style={{
               backgroundColor: cardBg,
               borderColor: hexColor,
-              color: textColor
+              color: textColor,
+              opacity: idGlisse === a.id ? 0.4 : 1
             }}
-            className={`px-1.5 py-0.5 rounded border text-[10px] font-bold flex items-center justify-between w-full min-h-[24px] hover:shadow-sm transition-all relative ${canOpenCommentaire ? "cursor-pointer" : ""}`}
-            title={canOpenCommentaire ? (hasCommentaire ? `Note : ${a.commentaire}` : "Cliquer pour ajouter une note") : (hasCommentaire ? `Note : ${a.commentaire}` : undefined)}
+            className={`px-1.5 py-0.5 rounded border text-[10px] font-bold flex items-center justify-between w-full min-h-[24px] hover:shadow-sm transition-all relative ${peutCliquer ? "cursor-pointer" : ""} ${peutGlisser ? "cursor-grab active:cursor-grabbing" : ""}`}
+            title={peutCliquer ? (hasCommentaire ? `Note : ${a.commentaire}` : "Cliquer pour modifier ou commenter") : (hasCommentaire ? `Note : ${a.commentaire}` : undefined)}
           >
             <span className="truncate pr-3" title={`${moment} : ${a.lieu}`}>
               {a.lieu} {territorio && <span className="text-[8px] opacity-70">[{territorio}]</span>}

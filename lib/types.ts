@@ -55,4 +55,8 @@ export interface ActionPlanning {
   fin?: string;
   territoire?: string;
   codeAnalytique?: string;
+  // Position au sein de sa demi-journée (mediatId + date + moment) —
+  // réordonnable par glisser-déposer sur l'agenda, plutôt que figée sur
+  // l'ordre d'arrivée Firestore.
+  ordre?: number;
 }

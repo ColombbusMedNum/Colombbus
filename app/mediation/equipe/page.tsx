@@ -836,6 +836,8 @@ export default function GestionEquipe() {
                     <select className="w-full p-3 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl outline-none font-bold" value={formData.statut} onChange={e => setFormData({...formData, statut: e.target.value})}>
                       <option value="Permanent">Permanent</option>
                       <option value="Cadre">Cadre</option>
+                      <option value="CIP">CIP</option>
+                      <option value="Prestataire">Prestataire</option>
                       <option value="Stagiaire">Stagiaire</option>
                       <option value="ACI">ACI</option>
                     </select>
