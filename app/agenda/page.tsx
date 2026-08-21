@@ -69,6 +69,37 @@ function isLightColor(hex: string): boolean {
   return luminance > 0.6;
 }
 
+// Fenêtres horaires standard d'une demi-journée — une action saisie sur une
+// seule demi-journée mais dont l'horaire déborde sur l'autre (ex. 09h30-17h00
+// saisi le matin) doit se refléter sur les deux cases, chacune recadrée sur
+// sa propre fenêtre (voir DayCell : natifs vs reflets).
+const FENETRES_DEMI_JOURNEE: Record<string, { debut: string; fin: string }> = {
+  "Matin": { debut: "10:00", fin: "13:00" },
+  "Après-midi": { debut: "14:00", fin: "17:00" },
+};
+
+function versMinutes(heure: string): number {
+  const [h, m] = heure.split(":").map((v) => parseInt(v, 10));
+  return (h || 0) * 60 + (m || 0);
+}
+
+function versHeure(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+// Recadre l'horaire affiché d'une action sur la fenêtre standard de la
+// demi-journée courante — sans effet si l'action tient déjà entièrement dans
+// cette fenêtre (cas normal), ou si elle n'a pas d'horaire renseigné.
+function recadrerHoraire(a: ActionPlanning, fenetre: { debut: string; fin: string }): ActionPlanning {
+  if (!a.debut || !a.fin) return a;
+  const debutRecadre = Math.max(versMinutes(a.debut), versMinutes(fenetre.debut));
+  const finRecadree = Math.min(versMinutes(a.fin), versMinutes(fenetre.fin));
+  if (debutRecadre >= finRecadree) return a;
+  return { ...a, debut: versHeure(debutRecadre), fin: versHeure(finRecadree) };
+}
+
 // Assombrit une couleur claire pour l'utiliser en texte sur fond blanc/quasi-blanc
 // (ex: badges de bloc thématique) : la couleur d'origine reste utilisée telle
 // quelle pour les pastilles/fonds, seul le texte a besoin de contraste suffisant.
@@ -1884,23 +1915,43 @@ interface DayCellProps {
 }
 
 function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire, onSlotClick, estSemaineValidee, canCreateSlot, canDeleteSlot, canOpenCommentaire }: DayCellProps) {
-  const filtered = [...actions]
+  const fenetre = FENETRES_DEMI_JOURNEE[moment] || FENETRES_DEMI_JOURNEE["Matin"];
+  const autreMoment = moment === "Matin" ? "Après-midi" : "Matin";
+
+  const natifs = [...actions]
     .filter((a) => estActionDuMediateur(a, m) && a.date === date && a.moment === moment)
     .sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
 
+  // Une action saisie sur l'autre demi-journée mais dont l'horaire déborde
+  // sur celle-ci (ex. 09h30-17h00 saisi le matin) apparaît aussi ici, en
+  // lecture seule (la vraie fiche reste modifiable uniquement depuis sa case
+  // d'origine), avec l'horaire recadré sur la fenêtre standard de cette
+  // demi-journée plutôt que l'horaire brut de l'action.
+  const reflets = actions.filter((a) =>
+    estActionDuMediateur(a, m) && a.date === date && a.moment === autreMoment && a.debut && a.fin &&
+    versMinutes(a.debut) < versMinutes(fenetre.fin) && versMinutes(a.fin) > versMinutes(fenetre.debut)
+  );
+
+  const filtered = [
+    ...natifs.map((a) => ({ action: recadrerHoraire(a, fenetre), estReflet: false })),
+    ...reflets.map((a) => ({ action: recadrerHoraire(a, fenetre), estReflet: true })),
+  ];
+
   const [idGlisse, setIdGlisse] = useState<string | null>(null);
-  const peutGlisser = !estSemaineValidee && canCreateSlot && filtered.length > 1;
+  const peutGlisser = !estSemaineValidee && canCreateSlot && natifs.length > 1;
 
   // Glisser-déposer pour réordonner librement les actions d'une même
   // demi-journée — remplace l'ordre d'arrivée Firestore par le champ "ordre",
   // recalculé pour toute la cellule à chaque dépôt afin de rester persistant.
+  // Ne porte que sur les actions natives de cette cellule, jamais sur un
+  // reflet dont la vraie fiche appartient à l'autre demi-journée.
   const deposer = async (idCible: string) => {
     if (!idGlisse || idGlisse === idCible) { setIdGlisse(null); return; }
-    const indexSource = filtered.findIndex((a) => a.id === idGlisse);
-    const indexCible = filtered.findIndex((a) => a.id === idCible);
+    const indexSource = natifs.findIndex((a) => a.id === idGlisse);
+    const indexCible = natifs.findIndex((a) => a.id === idCible);
     setIdGlisse(null);
     if (indexSource === -1 || indexCible === -1) return;
-    const reordonnes = [...filtered];
+    const reordonnes = [...natifs];
     const [retire] = reordonnes.splice(indexSource, 1);
     reordonnes.splice(indexCible, 0, retire);
     await Promise.all(reordonnes.map((a, index) => (a.ordre === index ? Promise.resolve() : updateDoc(doc(db, "planning_mediateurs", a.id), { ordre: index }))));
@@ -1908,7 +1959,7 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
 
   return (
     <div className="flex flex-col relative group/cell h-full justify-start gap-1 min-h-[36px] bg-[#F3F3F2]/40 p-0.5 rounded border border-transparent hover:border-[#404040]/10 transition-colors">
-      {filtered.map((a) => {
+      {filtered.map(({ action: a, estReflet }) => {
         const territorio = a.territoire || "";
         const hexColor = a.couleur || "#005259";
         const hasCommentaire = !!a.commentaire;
@@ -1917,10 +1968,12 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
         const textColor = isLight ? "#1A1A1A" : hexColor;
         const cardBg = hexToRgba(hexColor, isLight ? 0.35 : 0.12);
 
-        const peutCliquer = canOpenCommentaire || canCreateSlot;
+        const peutCliquer = !estReflet && (canOpenCommentaire || canCreateSlot);
+        const peutGlisserCet = peutGlisser && !estReflet;
         const horaireTexte = a.debut && a.fin ? `${a.debut} - ${a.fin}` : "";
         const infosBulle = [
           horaireTexte,
+          estReflet ? "Suite de l'action de l'autre demi-journée" : "",
           hasCommentaire ? `Note : ${a.commentaire}` : "",
           !hasCommentaire && peutCliquer ? "Cliquer pour modifier ou commenter" : "",
         ].filter(Boolean).join(" — ") || undefined;
@@ -1928,30 +1981,30 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
           <div
             key={a.id}
             onClick={peutCliquer ? () => onSlotClick(a) : undefined}
-            draggable={peutGlisser}
-            onDragStart={peutGlisser ? (e) => { e.stopPropagation(); setIdGlisse(a.id); } : undefined}
-            onDragOver={peutGlisser ? (e) => e.preventDefault() : undefined}
-            onDrop={peutGlisser ? (e) => { e.preventDefault(); e.stopPropagation(); deposer(a.id); } : undefined}
+            draggable={peutGlisserCet}
+            onDragStart={peutGlisserCet ? (e) => { e.stopPropagation(); setIdGlisse(a.id); } : undefined}
+            onDragOver={peutGlisserCet ? (e) => e.preventDefault() : undefined}
+            onDrop={peutGlisserCet ? (e) => { e.preventDefault(); e.stopPropagation(); deposer(a.id); } : undefined}
             style={{
               backgroundColor: cardBg,
               borderColor: hexColor,
               color: textColor,
-              opacity: idGlisse === a.id ? 0.4 : 1
+              opacity: estReflet ? 0.55 : (idGlisse === a.id ? 0.4 : 1)
             }}
-            className={`px-1.5 py-0.5 rounded border text-[10px] font-bold flex items-center justify-between w-full min-h-[24px] hover:shadow-sm transition-all relative ${peutCliquer ? "cursor-pointer" : ""} ${peutGlisser ? "cursor-grab active:cursor-grabbing" : ""}`}
+            className={`px-1.5 py-0.5 rounded border text-[10px] font-bold flex items-center justify-between w-full min-h-[24px] hover:shadow-sm transition-all relative ${estReflet ? "border-dashed" : ""} ${peutCliquer ? "cursor-pointer" : ""} ${peutGlisserCet ? "cursor-grab active:cursor-grabbing" : ""}`}
             title={infosBulle}
           >
             <span className="truncate pr-3" title={[`${moment} : ${a.lieu}`, horaireTexte].filter(Boolean).join(" — ")}>
               {a.lieu} {territorio && <span className="text-[8px] opacity-70">[{territorio}]</span>}
             </span>
 
-            {hasCommentaire && (
+            {!estReflet && hasCommentaire && (
               <span className="absolute right-5 top-1 text-[#EA601F]">
                 <ChatBubbleLeftRightIcon className="w-2.5 h-2.5 fill-[#EA601F]/20" />
               </span>
             )}
 
-            {!estSemaineValidee && canDeleteSlot && (
+            {!estReflet && !estSemaineValidee && canDeleteSlot && (
               <button
                 onClick={(e) => { e.stopPropagation(); onDelete(a.id); }}
                 className="hover:text-[#EF736A] p-0.5 shrink-0 z-10"
@@ -1964,7 +2017,7 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
         );
       })}
 
-      {filtered.length === 0 ? (
+      {natifs.length === 0 ? (
         canCreateSlot && (
         <button
           onClick={onAdd}
