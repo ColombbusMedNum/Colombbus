@@ -48,7 +48,7 @@ interface Programme {
 const PROGRAMMES: Programme[] = [
   { id: "numerikup", label: "Numérik'UP", collection: "inscriptions_numerikup", configCollection: "configuration_numerikup", accent: "#005259" },
   { id: "digitalup", label: "Digital'UP", collection: "inscriptions_digitalup", configCollection: "configuration_digitalup", accent: "#EA601F" },
-  { id: "numerikuppro", label: "Numérik'UP Pro", collection: "inscriptions_numerikuppro", configCollection: "configuration_numerikuppro", accent: "#7C1FD1" },
+  { id: "numerikuppro", label: "NUMERIK PRO", collection: "inscriptions_numerikuppro", configCollection: "configuration_numerikuppro", accent: "#7C1FD1" },
 ];
 
 // sessions[parcoursId][territoire] = dates de session ; codes["parcoursId|territoire|date"]
@@ -97,7 +97,7 @@ const cleMatchPrescripteur = (p: Prescripteur) => `nom:${normalise(p.referentNom
 const clePrescripteurDeInscription = (i: InscriptionBase) => `nom:${normalise(i.Conseiller_Nom)}|${normalise(i.Conseiller_Prenom)}`;
 
 // L'organisme provient de champs différents selon le programme : texte libre
-// pour Numérik'UP Pro, cases à cocher (+ "Autre") pour Numérik'UP/Digital'UP.
+// pour NUMERIK PRO, cases à cocher (+ "Autre") pour Numérik'UP/Digital'UP.
 const organismeDeInscription = (programmeId: string, i: InscriptionBase): string => {
   if (programmeId === "numerikuppro") return i.Structure_Accompagnement || i.Structure_Autre || "";
   return [...(i.Structures_Accompagnement || []), i.Structure_Autre].filter(Boolean).join(", ");
@@ -517,7 +517,7 @@ export default function ParticipantsPage() {
                 Participants <span className="text-[#EA601F] font-semibold">& Prescripteurs</span>
               </h1>
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
-                Vue transversale Numérik'UP / Digital'UP / Numérik'UP Pro —{" "}
+                Vue transversale Numérik'UP / Digital'UP / NUMERIK PRO —{" "}
                 {vue === "participants"
                   ? `${participants.length} personne${participants.length > 1 ? "s" : ""} positionnée${participants.length > 1 ? "s" : ""}`
                   : vue === "prescripteurs"

@@ -197,7 +197,7 @@ function SousGroupe({ titre, children }: { titre: string; children: React.ReactN
   );
 }
 
-// Fiche consolidée d'un·e apprenant·e Numérik'UP Pro : regroupe en un seul
+// Fiche consolidée d'un·e apprenant·e NUMERIK PRO : regroupe en un seul
 // écran ce qui est aujourd'hui réparti entre Réponses, Suivi de recrutement,
 // Apprenant·e·s, Évolution et Absences, en lisant un unique document
 // Firestore.

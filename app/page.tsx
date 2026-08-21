@@ -129,19 +129,19 @@ const NAV_TREE: NavNode[] = [
   },
   {
     id: "insertion-pro", kind: "folder", accent: "teal", icon: BriefcaseIcon,
-    title: "Insertion Professionnelle", subtitle: "Programme Numérik'UP Pro",
+    title: "Insertion Professionnelle", subtitle: "Programme NUMERIK PRO",
     actionId: "home_folder_insertion_pro",
     children: [
       {
         id: "nkpro-tech", kind: "folder", accent: "orange", icon: BriefcaseIcon,
-        title: "NKPRO Tech", subtitle: "Préinscriptions, apprenant·e·s et suivi Numérik'UP Pro",
+        title: "NUMERIK PRO", subtitle: "Préinscriptions, apprenant·e·s et suivi NUMERIK PRO",
         actionId: "home_nav_nkpro_tech",
         children: [
-          { id: "nkpro-inscription", kind: "leaf", accent: "orange", icon: DocumentPlusIcon, title: "Formulaire d'inscription Numérik'UP Pro", subtitle: "Inscription au programme Numérik'UP Pro", actionId: "home_nav_nkpro_inscription", href: "/mediation/rencontres-numeriques/actions-collectives/inscription/numerik-up-pro" },
-          { id: "nkpro-reponses", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Réponses au formulaire Numérik'UP Pro", subtitle: "Préinscriptions reçues au programme Numérik'UP Pro", actionId: "home_nav_nkpro_reponses", href: "/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up-pro" },
+          { id: "nkpro-inscription", kind: "leaf", accent: "orange", icon: DocumentPlusIcon, title: "Formulaire d'inscription NUMERIK PRO", subtitle: "Inscription au programme NUMERIK PRO", actionId: "home_nav_nkpro_inscription", href: "/mediation/rencontres-numeriques/actions-collectives/inscription/numerik-up-pro" },
+          { id: "nkpro-reponses", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Réponses au formulaire NUMERIK PRO", subtitle: "Préinscriptions reçues au programme NUMERIK PRO", actionId: "home_nav_nkpro_reponses", href: "/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up-pro" },
           { id: "nkpro-suivi", kind: "leaf", accent: "teal", icon: UsersIcon, title: "Suivi de recrutement", subtitle: "Apprenant·e·s retenu·e·s, session par session", actionId: "home_nav_nkpro_suivi", href: "/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up-pro/suivi-recrutement" },
-          { id: "nkpro-stats", kind: "leaf", accent: "orange", icon: ChartPieIcon, title: "Statistiques Numérik'UP Pro", subtitle: "Sexe, âge, diplôme et taux de présence par session", actionId: "home_nav_nkpro_stats", href: "/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up-pro/statistiques" },
-          { id: "nkpro-parametres", kind: "leaf", accent: "orange", icon: Cog6ToothIcon, title: "Paramètres Numérik'UP Pro", subtitle: "Gérer les parcours, territoires et sessions", actionId: "home_nav_nkpro_parametres", href: "/mediation/rencontres-numeriques/actions-collectives/inscription/numerik-up-pro/parametres" },
+          { id: "nkpro-stats", kind: "leaf", accent: "orange", icon: ChartPieIcon, title: "Statistiques NUMERIK PRO", subtitle: "Sexe, âge, diplôme et taux de présence par session", actionId: "home_nav_nkpro_stats", href: "/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up-pro/statistiques" },
+          { id: "nkpro-parametres", kind: "leaf", accent: "orange", icon: Cog6ToothIcon, title: "Paramètres NUMERIK PRO", subtitle: "Gérer les parcours, territoires et sessions", actionId: "home_nav_nkpro_parametres", href: "/mediation/rencontres-numeriques/actions-collectives/inscription/numerik-up-pro/parametres" },
         ],
       },
     ],

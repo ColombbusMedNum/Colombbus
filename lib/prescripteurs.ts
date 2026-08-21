@@ -2,7 +2,7 @@ import { db } from "@/lib/firebase";
 import { addDoc, collection, getDocs, serverTimestamp } from "firebase/firestore";
 
 // Annuaire centralisé des prescripteurs (organisme + référent·e), partagé par
-// les 3 formulaires d'inscription (Numérik'UP, Digital'UP, Numérik'UP Pro) —
+// les 3 formulaires d'inscription (Numérik'UP, Digital'UP, NUMERIK PRO) —
 // évite que la même Mission locale / le même conseiller ressaisi à chaque
 // inscription finisse par exister sous des orthographes légèrement
 // différentes.

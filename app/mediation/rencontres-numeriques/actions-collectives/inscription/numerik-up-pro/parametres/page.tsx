@@ -323,7 +323,7 @@ export default function ParametresNumerikUpProPage() {
             <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
             <div>
               <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
-                Gérer <span className="text-[#EA601F] font-semibold">Numérik'UP Pro</span>
+                Gérer <span className="text-[#EA601F] font-semibold">NUMERIK PRO</span>
               </h1>
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
                 Parkours, territoires et sessions du formulaire d'inscription
@@ -337,7 +337,7 @@ export default function ParametresNumerikUpProPage() {
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >
               <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Formulaire Numérik'UP Pro</span>
+              <span>Formulaire NUMERIK PRO</span>
             </Link>
             <Link
               href="/"

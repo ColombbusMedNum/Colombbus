@@ -230,7 +230,7 @@ export default function FormulaireNumerikUpProPage() {
       setFormData(FORM_VIDE);
       setEtape(1);
     } catch (error) {
-      console.error("Erreur lors de l'enregistrement de l'inscription Numérik'UP Pro :", error);
+      console.error("Erreur lors de l'enregistrement de l'inscription NUMERIK PRO :", error);
       showToast("Une erreur est survenue lors de l'enregistrement.", "error");
     } finally {
       setEnvoiEnCours(false);
@@ -251,10 +251,10 @@ export default function FormulaireNumerikUpProPage() {
             <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
             <div>
               <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
-                Formulaire <span className="text-[#EA601F] font-semibold">Numérik'UP Pro</span>
+                Formulaire <span className="text-[#EA601F] font-semibold">NUMERIK PRO</span>
               </h1>
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
-                Pré-inscription au parcours Numérik'UP Pro
+                Pré-inscription au parcours NUMERIK PRO
               </p>
             </div>
           </div>

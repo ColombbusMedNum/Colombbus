@@ -17,7 +17,7 @@ interface Props extends Valeurs {
 }
 
 // Autocomplétion partagée par les 3 formulaires d'inscription (Numérik'UP,
-// Digital'UP, Numérik'UP Pro) pour le bloc "conseiller·e référent·e" — évite
+// Digital'UP, NUMERIK PRO) pour le bloc "conseiller·e référent·e" — évite
 // de ressaisir en texte libre un·e référent·e déjà connu·e, seul point
 // commun aux 3 programmes (contrairement à Structure_Accompagnement, dont la
 // forme diffère selon le programme).

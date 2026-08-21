@@ -303,7 +303,7 @@ export default function ImporterNumerikUpProPage() {
       setLignesParsees([]);
       setNomFichier("");
     } catch (error) {
-      console.error("Erreur lors de l'import des préinscriptions Numérik'UP Pro :", error);
+      console.error("Erreur lors de l'import des préinscriptions NUMERIK PRO :", error);
       setResultat("Une erreur est survenue pendant l'import — voir la console.");
     } finally {
       setEnCours(false);

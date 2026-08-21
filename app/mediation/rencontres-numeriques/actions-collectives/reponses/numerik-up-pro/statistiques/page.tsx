@@ -181,7 +181,7 @@ function BlocStats({ titre, stats }: { titre: string; stats: Stats }) {
   );
 }
 
-// Statistiques annuelles de toutes les actions Numérik'UP Pro : tous
+// Statistiques annuelles de toutes les actions NUMERIK PRO : tous
 // territoires confondus, puis détaillées par territoire.
 export default function StatistiquesNumerikUpProPage() {
   const anneeCourante = new Date().getFullYear();
@@ -375,10 +375,10 @@ export default function StatistiquesNumerikUpProPage() {
             <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
             <div>
               <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
-                Statistiques <span className="text-[#EA601F] font-semibold">Numérik'UP Pro</span>
+                Statistiques <span className="text-[#EA601F] font-semibold">NUMERIK PRO</span>
               </h1>
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
-                Toutes les actions Numérik'UP Pro de {annee} — {preinscriptionsAnnee.length} préinscription{preinscriptionsAnnee.length > 1 ? "s" : ""}
+                Toutes les actions NUMERIK PRO de {annee} — {preinscriptionsAnnee.length} préinscription{preinscriptionsAnnee.length > 1 ? "s" : ""}
               </p>
             </div>
           </div>

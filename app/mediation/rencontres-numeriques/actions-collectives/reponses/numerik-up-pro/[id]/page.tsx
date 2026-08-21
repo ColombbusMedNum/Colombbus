@@ -17,7 +17,7 @@ const quicksand = Quicksand({
 
 // Champs issus du formulaire de pré-inscription (lecture seule ici — ce sont
 // les réponses telles que soumises), puis champs de suivi de recrutement
-// propres à Numérik'UP Pro (renseignés par l'équipe à la main, d'après la
+// propres à NUMERIK PRO (renseignés par l'équipe à la main, d'après la
 // feuille de suivi des candidatures réelle).
 interface Inscription {
   id: string;
@@ -47,7 +47,7 @@ interface Inscription {
   // Coché sur /reponses/numerik-up-pro : détermine si la personne apparaît
   // ici, sur la page de suivi détaillé de sa session.
   Suivi_Recrutement?: boolean;
-  // Champs de suivi de recrutement propres à Numérik'UP Pro, absents du
+  // Champs de suivi de recrutement propres à NUMERIK PRO, absents du
   // formulaire d'origine, renseignés à la main par l'équipe directement ici
   // — reprennent la feuille "Suivi_Candidatures" réelle (session Paris 9h-13h).
   Convocation_Info_Collective?: string;
@@ -209,7 +209,7 @@ export default function ReponsesNumerikUpProSessionPage() {
           setTerritoiresListe(snapTerritoires.data().liste);
         }
       } catch (error) {
-        console.error("Erreur lors du chargement des inscriptions Numérik'UP Pro :", error);
+        console.error("Erreur lors du chargement des inscriptions NUMERIK PRO :", error);
       } finally {
         setLoading(false);
       }
@@ -326,7 +326,7 @@ export default function ReponsesNumerikUpProSessionPage() {
             <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
             <div>
               <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
-                Préinscriptions <span className="text-[#EA601F] font-semibold">Numérik'UP Pro</span>
+                Préinscriptions <span className="text-[#EA601F] font-semibold">NUMERIK PRO</span>
               </h1>
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
                 Session : {sessionId || "—"}{territoireDeSession && ` — Territoire : ${territoireDeSession}`} — {inscriptionsSession.length} inscription{inscriptionsSession.length > 1 ? "s" : ""} affectée{inscriptionsSession.length > 1 ? "s" : ""} au suivi

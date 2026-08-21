@@ -5,8 +5,8 @@ import PlaceholderActionsCollectives from "../_components/PlaceholderActionsColl
 export default function NumerikUpProPage() {
   return (
     <PlaceholderActionsCollectives
-      titre="Numérik'UP Pro"
-      sousTitre="Programme Numérik'UP Pro"
+      titre="NUMERIK PRO"
+      sousTitre="Programme NUMERIK PRO"
     />
   );
 }

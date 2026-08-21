@@ -221,7 +221,7 @@ export default function ReponsesNumerikUpProPage() {
           setCodes(snapSessions.data().codes || {});
         }
       } catch (error) {
-        console.error("Erreur lors du chargement des inscriptions Numérik'UP Pro :", error);
+        console.error("Erreur lors du chargement des inscriptions NUMERIK PRO :", error);
       } finally {
         setLoading(false);
       }
@@ -511,7 +511,7 @@ export default function ReponsesNumerikUpProPage() {
             <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
             <div>
               <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
-                Préinscriptions <span className="text-[#EA601F] font-semibold">Numérik'UP Pro</span>
+                Préinscriptions <span className="text-[#EA601F] font-semibold">NUMERIK PRO</span>
               </h1>
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
                 {inscriptions.length} inscription{inscriptions.length > 1 ? "s" : ""} reçue{inscriptions.length > 1 ? "s" : ""} — suivi de recrutement

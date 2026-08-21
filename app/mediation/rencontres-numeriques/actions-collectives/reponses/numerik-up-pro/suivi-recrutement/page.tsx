@@ -45,7 +45,7 @@ export default function SuiviRecrutementNumerikUpProRedirectPage() {
       <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex flex-col items-center justify-center gap-4 text-[#005259] p-8 text-center antialiased`}>
         {introuvable ? (
           <>
-            <p className="font-bold uppercase tracking-widest text-xs">Aucune session Numérik'UP Pro n'a encore été créée.</p>
+            <p className="font-bold uppercase tracking-widest text-xs">Aucune session NUMERIK PRO n'a encore été créée.</p>
             <Link
               href="/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up-pro"
               className="text-xs font-bold uppercase tracking-wider underline hover:text-[#EA601F] transition-colors"

@@ -145,7 +145,7 @@ export default function ApprenantsNumerikUpProSessionPage() {
     const noms = apprenantsSession
       .map((a) => `${encodeURIComponent(a.Prénom || "")}|${encodeURIComponent(a.Nom || "")}`)
       .join(";");
-    const params = new URLSearchParams({ intitule: "Numérik'UP Pro" });
+    const params = new URLSearchParams({ intitule: "NUMERIK PRO" });
     if (noms) params.set("noms", noms);
     return `/mediation/rencontres-numeriques/emargement?${params.toString()}`;
   }, [apprenantsSession]);

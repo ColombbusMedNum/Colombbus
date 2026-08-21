@@ -26,8 +26,8 @@ export default function ReponsesPage() {
         {
           href: "/mediation/rencontres-numeriques/actions-collectives/reponses/numerik-up-pro",
           icone: BriefcaseIcon,
-          titre: "Numérik'UP Pro",
-          sousTitre: "Inscriptions reçues au programme Numérik'UP Pro",
+          titre: "NUMERIK PRO",
+          sousTitre: "Inscriptions reçues au programme NUMERIK PRO",
         },
       ]}
     />
