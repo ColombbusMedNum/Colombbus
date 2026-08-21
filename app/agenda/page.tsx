@@ -69,10 +69,11 @@ function isLightColor(hex: string): boolean {
   return luminance > 0.6;
 }
 
-// Fenêtres horaires standard d'une demi-journée — une action saisie sur une
-// seule demi-journée mais dont l'horaire déborde sur l'autre (ex. 09h30-17h00
-// saisi le matin) doit se refléter sur les deux cases, chacune recadrée sur
-// sa propre fenêtre (voir DayCell : natifs vs reflets).
+// Fenêtres horaires standard d'une demi-journée — utilisées pour détecter
+// qu'une action saisie sur une seule demi-journée déborde sur l'autre (ex.
+// 09h30-17h00 saisi le matin) et composer le détail dans l'info-bulle de sa
+// case (voir DayCell : detailHoraire). La case reste unique, pas de carte
+// dupliquée sur l'autre demi-journée.
 const FENETRES_DEMI_JOURNEE: Record<string, { debut: string; fin: string }> = {
   "Matin": { debut: "10:00", fin: "13:00" },
   "Après-midi": { debut: "14:00", fin: "17:00" },
@@ -87,17 +88,6 @@ function versHeure(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-}
-
-// Recadre l'horaire affiché d'une action sur la fenêtre standard de la
-// demi-journée courante — sans effet si l'action tient déjà entièrement dans
-// cette fenêtre (cas normal), ou si elle n'a pas d'horaire renseigné.
-function recadrerHoraire(a: ActionPlanning, fenetre: { debut: string; fin: string }): ActionPlanning {
-  if (!a.debut || !a.fin) return a;
-  const debutRecadre = Math.max(versMinutes(a.debut), versMinutes(fenetre.debut));
-  const finRecadree = Math.min(versMinutes(a.fin), versMinutes(fenetre.fin));
-  if (debutRecadre >= finRecadree) return a;
-  return { ...a, debut: versHeure(debutRecadre), fin: versHeure(finRecadree) };
 }
 
 // Assombrit une couleur claire pour l'utiliser en texte sur fond blanc/quasi-blanc
@@ -661,6 +651,8 @@ export default function PlanningExpertMix() {
       .filter((x) => estActionDuMediateur(x, { id: mediatId, prenom, nom }) && x.date === dateStr && x.moment === moment)
       .reduce((max, x) => Math.max(max, x.ordre ?? 0), -1);
 
+    const horaireFinal = horaireManuel || horaireOverride || (selectedModel?.debut && selectedModel?.fin ? { debut: selectedModel.debut, fin: selectedModel.fin } : null);
+
     await addDoc(collection(db, "planning_mediateurs"), {
       mediatId: mediatId,
       mediateurNom: nomCompletLiaison,
@@ -672,11 +664,7 @@ export default function PlanningExpertMix() {
       ordre: ordreMax + 1,
       couleur: selectedModel?.couleur || "#005259",
       ...(selectedModel?.adresse ? { adresse: selectedModel.adresse } : {}),
-      ...(horaireManuel
-        ? { debut: horaireManuel.debut, fin: horaireManuel.fin }
-        : horaireOverride
-        ? { debut: horaireOverride.debut, fin: horaireOverride.fin }
-        : selectedModel?.debut ? { debut: selectedModel.debut, fin: selectedModel.fin } : {}),
+      ...(horaireFinal ? { debut: horaireFinal.debut, fin: horaireFinal.fin } : {}),
       ...(selectedModel?.territoire ? { territoire: selectedModel.territoire } : {}),
       ...(selectedModel?.codeAnalytique ? { codeAnalytique: selectedModel.codeAnalytique } : {})
     });
@@ -1915,27 +1903,9 @@ interface DayCellProps {
 }
 
 function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire, onSlotClick, estSemaineValidee, canCreateSlot, canDeleteSlot, canOpenCommentaire }: DayCellProps) {
-  const fenetre = FENETRES_DEMI_JOURNEE[moment] || FENETRES_DEMI_JOURNEE["Matin"];
-  const autreMoment = moment === "Matin" ? "Après-midi" : "Matin";
-
   const natifs = [...actions]
     .filter((a) => estActionDuMediateur(a, m) && a.date === date && a.moment === moment)
     .sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
-
-  // Une action saisie sur l'autre demi-journée mais dont l'horaire déborde
-  // sur celle-ci (ex. 09h30-17h00 saisi le matin) apparaît aussi ici, en
-  // lecture seule (la vraie fiche reste modifiable uniquement depuis sa case
-  // d'origine), avec l'horaire recadré sur la fenêtre standard de cette
-  // demi-journée plutôt que l'horaire brut de l'action.
-  const reflets = actions.filter((a) =>
-    estActionDuMediateur(a, m) && a.date === date && a.moment === autreMoment && a.debut && a.fin &&
-    versMinutes(a.debut) < versMinutes(fenetre.fin) && versMinutes(a.fin) > versMinutes(fenetre.debut)
-  );
-
-  const filtered = [
-    ...natifs.map((a) => ({ action: recadrerHoraire(a, fenetre), estReflet: false })),
-    ...reflets.map((a) => ({ action: recadrerHoraire(a, fenetre), estReflet: true })),
-  ];
 
   const [idGlisse, setIdGlisse] = useState<string | null>(null);
   const peutGlisser = !estSemaineValidee && canCreateSlot && natifs.length > 1;
@@ -1943,8 +1913,6 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
   // Glisser-déposer pour réordonner librement les actions d'une même
   // demi-journée — remplace l'ordre d'arrivée Firestore par le champ "ordre",
   // recalculé pour toute la cellule à chaque dépôt afin de rester persistant.
-  // Ne porte que sur les actions natives de cette cellule, jamais sur un
-  // reflet dont la vraie fiche appartient à l'autre demi-journée.
   const deposer = async (idCible: string) => {
     if (!idGlisse || idGlisse === idCible) { setIdGlisse(null); return; }
     const indexSource = natifs.findIndex((a) => a.id === idGlisse);
@@ -1959,7 +1927,7 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
 
   return (
     <div className="flex flex-col relative group/cell h-full justify-start gap-1 min-h-[36px] bg-[#F3F3F2]/40 p-0.5 rounded border border-transparent hover:border-[#404040]/10 transition-colors">
-      {filtered.map(({ action: a, estReflet }) => {
+      {natifs.map((a) => {
         const territorio = a.territoire || "";
         const hexColor = a.couleur || "#005259";
         const hasCommentaire = !!a.commentaire;
@@ -1968,12 +1936,25 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
         const textColor = isLight ? "#1A1A1A" : hexColor;
         const cardBg = hexToRgba(hexColor, isLight ? 0.35 : 0.12);
 
-        const peutCliquer = !estReflet && (canOpenCommentaire || canCreateSlot);
-        const peutGlisserCet = peutGlisser && !estReflet;
+        const peutCliquer = canOpenCommentaire || canCreateSlot;
+        const peutGlisserCet = peutGlisser;
         const horaireTexte = a.debut && a.fin ? `${a.debut} - ${a.fin}` : "";
+
+        // Action réglée sur une journée complète (ex. 09h30-17h30) : la case
+        // du matin garde l'heure de début réelle jusqu'à 13h00, celle de
+        // l'après-midi va de 14h00 jusqu'à l'heure de fin réelle — chaque
+        // case n'affiche que sa propre demi-journée, jamais l'autre.
+        const fenetreMatin = FENETRES_DEMI_JOURNEE["Matin"];
+        const fenetreApresMidi = FENETRES_DEMI_JOURNEE["Après-midi"];
+        const chevaucheLesDeux = !!(a.debut && a.fin &&
+          versMinutes(a.debut) < versMinutes(fenetreMatin.fin) &&
+          versMinutes(a.fin) > versMinutes(fenetreApresMidi.debut));
+        const detailHoraire = chevaucheLesDeux
+          ? (moment === "Matin" ? `${a.debut} - ${fenetreMatin.fin}` : `${fenetreApresMidi.debut} - ${a.fin}`)
+          : "";
+
         const infosBulle = [
-          horaireTexte,
-          estReflet ? "Suite de l'action de l'autre demi-journée" : "",
+          detailHoraire || horaireTexte,
           hasCommentaire ? `Note : ${a.commentaire}` : "",
           !hasCommentaire && peutCliquer ? "Cliquer pour modifier ou commenter" : "",
         ].filter(Boolean).join(" — ") || undefined;
@@ -1989,22 +1970,22 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
               backgroundColor: cardBg,
               borderColor: hexColor,
               color: textColor,
-              opacity: estReflet ? 0.55 : (idGlisse === a.id ? 0.4 : 1)
+              opacity: idGlisse === a.id ? 0.4 : 1
             }}
-            className={`px-1.5 py-0.5 rounded border text-[10px] font-bold flex items-center justify-between w-full min-h-[24px] hover:shadow-sm transition-all relative ${estReflet ? "border-dashed" : ""} ${peutCliquer ? "cursor-pointer" : ""} ${peutGlisserCet ? "cursor-grab active:cursor-grabbing" : ""}`}
+            className={`px-1.5 py-0.5 rounded border text-[10px] font-bold flex items-center justify-between w-full min-h-[24px] hover:shadow-sm transition-all relative ${peutCliquer ? "cursor-pointer" : ""} ${peutGlisserCet ? "cursor-grab active:cursor-grabbing" : ""}`}
             title={infosBulle}
           >
-            <span className="truncate pr-3" title={[`${moment} : ${a.lieu}`, horaireTexte].filter(Boolean).join(" — ")}>
+            <span className="truncate pr-3" title={[`${moment} : ${a.lieu}`, detailHoraire || horaireTexte].filter(Boolean).join(" — ")}>
               {a.lieu} {territorio && <span className="text-[8px] opacity-70">[{territorio}]</span>}
             </span>
 
-            {!estReflet && hasCommentaire && (
+            {hasCommentaire && (
               <span className="absolute right-5 top-1 text-[#EA601F]">
                 <ChatBubbleLeftRightIcon className="w-2.5 h-2.5 fill-[#EA601F]/20" />
               </span>
             )}
 
-            {!estReflet && !estSemaineValidee && canDeleteSlot && (
+            {!estSemaineValidee && canDeleteSlot && (
               <button
                 onClick={(e) => { e.stopPropagation(); onDelete(a.id); }}
                 className="hover:text-[#EF736A] p-0.5 shrink-0 z-10"

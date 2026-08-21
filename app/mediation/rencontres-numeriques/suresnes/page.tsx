@@ -7,7 +7,7 @@ import { PermissionGuard } from "@/components/PermissionGuard";
 import { useToast } from "@/components/ToastProvider";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import {
-  collection, onSnapshot, query, orderBy, updateDoc, doc, addDoc, collectionGroup, serverTimestamp, getDocs, where
+  collection, onSnapshot, query, orderBy, updateDoc, doc, addDoc, deleteDoc, collectionGroup, serverTimestamp, getDocs, where
 } from "firebase/firestore";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
@@ -22,6 +22,7 @@ import {
   CheckCircleIcon,
   HomeIcon,
   PlusIcon,
+  TrashIcon,
   UsersIcon,
   TagIcon,
   ChartBarIcon,
@@ -88,6 +89,12 @@ export default function PlanningSuresnes() {
   const [beneficiaires, setBeneficiaires] = useState<Beneficiaire[]>([]);
   const [reassignCreneau, setReassignCreneau] = useState<{ id: string; currentName: string; site: string; isRND: boolean } | null>(null);
   const [reassignSearch, setReassignSearch] = useState("");
+  // Ajout manuel d'un créneau sur un site hors RN (ex. Résidence Autonomie) —
+  // ces sites n'ont plus de génération automatique depuis l'agenda des
+  // médiateurs, le créneau n'est donc rattaché à aucun mediatId/mediateurNom.
+  const [ajoutCreneauOuvert, setAjoutCreneauOuvert] = useState(false);
+  const [nouveauCreneau, setNouveauCreneau] = useState({ date: "", moment: "Matin", debut: "", fin: "" });
+  const { showToast } = useToast();
   const [viewDate, setViewDate] = useState(new Date());
   const [filterTodayOnly, setFilterTodayOnly] = useState(false);
   // Un même agenda héberge plusieurs sites, distingués par le champ "site"
@@ -452,6 +459,40 @@ export default function PlanningSuresnes() {
     setFilterTodayOnly(!filterTodayOnly);
   };
 
+  // Créneau posé directement sur ce planning, sans passer par une action de
+  // l'agenda des médiateurs (mediateurNom volontairement vide — voir isOrphan
+  // et nomAffiche plus bas, qui distinguent ce cas d'un vrai créneau orphelin).
+  const ouvrirAjoutCreneau = () => {
+    setNouveauCreneau({ date: new Date(year, month, new Date().getMonth() === month && new Date().getFullYear() === year ? new Date().getDate() : 1).toLocaleDateString('en-CA'), moment: "Matin", debut: "", fin: "" });
+    setAjoutCreneauOuvert(true);
+  };
+
+  const confirmerAjoutCreneau = async () => {
+    const { date, moment, debut, fin } = nouveauCreneau;
+    if (!date || !debut || !fin) {
+      showToast("Merci de renseigner la date et les horaires.", "error");
+      return;
+    }
+    await addDoc(collection(db, "planning_suresnes"), {
+      site: siteActif,
+      date,
+      moment,
+      horaire: `${debut.replace(":", "h")} - ${fin.replace(":", "h")}`,
+      usager: "",
+      mediateurNom: ""
+    });
+    setAjoutCreneauOuvert(false);
+  };
+
+  const supprimerCreneauLibre = async (id: string, usager: string) => {
+    if (usager && usager.trim() !== "") {
+      showToast("Impossible de supprimer : un usager est inscrit sur ce créneau.", "error");
+      return;
+    }
+    if (!confirm("Supprimer ce créneau ?")) return;
+    await deleteDoc(doc(db, "planning_suresnes", id));
+  };
+
   return (
     <PageGuard pageId="page_access_suresnes">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
@@ -576,6 +617,16 @@ export default function PlanningSuresnes() {
                 </div>
               )}
             </div>
+          )}
+
+          {sitesGroupePRA.some(s => s.id === siteActif) && (
+            <button
+              onClick={ouvrirAjoutCreneau}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer border border-dashed border-[#005259]/40 text-[#005259] hover:bg-[#005259] hover:text-white hover:border-[#005259]"
+            >
+              <PlusIcon className="w-3.5 h-3.5" />
+              <span>Ajouter un créneau</span>
+            </button>
           )}
         </div>
 
@@ -710,14 +761,18 @@ export default function PlanningSuresnes() {
                         <div className="space-y-2">
                           {sessionEntries.map(c => {
                             const nomNettoye = (c.mediateurNom || "").replace(" (RND)", "").replace(" (RN91)", "").replace(" (RN)", "").trim().toLowerCase();
-                            const isOrphan = !mediateursActifs.includes(nomNettoye);
+                            // Un créneau posé directement ici (voir confirmerAjoutCreneau)
+                            // n'a volontairement aucun médiateur — à distinguer d'un vrai
+                            // créneau orphelin (nom d'agenda qui ne correspond à personne).
+                            const creneauLibre = nomNettoye === "";
+                            const isOrphan = !creneauLibre && !mediateursActifs.includes(nomNettoye);
                             const isRND = c.mediateurNom?.includes("(RND)");
                             // Suresnes et "Suresnes - à domicile" partagent le même onglet
                             // (voir normaliserSiteId) : le champ "site" brut (non normalisé)
                             // garde la mention "domicile", utilisée ici pour distinguer
                             // visuellement ces créneaux du reste de la grille.
                             const estDomicile = (c.site || "").toUpperCase().includes("DOMICILE");
-                            const nomAffiche = c.mediateurNom?.replace(" (RND)", "").replace(" (RN91)", "").replace(" (RN)", "");
+                            const nomAffiche = creneauLibre ? "Créneau libre" : c.mediateurNom?.replace(" (RND)", "").replace(" (RN91)", "").replace(" (RN)", "");
                             
                             const bTrouve = beneficiaires.find(
                               b => `${b.prenom.trim()} ${b.nom.trim()}`.toLowerCase() === (c.usager || "").trim().toLowerCase()
@@ -745,6 +800,16 @@ export default function PlanningSuresnes() {
                                       {isRND && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#EA601F]/10 border border-[#EA601F]/30 text-[#EA601F] shrink-0">RND</span>}
                                       {estDomicile && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#F9C44E]/20 border border-[#F9C44E] text-[#005259] shrink-0">Domicile</span>}
                                     </div>
+                                    {creneauLibre && (
+                                      <button
+                                        onClick={() => supprimerCreneauLibre(c.id, c.usager)}
+                                        title="Supprimer ce créneau"
+                                        className="mt-1 px-2 py-0.5 bg-[#404040]/5 hover:bg-[#EF736A] text-[#404040]/60 hover:text-white border border-[#404040]/15 hover:border-[#EF736A] rounded-lg text-[9px] font-bold uppercase tracking-wide transition-colors cursor-pointer flex items-center gap-1"
+                                      >
+                                        <TrashIcon className="w-3 h-3" />
+                                        Supprimer
+                                      </button>
+                                    )}
                                     {isOrphan && (
                                       <PermissionGuard actionId="suresnes_reassign">
                                         <button onClick={() => {
@@ -962,6 +1027,83 @@ export default function PlanningSuresnes() {
           </div>
         );
       })()}
+
+      {/* MODALE D'AJOUT D'UN CRÉNEAU LIBRE — posé directement sur ce planning
+          (site actif), sans passer par une action de l'agenda des médiateurs. */}
+      {ajoutCreneauOuvert && (
+        <div className="fixed inset-0 bg-[#404040]/50 backdrop-blur-sm flex items-center justify-center z-[150] p-4">
+          <div className="bg-white border border-[#404040]/10 p-6 rounded-2xl w-full max-w-sm space-y-4 shadow-2xl">
+            <h3 className="font-bold text-sm text-[#005259] uppercase tracking-wide">Ajouter un créneau</h3>
+
+            <div>
+              <label className="text-[10px] text-[#404040]/70 font-bold uppercase tracking-wider block mb-1">Date</label>
+              <input
+                type="date"
+                autoFocus
+                value={nouveauCreneau.date}
+                onChange={(e) => setNouveauCreneau({ ...nouveauCreneau, date: e.target.value })}
+                className="w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-xs text-[#404040] outline-none font-medium"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] text-[#404040]/70 font-bold uppercase tracking-wider block mb-1">Moment</label>
+              <div className="flex gap-2">
+                {["Matin", "Après-midi"].map(m => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setNouveauCreneau({ ...nouveauCreneau, moment: m })}
+                    className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer border ${
+                      nouveauCreneau.moment === m ? "bg-[#005259] text-white border-[#005259]" : "bg-[#F3F3F2] text-[#404040]/70 border-[#404040]/15 hover:border-[#005259]/40"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-[10px] text-[#404040]/70 font-bold uppercase tracking-wider block mb-1">Début</label>
+                <input
+                  type="time"
+                  value={nouveauCreneau.debut}
+                  onChange={(e) => setNouveauCreneau({ ...nouveauCreneau, debut: e.target.value })}
+                  className="w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-xs text-[#404040] outline-none font-medium"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-[10px] text-[#404040]/70 font-bold uppercase tracking-wider block mb-1">Fin</label>
+                <input
+                  type="time"
+                  value={nouveauCreneau.fin}
+                  onChange={(e) => setNouveauCreneau({ ...nouveauCreneau, fin: e.target.value })}
+                  className="w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-xs text-[#404040] outline-none font-medium"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setAjoutCreneauOuvert(false)}
+                className="text-[#404040]/60 hover:text-[#404040] text-xs px-3 cursor-pointer transition-colors font-bold"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={confirmerAjoutCreneau}
+                className="bg-[#005259] hover:bg-[#003d42] text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition-colors"
+              >
+                Ajouter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
     </PageGuard>
   );
