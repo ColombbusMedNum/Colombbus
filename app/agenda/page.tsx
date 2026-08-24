@@ -17,7 +17,7 @@ import {
   DocumentDuplicateIcon, PencilSquareIcon,
   UsersIcon, MapPinIcon, EyeIcon, EyeSlashIcon,
   CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon,
-  CheckCircleIcon, LockClosedIcon, BellIcon,
+  LockClosedIcon, BellIcon,
   ChatBubbleLeftRightIcon, ExclamationTriangleIcon,
   ChevronDownIcon, HomeIcon
 } from "@heroicons/react/24/outline";
@@ -587,16 +587,17 @@ export default function PlanningExpertMix() {
       });
     });
 
-  // Tri par groupe ACI (les non-classés passent après), puis alphabétique à
-  // l'intérieur d'un même groupe (ou entre non-classés).
+  // Tri par groupe ACI (les non-classés passent après), puis alphabétique par
+  // nom de famille à l'intérieur d'un même groupe (ou entre non-classés) —
+  // cohérent avec l'affichage Prénom / NOM de la case.
   const groupesMediateursAgenda = regrouperParCategorie(mediateursAffiches).map(groupe => ({
     ...groupe,
     membres: [...groupe.membres].sort((a, b) => {
       const ga = a.groupeACI ?? Number.MAX_SAFE_INTEGER;
       const gb = b.groupeACI ?? Number.MAX_SAFE_INTEGER;
       if (ga !== gb) return ga - gb;
-      const nomA = `${a.prenom || ""} ${a.nom || ""}`.trim();
-      const nomB = `${b.prenom || ""} ${b.nom || ""}`.trim();
+      const nomA = `${a.nom || ""} ${a.prenom || ""}`.trim();
+      const nomB = `${b.nom || ""} ${b.prenom || ""}`.trim();
       return nomA.localeCompare(nomB, "fr");
     })
   }));
@@ -914,26 +915,34 @@ export default function PlanningExpertMix() {
           <PermissionGuard actionId="agenda_validate_week">
             <button
               onClick={toggleValidationSemaine}
-              className={`px-3 py-1 rounded-md text-xs transition-all border flex items-center gap-1.5 cursor-pointer font-bold ${
+              className={`h-9 px-3.5 rounded-lg text-xs transition-all border flex items-center gap-2 cursor-pointer font-bold whitespace-nowrap shadow-sm ${
                 estSemaineValidee
-                  ? "bg-[#A9E0C9]/20 border-[#A9E0C9] text-[#A9E0C9]"
+                  ? "bg-[#A9E0C9]/15 border-[#A9E0C9]/60 text-[#A9E0C9] hover:bg-[#A9E0C9]/25"
                   : "bg-[#F9C44E] border-[#F9C44E] text-[#005259] hover:bg-[#f8b930]"
               }`}
             >
               {estSemaineValidee ? (
-                <><LockClosedIcon className="w-3.5 h-3.5"/> Semaine Validée</>
+                <><LockClosedIcon className="w-3.5 h-3.5 shrink-0"/> Semaine validée</>
               ) : (
-                <><CheckCircleIcon className="w-3.5 h-3.5"/> En cours de validation</>
+                <>
+                  <span className="relative flex w-2 h-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#005259]/50"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#005259]"></span>
+                  </span>
+                  En cours de validation
+                </>
               )}
             </button>
           </PermissionGuard>
         </div>
 
         <div className="flex items-center gap-3">
-          
-          {/* CLOCHE NOTIFICATION */}
+
+          {/* CLOCHE NOTIFICATION — un peu de marge à gauche pour ne pas coller
+              au bouton de validation de semaine, surtout quand la fenêtre est
+              trop étroite pour que justify-between les écarte tout seul. */}
           <PermissionGuard actionId="agenda_notif_panel">
-          <div className="relative" ref={notifRef}>
+          <div className="relative ml-3" ref={notifRef}>
             <button
               onClick={() => setIsNotifOpen(!isNotifOpen)}
               className="p-2 bg-[#003d42] border border-[#002b2f] hover:bg-[#002b2f] rounded-lg text-white relative cursor-pointer flex items-center justify-center min-w-[36px] h-9"

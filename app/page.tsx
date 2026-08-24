@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Quicksand } from "next/font/google";
 import type { ComponentType, SVGProps } from "react";
 import { PermissionGuard } from "@/components/PermissionGuard";
+import { usePermissions } from "@/lib/PermissionsProvider";
 import PageGuard from "@/components/PageGuard";
 import {
   UsersIcon,
@@ -27,6 +28,7 @@ import {
   BuildingOffice2Icon,
   DocumentDuplicateIcon,
   QuestionMarkCircleIcon,
+  MagnifyingGlassIcon,
   GlobeAltIcon,
   AcademicCapIcon,
   RocketLaunchIcon,
@@ -190,6 +192,22 @@ const NAV_TREE: NavNode[] = [
   { id: "faq", kind: "leaf", accent: "teal", icon: QuestionMarkCircleIcon, title: "F.A.Q", subtitle: "Le guide de toutes les pages, page par page", actionId: "home_nav_guide", href: "/mediation/guide" },
 ];
 
+// Liste à plat de toutes les pages atteignables (feuilles), avec le fil
+// d'Ariane des dossiers parents — sert à la barre de recherche : peu importe
+// la profondeur où se trouve une page dans NAV_TREE, elle est trouvable
+// directement sans naviguer dossier par dossier.
+interface PageIndexee { node: LeafNode; chemin: string[] }
+function aplatirNavTree(nodes: NavNode[], chemin: string[] = []): PageIndexee[] {
+  return nodes.flatMap((node) =>
+    node.kind === "leaf" ? [{ node, chemin }] : aplatirNavTree(node.children, [...chemin, node.title])
+  );
+}
+const PAGES_INDEXEES = aplatirNavTree(NAV_TREE);
+
+function normaliserRecherche(s: string): string {
+  return s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+}
+
 function findChild(nodes: NavNode[], id: string): NavNode | undefined {
   return nodes.find((n) => n.id === id);
 }
@@ -307,6 +325,18 @@ function LeafTile({ node }: { node: LeafNode }) {
 
 export default function HomePage() {
   const [path, setPath] = useState<string[]>([]);
+  const { can } = usePermissions();
+  const [recherche, setRecherche] = useState("");
+  const [rechercheOuverte, setRechercheOuverte] = useState(false);
+
+  const resultatsRecherche = useMemo(() => {
+    const q = normaliserRecherche(recherche.trim());
+    if (!q) return [];
+    return PAGES_INDEXEES
+      .filter(({ node }) => can(node.actionId))
+      .filter(({ node, chemin }) => normaliserRecherche(`${node.title} ${node.subtitle} ${chemin.join(" ")}`).includes(q))
+      .slice(0, 8);
+  }, [recherche, can]);
 
   const handleLogout = () => {
     document.cookie = "session_token=; path=/; max-age=0; SameSite=Lax; Secure";
@@ -362,6 +392,49 @@ export default function HomePage() {
             <span>Déconnexion</span>
           </button>
         </PermissionGuard>
+      </div>
+
+      {/* RECHERCHE — cherche dans toutes les pages de NAV_TREE quel que soit
+          leur niveau de profondeur, sans devoir ouvrir dossier par dossier. */}
+      <div className="absolute top-4 left-4 md:top-8 md:left-8 z-20 w-[calc(100%-2rem)] max-w-[260px] sm:max-w-xs">
+        <div className="relative">
+          <MagnifyingGlassIcon className="w-4 h-4 text-[#404040]/40 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={recherche}
+            onChange={(e) => setRecherche(e.target.value)}
+            onFocus={() => setRechercheOuverte(true)}
+            onBlur={() => setTimeout(() => setRechercheOuverte(false), 150)}
+            placeholder="Rechercher une page..."
+            className="w-full pl-9 pr-3 py-2.5 bg-white border border-[#404040]/15 focus:border-[#005259] rounded-xl text-xs text-[#404040] placeholder-[#404040]/40 outline-none shadow-sm font-medium transition-colors"
+          />
+        </div>
+
+        {rechercheOuverte && recherche.trim() !== "" && (
+          <div className="absolute left-0 right-0 mt-1.5 bg-white border border-[#404040]/10 rounded-xl shadow-xl overflow-hidden divide-y divide-[#404040]/5 max-h-80 overflow-y-auto">
+            {resultatsRecherche.length > 0 ? resultatsRecherche.map(({ node, chemin }) => {
+              const Icon = node.icon;
+              return (
+                <Link
+                  key={node.id}
+                  href={node.href}
+                  onClick={() => { setRecherche(""); setRechercheOuverte(false); }}
+                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-[#F3F3F2] transition-colors"
+                >
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-[#F3F3F2] ${node.accent === "teal" ? "text-[#005259]" : "text-[#EA601F]"}`}>
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 text-left">
+                    <div className="text-xs font-bold text-[#005259] truncate">{node.title}</div>
+                    {chemin.length > 0 && <div className="text-[9px] text-[#404040]/50 uppercase tracking-wide truncate">{chemin.join(" › ")}</div>}
+                  </div>
+                </Link>
+              );
+            }) : (
+              <div className="px-3 py-4 text-center text-[11px] text-[#404040]/50 font-medium">Aucun résultat.</div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="max-w-7xl w-full relative z-10 flex flex-col items-center justify-center min-h-[80vh]">
