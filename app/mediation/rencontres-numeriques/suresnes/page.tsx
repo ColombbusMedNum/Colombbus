@@ -110,9 +110,13 @@ export default function PlanningSuresnes() {
       { id: "suresnes", label: "Suresnes" },
       { id: "rn91", label: "RN - 91" },
     ];
+    // Les onglets "Collecte.Tech" (Paris et Suresnes) ne concernent pas ce
+    // planning et sont masqués ici — les créneaux existants restent en base,
+    // seul l'onglet disparaît du sélecteur.
     const autres = Array.from(new Set(
       creneaux.map(c => normaliserSiteId(c.site)).filter(id => id !== "suresnes" && id !== "rn91")
-    )).sort((a, b) => a.localeCompare(b, 'fr'));
+    )).filter(id => !id.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().includes("collecte"))
+      .sort((a, b) => a.localeCompare(b, 'fr'));
     return [...base, ...autres.map(id => ({ id, label: id }))];
   }, [creneaux]);
   const creneauxDuSite = React.useMemo(
