@@ -156,7 +156,9 @@ export default function PlanningExpertMix() {
   const [voirMasques, setVoirMasques] = useState(false);
   const [openBlocs, setOpenBlocs] = useState<Record<string, boolean>>({ inclusion: false, decouverte: false, insertion: false, divers: false, "sans-bloc": false }); 
   const [voirSamedi, setVoirSamedi] = useState(false); 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // Repliée par défaut à chaque arrivée sur la page — l'utilisateur la
+  // déplie via la poignée quand il a besoin d'injecter un modèle.
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   // Zoom propre à cette page (n'affecte pas le zoom navigateur global) —
   // persisté par utilisateur via localStorage, chargé après le montage pour
   // éviter un mismatch d'hydratation SSR.
