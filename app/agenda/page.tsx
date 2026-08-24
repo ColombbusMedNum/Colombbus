@@ -603,7 +603,9 @@ export default function PlanningExpertMix() {
     if (!lieu) return;
 
     const upperLieu = lieu.toUpperCase();
-    const isSuresnesAction = upperLieu.includes("RN") || upperLieu.includes("RND");
+    // "RN Observation" (accompagnement d'un médiateur en observation, pas de
+    // permanence ouverte au public) ne doit pas générer de créneaux Suresnes.
+    const isSuresnesAction = (upperLieu.includes("RN") || upperLieu.includes("RND")) && !upperLieu.includes("OBSERVATION");
     const nomCompletLiaison = `${prenom} ${nom}`.trim();
     const medObj = mediateurs.find(m => m.id === mediatId);
     const estACI = medObj?.statut === "ACI";

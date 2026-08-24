@@ -26,7 +26,7 @@ import {
   MapPinIcon,
   BuildingOffice2Icon,
   DocumentDuplicateIcon,
-  BookOpenIcon,
+  QuestionMarkCircleIcon,
   GlobeAltIcon,
   AcademicCapIcon,
   RocketLaunchIcon,
@@ -187,7 +187,7 @@ const NAV_TREE: NavNode[] = [
       },
     ],
   },
-  { id: "faq", kind: "leaf", accent: "teal", icon: BookOpenIcon, title: "F.A.Q", subtitle: "Le guide de toutes les pages, page par page", actionId: "home_nav_guide", href: "/mediation/guide" },
+  { id: "faq", kind: "leaf", accent: "teal", icon: QuestionMarkCircleIcon, title: "F.A.Q", subtitle: "Le guide de toutes les pages, page par page", actionId: "home_nav_guide", href: "/mediation/guide" },
 ];
 
 function findChild(nodes: NavNode[], id: string): NavNode | undefined {
@@ -270,6 +270,25 @@ function FolderTile({ node, onOpen }: { node: FolderNode; onOpen: () => void }) 
   );
 }
 
+// Même gabarit visuel que FolderTile — utilisée quand une case simple (leaf)
+// se trouve directement à la racine, à côté de dossiers, pour éviter qu'elle
+// paraisse plus petite qu'eux avec une icône hors d'échelle (ex. F.A.Q).
+function BigLeafTile({ node }: { node: LeafNode }) {
+  const Icon = node.icon;
+  return (
+    <Link
+      href={node.href}
+      className={`group bg-white border border-[#404040]/10 ${node.accent === "teal" ? "hover:border-[#005259]" : "hover:border-[#EA601F]"} rounded-3xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col items-center justify-center text-center active:scale-95 min-h-[240px] cursor-pointer`}
+    >
+      <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-all duration-300 shadow-sm bg-[#F3F3F2] border border-[#404040]/10 ${node.accent === "teal" ? "text-[#005259] group-hover:bg-[#005259]" : "text-[#EA601F] group-hover:bg-[#EA601F]"} group-hover:text-white`}>
+        <Icon className="w-7 h-7 transition-colors" />
+      </div>
+      <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259] group-hover:text-[#EA601F] transition-colors">{node.title}</h2>
+      <p className="text-xs text-[#404040]/70 font-medium mt-2 leading-relaxed">{node.subtitle}</p>
+    </Link>
+  );
+}
+
 function LeafTile({ node }: { node: LeafNode }) {
   const Icon = node.icon;
   return (
@@ -322,7 +341,7 @@ export default function HomePage() {
     }
     return (
       <PermissionGuard key={node.id} actionId={node.actionId} fallback={node.fallbackLocked ? <LockedTile size={size} title={node.title} /> : null}>
-        <LeafTile node={node} />
+        {size === "lg" ? <BigLeafTile node={node} /> : <LeafTile node={node} />}
       </PermissionGuard>
     );
   }

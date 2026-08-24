@@ -232,7 +232,9 @@ export async function genererCreneauxPourModele(
   });
 
   const upperLieu = (modele.lieu || "").toUpperCase();
-  const isSuresnesAction = upperLieu.includes("RN") || upperLieu.includes("RND");
+  // "RN Observation" (accompagnement d'un médiateur en observation, pas de
+  // permanence ouverte au public) ne doit pas générer de créneaux Suresnes.
+  const isSuresnesAction = (upperLieu.includes("RN") || upperLieu.includes("RND")) && !upperLieu.includes("OBSERVATION");
   const isRND = upperLieu.includes("RND");
   // Un même agenda planning_suresnes héberge plusieurs sites RN, distingués
   // par le numéro de département dans le nom du modèle : "91" (Essonne) va
