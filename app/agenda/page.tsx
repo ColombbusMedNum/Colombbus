@@ -157,6 +157,17 @@ export default function PlanningExpertMix() {
   const [openBlocs, setOpenBlocs] = useState<Record<string, boolean>>({ inclusion: false, decouverte: false, insertion: false, divers: false, "sans-bloc": false }); 
   const [voirSamedi, setVoirSamedi] = useState(false); 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // Zoom propre à cette page (n'affecte pas le zoom navigateur global) —
+  // persisté par utilisateur via localStorage, chargé après le montage pour
+  // éviter un mismatch d'hydratation SSR.
+  const [zoomAgenda, setZoomAgenda] = useState(1);
+  useEffect(() => {
+    const sauvegarde = localStorage.getItem("agendaZoom");
+    if (sauvegarde) setZoomAgenda(parseFloat(sauvegarde));
+  }, []);
+  useEffect(() => {
+    localStorage.setItem("agendaZoom", String(zoomAgenda));
+  }, [zoomAgenda]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [filtrePersoUniquement] = useState(true);
   const [showNotifDeleteConfirm, setShowNotifDeleteConfirm] = useState(false);
@@ -883,14 +894,10 @@ export default function PlanningExpertMix() {
       {/* HEADER */}
       <header className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-5 py-2.5 border-b border-[#003d42] bg-[#005259] text-white shadow-md">
         <div className="flex items-center gap-3">
-          <PermissionGuard actionId="agenda_toggle_sidebar">
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-1 bg-[#003d42] hover:bg-[#002b2f] border border-[#005259] rounded-md text-white transition-all cursor-pointer"
-            >
-              {isSidebarOpen ? <ChevronLeftIcon className="w-4 h-4"/> : <ChevronRightIcon className="w-4 h-4"/>}
-            </button>
-          </PermissionGuard>
+          {/* Le repli de la liste des modèles se fait désormais via la
+              poignée ronde accolée à la barre elle-même (voir AGENCEMENT
+              PRINCIPAL plus bas) — plus visible qu'une icône perdue ici
+              parmi les nombreux boutons de l'en-tête. */}
           
           <Link
             href="/"
@@ -1002,6 +1009,33 @@ export default function PlanningExpertMix() {
             Aujourd'hui
           </button>
 
+          {/* ZOOM : ne s'applique qu'à l'affichage de l'agenda (voir style
+              zoom posé sur l'AGENCEMENT PRINCIPAL plus bas), pas à la page
+              entière ni au zoom navigateur. */}
+          <div className="flex items-center gap-1 bg-[#003d42] border border-[#002b2f] rounded-lg px-1.5 h-9">
+            <button
+              onClick={() => setZoomAgenda(z => Math.max(0.6, +(z - 0.1).toFixed(2)))}
+              className="text-white hover:text-[#F9C44E] transition-colors cursor-pointer w-6 h-6 flex items-center justify-center text-sm font-bold"
+              title="Réduire l'agenda"
+            >
+              −
+            </button>
+            <button
+              onClick={() => setZoomAgenda(1)}
+              className="text-[11px] font-bold text-white min-w-[34px] text-center cursor-pointer hover:text-[#F9C44E] transition-colors"
+              title="Réinitialiser le zoom"
+            >
+              {Math.round(zoomAgenda * 100)}%
+            </button>
+            <button
+              onClick={() => setZoomAgenda(z => Math.min(1.5, +(z + 0.1).toFixed(2)))}
+              className="text-white hover:text-[#F9C44E] transition-colors cursor-pointer w-6 h-6 flex items-center justify-center text-sm font-bold"
+              title="Agrandir l'agenda"
+            >
+              +
+            </button>
+          </div>
+
           {/* SÉLECTEUR SEMAINE */}
           <PermissionGuard actionId="agenda_week_nav">
             <div className="flex items-center gap-1.5 bg-[#003d42] border border-[#002b2f] rounded-lg px-2 h-9">
@@ -1064,8 +1098,21 @@ export default function PlanningExpertMix() {
       </header>
 
       {/* AGENCEMENT PRINCIPAL */}
-      <div className="max-w-8xl mx-auto py-5 pr-4 flex gap-4 transition-all duration-300">
-        
+      <div className="max-w-8xl mx-auto py-5 pr-4 flex gap-4 transition-all duration-300" style={{ zoom: zoomAgenda }}>
+
+        {/* POIGNÉE DE REPLI — accolée à la barre de modèles plutôt que
+            perdue dans l'en-tête, pour que son rôle (replier/déplier cette
+            liste) saute aux yeux instinctivement. */}
+        <PermissionGuard actionId="agenda_toggle_sidebar">
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="shrink-0 self-start sticky top-[68px] mt-8 w-7 h-7 flex items-center justify-center rounded-full bg-white border-2 border-[#005259] text-[#005259] hover:bg-[#005259] hover:text-white shadow-md transition-all cursor-pointer z-10"
+            title={isSidebarOpen ? "Replier la liste des modèles" : "Afficher la liste des modèles"}
+          >
+            {isSidebarOpen ? <ChevronLeftIcon className="w-4 h-4"/> : <ChevronRightIcon className="w-4 h-4"/>}
+          </button>
+        </PermissionGuard>
+
         {/* SIDEBAR : MODÈLES D'ACTIVITÉS */}
         <aside className={`shrink-0 bg-white border border-[#404040]/10 rounded-xl p-3 space-y-2.5 self-start sticky top-[60px] max-h-[calc(100vh-76px)] overflow-y-auto shadow-sm transition-all duration-300 ${isSidebarOpen ? "w-56 opacity-100" : "w-0 p-0 border-0 opacity-0 pointer-events-none"}`}>
           <div className="flex items-center justify-between border-b border-[#F3F3F2] pb-2">
@@ -1218,7 +1265,12 @@ export default function PlanningExpertMix() {
               une seule fois pour toute la page au lieu d'une par catégorie
               (évite les répétitions et les chevauchements en défilant). */}
           <div className="sticky top-[60px] z-30 bg-white border border-[#404040]/10 rounded-xl px-4 pt-1 pb-2 shadow-sm grid text-xs" style={{ gridTemplateColumns: `160px repeat(${weekDays.length}, minmax(0, 1fr))` }}>
-            <div className="text-left text-[#005259] font-extrabold text-xs flex items-end pb-1">Médiateur</div>
+            <div className="text-left flex flex-col justify-end pb-1">
+              <span className="text-[10px] font-bold uppercase text-[#404040]/50 tracking-wide">
+                Semaine {getWeekIdentifier(weekDays[0]).split("-W")[1]}
+              </span>
+              <span className="text-[#005259] font-extrabold text-xs">Médiateur</span>
+            </div>
             {weekDays.map(d => {
               const estFerie = joursFeries.has(d.toLocaleDateString('en-CA'));
               return (
