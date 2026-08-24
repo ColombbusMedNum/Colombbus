@@ -390,8 +390,13 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     home_nav_collectes: true, home_nav_agenda_suresnes: true, home_nav_agenda_med: true, home_nav_emargement_docs: true,
     home_nav_actions_coll: true, home_nav_stats_glob: true, home_nav_bilan_suresnes: true, home_nav_volume_horaire: true,
     home_nav_guide: true,
-    home_folder_inclusion_numerique: true, home_folder_rencontres_numeriques: true, home_nav_digital_up: true, home_nav_digitalup_inscription: true, home_nav_digitalup_reponses: true, home_nav_digitalup_suivi: true, home_nav_digitalup_stats: true,
-    home_folder_decouvertes_metiers: true, home_nav_nkup: true, home_nav_nkup_inscription: true, home_nav_nkup_reponses: true, home_nav_nkup_suivi: true, home_nav_nkup_stats: true, home_folder_insertion_pro: true, home_nav_nkpro_tech: true, home_nav_nkpro_inscription: true, home_nav_nkpro_reponses: true, home_nav_nkpro_suivi: true, home_nav_nkpro_stats: true,
+    home_folder_inclusion_numerique: true, home_folder_rencontres_numeriques: true,
+    // Digital'UP, Découvertes Métiers (Numérik'UP) et Insertion
+    // Professionnelle (NUMERIK PRO) restent hors du périmètre ACI, dossier ET
+    // pages internes (sinon la recherche d'accueil, qui vérifie l'actionId de
+    // chaque page indépendamment du dossier parent, les retrouverait quand
+    // même). Le reste du dossier Inclusion Numérique/Rencontres Numériques
+    // (agenda Suresnes, etc.) leur reste accessible.
     benef_search: true, benef_nav_agenda_suresnes: true, benef_filter_alphabet: true,
     benef_filter_today: true, benef_filter_suresnes: true, benef_filter_de: true, benef_action_open: true,
     suresnes_filter_today: true, suresnes_month_nav: true,
