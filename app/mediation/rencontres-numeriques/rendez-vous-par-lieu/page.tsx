@@ -162,7 +162,9 @@ export default function RendezVousParLieuPage() {
     return matchRecherche && matchFiltreLieu;
   });
 
-  // Regroupement par lieu
+  // Regroupement par lieu. Object.create(null) : clé indexée par un nom de
+  // lieu en texte libre — sans prototype pour qu'une clé "__proto__" reste
+  // une clé normale au lieu de polluer Object.prototype.
   const rdvsParLieu = visitesFiltrees.reduce<Record<string, VisiteComplet[]>>((acc, visite) => {
     const lieuCle = visite.lieu.trim() || "Non spécifié";
     if (!acc[lieuCle]) {
@@ -170,7 +172,7 @@ export default function RendezVousParLieuPage() {
     }
     acc[lieuCle].push(visite);
     return acc;
-  }, {});
+  }, Object.create(null));
 
   // Extraction de la liste unique des lieux pour le sélecteur
   const tousLesLieux = Array.from(new Set(visites.map((v) => v.lieu.trim() || "Non spécifié"))).sort();

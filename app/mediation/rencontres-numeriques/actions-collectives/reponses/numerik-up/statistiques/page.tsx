@@ -103,7 +103,10 @@ interface Stats {
 function calculerStats(apprenants: Apprenant[]): Stats {
   const sexe: Record<string, number> = { Femme: 0, Homme: 0, "Non renseigné": 0 };
   const age: Record<string, number> = { "Moins de 18 ans": 0, "18 à 25 ans": 0, "26 ans et +": 0, "Non renseigné": 0 };
-  const diplome: Record<string, number> = {};
+  // Object.create(null) : clé indexée par un niveau d'études en texte libre
+  // (import CSV) — sans prototype pour qu'une clé "__proto__" reste une clé
+  // normale au lieu de polluer Object.prototype.
+  const diplome: Record<string, number> = Object.create(null);
   const qpv: Record<string, number> = { Oui: 0, Non: 0, "Je ne sais pas": 0, "Non renseigné": 0 };
   const ase: Record<string, number> = { Oui: 0, Non: 0, "Non renseigné": 0 };
   apprenants.forEach((a) => {

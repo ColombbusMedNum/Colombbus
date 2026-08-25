@@ -160,7 +160,9 @@ export default function BilanSuresnesPage() {
       ? rawCreneaux
       : rawCreneaux.filter(c => normaliserSiteId(c.site) === siteFiltre);
 
-    const cohorteUniques: Record<string, { date: Date; genre: string }> = {};
+    // Object.create(null) : clé indexée par un nom d'usager en texte libre —
+    // sans prototype pour qu'une clé "__proto__" reste une clé normale.
+    const cohorteUniques: Record<string, { date: Date; genre: string }> = Object.create(null);
 
     creneauxDuSite.forEach((rdvData) => {
       const nomUsagerAgenda = (rdvData.usager || "").trim().toLowerCase().replace(/\s+/g, " ");

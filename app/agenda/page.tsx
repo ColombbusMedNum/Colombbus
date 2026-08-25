@@ -19,7 +19,7 @@ import {
   CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon,
   LockClosedIcon, BellIcon,
   ChatBubbleLeftRightIcon, ExclamationTriangleIcon,
-  ChevronDownIcon, HomeIcon
+  ChevronDownIcon, HomeIcon, ClockIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
@@ -361,6 +361,13 @@ export default function PlanningExpertMix() {
     });
   }, [mediateursBruts]);
 
+  // Identité de l'auteur des actions (créations/suppressions de créneaux),
+  // pour l'historique de l'agenda — voir /agenda/historique.
+  const currentUserMed = mediateurs.find(m => m.id === currentUserId);
+  const currentUserNom = currentUserMed
+    ? `${currentUserMed.prenom || ""} ${currentUserMed.nom || ""}`.trim()
+    : (user?.email || "Utilisateur inconnu");
+
   const toggleValidationSemaine = async () => {
     try {
       const nouvelEtat = !estSemaineValidee;
@@ -685,6 +692,21 @@ export default function PlanningExpertMix() {
       ...(selectedModel?.codeAnalytique ? { codeAnalytique: selectedModel.codeAnalytique } : {})
     });
 
+    // Historique de l'agenda ("qui a positionné quoi") — voir /agenda/historique.
+    // Non bloquant : un souci sur ce journal (ex. règles pas encore
+    // déployées) ne doit jamais empêcher la suite (notification, Suresnes).
+    addDoc(collection(db, "historique_agenda"), {
+      type: "creation",
+      date: dateStr,
+      moment,
+      mediatId,
+      mediateurNom: nomCompletLiaison,
+      lieu,
+      auteurUid: currentUserId,
+      auteurNom: currentUserNom,
+      horodatage: Date.now()
+    }).catch((err) => console.error("Historique agenda (création) :", err));
+
     // Le mercredi compte intégralement en heures complémentaires pour un ACI
     // (voir calculerHeuresComplementairesACI) — signalé après coup, sans
     // bloquer la création du créneau.
@@ -884,6 +906,21 @@ export default function PlanningExpertMix() {
 
     await Promise.all(docsDuMediateur.map(d => deleteDoc(doc(db, "planning_suresnes", d.id))));
     await deleteDoc(doc(db, "planning_mediateurs", id));
+
+    // Historique de l'agenda ("qui a positionné quoi") — voir /agenda/historique.
+    // Non bloquant : voir la remarque équivalente dans processActionCreation.
+    addDoc(collection(db, "historique_agenda"), {
+      type: "suppression",
+      date: actionDoc.date,
+      moment: actionDoc.moment,
+      mediatId: actionDoc.mediatId,
+      mediateurNom: actionDoc.mediateurNom || "",
+      lieu: actionDoc.lieu || "",
+      auteurUid: currentUserId,
+      auteurNom: currentUserNom,
+      horodatage: Date.now()
+    }).catch((err) => console.error("Historique agenda (suppression) :", err));
+
     setDeleteConfirmModalData(null);
   };
 
@@ -1111,18 +1148,29 @@ export default function PlanningExpertMix() {
       {/* AGENCEMENT PRINCIPAL */}
       <div className="max-w-8xl mx-auto py-5 pr-4 flex gap-4 transition-all duration-300" style={{ zoom: zoomAgenda }}>
 
-        {/* POIGNÉE DE REPLI — accolée à la barre de modèles plutôt que
-            perdue dans l'en-tête, pour que son rôle (replier/déplier cette
-            liste) saute aux yeux instinctivement. */}
-        <PermissionGuard actionId="agenda_toggle_sidebar">
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="shrink-0 self-start sticky top-[68px] mt-8 w-7 h-7 flex items-center justify-center rounded-full bg-white border-2 border-[#005259] text-[#005259] hover:bg-[#005259] hover:text-white shadow-md transition-all cursor-pointer z-10"
-            title={isSidebarOpen ? "Replier la liste des modèles" : "Afficher la liste des modèles"}
-          >
-            {isSidebarOpen ? <ChevronLeftIcon className="w-4 h-4"/> : <ChevronRightIcon className="w-4 h-4"/>}
-          </button>
-        </PermissionGuard>
+        {/* POIGNÉE DE REPLI + ACCÈS HISTORIQUE — accolées à la barre de
+            modèles plutôt que perdues dans l'en-tête déjà chargé de cases. */}
+        <div className="shrink-0 self-start sticky top-[68px] mt-8 flex flex-col items-center gap-2 z-10">
+          <PermissionGuard actionId="agenda_toggle_sidebar">
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="w-7 h-7 flex items-center justify-center rounded-full bg-white border-2 border-[#005259] text-[#005259] hover:bg-[#005259] hover:text-white shadow-md transition-all cursor-pointer"
+              title={isSidebarOpen ? "Replier la liste des modèles" : "Afficher la liste des modèles"}
+            >
+              {isSidebarOpen ? <ChevronLeftIcon className="w-4 h-4"/> : <ChevronRightIcon className="w-4 h-4"/>}
+            </button>
+          </PermissionGuard>
+
+          <PermissionGuard actionId="page_access_agenda_historique">
+            <Link
+              href="/agenda/historique"
+              className="w-7 h-7 flex items-center justify-center rounded-full bg-white border-2 border-[#005259] text-[#005259] hover:bg-[#005259] hover:text-white shadow-md transition-all cursor-pointer"
+              title="Historique de l'agenda"
+            >
+              <ClockIcon className="w-3.5 h-3.5"/>
+            </Link>
+          </PermissionGuard>
+        </div>
 
         {/* SIDEBAR : MODÈLES D'ACTIVITÉS */}
         <aside className={`shrink-0 bg-white border border-[#404040]/10 rounded-xl p-3 space-y-2.5 self-start sticky top-[60px] max-h-[calc(100vh-76px)] overflow-y-auto shadow-sm transition-all duration-300 ${isSidebarOpen ? "w-56 opacity-100" : "w-0 p-0 border-0 opacity-0 pointer-events-none"}`}>

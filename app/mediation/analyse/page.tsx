@@ -169,7 +169,10 @@ export default function AnalyseDroitsPage() {
           // Le fichier importé est organisé par rôle (roleId -> actionId -> bool),
           // comme l'export ; on le transpose vers la forme actionId -> roleId -> bool
           // attendue par configuration_droits.
-          const byAction: Record<string, Record<string, boolean>> = {};
+          // Object.create(null) : actionId/roleId viennent des clés d'un
+          // fichier JSON importé (texte libre) — sans prototype pour qu'une
+          // clé "__proto__" reste une clé normale.
+          const byAction: Record<string, Record<string, boolean>> = Object.create(null);
           Object.entries(importedData).forEach(([roleId, actions]) => {
             Object.entries(actions as Record<string, boolean>).forEach(([actionId, value]) => {
               byAction[actionId] = { ...(byAction[actionId] || {}), [roleId]: !!value };

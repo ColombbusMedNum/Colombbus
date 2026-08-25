@@ -111,7 +111,9 @@ export default function ActionsCollectivesPage() {
       setActions(docs);
 
       // Calcul automatique du croisement : Lieu > Trimestre 📊 + Historique commentaires
-      const structureStats: Record<string, LieuStats> = {};
+      // Object.create(null) : clé indexée par un nom de lieu en texte libre —
+      // sans prototype pour qu'une clé "__proto__" reste une clé normale.
+      const structureStats: Record<string, LieuStats> = Object.create(null);
 
       docs.forEach(act => {
         const lieu = act.lieu || "Non spécifié";

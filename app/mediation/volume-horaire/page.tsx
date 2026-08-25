@@ -122,7 +122,7 @@ export default function VolumeHoraireComplet() {
       acc[data.id] = data;
       if (nomComplet) acc[nomComplet] = data;
       return acc;
-    }, {} as Record<string, any>);
+    }, Object.create(null) as Record<string, any>);
   }, [mediateursListe]);
 
   // ÉCOUTEUR : S'aligne sur la collection "planning_mediateurs"
@@ -137,13 +137,17 @@ export default function VolumeHoraireComplet() {
 
   // CRUNCHING DES DONNÉES EN TEMPS RÉEL
   useEffect(() => {
-    const mStats: Record<string, any> = {};
-    const aStats: Record<string, any> = {};
+    // Object.create(null) plutôt que {} : ces objets servent de dictionnaires
+    // indexés par du texte non contrôlé (nom de médiateur, lieu, territoire),
+    // donc sans prototype pour qu'une clé "__proto__" reste une clé normale
+    // au lieu de polluer Object.prototype (voir alerte Snyk).
+    const mStats: Record<string, any> = Object.create(null);
+    const aStats: Record<string, any> = Object.create(null);
     // Ventilation par territoire : basée sur le champ territoire renseigné
     // sur l'activité elle-même (ex "75", "92", visible en badge dans le
     // sidebar de l'agenda), pas sur les sites affectés à la fiche du
     // médiateur (Équipe) — les deux notions ne coïncident pas forcément.
-    const tStats: Record<string, { territoire: string; h: number; cout: number }> = {};
+    const tStats: Record<string, { territoire: string; h: number; cout: number }> = Object.create(null);
     let grandTotal = 0;
 
     planningFiltre.forEach((action: any) => {
@@ -177,7 +181,7 @@ export default function VolumeHoraireComplet() {
       // Aggregations par type de Lieu / Activité
       const titre = action.lieu || "Activité non spécifiée";
       if (!aStats[titre]) {
-        aStats[titre] = { titre, h: 0, cout: 0, details: {} };
+        aStats[titre] = { titre, h: 0, cout: 0, details: Object.create(null) };
       }
       aStats[titre].h += total;
       aStats[titre].cout += cout;

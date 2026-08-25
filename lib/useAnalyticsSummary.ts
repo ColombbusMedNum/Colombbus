@@ -25,17 +25,20 @@ export interface AnalyticsSummaryItem {
 // médiateurs" de statistiques où chaque action peut appartenir à une
 // personne différente de celle actuellement affichée.
 export function useAnalyticsSummary(currentMedActions: any[], mediateurs: any[] = []) {
+  // Object.create(null) : clés indexées par du texte libre (nom complet,
+  // code analytique) — sans prototype pour qu'une clé "__proto__" reste une
+  // clé normale au lieu de polluer Object.prototype.
   const mediateursParId = useMemo(() => {
     return mediateurs.reduce((acc: Record<string, any>, m: any) => {
       const nomComplet = `${m.prenom || ""} ${m.nom || ""}`.trim();
       acc[m.id] = m;
       if (nomComplet) acc[nomComplet] = m;
       return acc;
-    }, {} as Record<string, any>);
+    }, Object.create(null) as Record<string, any>);
   }, [mediateurs]);
 
   const analyticsSummary = useMemo<AnalyticsSummaryItem[]>(() => {
-    const summary: Record<string, AnalyticsSummaryItem> = {};
+    const summary: Record<string, AnalyticsSummaryItem> = Object.create(null);
     const dejaCompte = new Set<string>();
 
     currentMedActions.forEach((action) => {

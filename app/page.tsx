@@ -415,6 +415,7 @@ export default function HomePage() {
             {resultatsRecherche.length > 0 ? resultatsRecherche.map(({ node, chemin }) => {
               const Icon = node.icon;
               return (
+                // deepcode ignore DOMXSS: node.href vient de NAV_TREE, un tableau statique codé en dur (aucune valeur dynamique) — le texte de recherche (state) ne fait que filtrer quelles entrées s'affichent, il ne construit jamais l'URL.
                 <Link
                   key={node.id}
                   href={node.href}

@@ -179,6 +179,13 @@ service cloud.firestore {
     match /planning_mediateurs/{docId} {
       allow read, write: if isStaff();
     }
+    // Journal d'audit des créneaux (créations/suppressions, voir
+    // /agenda/historique) : en écriture, uniquement en ajout — jamais modifié
+    // ni supprimé, pour rester un historique fiable.
+    match /historique_agenda/{docId} {
+      allow read, create: if isStaff();
+      allow update, delete: if false;
+    }
     // Réaffectation d'un créneau à un autre médiateur (mediateurNom) réservée
     // au coordinateur+ (suresnes_reassign) ; assigner/vider/éditer un usager
     // sur son propre créneau reste ouvert à tout le staff.
