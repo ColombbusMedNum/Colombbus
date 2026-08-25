@@ -264,6 +264,7 @@ const PAGE_ONLY_ROUTES: Omit<PageEntry, "actions">[] = [
   { pageId: "page_access_guide", pageName: "Mode d'emploi", route: "/mediation/guide", filePath: "app/mediation/guide/page.tsx" },
   { pageId: "page_access_actions_collectives_accueil", pageName: "Actions Collectives (Accueil)", route: "/mediation/rencontres-numeriques/actions-collectives/accueil", filePath: "app/mediation/rencontres-numeriques/actions-collectives/accueil/page.tsx" },
   { pageId: "page_access_agenda_historique", pageName: "Historique de l'Agenda", route: "/agenda/historique", filePath: "app/agenda/historique/page.tsx" },
+  { pageId: "page_access_agenda_mois", pageName: "Agenda — Vue Mois", route: "/agenda/mois", filePath: "app/agenda/mois/page.tsx" },
 ];
 
 export const PAGES_CATALOG: PageEntry[] = [

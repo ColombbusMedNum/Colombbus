@@ -178,10 +178,11 @@ function LoginPageContent() {
         {/* LOGO & TITRES */}
         <div className="text-center mb-6 flex flex-col items-center">
           <div className="mb-2 relative w-14 h-14 md:w-16 md:h-16">
-            <Image 
-              src="/logos/Logo_Colombbus_noir_trans.png" 
-              alt="Logo Colombbus" 
+            <Image
+              src="/logos/Logo_Colombbus_noir_trans.png"
+              alt="Logo Colombbus"
               fill
+              sizes="64px"
               className="object-contain"
               priority
             />

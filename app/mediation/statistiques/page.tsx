@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import PageGuard from "@/components/PageGuard";
 import MediateurAnalyticsPanel from "@/components/MediateurAnalyticsPanel";
+import MediateurActionsParMois from "@/components/MediateurActionsParMois";
 import { useAnalyticsSummary } from "@/lib/useAnalyticsSummary";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import { usePermissions } from "@/lib/PermissionsProvider";
@@ -209,13 +210,19 @@ export default function StatsMediateursAnalytique() {
         </div>
 
         {currentMediateur ? (
-          <MediateurAnalyticsPanel
-            currentMediateur={currentMediateur}
-            analyticsSummary={analyticsSummary}
-            totalHeuresGlobal={totalHeuresGlobal}
-            totalHeuresComplementaires={totalHeuresComplementaires}
-            emptyMessage="Aucune mission ou activité enregistrée sur l'agenda."
-          />
+          <>
+            <MediateurAnalyticsPanel
+              currentMediateur={currentMediateur}
+              analyticsSummary={analyticsSummary}
+              totalHeuresGlobal={totalHeuresGlobal}
+              totalHeuresComplementaires={totalHeuresComplementaires}
+              emptyMessage="Aucune mission ou activité enregistrée sur l'agenda."
+            />
+            <MediateurActionsParMois
+              actions={currentMedActions}
+              emptyMessage="Aucune action enregistrée sur l'agenda."
+            />
+          </>
         ) : (
           <div className="bg-white border border-[#404040]/10 rounded-2xl p-12 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60 shadow-sm">
             Aucun profil de médiateur ne correspond à votre adresse e-mail.

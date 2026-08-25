@@ -45,7 +45,13 @@ export function useAnalyticsSummary(currentMedActions: any[], mediateurs: any[] 
       const code = (action.codeAnalytique || "").trim() || "SANS_CODE";
       const label = action.codeAnalytique ? `Code ${action.codeAnalytique}` : "Sans code analytique / Non spécifié";
       const identifiant = identifiantMediateur(action);
-      const cleUnique = `${identifiant}_${action.date}_${action.moment || ""}_${code}_${action.debut || ""}_${action.fin || ""}`;
+      // Clé SANS le "moment" : un modèle "journée complète" (ex TERRAGE)
+      // pose le même horaire (ex 09:30-17:30) sur les deux créneaux
+      // Matin ET Après-midi du même lieu — ce sont deux enregistrements
+      // pour UNE seule période travaillée, pas deux périodes distinctes.
+      // Une vraie coupure méridienne (deux horaires différents) garde des
+      // clés différentes et reste comptée deux fois, comme il se doit.
+      const cleUnique = `${identifiant}_${action.date}_${action.lieu || ""}_${code}_${action.debut || ""}_${action.fin || ""}`;
 
       if (!summary[code]) {
         summary[code] = { code, label, totalHeures: 0, heuresComplementaires: 0, count: 0 };

@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import PageGuard from "@/components/PageGuard";
 import MediateurAnalyticsPanel from "@/components/MediateurAnalyticsPanel";
+import MediateurActionsParMois from "@/components/MediateurActionsParMois";
 import { useAnalyticsSummary } from "@/lib/useAnalyticsSummary";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import { estActionDuMediateur } from "@/lib/matchMediateur";
@@ -102,13 +103,19 @@ export default function StatsMediateursAnalytique() {
         </div>
 
         {currentMediateur ? (
-          <MediateurAnalyticsPanel
-            currentMediateur={currentMediateur}
-            analyticsSummary={analyticsSummary}
-            totalHeuresGlobal={totalHeuresGlobal}
-            totalHeuresComplementaires={totalHeuresComplementaires}
-            emptyMessage="Aucune mission ou activité planifiée trouvée pour ce médiateur."
-          />
+          <>
+            <MediateurAnalyticsPanel
+              currentMediateur={currentMediateur}
+              analyticsSummary={analyticsSummary}
+              totalHeuresGlobal={totalHeuresGlobal}
+              totalHeuresComplementaires={totalHeuresComplementaires}
+              emptyMessage="Aucune mission ou activité planifiée trouvée pour ce médiateur."
+            />
+            <MediateurActionsParMois
+              actions={currentMedActions}
+              emptyMessage="Aucune action enregistrée sur l'agenda."
+            />
+          </>
         ) : (
           <div className="bg-white border border-[#404040]/10 rounded-2xl p-12 text-center text-xs text-[#404040]/50 font-medium shadow-sm">
             Veuillez ajouter ou sélectionner un médiateur pour consulter ses statistiques analytiques.

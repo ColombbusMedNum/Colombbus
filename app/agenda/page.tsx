@@ -1170,6 +1170,16 @@ export default function PlanningExpertMix() {
               <ClockIcon className="w-3.5 h-3.5"/>
             </Link>
           </PermissionGuard>
+
+          <PermissionGuard actionId="page_access_agenda_mois">
+            <Link
+              href="/agenda/mois"
+              className="w-7 h-7 flex items-center justify-center rounded-full bg-white border-2 border-[#005259] text-[#005259] hover:bg-[#005259] hover:text-white shadow-md transition-all cursor-pointer"
+              title="Vue mois d'un médiateur"
+            >
+              <CalendarDaysIcon className="w-3.5 h-3.5"/>
+            </Link>
+          </PermissionGuard>
         </div>
 
         {/* SIDEBAR : MODÈLES D'ACTIVITÉS */}

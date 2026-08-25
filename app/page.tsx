@@ -446,6 +446,7 @@ export default function HomePage() {
               src="/logos/Logo_Colombbus_noir_trans.png"
               alt="Logo Colombbus"
               fill
+              sizes="80px"
               className="object-contain"
               priority
             />

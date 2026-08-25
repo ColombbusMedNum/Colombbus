@@ -96,6 +96,7 @@ function ResetPasswordContent() {
               src="/logos/Logo_Colombbus_noir_trans.png"
               alt="Logo Colombbus"
               fill
+              sizes="64px"
               className="object-contain"
               priority
             />

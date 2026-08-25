@@ -150,6 +150,13 @@ export default function VolumeHoraireComplet() {
     const tStats: Record<string, { territoire: string; h: number; cout: number }> = Object.create(null);
     let grandTotal = 0;
 
+    // Un modèle "journée complète" (ex TERRAGE) pose le même horaire
+    // (ex 09:30-17:30) sur les deux créneaux Matin ET Après-midi du même
+    // jour/lieu : ce sont deux documents Firestore pour UNE seule période
+    // travaillée, pas deux périodes distinctes à additionner. Une vraie
+    // coupure méridienne (deux horaires différents) reste comptée deux fois.
+    const creneauxDejaComptes = new Set<string>();
+
     planningFiltre.forEach((action: any) => {
       const identifiantMed = identifiantMediateur(action);
       if (!identifiantMed) return;
@@ -157,7 +164,11 @@ export default function VolumeHoraireComplet() {
       const medInfo = mediateursRaw[identifiantMed] || { statut: "Permanent", poste: "Médiateur", taux: 0 };
       const nomAffichage = action.mediateurNom || identifiantMed;
 
-      const { total, comp } = calculerAnalyseAction(action, medInfo);
+      const cleCreneau = `${identifiantMed}_${action.date}_${action.lieu || ""}_${action.debut || ""}_${action.fin || ""}`;
+      const estDoublonHoraire = !!(action.debut && action.fin && creneauxDejaComptes.has(cleCreneau));
+      if (action.debut && action.fin) creneauxDejaComptes.add(cleCreneau);
+
+      const { total, comp } = estDoublonHoraire ? { total: 0, comp: 0 } : calculerAnalyseAction(action, medInfo);
       const tauxHoraire = Number(medInfo.taux) || (medInfo.statut === "ACI" ? 13.5 : 22.0);
       const cout = total * tauxHoraire;
 
