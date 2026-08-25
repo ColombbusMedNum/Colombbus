@@ -7,6 +7,7 @@ import { Quicksand } from "next/font/google";
 import { HomeIcon, ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, CalendarDaysIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import PageGuard from "@/components/PageGuard";
+import { usePermissions } from "@/lib/PermissionsProvider";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import { estActionDuMediateur } from "@/lib/matchMediateur";
 import { getJoursFeries } from "@/lib/activitesTypes";
@@ -24,6 +25,11 @@ const JOURS_SEMAINE = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 // tout le monde mais une semaine à la fois.
 export default function VueMoisAgendaPage() {
   const { mediateurs: mediateursBruts } = useMediateurs();
+  const { role, user } = usePermissions();
+  // Un compte en rôle ACI (consultation uniquement) ne doit voir que son
+  // propre planning mensuel, jamais celui des autres — même restriction que
+  // /mediation/statistiques pour les rôles non-admin.
+  const estModeACI = role === "aci";
 
   const mediateurs = useMemo(() => {
     return ([...(mediateursBruts as Mediateur[])])
@@ -37,10 +43,16 @@ export default function VueMoisAgendaPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (mediateurs.length > 0 && !selectedMedId) {
-      setSelectedMedId(mediateurs[0].id);
+    if (mediateurs.length === 0 || selectedMedId) return;
+
+    if (estModeACI) {
+      const maFiche = mediateurs.find((m) => m.email?.toLowerCase() === user?.email?.toLowerCase());
+      if (maFiche) setSelectedMedId(maFiche.id);
+      return;
     }
-  }, [mediateurs, selectedMedId]);
+
+    setSelectedMedId(mediateurs[0].id);
+  }, [mediateurs, selectedMedId, estModeACI, user]);
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
@@ -141,17 +153,23 @@ export default function VueMoisAgendaPage() {
 
           {/* SÉLECTEUR MÉDIATEUR + NAVIGATION MOIS */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-[#404040]/10 rounded-xl p-3 shadow-sm">
-            <select
-              value={selectedMedId}
-              onChange={(e) => setSelectedMedId(e.target.value)}
-              className="px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-xs font-bold text-[#005259] outline-none focus:border-[#005259] cursor-pointer"
-            >
-              {mediateurs.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.prenom} {m.nom}
-                </option>
-              ))}
-            </select>
+            {estModeACI ? (
+              <div className="px-3 py-2 bg-[#F3F3F2] border border-[#404040]/10 rounded-lg text-xs font-mono font-semibold text-[#005259] shadow-inner">
+                🔒 {selectedMed ? `${selectedMed.prenom} ${selectedMed.nom}` : "Mon planning"}
+              </div>
+            ) : (
+              <select
+                value={selectedMedId}
+                onChange={(e) => setSelectedMedId(e.target.value)}
+                className="px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-xs font-bold text-[#005259] outline-none focus:border-[#005259] cursor-pointer"
+              >
+                {mediateurs.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.prenom} {m.nom}
+                  </option>
+                ))}
+              </select>
+            )}
 
             <div className="flex items-center gap-2">
               <button

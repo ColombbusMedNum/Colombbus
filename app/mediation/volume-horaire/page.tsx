@@ -20,7 +20,7 @@ import {
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
-import { calculerDureeHeures, calculerHeuresComplementairesACI } from "@/lib/planningHours";
+import { calculerHeuresComplementairesACI, repartirHeuresSansChevauchement } from "@/lib/planningHours";
 import { identifiantMediateur } from "@/lib/matchMediateur";
 import { getTerritoryColor } from "@/lib/territoryColor";
 
@@ -105,15 +105,6 @@ export default function VolumeHoraireComplet() {
     });
   }, [planningRaw, anneeFiltre, moisFiltre]);
 
-  // MOTEUR DE CALCUL DES HEURES ET DÉBORDEMENTS ACI, basé sur les fonctions
-  // partagées de lib/planningHours.ts (mêmes règles que statistiques/mediateurs,
-  // notamment la déduction systématique de la pause déjeuner du total).
-  const calculerAnalyseAction = (action: any, medInfo: any) => {
-    const total = calculerDureeHeures(action.debut, action.fin);
-    const comp = calculerHeuresComplementairesACI(action, medInfo, total);
-    return { total, comp };
-  };
-
   // Table de correspondance par id ET par nom complet, dérivée du cache
   // partagé de liste_mediateurs (lib/MediateursProvider.tsx).
   const mediateursRaw = useMemo(() => {
@@ -150,63 +141,68 @@ export default function VolumeHoraireComplet() {
     const tStats: Record<string, { territoire: string; h: number; cout: number }> = Object.create(null);
     let grandTotal = 0;
 
-    // Un modèle "journée complète" (ex TERRAGE) pose le même horaire
-    // (ex 09:30-17:30) sur les deux créneaux Matin ET Après-midi du même
-    // jour/lieu : ce sont deux documents Firestore pour UNE seule période
-    // travaillée, pas deux périodes distinctes à additionner. Une vraie
-    // coupure méridienne (deux horaires différents) reste comptée deux fois.
-    const creneauxDejaComptes = new Set<string>();
-
+    // Regroupe par (médiateur, jour) avant tout calcul : un modèle "journée
+    // complète" (ex TERRAGE, ou une permanence Suresnes 09:00-17:00) peut
+    // chevaucher entièrement ou partiellement une autre tâche posée le même
+    // jour (ex une tâche ponctuelle 14:00-16:30) — repartirHeuresSans
+    // Chevauchement retire les heures déjà comptées avant toute agrégation,
+    // plutôt qu'un simple repli sur un doublon exact.
+    const parJour: Record<string, any[]> = Object.create(null);
     planningFiltre.forEach((action: any) => {
       const identifiantMed = identifiantMediateur(action);
       if (!identifiantMed) return;
+      const cle = `${identifiantMed}_${action.date}`;
+      if (!parJour[cle]) parJour[cle] = [];
+      parJour[cle].push(action);
+    });
 
-      const medInfo = mediateursRaw[identifiantMed] || { statut: "Permanent", poste: "Médiateur", taux: 0 };
-      const nomAffichage = action.mediateurNom || identifiantMed;
+    Object.values(parJour).forEach((actionsDuJour) => {
+      repartirHeuresSansChevauchement(actionsDuJour).forEach(({ occurrence: action, heuresContribuees, fragments }) => {
+        const identifiantMed = identifiantMediateur(action);
+        const medInfo = mediateursRaw[identifiantMed] || { statut: "Permanent", poste: "Médiateur", taux: 0 };
+        const nomAffichage = action.mediateurNom || identifiantMed;
 
-      const cleCreneau = `${identifiantMed}_${action.date}_${action.lieu || ""}_${action.debut || ""}_${action.fin || ""}`;
-      const estDoublonHoraire = !!(action.debut && action.fin && creneauxDejaComptes.has(cleCreneau));
-      if (action.debut && action.fin) creneauxDejaComptes.add(cleCreneau);
+        const total = heuresContribuees;
+        const comp = fragments.reduce((acc, f) => acc + calculerHeuresComplementairesACI({ ...action, debut: f.debut, fin: f.fin }, medInfo, f.heures), 0);
+        const tauxHoraire = Number(medInfo.taux) || (medInfo.statut === "ACI" ? 13.5 : 22.0);
+        const cout = total * tauxHoraire;
 
-      const { total, comp } = estDoublonHoraire ? { total: 0, comp: 0 } : calculerAnalyseAction(action, medInfo);
-      const tauxHoraire = Number(medInfo.taux) || (medInfo.statut === "ACI" ? 13.5 : 22.0);
-      const cout = total * tauxHoraire;
+        grandTotal += total;
 
-      grandTotal += total;
+        // Aggregations par Médiateur
+        if (!mStats[nomAffichage]) {
+          mStats[nomAffichage] = {
+            nom: nomAffichage,
+            poste: medInfo.poste || "Médiateur",
+            statut: medInfo.statut || "Permanent",
+            h: 0,
+            comp: 0,
+            cout: 0
+          };
+        }
+        mStats[nomAffichage].h += total;
+        mStats[nomAffichage].comp += comp;
+        mStats[nomAffichage].cout += cout;
 
-      // Aggregations par Médiateur
-      if (!mStats[nomAffichage]) {
-        mStats[nomAffichage] = {
-          nom: nomAffichage,
-          poste: medInfo.poste || "Médiateur",
-          statut: medInfo.statut || "Permanent",
-          h: 0,
-          comp: 0,
-          cout: 0
-        };
-      }
-      mStats[nomAffichage].h += total;
-      mStats[nomAffichage].comp += comp;
-      mStats[nomAffichage].cout += cout;
+        // Aggregations par type de Lieu / Activité
+        const titre = action.lieu || "Activité non spécifiée";
+        if (!aStats[titre]) {
+          aStats[titre] = { titre, h: 0, cout: 0, details: Object.create(null) };
+        }
+        aStats[titre].h += total;
+        aStats[titre].cout += cout;
 
-      // Aggregations par type de Lieu / Activité
-      const titre = action.lieu || "Activité non spécifiée";
-      if (!aStats[titre]) {
-        aStats[titre] = { titre, h: 0, cout: 0, details: Object.create(null) };
-      }
-      aStats[titre].h += total;
-      aStats[titre].cout += cout;
+        if (!aStats[titre].details[nomAffichage]) {
+          aStats[titre].details[nomAffichage] = { h: 0 };
+        }
+        aStats[titre].details[nomAffichage].h += total;
 
-      if (!aStats[titre].details[nomAffichage]) {
-        aStats[titre].details[nomAffichage] = { h: 0 };
-      }
-      aStats[titre].details[nomAffichage].h += total;
-
-      // Aggregations par Territoire
-      const territoire = action.territoire || "Sans territoire";
-      if (!tStats[territoire]) tStats[territoire] = { territoire, h: 0, cout: 0 };
-      tStats[territoire].h += total;
-      tStats[territoire].cout += cout;
+        // Aggregations par Territoire
+        const territoire = action.territoire || "Sans territoire";
+        if (!tStats[territoire]) tStats[territoire] = { territoire, h: 0, cout: 0 };
+        tStats[territoire].h += total;
+        tStats[territoire].cout += cout;
+      });
     });
 
     setTotalGeneral(grandTotal);

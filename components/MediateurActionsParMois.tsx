@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { ClockIcon, MapPinIcon } from "@heroicons/react/24/outline";
 import Accordion from "./Accordion";
-import { calculerDureeHeures } from "@/lib/planningHours";
+import { repartirHeuresSansChevauchement } from "@/lib/planningHours";
 
 interface ActionAvecDate {
   id: string;
@@ -12,6 +12,10 @@ interface ActionAvecDate {
   lieu?: string;
   debut?: string;
   fin?: string;
+}
+
+interface OccurrenceAffichee extends ActionAvecDate {
+  heures: number;
 }
 
 interface MediateurActionsParMoisProps {
@@ -43,41 +47,41 @@ export default function MediateurActionsParMois({ actions, emptyMessage = "Aucun
       .map(([cle, liste]) => {
         const [anneeStr, moisStr] = cle.split("-");
 
-        // Un modèle "journée complète" (ex TERRAGE) pose le même horaire
-        // (ex 09:30-17:30) sur les deux créneaux Matin ET Après-midi du même
-        // jour/lieu : ce sont deux documents Firestore pour UNE seule
-        // période travaillée — on les fusionne en une occurrence, ses heures
-        // ne comptant qu'une fois. Une vraie coupure méridienne (deux
-        // horaires différents) reste deux occurrences distinctes.
-        const parCreneau: Record<string, { date: string; lieu: string; debut?: string; fin?: string; moments: string[]; id: string }> = Object.create(null);
+        // Un modèle "journée complète" (ex TERRAGE, ou une permanence
+        // Suresnes 09:00-17:00) peut chevaucher entièrement ou partiellement
+        // une autre tâche posée le même jour (ex une tâche ponctuelle
+        // 14:00-16:30) — on retire les heures déjà comptées jour par jour
+        // avant toute agrégation, plutôt qu'un simple repli sur un doublon
+        // exact (même lieu + même horaire répété sur Matin et Après-midi).
+        const parJour: Record<string, ActionAvecDate[]> = Object.create(null);
         liste.forEach((a) => {
-          const lieu = a.lieu || "Activité non spécifiée";
-          const cleCreneau = `${a.date}_${lieu}_${a.debut || ""}_${a.fin || ""}`;
-          if (!parCreneau[cleCreneau]) {
-            parCreneau[cleCreneau] = { id: a.id, date: a.date, lieu, debut: a.debut, fin: a.fin, moments: [] };
-          }
-          if (a.moment) parCreneau[cleCreneau].moments.push(a.moment);
+          if (!parJour[a.date]) parJour[a.date] = [];
+          parJour[a.date].push(a);
         });
-        const occurrencesFusionnees = Object.values(parCreneau).map((o) => ({
-          ...o,
-          heures: calculerDureeHeures(o.debut || "", o.fin || ""),
-        }));
 
-        const totalHeures = occurrencesFusionnees.reduce((acc, o) => acc + o.heures, 0);
+        const occurrences: OccurrenceAffichee[] = [];
+        Object.values(parJour).forEach((actionsDuJour) => {
+          repartirHeuresSansChevauchement(actionsDuJour).forEach(({ occurrence, heuresContribuees }) => {
+            occurrences.push({ ...occurrence, heures: heuresContribuees });
+          });
+        });
+
+        const totalHeures = occurrences.reduce((acc, o) => acc + o.heures, 0);
 
         // Regroupement par intitulé (lieu) à l'intérieur du mois, plutôt
         // qu'une simple liste chronologique — répond à "combien de fois et
         // combien d'heures sur CETTE activité ce mois-ci".
-        const parIntitule: Record<string, typeof occurrencesFusionnees> = Object.create(null);
-        occurrencesFusionnees.forEach((o) => {
-          if (!parIntitule[o.lieu]) parIntitule[o.lieu] = [];
-          parIntitule[o.lieu].push(o);
+        const parIntitule: Record<string, OccurrenceAffichee[]> = Object.create(null);
+        occurrences.forEach((o) => {
+          const titre = o.lieu || "Activité non spécifiée";
+          if (!parIntitule[titre]) parIntitule[titre] = [];
+          parIntitule[titre].push(o);
         });
         const intitules = Object.entries(parIntitule)
-          .map(([titre, occurrences]) => ({
+          .map(([titre, occs]) => ({
             titre,
-            totalHeures: occurrences.reduce((acc, o) => acc + o.heures, 0),
-            occurrences: [...occurrences].sort((a, b) => a.date.localeCompare(b.date)),
+            totalHeures: occs.reduce((acc, o) => acc + o.heures, 0),
+            occurrences: [...occs].sort((a, b) => a.date.localeCompare(b.date)),
           }))
           .sort((a, b) => b.totalHeures - a.totalHeures);
 
@@ -86,7 +90,7 @@ export default function MediateurActionsParMois({ actions, emptyMessage = "Aucun
           annee: anneeStr,
           moisLabel: NOMS_MOIS[Number(moisStr) - 1] || moisStr,
           totalHeures,
-          nbOccurrences: occurrencesFusionnees.length,
+          nbOccurrences: occurrences.length,
           intitules,
         };
       })
@@ -135,19 +139,25 @@ export default function MediateurActionsParMois({ actions, emptyMessage = "Aucun
                     <div className="space-y-0.5">
                       {groupeIntitule.occurrences.map((o) => {
                         const jour = o.date.split("-")[2] || "";
-                        const libelleMoment = o.moments.length > 1 ? "Journée" : o.moments[0] || "";
+                        // 0h alors qu'un horaire existe = entièrement compris
+                        // dans une autre occurrence du même jour (déjà compté).
+                        const dejaCompte = o.heures === 0 && !!o.debut && !!o.fin;
                         return (
                           <div
                             key={o.id}
-                            className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-xs px-2 py-1 rounded-lg hover:bg-[#F3F3F2] transition-colors"
+                            className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-xs px-2 py-1 rounded-lg hover:bg-[#F3F3F2] transition-colors ${dejaCompte ? "opacity-50" : ""}`}
                           >
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="font-mono font-bold text-[#005259] w-5 shrink-0">{jour}</span>
-                              <span className="text-[9px] text-[#404040]/60 font-bold uppercase w-14 shrink-0">{libelleMoment}</span>
+                              <span className="text-[9px] text-[#404040]/60 font-bold uppercase w-14 shrink-0">{o.moment || ""}</span>
                             </div>
                             <span className="font-mono font-bold text-[#404040]/70 shrink-0 text-[11px]">
                               {o.debut && o.fin && <span className="mr-1.5">{o.debut}–{o.fin}</span>}
-                              {o.heures > 0 && <span className="text-[#EA601F]">({o.heures.toFixed(1)}h)</span>}
+                              {dejaCompte ? (
+                                <span className="text-[#404040]/50 italic normal-case">déjà comptabilisé</span>
+                              ) : o.heures > 0 ? (
+                                <span className="text-[#EA601F]">({o.heures.toFixed(1)}h)</span>
+                              ) : null}
                             </span>
                           </div>
                         );
