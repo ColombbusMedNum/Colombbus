@@ -49,6 +49,7 @@ export default function VolumeHoraireComplet() {
 
   const [anneeFiltre, setAnneeFiltre] = useState("toutes");
   const [moisFiltre, setMoisFiltre] = useState("tous");
+  const [statutFiltre, setStatutFiltre] = useState<"tous" | "ACI">("tous");
 
   const { role } = usePermissions();
   const peutConfigurerSeuils = role === "admin" || role === "coordinateur";
@@ -160,6 +161,7 @@ export default function VolumeHoraireComplet() {
       repartirHeuresSansChevauchement(actionsDuJour).forEach(({ occurrence: action, heuresContribuees, fragments }) => {
         const identifiantMed = identifiantMediateur(action);
         const medInfo = mediateursRaw[identifiantMed] || { statut: "Permanent", poste: "Médiateur", taux: 0 };
+        if (statutFiltre === "ACI" && medInfo.statut !== "ACI") return;
         const nomAffichage = action.mediateurNom || identifiantMed;
 
         const total = heuresContribuees;
@@ -209,7 +211,7 @@ export default function VolumeHoraireComplet() {
     setStatsMediateurs(Object.values(mStats).sort((a: any, b: any) => b.h - a.h));
     setStatsActions(Object.values(aStats).sort((a: any, b: any) => b.h - a.h));
     setStatsTerritoires(Object.values(tStats).sort((a: any, b: any) => b.h - a.h));
-  }, [planningFiltre, mediateursRaw]);
+  }, [planningFiltre, mediateursRaw, statutFiltre]);
 
   // % de dépassement = heures complémentaires rapportées aux heures
   // effectivement travaillées dans le cadre du contrat sur la période
@@ -319,6 +321,24 @@ export default function VolumeHoraireComplet() {
                 Réinitialiser
               </button>
             )}
+            <div className="flex items-center gap-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-xl p-1">
+              <button
+                onClick={() => setStatutFiltre("tous")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                  statutFiltre === "tous" ? "bg-[#005259] text-white" : "text-[#404040]/70 hover:text-[#005259]"
+                }`}
+              >
+                Tous
+              </button>
+              <button
+                onClick={() => setStatutFiltre("ACI")}
+                className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                  statutFiltre === "ACI" ? "bg-[#EA601F] text-white" : "text-[#404040]/70 hover:text-[#EA601F]"
+                }`}
+              >
+                ACI uniquement
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-2 sm:ml-auto">
             {peutConfigurerSeuils && (
