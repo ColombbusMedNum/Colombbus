@@ -121,7 +121,8 @@ export default function GestionEquipe() {
     statut: "Permanent", 
     role: "mediateur",
     sites: [] as string[],
-    rattachementHoraireACI: "Paris", 
+    rattachementHoraireACI: "Paris",
+    dureeHebdoACI: "26h" as "26h" | "35h",
     taux: 0,
     actif: true,
     competences: [] as string[]
@@ -413,6 +414,7 @@ export default function GestionEquipe() {
         role: normalizeRole(med.role),
         sites: med.sites ? med.sites : (med.sitePrincipal ? [med.sitePrincipal] : []),
         rattachementHoraireACI: med.rattachementHoraireACI || "Paris",
+        dureeHebdoACI: med.dureeHebdoACI || "26h",
         taux: med.taux !== undefined ? Number(med.taux) : 0,
         actif: med.actif !== undefined ? med.actif : true,
         competences: med.competences || []
@@ -430,6 +432,7 @@ export default function GestionEquipe() {
         role: "mediateur",
         sites: [],
         rattachementHoraireACI: "Paris",
+        dureeHebdoACI: "26h",
         taux: 0,
         actif: true,
         competences: []
@@ -703,7 +706,7 @@ export default function GestionEquipe() {
                               <span className="bg-[#F3F3F2] px-2 py-1 rounded border border-[#404040]/10 text-[#005259]">Taux : {m.taux || 0}€</span>
                               {m.statut === "ACI" && (
                                 <span className="text-[#EA601F] bg-[#F9945D]/15 border border-[#F9945D]/30 px-2 py-1 rounded flex items-center gap-1">
-                                  <ClockIcon className="w-3.5 h-3.5" /> Réf : {m.rattachementHoraireACI || "Paris"}
+                                  <ClockIcon className="w-3.5 h-3.5" /> Réf : {m.rattachementHoraireACI || "Paris"} · {m.dureeHebdoACI === "35h" ? "35h" : "26h"}
                                 </span>
                               )}
                             </div>
@@ -868,18 +871,33 @@ export default function GestionEquipe() {
                 </div>
 
                 {formData.statut === "ACI" && (
-                  <div className="p-3.5 bg-[#F9945D]/10 border border-[#F9945D]/30 rounded-xl">
-                    <label className="block text-[10px] font-bold uppercase text-[#EA601F] mb-1.5 flex items-center gap-1">
-                      <ClockIcon className="w-3.5 h-3.5" /> Grille de référence ACI
-                    </label>
-                    <select 
-                      className="w-full p-2.5 bg-white border border-[#F9945D]/40 text-[#404040] rounded-lg outline-none font-bold text-xs"
-                      value={formData.rattachementHoraireACI}
-                      onChange={e => setFormData({...formData, rattachementHoraireACI: e.target.value})}
-                    >
-                      <option value="Paris">Suivre la grille de Paris</option>
-                      <option value="Massy">Suivre la grille de Massy</option>
-                    </select>
+                  <div className="p-3.5 bg-[#F9945D]/10 border border-[#F9945D]/30 rounded-xl space-y-3">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-[#EA601F] mb-1.5 flex items-center gap-1">
+                        <ClockIcon className="w-3.5 h-3.5" /> Grille de référence ACI
+                      </label>
+                      <select
+                        className="w-full p-2.5 bg-white border border-[#F9945D]/40 text-[#404040] rounded-lg outline-none font-bold text-xs"
+                        value={formData.rattachementHoraireACI}
+                        onChange={e => setFormData({...formData, rattachementHoraireACI: e.target.value})}
+                      >
+                        <option value="Paris">Suivre la grille de Paris</option>
+                        <option value="Massy">Suivre la grille de Massy</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-[#EA601F] mb-1.5 flex items-center gap-1">
+                        <ClockIcon className="w-3.5 h-3.5" /> Durée hebdomadaire
+                      </label>
+                      <select
+                        className="w-full p-2.5 bg-white border border-[#F9945D]/40 text-[#404040] rounded-lg outline-none font-bold text-xs"
+                        value={formData.dureeHebdoACI}
+                        onChange={e => setFormData({...formData, dureeHebdoACI: e.target.value as "26h" | "35h"})}
+                      >
+                        <option value="26h">26h (mercredi non travaillé, en heures complémentaires)</option>
+                        <option value="35h">35h (travaille le mercredi normalement)</option>
+                      </select>
+                    </div>
                   </div>
                 )}
 

@@ -137,6 +137,7 @@ interface MediateurInfoACI {
   statut?: string;
   debutACI?: string;
   finACI?: string;
+  dureeHebdoACI?: "26h" | "35h";
 }
 
 interface ActionPlanningDate {
@@ -158,9 +159,9 @@ export function calculerHeuresComplementairesACI(
   if (!action.debut || !action.fin) return 0;
   if (medInfo.statut !== "ACI") return 0;
 
-  if (action.date) {
+  if (action.date && medInfo.dureeHebdoACI !== "35h") {
     const dateObj = new Date(action.date);
-    if (dateObj.getDay() === 3) return dureeTotale; // Mercredi : tout compte en complémentaire
+    if (dateObj.getDay() === 3) return dureeTotale; // Mercredi : tout compte en complémentaire (ACI 26h uniquement)
   }
 
   const start = timeToMinutes(action.debut);

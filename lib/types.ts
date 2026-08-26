@@ -29,6 +29,11 @@ export interface Mediateur {
   // Numéro de groupe ACI (1 à 10), affiché sur l'agenda pour repérer d'un
   // coup d'œil les collaborateurs ACI qui partagent le même groupe.
   groupeACI?: number;
+  // Durée hebdomadaire d'un ACI — "26h" par défaut si absent (comportement
+  // historique : mercredi non travaillé, compté en heures complémentaires,
+  // voir lib/planningHours.ts). Un ACI "35h" travaille normalement le
+  // mercredi et ne déclenche pas cette règle.
+  dureeHebdoACI?: "26h" | "35h";
 }
 
 // Créneau planifié (collection "planning_mediateurs"). Seuls mediatId et

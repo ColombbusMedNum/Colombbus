@@ -699,7 +699,7 @@ export default function PlanningExpertMix() {
     // Le mercredi compte intégralement en heures complémentaires pour un ACI
     // (voir calculerHeuresComplementairesACI) — signalé après coup, sans
     // bloquer la création du créneau.
-    if (estACI && new Date(`${dateStr}T00:00:00`).getDay() === 3) {
+    if (estACI && medObj?.dureeHebdoACI !== "35h" && new Date(`${dateStr}T00:00:00`).getDay() === 3) {
       showToast(`ℹ️ Mercredi : ce créneau de ${prenom} compte intégralement en heures complémentaires (ACI).`);
     }
 
@@ -1534,7 +1534,7 @@ export default function PlanningExpertMix() {
                             // présence terrain habituelle — voir le rappel
                             // "heures complémentaires" posé à la création
                             // d'une action ce jour-là dans processActionCreation).
-                            const estMercrediACI = m.statut === 'ACI' && day.getDay() === 3;
+                            const estMercrediACI = m.statut === 'ACI' && m.dureeHebdoACI !== '35h' && day.getDay() === 3;
                             const fondJour = estFerie ? "bg-[#EF736A]/5" : estMercrediACI ? "bg-[#404040]/10" : rowBgClass;
                             return (
                               <div key={dateStr} className={`p-1 border-b border-l border-[#F3F3F2] align-top ${fondJour} ${m.masque ? 'opacity-40' : ''}`}>
