@@ -133,7 +133,7 @@ const GROUPS: GuideGroup[] = [
       {
         key: "actions-coll",
         title: "Actions collectives",
-        path: "/mediation/rencontres-numeriques/actions-collectives",
+        path: "/mediation/actions-collectives",
         roles: ["admin", "coordinateur", "mediateur", "aci"],
         description:
           "Saisie des ateliers de groupe (par opposition au suivi individuel) : un formulaire pour enregistrer un nouvel atelier, une liste modifiable des ateliers déjà saisis, avec édition et suppression.",

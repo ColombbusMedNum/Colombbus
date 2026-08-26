@@ -23,6 +23,135 @@ const quicksand = Quicksand({
   weight: ["300", "400", "500", "600", "700"],
 });
 
+// Palette catégorielle des graphiques — dérivée des couleurs de marque
+// (teal/orange) mais recalée en luminosité/chroma pour rester lisible en
+// aplat (le teal de marque #005259 est trop sombre/désaturé comme couleur de
+// barre) ; validée sans daltonisme via le script de la skill dataviz (teal,
+// orange, violet — 3 emplacements, tous les tests passent en mode clair).
+const COULEUR_HOMMES = "#0B9294";
+const COULEUR_FEMMES = "#EA601F";
+const COULEUR_AUTRE = "#7C1FD1";
+const COULEURS_TERRITOIRE: Record<string, string> = {
+  Paris: COULEUR_HOMMES,
+  Suresnes: COULEUR_FEMMES,
+  Autre: COULEUR_AUTRE,
+};
+
+function Puce({ couleur, label }: { couleur: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[#404040]/70">
+      <span className="w-2.5 h-2.5 rounded-[3px] shrink-0" style={{ backgroundColor: couleur }}></span>
+      {label}
+    </span>
+  );
+}
+
+// Graphique en barres empilées (2-3 séries) — une catégorie par colonne, les
+// segments s'empilent du bas vers le haut ; seul le segment le plus éloigné
+// de la ligne de base (le dernier de la liste) porte un arrondi en haut,
+// conformément au repère "arrondi ancré à la ligne de base" : la ligne de
+// base elle-même ne doit jamais être arrondie.
+function GraphiqueBarresEmpilees({
+  categories,
+  series,
+  hauteur = 160,
+}: {
+  categories: { cle: string; label: string; valeurs: number[] }[];
+  series: { nom: string; couleur: string }[];
+  hauteur?: number;
+}) {
+  const maxTotal = Math.max(1, ...categories.map((c) => c.valeurs.reduce((s, v) => s + v, 0)));
+  const echelle = maxTotal * 1.18; // marge pour l'étiquette de total au-dessus de la barre
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {series.map((s) => (
+          <Puce key={s.nom} couleur={s.couleur} label={s.nom} />
+        ))}
+      </div>
+      <div className="flex items-end gap-3 md:gap-5 overflow-x-auto pb-1" style={{ height: hauteur + 40 }}>
+        {categories.map((cat) => {
+          const total = cat.valeurs.reduce((s, v) => s + v, 0);
+          return (
+            <div key={cat.cle} className="group relative flex flex-col items-center justify-end shrink-0" style={{ height: hauteur + 40, minWidth: 34 }}>
+              <div
+                className="absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full whitespace-nowrap bg-[#404040] text-white text-[10px] font-bold rounded-lg px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg"
+              >
+                {cat.label} — {series.map((s, i) => `${s.nom.slice(0, 1)}: ${cat.valeurs[i]}`).join(" · ")} — Total {total}
+              </div>
+              <span className="text-[10px] font-bold text-[#005259] font-mono mb-1">{total || ""}</span>
+              <div className="flex flex-col-reverse w-6 md:w-7" style={{ height: hauteur }}>
+                {cat.valeurs.map((v, i) => {
+                  const hPx = (v / echelle) * hauteur;
+                  const estDernierNonNul = i === cat.valeurs.length - 1 || cat.valeurs.slice(i + 1).every((x) => x === 0);
+                  if (v <= 0) return null;
+                  return (
+                    <div
+                      key={i}
+                      className={`w-full ${estDernierNonNul ? "rounded-t-[4px]" : ""}`}
+                      style={{ height: Math.max(hPx, 2), backgroundColor: series[i].couleur, marginBottom: i < cat.valeurs.length - 1 ? 2 : 0 }}
+                    />
+                  );
+                })}
+              </div>
+              <span className="text-[9px] font-bold uppercase tracking-wide text-[#404040]/60 mt-1.5 text-center leading-tight">{cat.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Graphique en barres groupées — une série par territoire, regroupées par
+// catégorie (tranche d'âge). Toutes les barres partagent la même échelle
+// (le plus haut total tous groupes confondus), pour rester comparables.
+function GraphiqueBarresGroupees({
+  categories,
+  series,
+  hauteur = 160,
+}: {
+  categories: { cle: string; label: string; valeurs: number[] }[];
+  series: { nom: string; couleur: string }[];
+  hauteur?: number;
+}) {
+  const max = Math.max(1, ...categories.flatMap((c) => c.valeurs));
+  const echelle = max * 1.18;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {series.map((s) => (
+          <Puce key={s.nom} couleur={s.couleur} label={s.nom} />
+        ))}
+      </div>
+      <div className="flex items-end gap-4 md:gap-6 overflow-x-auto pb-1" style={{ height: hauteur + 40 }}>
+        {categories.map((cat) => (
+          <div key={cat.cle} className="flex flex-col items-center justify-end shrink-0" style={{ height: hauteur + 40 }}>
+            <div className="flex items-end gap-[2px]" style={{ height: hauteur }}>
+              {cat.valeurs.map((v, i) => {
+                const hPx = Math.max((v / echelle) * hauteur, v > 0 ? 2 : 0);
+                return (
+                  <div key={i} className="group relative flex flex-col items-center justify-end w-3.5 md:w-4" style={{ height: hauteur }}>
+                    <div
+                      className="absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full whitespace-nowrap bg-[#404040] text-white text-[10px] font-bold rounded-lg px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg"
+                    >
+                      {series[i].nom} · {cat.label} : {v}
+                    </div>
+                    <div className="w-full rounded-t-[4px]" style={{ height: hPx, backgroundColor: series[i].couleur }} />
+                  </div>
+                );
+              })}
+            </div>
+            <span className="text-[9px] font-bold uppercase tracking-wide text-[#404040]/60 mt-1.5 text-center leading-tight max-w-[70px]">{cat.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface GrandTotal {
   hommes: number;
   femmes: number;
@@ -463,6 +592,16 @@ export default function BilanSuresnesPage() {
             Ventilation Mensuelle Réelle
           </h2>
 
+          <div className="bg-white border border-[#404040]/10 rounded-2xl p-4 shadow-sm">
+            <GraphiqueBarresEmpilees
+              categories={moisDetail.map((m) => ({ cle: m.nom, label: m.nom.slice(0, 3), valeurs: [m.hommes, m.femmes] }))}
+              series={[
+                { nom: "Hommes", couleur: COULEUR_HOMMES },
+                { nom: "Femmes", couleur: COULEUR_FEMMES },
+              ]}
+            />
+          </div>
+
           <div className="bg-white border border-[#404040]/10 rounded-2xl overflow-hidden shadow-sm">
             <div className="grid grid-cols-4 bg-[#F3F3F2] border-b border-[#404040]/10 p-3 text-[10px] font-bold uppercase tracking-widest text-[#005259] text-center">
               <div className="text-left pl-4">Mois de visite</div>
@@ -554,6 +693,14 @@ export default function BilanSuresnesPage() {
 
         {/* RÉPARTITION DES TRANCHES D'ÂGE PAR TERRITOIRE */}
         <Accordion title="Répartition des tranches d'âge par territoire" open={ageOuvert} onToggle={() => setAgeOuvert(!ageOuvert)}>
+          <GraphiqueBarresGroupees
+            categories={TRANCHES_AGE.map((tranche) => ({
+              cle: tranche,
+              label: tranche,
+              valeurs: TERRITOIRES_BENEF.map((t) => repartitionAgesTerritoire[t][tranche]),
+            }))}
+            series={TERRITOIRES_BENEF.map((t) => ({ nom: t, couleur: COULEURS_TERRITOIRE[t] }))}
+          />
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
@@ -586,6 +733,18 @@ export default function BilanSuresnesPage() {
 
         {/* RÉPARTITION PAR TERRITOIRE ET GENRE */}
         <Accordion title="Répartition par territoire et genre" open={genreOuvert} onToggle={() => setGenreOuvert(!genreOuvert)}>
+          <GraphiqueBarresEmpilees
+            categories={TERRITOIRES_BENEF.map((t) => ({
+              cle: t,
+              label: t,
+              valeurs: [parGenreTerritoire[t].hommes, parGenreTerritoire[t].femmes, parGenreTerritoire[t].nonRenseigne],
+            }))}
+            series={[
+              { nom: "Hommes", couleur: COULEUR_HOMMES },
+              { nom: "Femmes", couleur: COULEUR_FEMMES },
+              { nom: "Non renseigné", couleur: COULEUR_AUTRE },
+            ]}
+          />
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>

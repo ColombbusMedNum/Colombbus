@@ -19,7 +19,7 @@ import {
   CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon,
   LockClosedIcon, BellIcon,
   ChatBubbleLeftRightIcon, ExclamationTriangleIcon,
-  ChevronDownIcon, HomeIcon, ClockIcon
+  ChevronDownIcon, HomeIcon, ClockIcon, WrenchScrewdriverIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
@@ -159,17 +159,6 @@ export default function PlanningExpertMix() {
   // Repliée par défaut à chaque arrivée sur la page — l'utilisateur la
   // déplie via la poignée quand il a besoin d'injecter un modèle.
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  // Zoom propre à cette page (n'affecte pas le zoom navigateur global) —
-  // persisté par utilisateur via localStorage, chargé après le montage pour
-  // éviter un mismatch d'hydratation SSR.
-  const [zoomAgenda, setZoomAgenda] = useState(1);
-  useEffect(() => {
-    const sauvegarde = localStorage.getItem("agendaZoom");
-    if (sauvegarde) setZoomAgenda(parseFloat(sauvegarde));
-  }, []);
-  useEffect(() => {
-    localStorage.setItem("agendaZoom", String(zoomAgenda));
-  }, [zoomAgenda]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [filtrePersoUniquement] = useState(true);
   const [showNotifDeleteConfirm, setShowNotifDeleteConfirm] = useState(false);
@@ -924,6 +913,106 @@ export default function PlanningExpertMix() {
     setDeleteConfirmModalData(null);
   };
 
+  // Nettoyage ponctuel : supprime dans toute la base (pas seulement la
+  // semaine affichée) toutes les actions dont le lieu est "OFF" — comparaison
+  // normalisée (espaces/casse) pour couvrir les variantes de saisie. Reprend
+  // la même sécurité que les autres suppressions (jamais un créneau Suresnes
+  // avec un usager inscrit).
+  const supprimerActionsOFF = async () => {
+    const snap = await getDocs(collection(db, "planning_mediateurs"));
+    const actionsOFF = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() } as ActionPlanning))
+      .filter((a) => (a.lieu || "").trim().toUpperCase() === "OFF");
+
+    if (actionsOFF.length === 0) {
+      showToast("Aucune action \"OFF\" trouvée.");
+      return;
+    }
+    if (!confirm(`Supprimer les ${actionsOFF.length} action(s) "OFF" trouvée(s) dans toute la base ?`)) return;
+
+    let supprimees = 0;
+    let bloquees = 0;
+    for (const actionDoc of actionsOFF) {
+      const qSuresnes = query(collection(db, "planning_suresnes"), where("date", "==", actionDoc.date), where("moment", "==", actionDoc.moment));
+      const snapSuresnes = await getDocs(qSuresnes);
+      const nomComplet = actionDoc.mediateurNom || "";
+      const docsDuMediateur = snapSuresnes.docs.filter((d) => {
+        const mNom = d.data().mediateurNom || "";
+        return mNom === nomComplet || mNom === `${nomComplet} (RN)` || mNom === `${nomComplet} (RND)` || mNom === `${nomComplet} (RN91)`;
+      });
+      if (docsDuMediateur.some((d) => d.data().usager && d.data().usager.trim() !== "")) {
+        bloquees++;
+        continue;
+      }
+      await Promise.all(docsDuMediateur.map((d) => deleteDoc(doc(db, "planning_suresnes", d.id))));
+      await deleteDoc(doc(db, "planning_mediateurs", actionDoc.id));
+      supprimees++;
+    }
+
+    if (bloquees > 0) {
+      showToast(`${supprimees} action(s) "OFF" supprimée(s). ${bloquees} laissée(s) car un usager est inscrit à Suresnes.`, "error");
+    } else {
+      showToast(`${supprimees} action(s) "OFF" supprimée(s).`);
+    }
+  };
+
+  // Supprime en une fois toutes les actions d'un·e médiateur·rice sur la
+  // semaine affichée — même règle de sécurité que la suppression au cas par
+  // cas (jamais un créneau Suresnes avec un usager déjà inscrit) : les
+  // actions bloquées sont laissées de côté et signalées plutôt que de tout
+  // annuler à cause d'une seule d'entre elles.
+  const supprimerToutesActionsDeLaLigne = async (m: Mediateur) => {
+    if (!canDeleteSlot) return;
+    if (estSemaineValidee) {
+      showToast("🔒 Semaine verrouillée.", "error");
+      return;
+    }
+    const datesSemaine = new Set(weekDays.map((d) => d.toLocaleDateString('en-CA')));
+    const nomComplet = `${m.prenom || ""} ${m.nom || ""}`.trim();
+    const actionsDeLaLigne = actions.filter((a) => estActionDuMediateur(a, m) && datesSemaine.has(a.date));
+
+    if (actionsDeLaLigne.length === 0) {
+      showToast("Aucune action à supprimer cette semaine pour cette personne.");
+      return;
+    }
+    if (!confirm(`Supprimer les ${actionsDeLaLigne.length} action(s) de ${nomComplet} sur cette semaine ?`)) return;
+
+    let supprimees = 0;
+    let bloquees = 0;
+    for (const actionDoc of actionsDeLaLigne) {
+      const qSuresnes = query(collection(db, "planning_suresnes"), where("date", "==", actionDoc.date), where("moment", "==", actionDoc.moment));
+      const snapSuresnes = await getDocs(qSuresnes);
+      const docsDuMediateur = snapSuresnes.docs.filter((d) => {
+        const mNom = d.data().mediateurNom || "";
+        return mNom === nomComplet || mNom === `${nomComplet} (RN)` || mNom === `${nomComplet} (RND)` || mNom === `${nomComplet} (RN91)`;
+      });
+      if (docsDuMediateur.some((d) => d.data().usager && d.data().usager.trim() !== "")) {
+        bloquees++;
+        continue;
+      }
+      await Promise.all(docsDuMediateur.map((d) => deleteDoc(doc(db, "planning_suresnes", d.id))));
+      await deleteDoc(doc(db, "planning_mediateurs", actionDoc.id));
+      addDoc(collection(db, "historique_agenda"), {
+        type: "suppression",
+        date: actionDoc.date,
+        moment: actionDoc.moment,
+        mediatId: actionDoc.mediatId,
+        mediateurNom: actionDoc.mediateurNom || "",
+        lieu: actionDoc.lieu || "",
+        auteurUid: currentUserId,
+        auteurNom: currentUserNom,
+        horodatage: Date.now()
+      }).catch((err) => console.error("Historique agenda (suppression) :", err));
+      supprimees++;
+    }
+
+    if (bloquees > 0) {
+      showToast(`${supprimees} action(s) supprimée(s). ${bloquees} laissée(s) car un usager est inscrit à Suresnes.`, "error");
+    } else {
+      showToast(`${supprimees} action(s) supprimée(s).`);
+    }
+  };
+
   const startOfWeekStr = weekDays[0].toLocaleDateString('en-CA');
   const endOfWeekStr = weekDays[weekDays.length - 1].toLocaleDateString('en-CA');
 
@@ -1057,33 +1146,6 @@ export default function PlanningExpertMix() {
             Aujourd'hui
           </button>
 
-          {/* ZOOM : ne s'applique qu'à l'affichage de l'agenda (voir style
-              zoom posé sur l'AGENCEMENT PRINCIPAL plus bas), pas à la page
-              entière ni au zoom navigateur. */}
-          <div className="flex items-center gap-1 bg-[#003d42] border border-[#002b2f] rounded-lg px-1.5 h-9">
-            <button
-              onClick={() => setZoomAgenda(z => Math.max(0.6, +(z - 0.1).toFixed(2)))}
-              className="text-white hover:text-[#F9C44E] transition-colors cursor-pointer w-6 h-6 flex items-center justify-center text-sm font-bold"
-              title="Réduire l'agenda"
-            >
-              −
-            </button>
-            <button
-              onClick={() => setZoomAgenda(1)}
-              className="text-[11px] font-bold text-white min-w-[34px] text-center cursor-pointer hover:text-[#F9C44E] transition-colors"
-              title="Réinitialiser le zoom"
-            >
-              {Math.round(zoomAgenda * 100)}%
-            </button>
-            <button
-              onClick={() => setZoomAgenda(z => Math.min(1.5, +(z + 0.1).toFixed(2)))}
-              className="text-white hover:text-[#F9C44E] transition-colors cursor-pointer w-6 h-6 flex items-center justify-center text-sm font-bold"
-              title="Agrandir l'agenda"
-            >
-              +
-            </button>
-          </div>
-
           {/* SÉLECTEUR SEMAINE */}
           <PermissionGuard actionId="agenda_week_nav">
             <div className="flex items-center gap-1.5 bg-[#003d42] border border-[#002b2f] rounded-lg px-2 h-9">
@@ -1128,6 +1190,15 @@ export default function PlanningExpertMix() {
             </button>
           </PermissionGuard>
 
+          {/* Outil ponctuel — à retirer une fois le nettoyage fait. */}
+          <button
+            onClick={supprimerActionsOFF}
+            title="Supprime dans toute la base les actions dont le lieu est 'OFF'"
+            className="bg-[#003d42] hover:bg-[#EF736A] text-white border border-[#002b2f] px-3 h-9 rounded-md text-xs flex items-center gap-1.5 font-bold cursor-pointer"
+          >
+            <WrenchScrewdriverIcon className="w-3.5 h-3.5"/> Supprimer OFF
+          </button>
+
           <Link href="/mediation/localisations?vueRestreinte=1" className="bg-[#003d42] hover:bg-[#002b2f] text-white border border-[#002b2f] px-3 h-9 rounded-md text-xs flex items-center gap-1.5 font-bold">
             <MapPinIcon className="w-3.5 h-3.5 text-[#A9E0C9]"/> Adresses
           </Link>
@@ -1146,7 +1217,7 @@ export default function PlanningExpertMix() {
       </header>
 
       {/* AGENCEMENT PRINCIPAL */}
-      <div className="max-w-8xl mx-auto py-5 pr-4 flex gap-4 transition-all duration-300" style={{ zoom: zoomAgenda }}>
+      <div className="max-w-8xl mx-auto py-5 pr-4 flex gap-4 transition-all duration-300">
 
         {/* POIGNÉE DE REPLI + ACCÈS HISTORIQUE — accolées à la barre de
             modèles plutôt que perdues dans l'en-tête déjà chargé de cases. */}
@@ -1413,6 +1484,15 @@ export default function PlanningExpertMix() {
                                     </button>
                                   </div>
                                 </PermissionGuard>
+                                {canDeleteSlot && !estSemaineValidee && (
+                                  <button
+                                    onClick={() => supprimerToutesActionsDeLaLigne(m)}
+                                    title="Supprimer toutes les actions de cette ligne sur la semaine"
+                                    className="text-[#404040]/40 hover:text-[#EF736A] p-0.5 shrink-0"
+                                  >
+                                    <TrashIcon className="w-3.5 h-3.5"/>
+                                  </button>
+                                )}
                               </div>
 
                               {m.statut === 'ACI' && (
@@ -1445,8 +1525,15 @@ export default function PlanningExpertMix() {
                           {weekDays.map(day => {
                             const dateStr = day.toLocaleDateString('en-CA');
                             const estFerie = joursFeries.has(dateStr);
+                            // Repère visuellement le mercredi des ACI (jour de
+                            // formation/heures complémentaires plutôt que de
+                            // présence terrain habituelle — voir le rappel
+                            // "heures complémentaires" posé à la création
+                            // d'une action ce jour-là dans processActionCreation).
+                            const estMercrediACI = m.statut === 'ACI' && day.getDay() === 3;
+                            const fondJour = estFerie ? "bg-[#EF736A]/5" : estMercrediACI ? "bg-[#404040]/10" : rowBgClass;
                             return (
-                              <div key={dateStr} className={`p-1 border-b border-l border-[#F3F3F2] align-top ${estFerie ? "bg-[#EF736A]/5" : rowBgClass} ${m.masque ? 'opacity-40' : ''}`}>
+                              <div key={dateStr} className={`p-1 border-b border-l border-[#F3F3F2] align-top ${fondJour} ${m.masque ? 'opacity-40' : ''}`}>
                                 <div className="grid grid-cols-2 gap-1 min-h-[38px]">
                                   <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} onSlotClick={handleSlotClick} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
                                   <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} onSlotClick={handleSlotClick} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
