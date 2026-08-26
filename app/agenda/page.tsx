@@ -1190,7 +1190,10 @@ export default function PlanningExpertMix() {
             </button>
           </PermissionGuard>
 
-          {/* Outil ponctuel — à retirer une fois le nettoyage fait. */}
+          {/* Bouton "Supprimer OFF" masqué de la vue à la demande de
+              l'utilisateur — la fonction supprimerActionsOFF reste dans le
+              code au cas où l'outil resserve plus tard. Décommenter le bloc
+              ci-dessous pour le réafficher.
           <button
             onClick={supprimerActionsOFF}
             title="Supprime dans toute la base les actions dont le lieu est 'OFF'"
@@ -1198,6 +1201,7 @@ export default function PlanningExpertMix() {
           >
             <WrenchScrewdriverIcon className="w-3.5 h-3.5"/> Supprimer OFF
           </button>
+          */}
 
           <Link href="/mediation/localisations?vueRestreinte=1" className="bg-[#003d42] hover:bg-[#002b2f] text-white border border-[#002b2f] px-3 h-9 rounded-md text-xs flex items-center gap-1.5 font-bold">
             <MapPinIcon className="w-3.5 h-3.5 text-[#A9E0C9]"/> Adresses
