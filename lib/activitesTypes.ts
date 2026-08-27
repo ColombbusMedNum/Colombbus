@@ -246,11 +246,14 @@ export async function genererCreneauxPourModele(
   // horaire (configuration_equipe/parametres_horaires) plutôt que selon les
   // horaires fixes du modèle — TERRAGE suit toujours la grille Paris, MASSY
   // toujours la grille Massy, indépendamment du rattachement personnel de
-  // chacun.
+  // chacun. RN Observation suit la même logique, mais son lieu ne désigne
+  // pas un site physique précis : on utilise donc le rattachement personnel
+  // (rattachementHoraireACI, "Paris" par défaut) de chaque ACI concerné.
   const estTerrage = upperLieu.includes("TERRAGE");
   const estMassyLieu = upperLieu.includes("MASSY");
+  const estObservation = upperLieu.includes("OBSERVATION");
   let grillesHorairesACI: Record<string, Record<string, { debut: string; fin: string }>> | null = null;
-  if (estTerrage || estMassyLieu) {
+  if (estTerrage || estMassyLieu || estObservation) {
     const snapHoraires = await getDoc(doc(db, "configuration_equipe", "parametres_horaires"));
     grillesHorairesACI = snapHoraires.exists() ? (snapHoraires.data() as any) : null;
   }
@@ -276,8 +279,8 @@ export async function genererCreneauxPourModele(
 
     for (const dateStr of dates) {
       let horaireOverride: { debut: string; fin: string } | null = null;
-      if ((estTerrage || estMassyLieu) && med.statut === "ACI" && grillesHorairesACI) {
-        const site = estTerrage ? "Paris" : "Massy";
+      if ((estTerrage || estMassyLieu || estObservation) && med.statut === "ACI" && grillesHorairesACI) {
+        const site = estTerrage ? "Paris" : estMassyLieu ? "Massy" : ((med as any).rattachementHoraireACI || "Paris");
         const jourKey = JOURS_PAR_INDEX[new Date(`${dateStr}T00:00:00`).getDay()];
         const h = grillesHorairesACI[site]?.[jourKey];
         if (h?.debut && h?.fin) horaireOverride = h;

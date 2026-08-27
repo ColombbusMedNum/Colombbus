@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { auth, db, firebaseConfig } from "@/lib/firebase";
+import { auth, db, firebaseConfig, APP_URL } from "@/lib/firebase";
 import { collection, onSnapshot, doc, getDoc, updateDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { Quicksand } from "next/font/google";
 import { 
@@ -384,15 +384,31 @@ export default function GestionEquipe() {
       await setDoc(doc(db, "liste_mediateurs", credential.user.uid), data);
       await deleteDoc(doc(db, "liste_mediateurs", m.id));
       await sendPasswordResetEmail(auth, m.email, {
-        url: `${window.location.origin}/reset-password`,
+        url: `${APP_URL}/reset-password`,
         handleCodeInApp: true,
       });
       showToast("Compte créé et e-mail de configuration envoyé avec succès.");
     } catch (err: any) {
-      console.error(err);
       if (err.code === "auth/email-already-in-use") {
-        showToast("Un compte existe déjà avec cette adresse email.", "error");
+        // Cas prévu (pas une anomalie) : on ne passe pas par console.error,
+        // qui déclenche l'overlay plein écran de Next.js en développement
+        // même quand l'erreur est bien gérée juste en dessous.
+        console.warn("Compte déjà existant, renvoi de l'e-mail de configuration :", err.code);
+        // Le compte Auth existe déjà (ex. premier e-mail de configuration
+        // jamais arrivé) — on ne peut pas le recréer, mais on peut renvoyer
+        // un nouvel e-mail de configuration vers la même adresse.
+        try {
+          await sendPasswordResetEmail(auth, m.email, {
+            url: `${APP_URL}/reset-password`,
+            handleCodeInApp: true,
+          });
+          showToast("Un compte existait déjà : e-mail de configuration renvoyé.");
+        } catch (errRenvoi) {
+          console.error(errRenvoi);
+          showToast("Un compte existe déjà, mais le renvoi de l'e-mail a échoué.", "error");
+        }
       } else {
+        console.error(err);
         showToast("Erreur lors de la création de l'accès.", "error");
       }
     } finally {

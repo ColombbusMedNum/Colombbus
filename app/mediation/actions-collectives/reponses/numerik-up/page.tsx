@@ -6,7 +6,7 @@ import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, se
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import { useRouter } from "next/navigation";
-import { HomeIcon, MagnifyingGlassIcon, ClipboardDocumentCheckIcon, DocumentArrowUpIcon, TrashIcon, DocumentDuplicateIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, PencilSquareIcon, XMarkIcon, CheckIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, MagnifyingGlassIcon, ClipboardDocumentCheckIcon, DocumentArrowUpIcon, TrashIcon, DocumentDuplicateIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, PencilSquareIcon, XMarkIcon, CheckIcon, EnvelopeIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import SessionSelect from "@/components/SessionSelect";
 import { usePermissions } from "@/lib/PermissionsProvider";
@@ -92,6 +92,36 @@ const NIVEAUX_ETUDES = ["Brevet, CAP, BEP", "Bac", "Bac+2 (L2, BTS, DUT, DEUST)"
 const STRUCTURES_ACCOMPAGNEMENT = ["Mission locale", "E2C (Ecole de la deuxième chance)", "Pôle Emploi", "PLIE", "Epide", "PJJ", "Aucune"];
 
 const inputEditClass = "w-full min-w-[140px] px-2 py-1.5 bg-[#F3F3F2] border border-[#404040]/10 focus:border-[#005259] focus:bg-white rounded-lg text-[11px] text-[#404040] outline-none font-medium transition-colors";
+
+// Ouvre un brouillon Gmail pré-rempli (destinataire, objet, corps) dans un
+// nouvel onglet — c'est ensuite l'utilisateur·rice qui relit, complète les
+// éléments variables (dates, lieu, horaires, lien PIX...) et clique "Envoyer"
+// depuis son propre compte Gmail (pas d'envoi automatique, pas d'identifiants
+// à stocker côté serveur).
+function ouvrirGmail(email?: string, sujet?: string, corps?: string) {
+  if (!email) return;
+  const params = new URLSearchParams({ view: "cm", fs: "1", to: email });
+  if (sujet) params.set("su", sujet);
+  if (corps) params.set("body", corps);
+  window.open(`https://mail.google.com/mail/?${params.toString()}`, "_blank", "noopener,noreferrer");
+}
+
+// Modèle du mail de préinscription — objet et texte fournis par l'équipe.
+// Les éléments entre crochets (dates, ville, horaires, lien PIX, date limite)
+// varient selon la session et restent à compléter à la main dans Gmail avant
+// l'envoi, tout comme le CC (chargé·e de territoire correspondant·e).
+const SUJET_MAIL_PREINSCRIPTION = "Association Colombbus + [Nomenclature de la session]";
+const CORPS_MAIL_PREINSCRIPTION = `Bonjour,
+
+Merci de lire le mail jusqu'à la fin.
+
+Je vous informe que votre pré-inscription a été prise en compte. Un parkour Numérik'Up se déroulera à la rentrée aux dates suivantes : [DATES] dans nos locaux sur la ville de [VILLE]. Les horaires seront les suivants : [HORAIRES]
+
+Si vous êtes disponible à ces dates (pendant les 4 semaines) et toujours intéressé.e, merci de remplir le questionnaire suivant : [LIEN DE LA CAMPAGNE PIX] avant le [DATE].
+
+Ce questionnaire nous permet d'en savoir plus sur vos compétences numériques. Merci de le réaliser sur un ordinateur.
+
+Bien à vous,`;
 
 // Signale les mineur·e·s avec le même jaune que les groupes ACI de l'agenda.
 const estMineur = (age?: string) => {
@@ -645,9 +675,7 @@ export default function ReponsesNumerikUpPage() {
                     ["telephone", "Téléphone"],
                     ["age", "Âge"],
                     ["diplome", "Diplôme"],
-                    ["adresse", "Adresse"],
                     ["codePostal", "Code Postal"],
-                    ["territoire", "Dpt."],
                     ["qpv", "QPV"],
                     ["parcours", "Parcours"],
                     ["prescripteur", "Prescripteur"],
@@ -657,8 +685,6 @@ export default function ReponsesNumerikUpPage() {
                     ["cej", "CEJ ?"],
                     ["rsa", "RSA ?"],
                     ["situationPlus26", "Situation (+26 ans)"],
-                    ["commentConnu", "Comment connu"],
-                    ["rgpd", "RGPD"],
                   ] as const).map(([cle, libelle]) => (
                     <th key={cle} className="px-3 py-3">
                       <button
@@ -723,31 +749,42 @@ export default function ReponsesNumerikUpPage() {
                             ))}
                           </select>
                         </td>
-                        <td className="px-3 py-2 text-center whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => ouvrirEdition(i)}
-                            title="Modifier cette fiche"
-                            className="p-1.5 rounded-lg text-[#404040]/40 hover:text-white hover:bg-[#005259] transition-colors cursor-pointer"
-                          >
-                            <PencilSquareIcon className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDupliquer(i)}
-                            title="Dupliquer vers une autre session (même personne, deux sessions)"
-                            className="p-1.5 rounded-lg text-[#404040]/40 hover:text-white hover:bg-[#EA601F] transition-colors cursor-pointer"
-                          >
-                            <DocumentDuplicateIcon className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => supprimerInscription(i)}
-                            title="Supprimer définitivement cette préinscription"
-                            className="p-1.5 rounded-lg text-[#404040]/40 hover:text-white hover:bg-[#C0392B] transition-colors cursor-pointer"
-                          >
-                            <TrashIcon className="w-4 h-4" />
-                          </button>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => ouvrirEdition(i)}
+                              title="Modifier cette fiche"
+                              className="p-1.5 rounded-lg text-[#404040]/40 hover:text-white hover:bg-[#005259] transition-colors cursor-pointer"
+                            >
+                              <PencilSquareIcon className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDupliquer(i)}
+                              title="Dupliquer vers une autre session (même personne, deux sessions)"
+                              className="p-1.5 rounded-lg text-[#404040]/40 hover:text-white hover:bg-[#EA601F] transition-colors cursor-pointer"
+                            >
+                              <DocumentDuplicateIcon className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => supprimerInscription(i)}
+                              title="Supprimer définitivement cette préinscription"
+                              className="p-1.5 rounded-lg text-[#404040]/40 hover:text-white hover:bg-[#C0392B] transition-colors cursor-pointer"
+                            >
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => ouvrirGmail(i.Email, SUJET_MAIL_PREINSCRIPTION, CORPS_MAIL_PREINSCRIPTION)}
+                              disabled={!i.Email}
+                              title={i.Email ? `Ouvrir Gmail vers ${i.Email} (mail de préinscription pré-rempli — pense à compléter les [crochets] et le CC)` : "Aucun email renseigné"}
+                              className="p-1.5 rounded-lg text-[#404040]/40 hover:text-white hover:bg-[#005259] transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                            >
+                              <EnvelopeIcon className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                         <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{index + 1}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Civilité || "—"}</td>
@@ -772,9 +809,7 @@ export default function ReponsesNumerikUpPage() {
                           ) : "—"}
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Niveau_Etudes || "—"}</td>
-                        <td className="px-3 py-2 max-w-[160px] truncate" title={i.Adresse_Postale}>{i.Adresse_Postale || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Code_Postal || "—"}</td>
-                        <td className="px-3 py-2 text-center">{i.Territoire || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.QPV || "—"}</td>
                         <td className="px-3 py-2 max-w-[200px] truncate" title={i.Parcours}>{i.Parcours || "—"}</td>
                         <td className="px-3 py-2 max-w-[160px] truncate" title={prescripteur}>{prescripteur || "—"}</td>
@@ -784,14 +819,12 @@ export default function ReponsesNumerikUpPage() {
                         <td className="px-3 py-2 whitespace-nowrap">{i.CEJ || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.RSA || "—"}</td>
                         <td className="px-3 py-2 max-w-[180px] truncate" title={i.Situation_Plus_26}>{i.Situation_Plus_26 || "—"}</td>
-                        <td className="px-3 py-2 max-w-[160px] truncate" title={i.Comment_Connu}>{i.Comment_Connu || "—"}</td>
-                        <td className="px-3 py-2 text-center">{i.RGPD ? "Oui" : "Non"}</td>
                       </tr>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan={onglet === "doublons" ? 25 : 24} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
+                    <td colSpan={onglet === "doublons" ? 21 : 20} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
                       🔍 Aucune inscription trouvée.
                     </td>
                   </tr>

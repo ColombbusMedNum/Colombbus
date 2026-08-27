@@ -52,14 +52,14 @@ const JOURS_FR = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 const CODES = [
   { code: "", label: "—", bg: "#FFFFFF", text: "#404040" },
   { code: "G", label: "Game Design", bg: "#7C1FD1", text: "#FFFFFF" },
-  { code: "D", label: "Développement", bg: "#F5820D", text: "#FFFFFF" },
+  { code: "D", label: "Développement", bg: "#4A86E8", text: "#FFFFFF" },
   { code: "GR", label: "Graphisme", bg: "#22D3EE", text: "#003044" },
-  { code: "SK", label: "Soft Skills", bg: "#FDE047", text: "#3A3300" },
-  { code: "M", label: "Maintenance", bg: "#3B82F6", text: "#FFFFFF" },
-  { code: "A", label: "Absence justifiée", bg: "#EF4444", text: "#FFFFFF" },
-  { code: "ANJ", label: "Absence non justifiée", bg: "#111827", text: "#FFFFFF" },
+  { code: "SK", label: "Soft Skills", bg: "#FF00FF", text: "#FFFFFF" },
+  { code: "M", label: "Maintenance", bg: "#34A853", text: "#FFFFFF" },
+  { code: "A", label: "Absence justifiée", bg: "#FFFF00", text: "#3A3300" },
+  { code: "ANJ", label: "Absence non justifiée", bg: "#FF9900", text: "#FFFFFF" },
   { code: "F", label: "Férié / Off", bg: "#9CA3AF", text: "#111111" },
-  { code: "AB", label: "Abandon", bg: "#22C55E", text: "#FFFFFF" },
+  { code: "AB", label: "Abandon", bg: "#FF0000", text: "#FFFFFF" },
 ];
 const CODES_PRESENCE = ["G", "D", "GR", "SK", "M"];
 const HEURES_PAR_JOUR = 3;

@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
-import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, AcademicCapIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, AcademicCapIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, EnvelopeIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import SessionSelect from "@/components/SessionSelect";
 
@@ -61,6 +61,15 @@ interface Inscription {
 }
 
 const inputEditClass = "w-full min-w-[140px] px-2 py-1.5 bg-[#F3F3F2] border border-[#404040]/10 focus:border-[#005259] focus:bg-white rounded-lg text-[11px] text-[#404040] outline-none font-medium transition-colors";
+
+// Ouvre un brouillon Gmail pré-rempli avec le destinataire dans un nouvel
+// onglet — c'est ensuite l'utilisateur·rice qui relit et clique "Envoyer"
+// depuis son propre compte Gmail (pas d'envoi automatique, pas d'identifiants
+// à stocker côté serveur).
+function ouvrirGmail(email?: string) {
+  if (!email) return;
+  window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}`, "_blank", "noopener,noreferrer");
+}
 
 
 // Colonnes figées (#, Civilité, Prénom, Nom, Téléphone) — restent visibles
@@ -407,13 +416,9 @@ export default function ReponsesNumerikUpSessionPage() {
                   <th className="px-3 py-3">Commentaires de suivi de recrutement</th>
                   <th className="px-3 py-3">Date - Mail envoyé Préinscription</th>
                   <th className="px-3 py-3">Compétences Pix (Badges / Étoiles)</th>
-                  <th className="px-3 py-3">Abandon avant Parkour</th>
-                  <th className="px-3 py-3">Date 1re relance PIX</th>
-                  <th className="px-3 py-3">Date 2e relance PIX</th>
-                  <th className="px-3 py-3">Date 3e relance PIX</th>
                   <th className="px-3 py-3">Complétion PIX</th>
-                  <th className="px-3 py-3">Appel avant Parkour</th>
                   <th className="px-3 py-3">CV reçu</th>
+                  <th className="px-3 py-3">Abandon avant Parkour</th>
                   <th className="px-3 py-3">OK / NOK</th>
                   <th className="px-3 py-3">Date - Mail envoyé Parkour (Lieu, début, horaire)</th>
                 </tr>
@@ -462,39 +467,34 @@ export default function ReponsesNumerikUpSessionPage() {
                           <input type="text" defaultValue={i.Commentaire_Suivi_Recrutement || ""} onBlur={(e) => mettreAJourChamp(i.id, "Commentaire_Suivi_Recrutement", e.target.value)} className={inputEditClass} />
                         </td>
                         <td className="px-3 py-2">
-                          <input type="date" defaultValue={i.Date_Mail_Preinscription || ""} onChange={(e) => mettreAJourChamp(i.id, "Date_Mail_Preinscription", e.target.value)} className={inputEditClass} />
+                          <div className="flex items-center gap-1.5">
+                            <input type="date" defaultValue={i.Date_Mail_Preinscription || ""} onChange={(e) => mettreAJourChamp(i.id, "Date_Mail_Preinscription", e.target.value)} className={inputEditClass} />
+                            <button
+                              type="button"
+                              onClick={() => ouvrirGmail(i.Email)}
+                              disabled={!i.Email}
+                              title={i.Email ? `Ouvrir Gmail vers ${i.Email}` : "Aucun email renseigné"}
+                              className="shrink-0 p-1.5 rounded-lg bg-[#F3F3F2] text-[#005259] hover:bg-[#005259] hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                              <EnvelopeIcon className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                         <td className="px-3 py-2">
                           <input type="text" defaultValue={i.Pix_Badges_Etoiles || ""} onBlur={(e) => mettreAJourChamp(i.id, "Pix_Badges_Etoiles", e.target.value)} className={inputEditClass} />
                         </td>
                         <td className="px-3 py-2">
-                          <select defaultValue={i.Abandon_Avant_Parkour || ""} onChange={(e) => mettreAJourChamp(i.id, "Abandon_Avant_Parkour", e.target.value)} className={inputEditClass}>
-                            <option value="">—</option>
-                            <option value="Oui">Oui</option>
-                            <option value="Non">Non</option>
-                          </select>
-                        </td>
-                        <td className="px-3 py-2">
-                          <input type="date" defaultValue={i.Date_Relance_Pix_1 || ""} onChange={(e) => mettreAJourChamp(i.id, "Date_Relance_Pix_1", e.target.value)} className={inputEditClass} />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input type="date" defaultValue={i.Date_Relance_Pix_2 || ""} onChange={(e) => mettreAJourChamp(i.id, "Date_Relance_Pix_2", e.target.value)} className={inputEditClass} />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input type="date" defaultValue={i.Date_Relance_Pix_3 || ""} onChange={(e) => mettreAJourChamp(i.id, "Date_Relance_Pix_3", e.target.value)} className={inputEditClass} />
-                        </td>
-                        <td className="px-3 py-2">
                           <input type="text" defaultValue={i.Completion_Pix || ""} onBlur={(e) => mettreAJourChamp(i.id, "Completion_Pix", e.target.value)} placeholder="Ex : 80%" className={inputEditClass} />
                         </td>
                         <td className="px-3 py-2">
-                          <select defaultValue={i.Appel_Avant_Parkour || ""} onChange={(e) => mettreAJourChamp(i.id, "Appel_Avant_Parkour", e.target.value)} className={inputEditClass}>
+                          <select defaultValue={i.CV_Recu || ""} onChange={(e) => mettreAJourChamp(i.id, "CV_Recu", e.target.value)} className={inputEditClass}>
                             <option value="">—</option>
                             <option value="Oui">Oui</option>
                             <option value="Non">Non</option>
                           </select>
                         </td>
                         <td className="px-3 py-2">
-                          <select defaultValue={i.CV_Recu || ""} onChange={(e) => mettreAJourChamp(i.id, "CV_Recu", e.target.value)} className={inputEditClass}>
+                          <select defaultValue={i.Abandon_Avant_Parkour || ""} onChange={(e) => mettreAJourChamp(i.id, "Abandon_Avant_Parkour", e.target.value)} className={inputEditClass}>
                             <option value="">—</option>
                             <option value="Oui">Oui</option>
                             <option value="Non">Non</option>
@@ -508,14 +508,30 @@ export default function ReponsesNumerikUpSessionPage() {
                           </select>
                         </td>
                         <td className="px-3 py-2">
-                          <input type="date" defaultValue={i.Date_Mail_Parkour || ""} onChange={(e) => mettreAJourChamp(i.id, "Date_Mail_Parkour", e.target.value)} className={inputEditClass} />
+                          <div className="flex items-center gap-1.5">
+                            <input type="date" defaultValue={i.Date_Mail_Parkour || ""} onChange={(e) => mettreAJourChamp(i.id, "Date_Mail_Parkour", e.target.value)} className={inputEditClass} />
+                            {/* Bouton mail masqué en attendant le modèle du mail "Parkour"
+                                (sera rattaché à un autre modèle que celui de préinscription,
+                                voir reponses/numerik-up/page.tsx) — décommenter une fois
+                                le texte fourni.
+                            <button
+                              type="button"
+                              onClick={() => ouvrirGmail(i.Email)}
+                              disabled={!i.Email}
+                              title={i.Email ? `Ouvrir Gmail vers ${i.Email}` : "Aucun email renseigné"}
+                              className="shrink-0 p-1.5 rounded-lg bg-[#F3F3F2] text-[#005259] hover:bg-[#005259] hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                              <EnvelopeIcon className="w-3.5 h-3.5" />
+                            </button>
+                            */}
+                          </div>
                         </td>
                       </tr>
                     );
                   })
                 ) : (
                   <tr>
-                    <td colSpan={23} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
+                    <td colSpan={19} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
                       🔍 Aucune inscription trouvée.
                     </td>
                   </tr>

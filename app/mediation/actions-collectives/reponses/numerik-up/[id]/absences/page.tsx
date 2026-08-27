@@ -21,6 +21,9 @@ interface Apprenant {
   Session?: string;
   Suivi_Recrutement?: boolean;
   OK_NOK?: string;
+  // Un code par jour posé depuis la grille Évolution ("A" = absence
+  // justifiée, "ANJ" = non justifiée) — voir rattraperAbsences ci-dessous.
+  Evolution?: Record<string, string>;
   // Journal des absences justifiées (une entrée par évènement signalé).
   Absences?: AbsenceRecord[];
   // Nombre d'heures manquées un jour donné en cas de grand retard, clé
@@ -64,6 +67,8 @@ export default function AbsencesSessionPage() {
   const [loading, setLoading] = useState(true);
   const [nouvelleAbsence, setNouvelleAbsence] = useState({ apprenantId: "", date: "", justifiee: true, type: "", raison: "", reference: "", lien: "" });
   const [brouillonAbsence, setBrouillonAbsence] = useState<{ apprenantId: string; indexRecord: number; valeurs: AbsenceRecord } | null>(null);
+  const [rattrapageEnCours, setRattrapageEnCours] = useState(false);
+  const [messageRattrapage, setMessageRattrapage] = useState<string | null>(null);
 
   useEffect(() => {
     const charger = async () => {
@@ -155,6 +160,44 @@ export default function AbsencesSessionPage() {
     }
   };
 
+  // Rattrapage : reprend, pour les dates codées "A"/"ANJ" dans la grille
+  // Évolution mais absentes du journal (ex. posées avant l'ajout de la
+  // synchronisation automatique dans mettreAJourCase), une entrée dans
+  // Absences. N'écrase jamais une entrée déjà présente (une modification
+  // manuelle faite depuis ce journal reste prioritaire).
+  const rattraperAbsences = async () => {
+    setRattrapageEnCours(true);
+    let nbAjoutees = 0;
+    let nbApprenants = 0;
+    try {
+      for (const apprenant of apprenantsSession) {
+        const dejaConnues = new Set((apprenant.Absences || []).map((r) => r.date));
+        const aAjouter: AbsenceRecord[] = [];
+        Object.entries(apprenant.Evolution || {}).forEach(([date, code]) => {
+          if ((code === "A" || code === "ANJ") && !dejaConnues.has(date)) {
+            aAjouter.push({ date, justifiee: code === "A", type: "", raison: "", reference: "", lien: "" });
+          }
+        });
+        if (aAjouter.length === 0) continue;
+        const nouvelleListe = [...(apprenant.Absences || []), ...aAjouter];
+        await updateDoc(doc(db, "inscriptions_numerikup", apprenant.id), { Absences: nouvelleListe });
+        setApprenants((prev) => prev.map((a) => (a.id === apprenant.id ? { ...a, Absences: nouvelleListe } : a)));
+        nbAjoutees += aAjouter.length;
+        nbApprenants += 1;
+      }
+      setMessageRattrapage(
+        nbAjoutees > 0
+          ? `${nbAjoutees} absence(s) reprise(s) depuis la grille Évolution, pour ${nbApprenants} apprenant·e(s).`
+          : "Rien à rattraper : le journal des absences est déjà à jour."
+      );
+    } catch (error) {
+      console.error("Erreur lors du rattrapage des absences :", error);
+      setMessageRattrapage("Une erreur est survenue pendant le rattrapage.");
+    } finally {
+      setRattrapageEnCours(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex items-center justify-center text-[#005259] font-bold animate-pulse tracking-widest text-xs uppercase antialiased`}>
@@ -186,6 +229,14 @@ export default function AbsencesSessionPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+            <button
+              onClick={rattraperAbsences}
+              disabled={rattrapageEnCours}
+              title="Reprend les absences déjà codées 'A'/'ANJ' dans la grille Évolution mais absentes du journal ci-dessous (ex. posées avant l'ajout de ce suivi)"
+              className="flex items-center gap-2 bg-white hover:bg-[#EA601F] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#EA601F] transition-all text-xs font-bold uppercase tracking-wider shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span>{rattrapageEnCours ? "Rattrapage..." : "Rattraper depuis Évolution"}</span>
+            </button>
             <Link
               href={`/mediation/actions-collectives/reponses/numerik-up/${encodeURIComponent(sessionId)}/evolution`}
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
@@ -202,6 +253,12 @@ export default function AbsencesSessionPage() {
             </Link>
           </div>
         </div>
+
+        {messageRattrapage && (
+          <div className="bg-[#F9945D]/10 border border-[#F9945D]/30 text-[#EA601F] text-xs font-bold px-4 py-3 rounded-xl">
+            {messageRattrapage}
+          </div>
+        )}
 
         {apprenantsSession.length === 0 ? (
           <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm p-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">

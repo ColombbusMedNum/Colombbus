@@ -106,14 +106,14 @@ interface Inscription {
 
 const CODES_LABELS: Record<string, { label: string; bg: string }> = {
   G: { label: "Game Design", bg: "#7C1FD1" },
-  D: { label: "Développement", bg: "#F5820D" },
+  D: { label: "Développement", bg: "#4A86E8" },
   GR: { label: "Graphisme", bg: "#22D3EE" },
-  SK: { label: "Soft Skills", bg: "#CA9A00" },
-  M: { label: "Maintenance", bg: "#3B82F6" },
-  A: { label: "Absence justifiée", bg: "#EF4444" },
-  ANJ: { label: "Absence non justifiée", bg: "#111827" },
+  SK: { label: "Soft Skills", bg: "#FF00FF" },
+  M: { label: "Maintenance", bg: "#34A853" },
+  A: { label: "Absence justifiée", bg: "#CACA00" },
+  ANJ: { label: "Absence non justifiée", bg: "#FF9900" },
   F: { label: "Férié / Off", bg: "#6B7280" },
-  AB: { label: "Abandon", bg: "#22C55E" },
+  AB: { label: "Abandon", bg: "#FF0000" },
 };
 const CODES_PRESENCE = ["G", "D", "GR", "SK", "M"];
 const HEURES_PAR_JOUR = 3;

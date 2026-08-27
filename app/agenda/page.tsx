@@ -623,9 +623,12 @@ export default function PlanningExpertMix() {
     // Sur TERRAGE/MASSY, un ACI travaille selon sa propre grille horaire
     // plutôt que selon les horaires fixes du modèle sélectionné — voir
     // genererCreneauxPourModele pour la même règle côté génération en masse.
+    // RN Observation suit la même logique, mais son lieu ne désigne pas un
+    // site physique précis : on utilise alors le rattachement personnel de
+    // l'ACI (rattachementHoraireACI, "Paris" par défaut).
     let horaireOverride: { debut: string; fin: string } | null = null;
-    if (estACI && (upperLieu.includes("TERRAGE") || upperLieu.includes("MASSY"))) {
-      const site = upperLieu.includes("TERRAGE") ? "Paris" : "Massy";
+    if (estACI && (upperLieu.includes("TERRAGE") || upperLieu.includes("MASSY") || upperLieu.includes("OBSERVATION"))) {
+      const site = upperLieu.includes("TERRAGE") ? "Paris" : upperLieu.includes("MASSY") ? "Massy" : (medObj?.rattachementHoraireACI || "Paris");
       const joursParIndex = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
       const jourKey = joursParIndex[new Date(`${dateStr}T00:00:00`).getDay()];
       const h = grillesHorairesACI[site]?.[jourKey];
@@ -956,6 +959,49 @@ export default function PlanningExpertMix() {
     }
   };
 
+  // Rattrapage ponctuel : recalcule l'horaire des créneaux "RN Observation"
+  // déjà posés (dans toute la base) pour les ACI, selon la même règle que
+  // processActionCreation/genererCreneauxPourModele (grille horaire
+  // personnelle rattachementHoraireACI plutôt que l'horaire fixe du modèle),
+  // mais appliquée après coup — nécessaire car cette règle n'existait pas au
+  // moment où ces créneaux ont été créés.
+  const rattraperHorairesObservationACI = async () => {
+    const snap = await getDocs(collection(db, "planning_mediateurs"));
+    const joursParIndex = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+    const candidats = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() } as ActionPlanning))
+      .filter((a) => (a.lieu || "").toUpperCase().includes("OBSERVATION"));
+
+    if (candidats.length === 0) {
+      showToast("Aucun créneau \"RN Observation\" trouvé.");
+      return;
+    }
+
+    const aCorriger = candidats
+      .map((actionDoc) => {
+        const medObj = mediateurs.find((m) => estActionDuMediateur(actionDoc, m));
+        if (medObj?.statut !== "ACI" || !actionDoc.date) return null;
+        const site = medObj.rattachementHoraireACI || "Paris";
+        const jourKey = joursParIndex[new Date(`${actionDoc.date}T00:00:00`).getDay()];
+        const h = grillesHorairesACI[site]?.[jourKey];
+        if (!h?.debut || !h?.fin) return null;
+        if (actionDoc.debut === h.debut && actionDoc.fin === h.fin) return null;
+        return { actionDoc, horaire: h };
+      })
+      .filter((x): x is { actionDoc: ActionPlanning; horaire: { debut: string; fin: string } } => x !== null);
+
+    if (aCorriger.length === 0) {
+      showToast("Rien à rattraper : les créneaux ACI sont déjà à l'horaire de leur grille.");
+      return;
+    }
+    if (!(await confirm(`Recalculer l'horaire de ${aCorriger.length} créneau(x) "RN Observation" selon la grille ACI de chacun·e ?`))) return;
+
+    await Promise.all(aCorriger.map(({ actionDoc, horaire }) =>
+      updateDoc(doc(db, "planning_mediateurs", actionDoc.id), { debut: horaire.debut, fin: horaire.fin })
+    ));
+    showToast(`${aCorriger.length} créneau(x) "RN Observation" recalculé(s) selon la grille ACI.`);
+  };
+
   // Supprime en une fois toutes les actions d'un·e médiateur·rice sur la
   // semaine affichée — même règle de sécurité que la suppression au cas par
   // cas (jamais un créneau Suresnes avec un usager déjà inscrit) : les
@@ -1011,6 +1057,30 @@ export default function PlanningExpertMix() {
     } else {
       showToast(`${supprimees} action(s) supprimée(s).`);
     }
+  };
+
+  // Injecte le modèle actuellement sélectionné (barre "Injection : ...") sur
+  // toute la semaine affichée, matin ET après-midi, pour une ligne — même
+  // mécanique que cliquer chaque case une par une (processActionCreation),
+  // donc les mêmes règles s'appliquent (grille ACI, Suresnes, notifications).
+  // Les jours fériés sont sautés, comme le "+" individuel de chaque case.
+  const injecterModeleSurSemaine = async (m: Mediateur) => {
+    if (!selectedModel || !canCreateSlot) return;
+    if (estSemaineValidee) {
+      showToast("🔒 Semaine validée et verrouillée.", "error");
+      return;
+    }
+    const joursOuvres = weekDays.filter((d) => !joursFeries.has(d.toLocaleDateString('en-CA')));
+    const nomComplet = `${m.prenom || ""} ${m.nom || ""}`.trim();
+    if (!(await confirm(`Injecter "${selectedModel.lieu}" sur toute la semaine (matin et après-midi) pour ${nomComplet} ?`))) return;
+
+    for (const day of joursOuvres) {
+      const dateStr = day.toLocaleDateString('en-CA');
+      for (const moment of ["Matin", "Après-midi"]) {
+        await processActionCreation(m.id, m.prenom || "", m.nom || "", moment, dateStr, selectedModel.lieu);
+      }
+    }
+    showToast(`"${selectedModel.lieu}" injecté sur la semaine pour ${nomComplet}.`);
   };
 
   const startOfWeekStr = weekDays[0].toLocaleDateString('en-CA');
@@ -1200,6 +1270,19 @@ export default function PlanningExpertMix() {
             className="bg-[#003d42] hover:bg-[#EF736A] text-white border border-[#002b2f] px-3 h-9 rounded-md text-xs flex items-center gap-1.5 font-bold cursor-pointer"
           >
             <WrenchScrewdriverIcon className="w-3.5 h-3.5"/> Supprimer OFF
+          </button>
+          */}
+
+          {/* Bouton "Rattraper horaires Observation" masqué de la vue une fois
+              utilisé — la fonction rattraperHorairesObservationACI reste dans
+              le code au cas où l'outil resserve plus tard. Décommenter le
+              bloc ci-dessous pour le réafficher.
+          <button
+            onClick={rattraperHorairesObservationACI}
+            title="Recalcule l'horaire des créneaux 'RN Observation' déjà posés pour les ACI, selon la grille horaire de chacun·e (rattrapage ponctuel)"
+            className="bg-[#003d42] hover:bg-[#EA601F] text-white border border-[#002b2f] px-3 h-9 rounded-md text-xs flex items-center gap-1.5 font-bold cursor-pointer"
+          >
+            <WrenchScrewdriverIcon className="w-3.5 h-3.5"/> Rattraper horaires Observation
           </button>
           */}
 
@@ -1488,6 +1571,15 @@ export default function PlanningExpertMix() {
                                     </button>
                                   </div>
                                 </PermissionGuard>
+                                {canCreateSlot && selectedModel && !estSemaineValidee && (
+                                  <button
+                                    onClick={() => injecterModeleSurSemaine(m)}
+                                    title={`Injecter "${selectedModel.lieu}" sur toute la semaine (matin et après-midi)`}
+                                    className="text-[#404040]/40 hover:text-[#EA601F] p-0.5 shrink-0"
+                                  >
+                                    <DocumentDuplicateIcon className="w-3.5 h-3.5"/>
+                                  </button>
+                                )}
                                 {canDeleteSlot && !estSemaineValidee && (
                                   <button
                                     onClick={() => supprimerToutesActionsDeLaLigne(m)}
