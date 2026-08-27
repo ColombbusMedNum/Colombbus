@@ -153,6 +153,10 @@ export default function PlanningExpertMix() {
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isActiviteModalOpen, setIsActiviteModalOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<ActiviteType | null>(null);
+  // Action en cours de glisser-déposer d'une case vers une autre (voir
+  // deplacerAction) — distinct du glisser-déposer interne à une case (pour
+  // réordonner, géré localement dans DayCell).
+  const [actionEnGlisse, setActionEnGlisse] = useState<ActionPlanning | null>(null);
   const [voirMasques, setVoirMasques] = useState(false);
   const [openBlocs, setOpenBlocs] = useState<Record<string, boolean>>({ inclusion: false, decouverte: false, insertion: false, divers: false, "sans-bloc": false }); 
   const [voirSamedi, setVoirSamedi] = useState(false); 
@@ -607,7 +611,12 @@ export default function PlanningExpertMix() {
     moment: string,
     dateStr: string,
     lieuInput: string,
-    horaireManuel?: { debut: string; fin: string } | null
+    horaireManuel?: { debut: string; fin: string } | null,
+    // Fournie par un glisser-déposer (deplacerAction) : l'action d'origine,
+    // dont couleur/adresse/territoire/codeAnalytique/horaire priment sur le
+    // modèle actuellement sélectionné (on relocalise l'action telle quelle,
+    // on ne lui applique pas un modèle différent).
+    actionSource?: ActionPlanning
   ) => {
     let lieu = lieuInput;
     if (!lieu) return;
@@ -666,7 +675,12 @@ export default function PlanningExpertMix() {
       .filter((x) => estActionDuMediateur(x, { id: mediatId, prenom, nom }) && x.date === dateStr && x.moment === moment)
       .reduce((max, x) => Math.max(max, x.ordre ?? 0), -1);
 
-    const horaireFinal = horaireManuel || horaireOverride || (selectedModel?.debut && selectedModel?.fin ? { debut: selectedModel.debut, fin: selectedModel.fin } : null);
+    const horaireFinal = horaireManuel || horaireOverride
+      || (actionSource?.debut && actionSource?.fin ? { debut: actionSource.debut, fin: actionSource.fin } : null)
+      || (selectedModel?.debut && selectedModel?.fin ? { debut: selectedModel.debut, fin: selectedModel.fin } : null);
+    const adresseFinale = actionSource?.adresse || selectedModel?.adresse;
+    const territoireFinal = actionSource?.territoire || selectedModel?.territoire;
+    const codeAnalytiqueFinal = actionSource?.codeAnalytique || selectedModel?.codeAnalytique;
 
     await addDoc(collection(db, "planning_mediateurs"), {
       mediatId: mediatId,
@@ -677,11 +691,11 @@ export default function PlanningExpertMix() {
       type: "Action",
       commentaire: "",
       ordre: ordreMax + 1,
-      couleur: selectedModel?.couleur || "#005259",
-      ...(selectedModel?.adresse ? { adresse: selectedModel.adresse } : {}),
+      couleur: actionSource?.couleur || selectedModel?.couleur || "#005259",
+      ...(adresseFinale ? { adresse: adresseFinale } : {}),
       ...(horaireFinal ? { debut: horaireFinal.debut, fin: horaireFinal.fin } : {}),
-      ...(selectedModel?.territoire ? { territoire: selectedModel.territoire } : {}),
-      ...(selectedModel?.codeAnalytique ? { codeAnalytique: selectedModel.codeAnalytique } : {})
+      ...(territoireFinal ? { territoire: territoireFinal } : {}),
+      ...(codeAnalytiqueFinal ? { codeAnalytique: codeAnalytiqueFinal } : {})
     });
 
     // Historique de l'agenda ("qui a positionné quoi") — voir /agenda/historique.
@@ -734,6 +748,51 @@ export default function PlanningExpertMix() {
         });
       }
     }
+  };
+
+  // Déplace une action existante vers une autre case (jour/demi-journée/
+  // médiateur·rice) par glisser-déposer entre cases : recrée l'action à
+  // destination via processActionCreation (couleur/adresse/territoire/code
+  // analytique/horaire d'origine préservés, sauf grille ACI applicable à
+  // destination), puis supprime l'originale — même sécurité que la
+  // suppression manuelle (jamais si un usager Suresnes est déjà inscrit sur
+  // la case d'origine).
+  const deplacerAction = async (action: ActionPlanning, mDest: Mediateur, momentDest: string, dateDest: string) => {
+    if (!canCreateSlot || !canDeleteSlot) return;
+    if (estSemaineValidee) {
+      showToast("🔒 Semaine validée et verrouillée.", "error");
+      return;
+    }
+    if (estActionDuMediateur(action, mDest) && action.moment === momentDest && action.date === dateDest) return;
+
+    const qSuresnesSource = query(collection(db, "planning_suresnes"), where("date", "==", action.date), where("moment", "==", action.moment));
+    const snapSuresnesSource = await getDocs(qSuresnesSource);
+    const docsDuMediateurSource = snapSuresnesSource.docs.filter((d) => {
+      const mNom = d.data().mediateurNom || "";
+      const cible = action.mediateurNom || "";
+      return mNom === cible || mNom === `${cible} (RN)` || mNom === `${cible} (RND)` || mNom === `${cible} (RN91)`;
+    });
+    if (docsDuMediateurSource.some((d) => d.data().usager && d.data().usager.trim() !== "")) {
+      showToast("⚠️ Déplacement impossible : des usagers sont inscrits à Suresnes sur la case d'origine.", "error");
+      return;
+    }
+
+    await processActionCreation(mDest.id, mDest.prenom || "", mDest.nom || "", momentDest, dateDest, action.lieu || "", null, action);
+
+    await Promise.all(docsDuMediateurSource.map((d) => deleteDoc(doc(db, "planning_suresnes", d.id))));
+    await deleteDoc(doc(db, "planning_mediateurs", action.id));
+
+    addDoc(collection(db, "historique_agenda"), {
+      type: "suppression",
+      date: action.date,
+      moment: action.moment,
+      mediatId: action.mediatId,
+      mediateurNom: action.mediateurNom || "",
+      lieu: action.lieu || "",
+      auteurUid: currentUserId,
+      auteurNom: currentUserNom,
+      horodatage: Date.now()
+    }).catch((err) => console.error("Historique agenda (déplacement, origine) :", err));
   };
 
   const handleCaseClick = async (mediatId: string, prenom: string, nom: string, moment: string, dateStr: string) => {
@@ -1631,8 +1690,8 @@ export default function PlanningExpertMix() {
                             return (
                               <div key={dateStr} className={`p-1 border-b border-l border-[#F3F3F2] align-top ${fondJour} ${m.masque ? 'opacity-40' : ''}`}>
                                 <div className="grid grid-cols-2 gap-1 min-h-[38px]">
-                                  <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} onSlotClick={handleSlotClick} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
-                                  <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} onSlotClick={handleSlotClick} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} />
+                                  <DayCell actions={actions} m={m} moment="Matin" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Matin", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} onSlotClick={handleSlotClick} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} actionEnGlisse={actionEnGlisse} onDragStartAction={setActionEnGlisse} onDropAction={(a) => deplacerAction(a, m, "Matin", dateStr)} />
+                                  <DayCell actions={actions} m={m} moment="Après-midi" date={dateStr} onAdd={() => handleCaseClick(m.id, pNom, fNom, "Après-midi", dateStr)} onDelete={onRequestDeleteAction} onEditCommentaire={handleEditCommentaire} onSlotClick={handleSlotClick} estSemaineValidee={estSemaineValidee} canCreateSlot={canCreateSlot && !estFerie} canDeleteSlot={canDeleteSlot} canOpenCommentaire={canViewComment || canEditComment} actionEnGlisse={actionEnGlisse} onDragStartAction={setActionEnGlisse} onDropAction={(a) => deplacerAction(a, m, "Après-midi", dateStr)} />
                                 </div>
                               </div>
                             );
@@ -2206,15 +2265,29 @@ interface DayCellProps {
   canCreateSlot: boolean;
   canDeleteSlot: boolean;
   canOpenCommentaire: boolean;
+  // Glisser-déposer D'UNE CASE À L'AUTRE (déplacement, distinct du
+  // réordonnancement interne géré plus bas avec idGlisse) : actionEnGlisse
+  // est l'action en cours de transport (state du composant parent, partagée
+  // entre toutes les cases) ; onDragStartAction la démarre, onDropAction
+  // déclenche le déplacement vers CETTE case précise.
+  actionEnGlisse: ActionPlanning | null;
+  onDragStartAction: (action: ActionPlanning | null) => void;
+  onDropAction: (action: ActionPlanning) => void;
 }
 
-function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire, onSlotClick, estSemaineValidee, canCreateSlot, canDeleteSlot, canOpenCommentaire }: DayCellProps) {
+function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire, onSlotClick, estSemaineValidee, canCreateSlot, canDeleteSlot, canOpenCommentaire, actionEnGlisse, onDragStartAction, onDropAction }: DayCellProps) {
   const natifs = [...actions]
     .filter((a) => estActionDuMediateur(a, m) && a.date === date && a.moment === moment)
     .sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
 
   const [idGlisse, setIdGlisse] = useState<string | null>(null);
+  // Réordonnancement interne (glisser une carte sur une autre, même case) :
+  // seulement utile à partir de 2 actions. Le déplacement vers une AUTRE
+  // case (peutDeplacer) n'a pas cette contrainte — une case avec une seule
+  // action doit rester déplaçable.
   const peutGlisser = !estSemaineValidee && canCreateSlot && natifs.length > 1;
+  const peutDeplacer = !estSemaineValidee && canDeleteSlot;
+  const accepteDepot = canCreateSlot && !!actionEnGlisse;
 
   // Glisser-déposer pour réordonner librement les actions d'une même
   // demi-journée — remplace l'ordre d'arrivée Firestore par le champ "ordre",
@@ -2231,8 +2304,21 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
     await Promise.all(reordonnes.map((a, index) => (a.ordre === index ? Promise.resolve() : updateDoc(doc(db, "planning_mediateurs", a.id), { ordre: index }))));
   };
 
+  // Dépose l'action transportée sur CETTE case (déplacement inter-cases) —
+  // appelé aussi bien depuis le conteneur (case vide/espace libre) que
+  // depuis une carte existante de la case de destination.
+  const deposerIci = () => {
+    if (!accepteDepot || !actionEnGlisse) return;
+    onDropAction(actionEnGlisse);
+    onDragStartAction(null);
+  };
+
   return (
-    <div className="flex flex-col relative group/cell h-full justify-start gap-1 min-h-[36px] bg-[#F3F3F2]/40 p-0.5 rounded border border-transparent hover:border-[#404040]/10 transition-colors">
+    <div
+      className="flex flex-col relative group/cell h-full justify-start gap-1 min-h-[36px] bg-[#F3F3F2]/40 p-0.5 rounded border border-transparent hover:border-[#404040]/10 transition-colors"
+      onDragOver={accepteDepot ? (e) => e.preventDefault() : undefined}
+      onDrop={accepteDepot ? (e) => { e.preventDefault(); deposerIci(); } : undefined}
+    >
       {natifs.map((a) => {
         const territorio = a.territoire || "";
         const hexColor = a.couleur || "#005259";
@@ -2244,6 +2330,7 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
 
         const peutCliquer = canOpenCommentaire || canCreateSlot;
         const peutGlisserCet = peutGlisser;
+        const peutDeplacerCet = peutDeplacer;
         const horaireTexte = a.debut && a.fin ? `${a.debut} - ${a.fin}` : "";
 
         // Action réglée sur une journée complète (ex. 09h30-17h30) : la case
@@ -2268,17 +2355,22 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
           <div
             key={a.id}
             onClick={peutCliquer ? () => onSlotClick(a) : undefined}
-            draggable={peutGlisserCet}
-            onDragStart={peutGlisserCet ? (e) => { e.stopPropagation(); setIdGlisse(a.id); } : undefined}
-            onDragOver={peutGlisserCet ? (e) => e.preventDefault() : undefined}
-            onDrop={peutGlisserCet ? (e) => { e.preventDefault(); e.stopPropagation(); deposer(a.id); } : undefined}
+            draggable={peutDeplacerCet}
+            onDragStart={peutDeplacerCet ? (e) => { e.stopPropagation(); setIdGlisse(a.id); onDragStartAction(a); } : undefined}
+            onDragEnd={peutDeplacerCet ? () => { setIdGlisse(null); onDragStartAction(null); } : undefined}
+            onDragOver={peutGlisserCet || accepteDepot ? (e) => { e.preventDefault(); e.stopPropagation(); } : undefined}
+            onDrop={peutGlisserCet || accepteDepot ? (e) => {
+              e.preventDefault(); e.stopPropagation();
+              if (idGlisse) { deposer(a.id); return; }
+              deposerIci();
+            } : undefined}
             style={{
               backgroundColor: cardBg,
               borderColor: hexColor,
               color: textColor,
               opacity: idGlisse === a.id ? 0.4 : 1
             }}
-            className={`px-1.5 py-0.5 rounded border text-[10px] font-bold flex items-center justify-between w-full min-h-[24px] hover:shadow-sm transition-all relative ${peutCliquer ? "cursor-pointer" : ""} ${peutGlisserCet ? "cursor-grab active:cursor-grabbing" : ""}`}
+            className={`px-1.5 py-0.5 rounded border text-[10px] font-bold flex items-center justify-between w-full min-h-[24px] hover:shadow-sm transition-all relative ${peutCliquer ? "cursor-pointer" : ""} ${peutDeplacerCet ? "cursor-grab active:cursor-grabbing" : ""}`}
             title={infosBulle}
           >
             <span className="truncate pr-3" title={[`${moment} : ${a.lieu}`, detailHoraire || horaireTexte].filter(Boolean).join(" — ")}>
