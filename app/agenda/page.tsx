@@ -880,13 +880,74 @@ export default function PlanningExpertMix() {
     if (!editActionData || !editActionData.lieu.trim()) return;
     const { id, lieu, debut, fin } = editActionData;
     setEditActionData(null);
-    const champs: { lieu: string; debut?: string; fin?: string } = { lieu: lieu.trim() };
+    const actionDoc = actions.find(a => a.id === id);
+    const nouveauLieu = lieu.trim();
+    const champs: { lieu: string; debut?: string; fin?: string } = { lieu: nouveauLieu };
     if (debut && fin) {
       champs.debut = debut;
       champs.fin = fin;
     }
     try {
       await updateDoc(doc(db, "planning_mediateurs", id), champs);
+
+      // Contrairement à processActionCreation (case vide/glisser-déposer),
+      // cette modale ne fait qu'un updateDoc sur le lieu — sans ce qui suit,
+      // remplacer un lieu non-RN (Terrage...) par un lieu RN via "Modifier
+      // l'action" ne générait jamais les créneaux du planning Suresnes (et
+      // inversement, en sortir n'en retirait jamais les créneaux devenus
+      // orphelins).
+      if (actionDoc) {
+        const upperAncien = (actionDoc.lieu || "").toUpperCase();
+        const upperNouveau = nouveauLieu.toUpperCase();
+        const etaitSuresnes = (upperAncien.includes("RN") || upperAncien.includes("RND")) && !upperAncien.includes("OBSERVATION");
+        const estSuresnesMaintenant = (upperNouveau.includes("RN") || upperNouveau.includes("RND")) && !upperNouveau.includes("OBSERVATION");
+        const nomCompletLiaison = actionDoc.mediateurNom || "";
+        // Les créneaux Suresnes sont enregistrés avec le nom du médiateur
+        // suffixé selon le type ("(RN)", "(RN91)", "(RND)") — jamais le nom
+        // brut — donc une égalité stricte sur nomCompletLiaison ne trouverait
+        // jamais rien ; on teste les variantes possibles.
+        const variantesNom = [nomCompletLiaison, `${nomCompletLiaison} (RN)`, `${nomCompletLiaison} (RN91)`, `${nomCompletLiaison} (RND)`];
+
+        if (estSuresnesMaintenant && !etaitSuresnes) {
+          const qExistant = query(
+            collection(db, "planning_suresnes"),
+            where("date", "==", actionDoc.date),
+            where("moment", "==", actionDoc.moment),
+            where("mediateurNom", "in", variantesNom)
+          );
+          const snapExistant = await getDocs(qExistant);
+          if (snapExistant.empty) {
+            const horaires = actionDoc.moment === "Matin" ? ["10h00 - 11h30", "11h30 - 13h00"] : ["14h00 - 15h30", "15h30 - 17h00"];
+            const isRND = upperNouveau.includes("RND");
+            const siteSuresnes = upperNouveau.includes("91") ? "rn91" : "suresnes";
+            const nomAvecType = siteSuresnes === "rn91" ? `${nomCompletLiaison} (RN91)` : isRND ? `${nomCompletLiaison} (RND)` : `${nomCompletLiaison} (RN)`;
+            for (const h of horaires) {
+              await addDoc(collection(db, "planning_suresnes"), {
+                mediateurNom: nomAvecType,
+                date: actionDoc.date,
+                moment: actionDoc.moment,
+                horaire: h,
+                usager: "",
+                site: siteSuresnes
+              });
+            }
+          }
+        } else if (!estSuresnesMaintenant && etaitSuresnes) {
+          const qExistant = query(
+            collection(db, "planning_suresnes"),
+            where("date", "==", actionDoc.date),
+            where("moment", "==", actionDoc.moment),
+            where("mediateurNom", "in", variantesNom)
+          );
+          const snapExistant = await getDocs(qExistant);
+          const hasUsagers = snapExistant.docs.some(d => d.data().usager && d.data().usager.trim() !== "");
+          if (hasUsagers) {
+            showToast(`⚠️ Lieu modifié, mais des usagers sont inscrits à Suresnes sur ce créneau : les créneaux Suresnes n'ont pas été retirés.`, "error");
+          } else {
+            await Promise.all(snapExistant.docs.map(d => deleteDoc(doc(db, "planning_suresnes", d.id))));
+          }
+        }
+      }
     } catch (error) {
       console.error("Erreur lors de la modification de l'action :", error);
     }
