@@ -108,8 +108,19 @@ const DETAILED_PAGES: PageEntry[] = [
       { id: "benef_filter_blacklist", nom: "Badge Filtre Blacklistés", type: "button", description: "Affiche les profils bloqués" },
       { id: "benef_action_toggle_blacklist", nom: "Bouton Blacklist/Reclasser direct", type: "button", description: "Modifie l'état de blacklistage dans la liste" },
       { id: "benef_action_open", nom: "Bouton Ouvrir Fiche", type: "Link", description: "Navigue vers le profil du bénéficiaire" },
+      { id: "benef_nav_suresnes_liste", nom: "Lien Bénéficiaires Suresnes", type: "Link", description: "Accède à la liste des bénéficiaires de Suresnes (92150) triée par 1ère visite" },
       // benef_nav_localisations ("Lien Ajouter un lieu") retiré : ce lien
       // n'existe plus dans app/.../liste-beneficiaires/page.tsx (audit droits).
+    ],
+  },
+  {
+    pageId: "page_access_liste_beneficiaires_suresnes",
+    pageName: "Bénéficiaires de Suresnes",
+    route: "/mediation/rencontres-numeriques/liste-beneficiaires/suresnes",
+    filePath: "app/mediation/rencontres-numeriques/liste-beneficiaires/suresnes/page.tsx",
+    actions: [
+      { id: "benef_suresnes_filter_trimestre", nom: "Boutons Filtre par trimestre (Tous/T1-T4)", type: "button", description: "Filtre les bénéficiaires de Suresnes selon le trimestre de leur première visite" },
+      { id: "benef_suresnes_export_csv", nom: "Bouton Exporter au format CSV", type: "button", description: "Télécharge la liste filtrée des bénéficiaires de Suresnes" },
     ],
   },
   {
@@ -323,6 +334,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     home_folder_gestion_colombbus: true,
     benef_search: true, benef_nav_agenda_suresnes: true, benef_create_new: true, benef_filter_alphabet: true,
     benef_filter_today: true, benef_filter_suresnes: true, benef_filter_de: true, benef_action_open: true,
+    benef_nav_suresnes_liste: true,
     fiche_edit_profil: true, fiche_nav_diagnostic: true, fiche_add_action: true, fiche_action_change_lieu: true,
     fiche_action_edit_rdv: true, fiche_action_save_rdv: true, fiche_modal_submit: true,
     fiche_nav_bilan_tech: true, fiche_nav_agenda_suresnes: true,
@@ -335,6 +347,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     suresnes_filter_today: true, suresnes_month_nav: true, suresnes_create_slot: true,
     suresnes_slot_assign: true, suresnes_slot_clear: true, suresnes_slot_thematique_edit: true, suresnes_slot_demande_edit: true,
     suresnes_nav_beneficiaires: true, suresnes_nav_agenda_med: true,
+    page_access_liste_beneficiaires_suresnes: true, benef_suresnes_filter_trimestre: true,
   },
 
   coordinateur: {
@@ -359,7 +372,8 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     home_folder_gestion_colombbus: true,
     benef_search: true, benef_nav_agenda_suresnes: true, benef_create_new: true, benef_filter_alphabet: true,
     benef_filter_today: true, benef_filter_suresnes: true, benef_filter_de: true, benef_filter_blacklist: true,
-    benef_action_toggle_blacklist: true, benef_action_open: true,
+    benef_action_toggle_blacklist: true, benef_action_open: true, benef_nav_suresnes_liste: true,
+    page_access_liste_beneficiaires_suresnes: true, benef_suresnes_filter_trimestre: true, benef_suresnes_export_csv: true,
     fiche_edit_profil: true, fiche_nav_diagnostic: true, fiche_add_action: true, fiche_action_change_lieu: true,
     fiche_action_edit_rdv: true, fiche_action_save_rdv: true, fiche_action_delete_rdv: true, fiche_modal_toggle_blacklist: true, fiche_modal_submit: true,
     fiche_nav_bilan_tech: true, fiche_nav_agenda_suresnes: true, fiche_nav_equipe: true,
@@ -401,6 +415,8 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     // (agenda Suresnes, etc.) leur reste accessible.
     benef_search: true, benef_nav_agenda_suresnes: true, benef_filter_alphabet: true,
     benef_filter_today: true, benef_filter_suresnes: true, benef_filter_de: true, benef_action_open: true,
+    benef_nav_suresnes_liste: true,
+    page_access_liste_beneficiaires_suresnes: true, benef_suresnes_filter_trimestre: true,
     suresnes_filter_today: true, suresnes_month_nav: true,
     agenda_week_nav: true, agenda_comment_view: true,
   },

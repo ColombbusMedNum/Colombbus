@@ -91,11 +91,14 @@ export default function ListeBeneficiaires() {
 
         const docsVisites = visitesParUtilisateur.get(docSnap.id) || [];
         if (docsVisites.length > 0) {
-          nbVisitesPresent = docsVisites.filter(data => {
+          const visitesPresentes = docsVisites.filter(data => {
             return data.statut !== "Absent" && data.statut !== "Annulé" && data.presence !== "Absent" && data.presence !== false;
-          }).length;
+          });
+          nbVisitesPresent = visitesPresentes.length;
 
-          const dates = docsVisites.map(d => d.date).filter(Boolean).sort();
+          // Le 1er RDV doit correspondre à une venue effective, pas à un
+          // rendez-vous manqué.
+          const dates = visitesPresentes.map(d => d.date).filter(Boolean).sort();
           if (dates.length > 0) {
             datePremierRDV = new Date(dates[0]).toLocaleDateString('fr-FR', {
               day: '2-digit',
@@ -291,6 +294,16 @@ export default function ListeBeneficiaires() {
               >
                 <UserGroupIcon className="w-4 h-4 text-[#EA601F]" />
                 <span>Analyse par Territoire</span>
+              </Link>
+            </PermissionGuard>
+
+            <PermissionGuard actionId="benef_nav_suresnes_liste">
+              <Link
+                href="/mediation/rencontres-numeriques/liste-beneficiaires/suresnes"
+                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+              >
+                <UserGroupIcon className="w-4 h-4 text-[#EA601F]" />
+                <span>Bénéficiaires Suresnes</span>
               </Link>
             </PermissionGuard>
 
