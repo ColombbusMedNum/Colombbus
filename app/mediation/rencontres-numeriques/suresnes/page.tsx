@@ -6,6 +6,7 @@ import PageGuard from "@/components/PageGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { useToast } from "@/components/ToastProvider";
 import { useMediateurs } from "@/lib/MediateursProvider";
+import ScrollToTopButton from "@/components/ScrollToTopButton";
 import {
   collection, onSnapshot, query, orderBy, updateDoc, doc, addDoc, deleteDoc, collectionGroup, serverTimestamp, getDocs, where
 } from "firebase/firestore";
@@ -57,6 +58,23 @@ interface Beneficiaire {
   telephone: string;
   sexe?: string;
   statutBlacklist?: string;
+  lieuRDV?: string;
+}
+
+// Rapproche le lieu d'accueil renseigné sur une fiche bénéficiaire (champ
+// Lieu_RDV, choisi dans la même liste de localisations que l'onglet) du
+// libellé d'un onglet Résidence Autonomie — comparaison exacte d'abord, puis
+// un repli tolérant (accents/casse/tirets ignorés, inclusion dans un sens ou
+// l'autre) si les deux textes ne sont pas rigoureusement identiques.
+function estMemeLieu(lieuBeneficiaire: string | undefined, labelSite: string): boolean {
+  const a = (lieuBeneficiaire || "").trim();
+  const b = (labelSite || "").trim();
+  if (!a || !b) return false;
+  if (a.toLowerCase() === b.toLowerCase()) return true;
+  const simplifier = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const sa = simplifier(a);
+  const sb = simplifier(b);
+  return sa.length > 3 && sb.length > 3 && (sa.includes(sb) || sb.includes(sa));
 }
 
 // Le champ "site" d'un créneau peut avoir été saisi à la main dans Firebase
@@ -89,11 +107,6 @@ export default function PlanningSuresnes() {
   const [beneficiaires, setBeneficiaires] = useState<Beneficiaire[]>([]);
   const [reassignCreneau, setReassignCreneau] = useState<{ id: string; currentName: string; site: string; isRND: boolean } | null>(null);
   const [reassignSearch, setReassignSearch] = useState("");
-  // Ajout manuel d'un créneau sur un site hors RN (ex. Résidence Autonomie) —
-  // ces sites n'ont plus de génération automatique depuis l'agenda des
-  // médiateurs, le créneau n'est donc rattaché à aucun mediatId/mediateurNom.
-  const [ajoutCreneauOuvert, setAjoutCreneauOuvert] = useState(false);
-  const [nouveauCreneau, setNouveauCreneau] = useState({ date: "", moment: "Matin", debut: "", fin: "" });
   const { showToast } = useToast();
   const [viewDate, setViewDate] = useState(new Date());
   const [filterTodayOnly, setFilterTodayOnly] = useState(false);
@@ -142,6 +155,19 @@ export default function PlanningSuresnes() {
     ];
     return { sitesPrincipaux: principaux, sitesGroupePRA: groupePRA };
   }, [SITES]);
+
+  // Un onglet Résidence Autonomie n'affiche plus de créneaux : la liste des
+  // bénéficiaires qui lui sont rattachés vient directement de leur fiche
+  // (Lieu_RDV), pas d'un planning saisi à la main.
+  const estSiteResidenceAutonomie = sitesGroupePRA.some(s => s.id === siteActif);
+  const siteActifLabel = SITES.find(s => s.id === siteActif)?.label || siteActif;
+  const beneficiairesDeLaResidence = React.useMemo(() => {
+    if (!estSiteResidenceAutonomie) return [];
+    return beneficiaires
+      .filter(b => estMemeLieu(b.lieuRDV, siteActifLabel))
+      .sort((a, b) => a.nom.localeCompare(b.nom, "fr", { sensitivity: "base" }));
+  }, [beneficiaires, estSiteResidenceAutonomie, siteActifLabel]);
+
   const [groupePRAOuvert, setGroupePRAOuvert] = useState(false);
   const groupePRARef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -175,7 +201,8 @@ export default function PlanningSuresnes() {
             prenom: (data.Prénom || data.prenom || "").trim(),
             telephone: phone,
             sexe: data.Sexe || data.sexe || "Non renseigné",
-            statutBlacklist: data.Statut_Blacklist || "Non"
+            statutBlacklist: data.Statut_Blacklist || "Non",
+            lieuRDV: data.Lieu_RDV || data.lieuRDV || ""
           };
         })
       );
@@ -305,6 +332,8 @@ export default function PlanningSuresnes() {
   const {
     filteredCreneauxDuMois,
     totalCreneauxOuverts,
+    totalOuvertsRN,
+    totalOuvertsDomicile,
     totalCreneauxRemplis,
     totalRemplisRN,
     totalRemplisRND,
@@ -328,6 +357,20 @@ export default function PlanningSuresnes() {
     const totalCreneauxOuverts = filteredCreneauxDuMois.length;
     const creneauxDuMoisRemplis = filteredCreneauxDuMois.filter(c => c.usager && c.usager.trim() !== "");
     const totalCreneauxRemplis = creneauxDuMoisRemplis.length;
+
+    // Détail RN (sur place) / à Domicile parmi les créneaux ouverts. En
+    // pratique, un créneau à domicile est posé depuis l'agenda des médiateurs
+    // via le suffixe "(RND)" sur le nom du médiateur (même détection que
+    // "isRND" plus bas, utilisée par la carte "Créneaux réservés") ; le champ
+    // "site" brut contenant "domicile" ne concerne que d'anciens créneaux
+    // importés et reste vérifié en repli.
+    let totalOuvertsDomicile = 0;
+    let totalOuvertsRN = 0;
+    filteredCreneauxDuMois.forEach(c => {
+      const estDomicile = c.mediateurNom?.includes("(RND)") || (c.site || "").toUpperCase().includes("DOMICILE");
+      if (estDomicile) totalOuvertsDomicile++;
+      else totalOuvertsRN++;
+    });
 
     let totalRemplisRN = 0;
     let totalRemplisRND = 0;
@@ -402,6 +445,8 @@ export default function PlanningSuresnes() {
     return {
       filteredCreneauxDuMois,
       totalCreneauxOuverts,
+      totalOuvertsRN,
+      totalOuvertsDomicile,
       totalCreneauxRemplis,
       totalRemplisRN,
       totalRemplisRND,
@@ -461,31 +506,6 @@ export default function PlanningSuresnes() {
   const toggleTodayFilter = () => {
     if (!filterTodayOnly) setViewDate(new Date());
     setFilterTodayOnly(!filterTodayOnly);
-  };
-
-  // Créneau posé directement sur ce planning, sans passer par une action de
-  // l'agenda des médiateurs (mediateurNom volontairement vide — voir isOrphan
-  // et nomAffiche plus bas, qui distinguent ce cas d'un vrai créneau orphelin).
-  const ouvrirAjoutCreneau = () => {
-    setNouveauCreneau({ date: new Date(year, month, new Date().getMonth() === month && new Date().getFullYear() === year ? new Date().getDate() : 1).toLocaleDateString('en-CA'), moment: "Matin", debut: "", fin: "" });
-    setAjoutCreneauOuvert(true);
-  };
-
-  const confirmerAjoutCreneau = async () => {
-    const { date, moment, debut, fin } = nouveauCreneau;
-    if (!date || !debut || !fin) {
-      showToast("Merci de renseigner la date et les horaires.", "error");
-      return;
-    }
-    await addDoc(collection(db, "planning_suresnes"), {
-      site: siteActif,
-      date,
-      moment,
-      horaire: `${debut.replace(":", "h")} - ${fin.replace(":", "h")}`,
-      usager: "",
-      mediateurNom: ""
-    });
-    setAjoutCreneauOuvert(false);
   };
 
   const supprimerCreneauLibre = async (id: string, usager: string) => {
@@ -623,22 +643,67 @@ export default function PlanningSuresnes() {
             </div>
           )}
 
-          {sitesGroupePRA.some(s => s.id === siteActif) && (
-            <button
-              onClick={ouvrirAjoutCreneau}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer border border-dashed border-[#005259]/40 text-[#005259] hover:bg-[#005259] hover:text-white hover:border-[#005259]"
-            >
-              <PlusIcon className="w-3.5 h-3.5" />
-              <span>Ajouter un créneau</span>
-            </button>
+        </div>
+
+        {estSiteResidenceAutonomie ? (
+        /* AGENDA RÉSIDENCE AUTONOMIE — construit directement depuis les fiches
+           bénéficiaires (champ Lieu d'accueil) plutôt que depuis des créneaux
+           saisis à la main : simple liste des personnes rattachées à ce lieu. */
+        <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm overflow-hidden">
+          <div className="bg-[#F3F3F2] px-5 py-3 border-b border-[#404040]/10">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#005259]">
+              Bénéficiaires rattachés à ce lieu d'accueil ({beneficiairesDeLaResidence.length})
+            </span>
+          </div>
+          {beneficiairesDeLaResidence.length > 0 ? (
+            <div className="divide-y divide-[#404040]/5">
+              {beneficiairesDeLaResidence.map(b => (
+                <div key={b.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm text-[#005259] uppercase truncate">{b.nom || "SANS NOM"}</div>
+                    <div className="text-xs text-[#404040]">{b.prenom || "Sans prénom"}</div>
+                  </div>
+                  <div className="text-xs text-[#404040]/70 shrink-0 hidden sm:block">{b.telephone}</div>
+                  <Link
+                    href={`/mediation/rencontres-numeriques/liste-beneficiaires/${b.id}`}
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#005259] hover:bg-[#EA601F] text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all"
+                  >
+                    Ouvrir
+                  </Link>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="px-5 py-10 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/50">
+              Aucun bénéficiaire n'a ce lieu d'accueil renseigné sur sa fiche.
+            </div>
           )}
         </div>
+        ) : (
+        <>
 
         {/* ANALYTICS / KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="p-4 bg-white border border-[#404040]/10 rounded-2xl flex flex-col justify-between shadow-sm">
             <span className="block text-[10px] uppercase font-bold tracking-widest text-[#404040]/70">Créneaux ouverts ({viewDate.toLocaleString('fr-FR', { month: 'short' })})</span>
-            <span className="text-2xl font-bold text-[#005259] mt-2">{totalCreneauxOuverts} <span className="text-xs text-[#404040]/50 font-normal">dispos</span></span>
+            {siteActif === "suresnes" ? (
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-2xl font-bold text-[#005259]">{totalCreneauxOuverts} <span className="text-xs text-[#404040]/50 font-normal">dispos</span></span>
+                <div className="flex gap-2 text-right">
+                  <div>
+                    <span className="text-[8px] text-[#404040]/60 block font-bold uppercase">RN</span>
+                    <span className="text-[11px] font-bold text-[#005259]">{totalOuvertsRN}</span>
+                  </div>
+                  <div className="w-px bg-[#404040]/10 self-stretch my-0.5"></div>
+                  <div>
+                    <span className="text-[8px] text-[#404040]/60 block font-bold uppercase">Domicile</span>
+                    <span className="text-[11px] font-bold text-[#F9C44E]">{totalOuvertsDomicile}</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <span className="text-2xl font-bold text-[#005259] mt-2">{totalCreneauxOuverts} <span className="text-xs text-[#404040]/50 font-normal">dispos</span></span>
+            )}
           </div>
           
           <div className="p-4 bg-white border border-[#404040]/10 rounded-2xl flex flex-col justify-between shadow-sm">
@@ -765,9 +830,9 @@ export default function PlanningSuresnes() {
                         <div className="space-y-2">
                           {sessionEntries.map(c => {
                             const nomNettoye = (c.mediateurNom || "").replace(" (RND)", "").replace(" (RN91)", "").replace(" (RN)", "").trim().toLowerCase();
-                            // Un créneau posé directement ici (voir confirmerAjoutCreneau)
-                            // n'a volontairement aucun médiateur — à distinguer d'un vrai
-                            // créneau orphelin (nom d'agenda qui ne correspond à personne).
+                            // Un créneau historique sans médiateur assigné (ancien ajout
+                            // manuel) n'a volontairement aucun médiateur — à distinguer d'un
+                            // vrai créneau orphelin (nom d'agenda qui ne correspond à personne).
                             const creneauLibre = nomNettoye === "";
                             const isOrphan = !creneauLibre && !mediateursActifs.includes(nomNettoye);
                             const isRND = c.mediateurNom?.includes("(RND)");
@@ -833,7 +898,13 @@ export default function PlanningSuresnes() {
                                 </div>
                                 
                                 <div className="xl:col-span-3 w-full">
-                                  <UsagerInput docId={c.id} initialValue={c.usager} beneficiairesListe={beneficiaires} />
+                                  <UsagerInput
+                                    docId={c.id}
+                                    initialValue={c.usager}
+                                    beneficiairesListe={beneficiaires}
+                                    afficherAlerteSuresnes={siteActif === "suresnes"}
+                                    afficherChampVille={siteActif === "rn91"}
+                                  />
                                 </div>
 
                                 <div className="xl:col-span-2 w-full">
@@ -958,6 +1029,9 @@ export default function PlanningSuresnes() {
           })}
         </div>
 
+        </>
+        )}
+
       </div>
 
       {/* MODALE DE RÉAFFECTATION — recherche dans la vraie liste des
@@ -1032,89 +1106,14 @@ export default function PlanningSuresnes() {
         );
       })()}
 
-      {/* MODALE D'AJOUT D'UN CRÉNEAU LIBRE — posé directement sur ce planning
-          (site actif), sans passer par une action de l'agenda des médiateurs. */}
-      {ajoutCreneauOuvert && (
-        <div className="fixed inset-0 bg-[#404040]/50 backdrop-blur-sm flex items-center justify-center z-[150] p-4">
-          <div className="bg-white border border-[#404040]/10 p-6 rounded-2xl w-full max-w-sm space-y-4 shadow-2xl">
-            <h3 className="font-bold text-sm text-[#005259] uppercase tracking-wide">Ajouter un créneau</h3>
-
-            <div>
-              <label className="text-[10px] text-[#404040]/70 font-bold uppercase tracking-wider block mb-1">Date</label>
-              <input
-                type="date"
-                autoFocus
-                value={nouveauCreneau.date}
-                onChange={(e) => setNouveauCreneau({ ...nouveauCreneau, date: e.target.value })}
-                className="w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-xs text-[#404040] outline-none font-medium"
-              />
-            </div>
-
-            <div>
-              <label className="text-[10px] text-[#404040]/70 font-bold uppercase tracking-wider block mb-1">Moment</label>
-              <div className="flex gap-2">
-                {["Matin", "Après-midi"].map(m => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setNouveauCreneau({ ...nouveauCreneau, moment: m })}
-                    className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer border ${
-                      nouveauCreneau.moment === m ? "bg-[#005259] text-white border-[#005259]" : "bg-[#F3F3F2] text-[#404040]/70 border-[#404040]/15 hover:border-[#005259]/40"
-                    }`}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="text-[10px] text-[#404040]/70 font-bold uppercase tracking-wider block mb-1">Début</label>
-                <input
-                  type="time"
-                  value={nouveauCreneau.debut}
-                  onChange={(e) => setNouveauCreneau({ ...nouveauCreneau, debut: e.target.value })}
-                  className="w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-xs text-[#404040] outline-none font-medium"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="text-[10px] text-[#404040]/70 font-bold uppercase tracking-wider block mb-1">Fin</label>
-                <input
-                  type="time"
-                  value={nouveauCreneau.fin}
-                  onChange={(e) => setNouveauCreneau({ ...nouveauCreneau, fin: e.target.value })}
-                  className="w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-xs text-[#404040] outline-none font-medium"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setAjoutCreneauOuvert(false)}
-                className="text-[#404040]/60 hover:text-[#404040] text-xs px-3 cursor-pointer transition-colors font-bold"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={confirmerAjoutCreneau}
-                className="bg-[#005259] hover:bg-[#003d42] text-white px-4 py-2 rounded-xl text-xs font-bold cursor-pointer transition-colors"
-              >
-                Ajouter
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ScrollToTopButton />
     </main>
     </PageGuard>
   );
 }
 
 // --- COMPO INPUT RECHERCHE AVEC ALERTE DE BLACKLIST INTERNE ---
-function UsagerInput({ docId, initialValue, beneficiairesListe }: { docId: string; initialValue: string; beneficiairesListe: Beneficiaire[] }) {
+function UsagerInput({ docId, initialValue, beneficiairesListe, afficherAlerteSuresnes, afficherChampVille }: { docId: string; initialValue: string; beneficiairesListe: Beneficiaire[]; afficherAlerteSuresnes: boolean; afficherChampVille: boolean }) {
   const { showToast } = useToast();
   const [value, setValue] = useState(initialValue);
   const [suggestions, setSuggestions] = useState<Beneficiaire[]>([]);
@@ -1126,6 +1125,7 @@ function UsagerInput({ docId, initialValue, beneficiairesListe }: { docId: strin
   const [newPrenom, setNewPrenom] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [newSexe, setNewSexe] = useState("Homme");
+  const [newVille, setNewVille] = useState("");
 
   useEffect(() => { setValue(initialValue); }, [initialValue]);
 
@@ -1259,12 +1259,13 @@ function UsagerInput({ docId, initialValue, beneficiairesListe }: { docId: strin
           <form onSubmit={async (e) => {
             e.preventDefault();
             try {
-              await addDoc(collection(db, "utilisateurs"), { 
-                Nom: newNom.toUpperCase(), 
-                Prénom: newPrenom, 
+              await addDoc(collection(db, "utilisateurs"), {
+                Nom: newNom.toUpperCase(),
+                Prénom: newPrenom,
                 Téléphone: newPhone || "Non renseigné",
                 Sexe: newSexe,
-                Statut_Blacklist: "Non"
+                Statut_Blacklist: "Non",
+                ...(afficherChampVille ? { Ville: newVille } : {}),
               });
               const label = `${newPrenom} ${newNom.toUpperCase()}`;
               await updateDoc(doc(db, "planning_suresnes", docId), { usager: label });
@@ -1272,18 +1273,25 @@ function UsagerInput({ docId, initialValue, beneficiairesListe }: { docId: strin
             } catch(err) { console.error(err); }
           }} className="bg-white border border-[#404040]/10 p-6 rounded-2xl w-full max-w-xs space-y-4 shadow-2xl">
             
-            {/* BANDEAU ROUGE D'ALERTE */}
-            <div className="bg-[#EF736A]/10 border border-[#EF736A]/30 rounded-xl p-3 text-[#EF736A] text-xs flex items-center gap-2.5">
-              <ExclamationTriangleIcon className="w-5 h-5 shrink-0 text-[#EF736A]" />
-              <span className="font-bold leading-tight">
-                La personne habite-t-elle Suresnes ?
-              </span>
-            </div>
+            {/* BANDEAU ROUGE D'ALERTE — ne concerne que le site Suresnes lui-même,
+                pas RN-91 ni les Résidences Autonomie, qui accueillent des
+                publics hors Suresnes par construction. */}
+            {afficherAlerteSuresnes && (
+              <div className="bg-[#EF736A]/10 border border-[#EF736A]/30 rounded-xl p-3 text-[#EF736A] text-xs flex items-center gap-2.5">
+                <ExclamationTriangleIcon className="w-5 h-5 shrink-0 text-[#EF736A]" />
+                <span className="font-bold leading-tight">
+                  La personne habite-t-elle Suresnes ?
+                </span>
+              </div>
+            )}
 
             <h3 className="font-bold text-sm text-[#005259] uppercase tracking-wide">Nouveau bénéficiaire</h3>
             <input placeholder="Prénom" value={newPrenom} className="w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-xs text-[#404040] placeholder-[#404040]/40 outline-none font-medium" required onChange={e => setNewPrenom(e.target.value)} />
             <input placeholder="Nom" value={newNom} className="w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-xs text-[#404040] placeholder-[#404040]/40 outline-none font-medium" required onChange={e => setNewNom(e.target.value)} />
             <input placeholder="Téléphone" value={newPhone} className="w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-xs text-[#404040] placeholder-[#404040]/40 outline-none font-medium" onChange={e => setNewPhone(e.target.value)} />
+            {afficherChampVille && (
+              <input placeholder="Ville" value={newVille} className="w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-xs text-[#404040] placeholder-[#404040]/40 outline-none font-medium" onChange={e => setNewVille(e.target.value)} />
+            )}
             
             <div className="space-y-1">
               <label className="text-[10px] text-[#404040]/70 font-bold uppercase tracking-wider block">Genre</label>

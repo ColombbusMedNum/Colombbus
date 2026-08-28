@@ -26,6 +26,7 @@ import { Quicksand } from "next/font/google";
 import type { Mediateur, ActionPlanning } from "../../lib/types";
 import { useConfirm } from "../../components/ConfirmProvider";
 import Accordion from "../../components/Accordion";
+import ScrollToTopButton from "../../components/ScrollToTopButton";
 import {
   type ActiviteType, BLOCS_THEMATIQUES, getJoursFeries,
   genererCreneauxPourModele, estimerNombreCreneaux, estVisibleCetteSemaine,
@@ -1374,7 +1375,7 @@ export default function PlanningExpertMix() {
             href="/mediation/rencontres-numeriques/suresnes"
             className="bg-[#88ACEA] hover:bg-[#779cdb] text-[#005259] border border-[#88ACEA] px-3 h-9 rounded-md text-xs transition-colors flex items-center gap-1.5 font-extrabold"
           >
-            <CalendarDaysIcon className="w-3.5 h-3.5 text-[#005259]"/> Suresnes
+            <CalendarDaysIcon className="w-3.5 h-3.5 text-[#005259]"/> Agenda RN
           </Link>
         </div>
       </header>
@@ -2263,6 +2264,7 @@ export default function PlanningExpertMix() {
           </form>
         </div>
       )}
+      <ScrollToTopButton />
     </main>
     </PageGuard>
   );
