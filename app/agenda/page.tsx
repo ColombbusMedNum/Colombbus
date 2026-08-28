@@ -159,7 +159,24 @@ export default function PlanningExpertMix() {
   const [actionEnGlisse, setActionEnGlisse] = useState<ActionPlanning | null>(null);
   const [voirMasques, setVoirMasques] = useState(false);
   const [openBlocs, setOpenBlocs] = useState<Record<string, boolean>>({ inclusion: false, decouverte: false, insertion: false, divers: false, "sans-bloc": false }); 
-  const [voirSamedi, setVoirSamedi] = useState(false); 
+  const [voirSamedi, setVoirSamedi] = useState(false);
+
+  // Bascule automatiquement l'affichage du samedi dès qu'une action existe
+  // ce jour-là sur la semaine affichée (ex. créneau posé via génération en
+  // masse sur une période incluant un samedi) — évite de laisser un créneau
+  // invisible tant que "+ Samedi" n'est pas cliqué manuellement.
+  useEffect(() => {
+    if (voirSamedi) return;
+    const d = new Date(currentDate);
+    const jour = d.getDay();
+    const diffLundi = d.getDate() - jour + (jour === 0 ? -6 : 1);
+    const lundi = new Date(d.setDate(diffLundi));
+    const samedi = new Date(lundi);
+    samedi.setDate(lundi.getDate() + 5);
+    const samediStr = samedi.toLocaleDateString('en-CA');
+    if (actions.some((a) => a.date === samediStr)) setVoirSamedi(true);
+  }, [actions, currentDate, voirSamedi]);
+
   // Repliée par défaut à chaque arrivée sur la page — l'utilisateur la
   // déplie via la poignée quand il a besoin d'injecter un modèle.
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);

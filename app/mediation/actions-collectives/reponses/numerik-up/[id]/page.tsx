@@ -46,6 +46,12 @@ interface Inscription {
   Commentaire_Suivi_Recrutement?: string;
   Date_Mail_Preinscription?: string;
   Pix_Badges_Etoiles?: string;
+  // Campagne Pix, éclatée en 3 colonnes (voir le groupe d'en-tête "Campagne
+  // Pix") — remplace l'ancien champ combiné Pix_Badges_Etoiles ci-dessus,
+  // conservé tel quel pour ne pas perdre les données déjà saisies (toujours
+  // affiché sur la fiche apprenant·e).
+  Pix_Badge?: string;
+  Pix_Etoile?: string;
   Abandon_Avant_Parkour?: string;
   Date_Relance_Pix_1?: string;
   Date_Relance_Pix_2?: string;
@@ -396,31 +402,35 @@ export default function ReponsesNumerikUpSessionPage() {
             <table className="border-separate border-spacing-0 text-xs">
               <thead>
                 <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
-                  <th ref={refNum} className={`${classeFigee} px-3 py-3 text-center bg-[#F3F3F2]`} style={{ left: decalages.num }}>#</th>
-                  <th ref={refCivilite} className={`${classeFigee} px-3 py-3 bg-[#F3F3F2]`} style={{ left: decalages.civilite }}>Civilité</th>
-                  <th ref={refPrenom} className={`${classeFigee} px-3 py-3 bg-[#F3F3F2]`} style={{ left: decalages.prenom }}>Prénom</th>
-                  <th ref={refNom} className={`${classeFigee} px-3 py-3 bg-[#F3F3F2]`} style={{ left: decalages.nom }}>
+                  <th ref={refNum} rowSpan={2} className={`${classeFigee} px-3 py-3 text-center bg-[#F3F3F2] align-bottom`} style={{ left: decalages.num }}>#</th>
+                  <th ref={refCivilite} rowSpan={2} className={`${classeFigee} px-3 py-3 bg-[#F3F3F2] align-bottom`} style={{ left: decalages.civilite }}>Civilité</th>
+                  <th ref={refPrenom} rowSpan={2} className={`${classeFigee} px-3 py-3 bg-[#F3F3F2] align-bottom`} style={{ left: decalages.prenom }}>Prénom</th>
+                  <th ref={refNom} rowSpan={2} className={`${classeFigee} px-3 py-3 bg-[#F3F3F2] align-bottom`} style={{ left: decalages.nom }}>
                     <button type="button" onClick={basculerTriNom} className="flex items-center gap-1 cursor-pointer">
                       <span>Nom</span>
                       {triNom === "asc" ? <ChevronUpIcon className="w-3 h-3" /> : triNom === "desc" ? <ChevronDownIcon className="w-3 h-3" /> : <ChevronUpDownIcon className="w-3 h-3 opacity-30" />}
                     </button>
                   </th>
-                  <th ref={refTelephone} className={`${classeFigee} ${ombreDerniereFigee} px-3 py-3 bg-[#F3F3F2]`} style={{ left: decalages.telephone }}>Téléphone</th>
-                  <th className="px-3 py-3">Âge</th>
-                  <th className="px-3 py-3">Diplôme</th>
-                  <th className="px-3 py-3">Dpt.</th>
-                  <th className="px-3 py-3">QPV</th>
-                  <th className="px-3 py-3">Prescripteur</th>
-                  <th className="px-3 py-3">ASE ?</th>
-                  <th className="px-3 py-3">Critères pré-inscription respecté ?</th>
-                  <th className="px-3 py-3">Commentaires de suivi de recrutement</th>
-                  <th className="px-3 py-3">Date - Mail envoyé Préinscription</th>
-                  <th className="px-3 py-3">Compétences Pix (Badges / Étoiles)</th>
-                  <th className="px-3 py-3">Complétion PIX</th>
-                  <th className="px-3 py-3">CV reçu</th>
-                  <th className="px-3 py-3">Abandon avant Parkour</th>
-                  <th className="px-3 py-3">OK / NOK</th>
-                  <th className="px-3 py-3">Date - Mail envoyé Parkour (Lieu, début, horaire)</th>
+                  <th ref={refTelephone} rowSpan={2} className={`${classeFigee} ${ombreDerniereFigee} px-3 py-3 bg-[#F3F3F2] align-bottom`} style={{ left: decalages.telephone }}>Téléphone</th>
+                  <th rowSpan={2} className="px-3 py-3 align-bottom">Âge</th>
+                  <th rowSpan={2} className="px-3 py-3 align-bottom">Diplôme</th>
+                  <th rowSpan={2} className="px-3 py-3 align-bottom">Dpt.</th>
+                  <th rowSpan={2} className="px-3 py-3 align-bottom">QPV</th>
+                  <th rowSpan={2} className="px-3 py-3 align-bottom">Prescripteur</th>
+                  <th rowSpan={2} className="px-3 py-3 align-bottom">ASE ?</th>
+                  <th rowSpan={2} className="px-3 py-3 align-bottom">Critères pré-inscription respecté ?</th>
+                  <th rowSpan={2} className="px-3 py-3 align-bottom">Commentaires de suivi de recrutement</th>
+                  <th rowSpan={2} className="px-3 py-3 align-bottom">Date - Mail envoyé Préinscription</th>
+                  <th colSpan={3} className="px-3 py-2 text-center border-b border-[#404040]/10">Campagne Pix</th>
+                  <th rowSpan={2} className="px-3 py-3 align-bottom">CV reçu</th>
+                  <th rowSpan={2} className="px-3 py-3 align-bottom">Abandon avant Parkour</th>
+                  <th rowSpan={2} className="px-3 py-3 align-bottom">OK / NOK</th>
+                  <th rowSpan={2} className="px-3 py-3 align-bottom">Date - Mail envoyé Parkour (Lieu, début, horaire)</th>
+                </tr>
+                <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
+                  <th className="px-3 py-2">Badge</th>
+                  <th className="px-3 py-2">Étoile</th>
+                  <th className="px-3 py-2">Pourcentage</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#404040]/5">
@@ -481,7 +491,10 @@ export default function ReponsesNumerikUpSessionPage() {
                           </div>
                         </td>
                         <td className="px-3 py-2">
-                          <input type="text" defaultValue={i.Pix_Badges_Etoiles || ""} onBlur={(e) => mettreAJourChamp(i.id, "Pix_Badges_Etoiles", e.target.value)} className={inputEditClass} />
+                          <input type="text" defaultValue={i.Pix_Badge || ""} onBlur={(e) => mettreAJourChamp(i.id, "Pix_Badge", e.target.value)} className={inputEditClass} />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input type="text" defaultValue={i.Pix_Etoile || ""} onBlur={(e) => mettreAJourChamp(i.id, "Pix_Etoile", e.target.value)} className={inputEditClass} />
                         </td>
                         <td className="px-3 py-2">
                           <input type="text" defaultValue={i.Completion_Pix || ""} onBlur={(e) => mettreAJourChamp(i.id, "Completion_Pix", e.target.value)} placeholder="Ex : 80%" className={inputEditClass} />
@@ -531,7 +544,7 @@ export default function ReponsesNumerikUpSessionPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={19} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
+                    <td colSpan={20} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
                       🔍 Aucune inscription trouvée.
                     </td>
                   </tr>
