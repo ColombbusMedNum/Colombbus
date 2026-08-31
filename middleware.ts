@@ -17,7 +17,11 @@ export function middleware(request: Request) {
   // (générée automatiquement par Firebase App Hosting) redirige vers le
   // domaine personnalisé cosmos.colombbus.org, chemin et paramètres
   // conservés. Ne concerne que ce suffixe précis — jamais localhost en dev.
-  if (req.nextUrl.hostname.endsWith(".hosted.app")) {
+  // Derrière le proxy/CDN de Firebase App Hosting, req.nextUrl.hostname peut
+  // refléter un hôte interne plutôt que le domaine public réellement visité
+  // — x-forwarded-host, posé par le proxy, donne le vrai hôte public.
+  const hoteVisite = req.headers.get("x-forwarded-host") || req.nextUrl.hostname;
+  if (hoteVisite.endsWith(".hosted.app")) {
     const url = new URL(req.nextUrl.pathname + req.nextUrl.search, "https://cosmos.colombbus.org");
     return NextResponse.redirect(url, 308);
   }
