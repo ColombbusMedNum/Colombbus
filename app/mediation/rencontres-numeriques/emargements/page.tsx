@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { db } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase";
 import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import {
@@ -30,6 +31,12 @@ export default function EmargementsPage() {
   const [nomSite, setNomSite] = useState("");
   const [description, setDescription] = useState("");
   const [googleDocUrl, setGoogleDocUrl] = useState("");
+  // "fichier" (par défaut) héberge le PDF directement sur Firebase Storage —
+  // évite la demande d'autorisation Google Drive à chaque ouverture. "lien"
+  // reste disponible pour un Google Doc/Sheet réellement vivant (édité en
+  // continu), qui ne peut pas être "téléversé" comme un fichier figé.
+  const [modeAjout, setModeAjout] = useState<"fichier" | "lien">("fichier");
+  const [fichierPdf, setFichierPdf] = useState<File | null>(null);
 
   // Récupération en temps réel des lieux depuis Firebase
   useEffect(() => {
@@ -40,24 +47,37 @@ export default function EmargementsPage() {
     return () => unsubscribe();
   }, []);
 
-  // Soumission du nouveau lieu
+  // Soumission du nouveau lieu — téléverse le PDF sur Firebase Storage
+  // (mode "fichier") ou enregistre simplement le lien fourni (mode "lien").
   const handleAddSite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nomSite || !googleDocUrl) return;
+    if (!nomSite) return;
+    if (modeAjout === "lien" && !googleDocUrl) return;
+    if (modeAjout === "fichier" && !fichierPdf) return;
 
     setStatus("Ajout en cours...");
     try {
+      let pdfUrl = "";
+      let pdfPath = "";
+      if (modeAjout === "fichier" && fichierPdf) {
+        pdfPath = `emargements/${Date.now()}_${fichierPdf.name}`;
+        const storageRef = ref(storage, pdfPath);
+        await uploadBytes(storageRef, fichierPdf);
+        pdfUrl = await getDownloadURL(storageRef);
+      }
+
       await addDoc(collection(db, "lieux_emargement"), {
         nomSite,
         description: description || "Aucune description fournie",
-        googleDocUrl,
+        ...(modeAjout === "lien" ? { googleDocUrl } : { pdfUrl, pdfPath }),
         createdAt: new Date().toISOString()
       });
-      
+
       // Reset le formulaire
       setNomSite("");
       setDescription("");
       setGoogleDocUrl("");
+      setFichierPdf(null);
       setShowForm(false);
       setStatus("");
     } catch (error) {
@@ -66,11 +86,15 @@ export default function EmargementsPage() {
     }
   };
 
-  // Suppression d'un lieu au besoin
-  const handleDeleteSite = async (id: string) => {
+  // Suppression d'un lieu au besoin — supprime aussi le PDF de Storage s'il
+  // y en a un (silencieux si le fichier n'existe déjà plus).
+  const handleDeleteSite = async (site: any) => {
     if (await confirm("Voulez-vous vraiment supprimer ce lieu d'émargement ?")) {
       try {
-        await deleteDoc(doc(db, "lieux_emargement", id));
+        if (site.pdfPath) {
+          await deleteObject(ref(storage, site.pdfPath)).catch(() => {});
+        }
+        await deleteDoc(doc(db, "lieux_emargement", site.id));
       } catch (error) {
         console.error(error);
       }
@@ -138,8 +162,45 @@ export default function EmargementsPage() {
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-[#005259] uppercase mb-1">Lien Google Doc / Google Sheet *</label>
-              <input type="url" placeholder="https://docs.google.com/..." value={googleDocUrl} onChange={(e) => setGoogleDocUrl(e.target.value)} required className={inputClass} />
+              <label className="block text-[10px] font-bold text-[#005259] uppercase mb-1.5">Type de document</label>
+              <div className="inline-flex items-center gap-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-xl p-1 mb-2">
+                <button
+                  type="button"
+                  onClick={() => setModeAjout("fichier")}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                    modeAjout === "fichier" ? "bg-[#005259] text-white" : "text-[#404040]/70 hover:text-[#005259]"
+                  }`}
+                >
+                  Fichier PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModeAjout("lien")}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                    modeAjout === "lien" ? "bg-[#005259] text-white" : "text-[#404040]/70 hover:text-[#005259]"
+                  }`}
+                >
+                  Lien externe
+                </button>
+              </div>
+
+              {modeAjout === "fichier" ? (
+                <>
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={(e) => setFichierPdf(e.target.files?.[0] || null)}
+                    required
+                    className={inputClass}
+                  />
+                  <p className="text-[10px] text-[#404040]/50 font-medium mt-1">Hébergé directement (Firebase Storage) — pas de demande d'autorisation à l'ouverture.</p>
+                </>
+              ) : (
+                <>
+                  <input type="url" placeholder="https://docs.google.com/..." value={googleDocUrl} onChange={(e) => setGoogleDocUrl(e.target.value)} required className={inputClass} />
+                  <p className="text-[10px] text-[#404040]/50 font-medium mt-1">Réservé à un Google Doc/Sheet réellement modifié en continu — sinon, préférer "Fichier PDF" ci-dessus.</p>
+                </>
+              )}
             </div>
 
             <div className="flex items-center justify-between pt-2">
@@ -175,16 +236,16 @@ export default function EmargementsPage() {
 
               {/* ACTIONS : OUVRIR ET SUPPRIMER */}
               <div className="flex items-center gap-2 shrink-0">
-                <button 
-                  onClick={() => handleDeleteSite(site.id)}
+                <button
+                  onClick={() => handleDeleteSite(site)}
                   className="p-2.5 bg-[#F3F3F2] border border-[#404040]/10 text-[#404040]/50 hover:text-red-500 hover:border-red-200 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
                   title="Supprimer ce document"
                 >
                   <TrashIcon className="w-4 h-4" />
                 </button>
-                
-                <a 
-                  href={site.googleDocUrl}
+
+                <a
+                  href={site.pdfUrl || site.googleDocUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#F3F3F2] group-hover:bg-[#EA601F] text-[#005259] group-hover:text-white text-[10px] font-bold uppercase tracking-wider rounded-xl border border-[#404040]/15 group-hover:border-[#EA601F] transition-all shadow-sm"

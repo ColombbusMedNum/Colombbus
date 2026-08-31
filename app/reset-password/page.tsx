@@ -6,7 +6,7 @@ import { Quicksand } from "next/font/google";
 import { auth } from "../../lib/firebase";
 import { verifyPasswordResetCode, confirmPasswordReset } from "firebase/auth";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LockClosedIcon, ShieldExclamationIcon, CheckCircleIcon, KeyIcon } from "@heroicons/react/24/outline";
+import { LockClosedIcon, ShieldExclamationIcon, CheckCircleIcon, KeyIcon, EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -38,6 +38,8 @@ function ResetPasswordContent() {
   const [confirmation, setConfirmation] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
+  const [motDePasseVisible, setMotDePasseVisible] = useState(false);
+  const [confirmationVisible, setConfirmationVisible] = useState(false);
 
   useEffect(() => {
     if (!oobCode) {
@@ -145,14 +147,23 @@ function ResetPasswordContent() {
                 <div className="relative">
                   <LockClosedIcon className="w-4 h-4 text-[#404040]/40 absolute left-3.5 top-3.5" />
                   <input
-                    type="password"
+                    type={motDePasseVisible ? "text" : "password"}
                     required
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-4 py-3 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white text-[#404040] rounded-xl outline-none transition-all font-medium"
+                    className="w-full pl-10 pr-10 py-3 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white text-[#404040] rounded-xl outline-none transition-all font-medium"
                     value={motDePasse}
                     onChange={(e) => setMotDePasse(e.target.value)}
                     disabled={envoiEnCours}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setMotDePasseVisible((v) => !v)}
+                    tabIndex={-1}
+                    title={motDePasseVisible ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                    className="absolute right-3.5 top-3.5 text-[#404040]/40 hover:text-[#005259] cursor-pointer"
+                  >
+                    {motDePasseVisible ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 
@@ -161,14 +172,23 @@ function ResetPasswordContent() {
                 <div className="relative">
                   <KeyIcon className="w-4 h-4 text-[#404040]/40 absolute left-3.5 top-3.5" />
                   <input
-                    type="password"
+                    type={confirmationVisible ? "text" : "password"}
                     required
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-4 py-3 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white text-[#404040] rounded-xl outline-none transition-all font-medium"
+                    className="w-full pl-10 pr-10 py-3 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white text-[#404040] rounded-xl outline-none transition-all font-medium"
                     value={confirmation}
                     onChange={(e) => setConfirmation(e.target.value)}
                     disabled={envoiEnCours}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setConfirmationVisible((v) => !v)}
+                    tabIndex={-1}
+                    title={confirmationVisible ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                    className="absolute right-3.5 top-3.5 text-[#404040]/40 hover:text-[#005259] cursor-pointer"
+                  >
+                    {confirmationVisible ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 

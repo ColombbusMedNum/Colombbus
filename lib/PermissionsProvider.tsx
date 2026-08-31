@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged, User } from "firebase/auth";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { normalizeRole } from "./roles";
@@ -50,6 +50,35 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         setOverrides([]);
         setRoleResolved(true);
         return;
+      }
+
+      // Déconnexion automatique après ~3 jours : Firebase Auth garde une
+      // session active indéfiniment par défaut (persistance locale), donc on
+      // fait respecter nous-mêmes une durée maximale, alignée sur celle des
+      // cookies posés à la connexion (voir app/login/page.tsx). Un
+      // horodatage absent (jamais posé, ex. session déjà ouverte avant ce
+      // correctif, ou onAuthStateChanged qui se déclenche avant l'écriture
+      // faite par login/page.tsx juste après signInWithEmailAndPassword) ne
+      // doit JAMAIS être traité comme "expiré" — ça déconnecterait toute
+      // connexion en cours au moment même où elle vient de réussir. On se
+      // contente de démarrer le compteur maintenant.
+      const TROIS_JOURS_MS = 3 * 24 * 60 * 60 * 1000;
+      const loginTimestamp = Number(localStorage.getItem("login_timestamp") || 0);
+      if (loginTimestamp && Date.now() - loginTimestamp > TROIS_JOURS_MS) {
+        await signOut(auth);
+        localStorage.removeItem("login_timestamp");
+        localStorage.removeItem("user_role");
+        localStorage.removeItem("user_email");
+        document.cookie = "session_token=; path=/; max-age=0";
+        document.cookie = "user_role=; path=/; max-age=0";
+        setUser(null);
+        setRole(null);
+        setOverrides([]);
+        setRoleResolved(true);
+        return;
+      }
+      if (!loginTimestamp) {
+        localStorage.setItem("login_timestamp", Date.now().toString());
       }
 
       setRoleResolved(false);

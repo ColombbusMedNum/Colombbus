@@ -89,10 +89,10 @@ const NAV_TREE: NavNode[] = [
             actionId: "home_folder_beneficiaires",
             children: [
               { id: "liste-benef", kind: "leaf", accent: "teal", icon: UsersIcon, title: "Liste des bénéficiaires", subtitle: "Consulter et modifier les fiches existantes", actionId: "home_nav_liste_benef", href: "/mediation/rencontres-numeriques/liste-beneficiaires" },
-              { id: "emargement-docs", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Émargements & Doc. internes", subtitle: "Accéder aux feuilles archivées", actionId: "home_nav_emargement_docs", href: "/mediation/rencontres-numeriques/emargements" },
               { id: "emargement-gen", kind: "leaf", accent: "orange", icon: DocumentPlusIcon, title: "Générateur d'Émargements", subtitle: "Éditer de nouvelles feuilles A4 prêtes à imprimer", actionId: "home_nav_emargement_gen", href: "/mediation/rencontres-numeriques/emargement" },
             ],
           },
+          { id: "emargement-docs", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Émargements & Doc. internes", subtitle: "Accéder aux feuilles archivées", actionId: "home_nav_emargement_docs", href: "/mediation/rencontres-numeriques/emargements" },
         ],
       },
       { id: "actions-coll", kind: "leaf", accent: "teal", icon: UserGroupIcon, title: "Cafés Numériques", subtitle: "Saisir les bilans simplifiés d'ateliers", actionId: "home_nav_actions_coll", href: "/mediation/actions-collectives" },

@@ -1,0 +1,30 @@
+rules_version = '2';
+
+// Verrou de sécurité réel pour Firebase Storage — même principe que
+// firestore.rules : le PageGuard/PermissionGuard côté React n'est que de
+// l'UX, ce fichier est la barrière qui compte réellement. isStaff() reprend
+// exactement la même définition que dans firestore.rules (profil actif dans
+// liste_mediateurs), via un appel cross-service firestore.get().
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isStaff() {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/liste_mediateurs/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/liste_mediateurs/$(request.auth.uid)).data.get('actif', true) != false;
+    }
+
+    // Émargements & documents internes (voir
+    // app/mediation/rencontres-numeriques/emargements/page.tsx) — PDF
+    // hébergés directement ici plutôt que sur Google Drive, pour éviter la
+    // demande d'autorisation Google à chaque ouverture.
+    match /emargements/{allPaths=**} {
+      allow read, write: if isStaff();
+    }
+
+    // Par défaut, tout le reste du bucket reste fermé.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

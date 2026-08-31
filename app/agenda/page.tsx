@@ -161,13 +161,22 @@ export default function PlanningExpertMix() {
   const [voirMasques, setVoirMasques] = useState(false);
   const [openBlocs, setOpenBlocs] = useState<Record<string, boolean>>({ inclusion: false, decouverte: false, insertion: false, divers: false, "sans-bloc": false }); 
   const [voirSamedi, setVoirSamedi] = useState(false);
+  // Une fois que l'utilisateur a cliqué manuellement sur "+ Samedi"/"Masquer
+  // Samedi", on ne doit plus jamais réimposer l'affichage automatique
+  // (sinon "Masquer Samedi" se voyait immédiatement re-forcé à true par
+  // l'effet ci-dessous, puisque voirSamedi faisait partie de ses
+  // dépendances). Un ref plutôt qu'un state : il ne doit pas redéclencher
+  // l'effet, seulement le désactiver pour le reste de la session — reprend
+  // à false à chaque nouvelle ouverture de la page agenda.
+  const voirSamediChoisiManuellementRef = useRef(false);
 
   // Bascule automatiquement l'affichage du samedi dès qu'une action existe
   // ce jour-là sur la semaine affichée (ex. créneau posé via génération en
   // masse sur une période incluant un samedi) — évite de laisser un créneau
-  // invisible tant que "+ Samedi" n'est pas cliqué manuellement.
+  // invisible tant que "+ Samedi" n'est pas cliqué manuellement. Ne s'applique
+  // plus après un choix manuel de l'utilisateur (voir ref ci-dessus).
   useEffect(() => {
-    if (voirSamedi) return;
+    if (voirSamediChoisiManuellementRef.current) return;
     const d = new Date(currentDate);
     const jour = d.getDay();
     const diffLundi = d.getDate() - jour + (jour === 0 ? -6 : 1);
@@ -176,7 +185,7 @@ export default function PlanningExpertMix() {
     samedi.setDate(lundi.getDate() + 5);
     const samediStr = samedi.toLocaleDateString('en-CA');
     if (actions.some((a) => a.date === samediStr)) setVoirSamedi(true);
-  }, [actions, currentDate, voirSamedi]);
+  }, [actions, currentDate]);
 
   // Repliée par défaut à chaque arrivée sur la page — l'utilisateur la
   // déplie via la poignée quand il a besoin d'injecter un modèle.
@@ -1376,7 +1385,7 @@ export default function PlanningExpertMix() {
           {/* BOUTON SAMEDI */}
           <PermissionGuard actionId="agenda_display_toggles">
             <button
-              onClick={() => setVoirSamedi(!voirSamedi)}
+              onClick={() => { voirSamediChoisiManuellementRef.current = true; setVoirSamedi(!voirSamedi); }}
               className={`px-3 h-9 rounded-md text-xs transition-colors border flex items-center gap-1.5 cursor-pointer font-bold ${
                 voirSamedi ? "bg-[#F9945D] border-[#F9945D] text-white" : "bg-[#003d42] border-[#002b2f] text-white hover:bg-[#002b2f]"
               }`}

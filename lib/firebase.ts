@@ -2,6 +2,7 @@ import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { getAuth } from "firebase/auth"; // <-- Bien présent
+import { getStorage } from "firebase/storage";
 
 export const firebaseConfig = {
   apiKey: "AIzaSyBps0rKBEiJV0owdmDL0b6QsTqB0kGvDoE",
@@ -19,6 +20,7 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 // Exportations stables des instances de services
 export const db = getFirestore(app);
 export const auth = getAuth(app); // <-- L'instance d'authentification liée à l'app
+export const storage = getStorage(app);
 
 // URL de production de l'application (Firebase App Hosting, voir firebase.json
 // apphosting.backendId "cosmos") — utilisée comme "continueUrl" des e-mails

@@ -8,7 +8,7 @@ import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from "fir
 import { collection, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { normalizeRole } from "../../lib/roles";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LockClosedIcon, EnvelopeIcon, ShieldExclamationIcon, ArrowRightEndOnRectangleIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
+import { LockClosedIcon, EnvelopeIcon, ShieldExclamationIcon, ArrowRightEndOnRectangleIcon, CheckCircleIcon, EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -35,6 +35,7 @@ function LoginPageContent() {
       : null
   );
   const [loading, setLoading] = useState(false);
+  const [motDePasseVisible, setMotDePasseVisible] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,13 +96,20 @@ function LoginPageContent() {
         }
       }).catch(() => {});
 
-      // 3. Stockage des informations de session (Cookies + LocalStorage)
-      const maxAge = 7 * 24 * 60 * 60; // Durée : 7 jours
+      // 3. Stockage des informations de session (Cookies + LocalStorage) —
+      // durée alignée sur la déconnexion automatique appliquée par
+      // PermissionsProvider (voir login_timestamp ci-dessous).
+      const maxAge = 3 * 24 * 60 * 60; // Durée : 3 jours
       document.cookie = `session_token=${token}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
       document.cookie = `user_role=${role}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
 
       localStorage.setItem("user_role", role);
       localStorage.setItem("user_email", emailNettoye);
+      // Horodatage de connexion — PermissionsProvider déconnecte
+      // automatiquement (signOut) une session Firebase Auth restée active
+      // au-delà de 3 jours, indépendamment de la persistance par défaut
+      // (illimitée) de Firebase Auth.
+      localStorage.setItem("login_timestamp", Date.now().toString());
 
       // 4. Redirection vers la page d'accueil principale
       router.push("/");
@@ -241,14 +249,23 @@ function LoginPageContent() {
             <label className="block text-[10px] font-black uppercase text-[#005259] mb-1.5 tracking-wider">Mot de passe *</label>
             <div className="relative">
               <LockClosedIcon className="w-4 h-4 text-[#404040]/40 absolute left-3.5 top-3.5" />
-              <input 
-                type="password" 
-                placeholder="••••••••" 
-                className="w-full pl-10 pr-4 py-3 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white text-[#404040] rounded-xl outline-none transition-all font-medium" 
-                value={password} 
+              <input
+                type={motDePasseVisible ? "text" : "password"}
+                placeholder="••••••••"
+                className="w-full pl-10 pr-10 py-3 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white text-[#404040] rounded-xl outline-none transition-all font-medium"
+                value={password}
                 onChange={e => setPassword(e.target.value)}
                 disabled={loading}
               />
+              <button
+                type="button"
+                onClick={() => setMotDePasseVisible(v => !v)}
+                tabIndex={-1}
+                title={motDePasseVisible ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                className="absolute right-3.5 top-3.5 text-[#404040]/40 hover:text-[#005259] cursor-pointer"
+              >
+                {motDePasseVisible ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+              </button>
             </div>
           </div>
 
