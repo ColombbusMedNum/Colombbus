@@ -467,7 +467,22 @@ export default function GestionEquipe() {
     .filter(m => (currentTab === "actifs" ? m.actif !== false : m.actif === false))
     .sort((a, b) => (a.nom || "").localeCompare(b.nom || ""));
 
-  const groupesMediateurs = React.useMemo(() => regrouperParCategorie(filteredMediateurs), [filteredMediateurs]);
+  // Les Formateurs ont leur propre bloc ici, mais sans jamais rejoindre
+  // CATEGORIES_EQUIPE (lib/equipeCategories.ts) : cette liste est partagée
+  // avec l'agenda des médiateurs, qui ne doit jamais afficher ce statut.
+  const groupesMediateurs = React.useMemo(() => {
+    const formateurs = filteredMediateurs.filter((m) => m.statut === "Formateur");
+    const groupes = regrouperParCategorie(filteredMediateurs.filter((m) => m.statut !== "Formateur"));
+    if (formateurs.length > 0) {
+      const groupeFormateurs = { key: "formateurs", label: "Formateurs", filtre: () => false, membres: formateurs };
+      // Juste au-dessus du bloc CIP, quel que soit l'ordre déclaré dans
+      // CATEGORIES_EQUIPE.
+      const indexCip = groupes.findIndex((g) => g.key === "cip");
+      if (indexCip === -1) groupes.push(groupeFormateurs);
+      else groupes.splice(indexCip, 0, groupeFormateurs);
+    }
+    return groupes;
+  }, [filteredMediateurs]);
 
   return (
     <PageGuard pageId="page_access_equipe">
@@ -859,6 +874,7 @@ export default function GestionEquipe() {
                       <option value="Prestataire">Prestataire</option>
                       <option value="Stagiaire">Stagiaire</option>
                       <option value="ACI">ACI</option>
+                      <option value="Formateur">Formateur</option>
                     </select>
                   </div>
 

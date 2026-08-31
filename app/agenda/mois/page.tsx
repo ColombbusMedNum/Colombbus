@@ -33,7 +33,7 @@ export default function VueMoisAgendaPage() {
 
   const mediateurs = useMemo(() => {
     return ([...(mediateursBruts as Mediateur[])])
-      .filter((m) => m.actif !== false && (m.prenom || m.nom))
+      .filter((m) => m.actif !== false && (m.prenom || m.nom) && m.statut !== "Formateur")
       .sort((a, b) => `${a.prenom || ""} ${a.nom || ""}`.localeCompare(`${b.prenom || ""} ${b.nom || ""}`, "fr"));
   }, [mediateursBruts]);
 

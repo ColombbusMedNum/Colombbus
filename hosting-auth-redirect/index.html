@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="robots" content="noindex">
+  <title>Redirection...</title>
+</head>
+<body>
+  <p>Redirection en cours...</p>
+  <script>
+    // Sert uniquement de relais pour les liens d'action Firebase Auth
+    // (réinitialisation de mot de passe, etc.) : ce domaine (auth.colombbus.org)
+    // est rattaché au Hosting Firebase classique, seul reconnu par le champ
+    // "URL d'action personnalisée" d'Authentication > Templates — App Hosting
+    // (qui héberge la vraie appli sur cosmos.colombbus.org) n'y est pas éligible.
+    // On transmet tel quel mode/oobCode/apiKey/lang vers notre propre page.
+    window.location.replace("https://cosmos.colombbus.org/reset-password" + window.location.search);
+  </script>
+</body>
+</html>

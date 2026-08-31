@@ -5,6 +5,10 @@
   "storage": {
     "rules": "storage.rules"
   },
+  "hosting": {
+    "public": "hosting-auth-redirect",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+  },
   "apphosting": {
     "backendId": "cosmos",
     "rootDir": "/",

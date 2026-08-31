@@ -601,11 +601,12 @@ export default function PlanningExpertMix() {
   });
 
   // Médiateurs réellement affichés dans la grille cette semaine (actifs,
-  // avec une identité, et masqués uniquement s'ils n'ont aucune action cette
-  // semaine ou si "voir les masqués" est activé) — base commune du tri par
-  // catégorie ci-dessous.
+  // avec une identité, jamais les Formateurs — statut réservé à la page
+  // Équipe, sans créneaux à planifier ici — et masqués uniquement s'ils
+  // n'ont aucune action cette semaine ou si "voir les masqués" est activé)
+  // — base commune du tri par catégorie ci-dessous.
   const mediateursAffiches = mediateurs
-    .filter(m => m.actif !== false && (m.prenom || m.nom))
+    .filter(m => m.actif !== false && (m.prenom || m.nom) && m.statut !== "Formateur")
     .filter(m => {
       if (voirMasques) return true;
       if (!m.masque) return true;
