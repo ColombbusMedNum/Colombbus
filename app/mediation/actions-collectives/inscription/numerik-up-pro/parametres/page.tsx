@@ -105,7 +105,7 @@ export default function ParametresNumerikUpProPage() {
   const [codes, setCodes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
-  const [nouvelleSessionParcours, setNouvelleSessionParcours] = useState("numerikup-pro");
+  const [nouvelleSessionParcours, setNouvelleSessionParcours] = useState("");
   const [nouvelleSessionTerritoire, setNouvelleSessionTerritoire] = useState("91");
   const [nouvelleSessionDebut, setNouvelleSessionDebut] = useState("");
   const [nouvelleSessionFin, setNouvelleSessionFin] = useState("");
@@ -121,10 +121,14 @@ export default function ParametresNumerikUpProPage() {
       const parcoursCharges = snapParcours.exists() && Array.isArray(snapParcours.data().liste) && snapParcours.data().liste.length > 0
         ? snapParcours.data().liste
         : PARCOURS_DEFAUT;
-      if (snapParcours.exists() && Array.isArray(snapParcours.data().liste) && snapParcours.data().liste.length > 0) {
-        setParcoursListe(parcoursCharges);
-        setNouvelleSessionParcours(parcoursCharges[0].id);
-      }
+      // Toujours synchronisé sur le premier parkours connu (par défaut ou
+      // chargé) — pas seulement quand le document Firestore existe, sinon la
+      // sélection reste bloquée sur une valeur vide/obsolète tant que
+      // personne n'a jamais explicitement sauvegardé la liste des parkours
+      // (cas des parkours par défaut jamais modifiés), et les sessions créées
+      // atterrissent sous un identifiant de parkours qui n'existe nulle part.
+      setParcoursListe(parcoursCharges);
+      setNouvelleSessionParcours(parcoursCharges[0].id);
       if (snapSessions.exists()) {
         const sessionsChargees: Record<string, Record<string, string[]>> = snapSessions.data().parTerritoire || {};
         const codesCharges: Record<string, string> = snapSessions.data().codes || {};
@@ -147,11 +151,11 @@ export default function ParametresNumerikUpProPage() {
           await sauvegarderSessions(sessionsNettoyees, codesNettoyes);
         }
       }
-      if (snapTerritoires.exists() && Array.isArray(snapTerritoires.data().liste) && snapTerritoires.data().liste.length > 0) {
-        const liste = snapTerritoires.data().liste;
-        setTerritoiresListe(liste);
-        setNouvelleSessionTerritoire(liste[0]);
-      }
+      const territoiresCharges = snapTerritoires.exists() && Array.isArray(snapTerritoires.data().liste) && snapTerritoires.data().liste.length > 0
+        ? snapTerritoires.data().liste
+        : TERRITOIRES_DEFAUT;
+      setTerritoiresListe(territoiresCharges);
+      setNouvelleSessionTerritoire(territoiresCharges[0]);
       setLoading(false);
     };
     charger();

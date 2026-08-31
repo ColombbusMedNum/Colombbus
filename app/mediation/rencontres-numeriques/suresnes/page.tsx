@@ -1011,7 +1011,7 @@ export default function PlanningSuresnes() {
                                       className="inline-flex items-center justify-center gap-1 w-full text-[#EA601F] bg-[#F9945D]/15 border border-[#F9945D]/30 hover:bg-[#F9945D]/25 px-2 py-1 rounded-lg text-[9px] font-bold tracking-wider uppercase transition-all shadow-sm"
                                     >
                                       <span className="text-[10px] leading-none">⏳</span>
-                                      Non suivi
+                                      Fiche de suivi
                                     </Link>
                                   )}
                                 </div>

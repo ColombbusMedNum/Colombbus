@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, setDoc, arrayUnion } from "firebase/firestore";
+import { useMediateurs } from "@/lib/MediateursProvider";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
 import {
@@ -18,6 +19,13 @@ import {
   ExclamationTriangleIcon,
   CheckCircleIcon,
   XCircleIcon,
+  ClipboardDocumentCheckIcon,
+  ChatBubbleLeftRightIcon,
+  TrashIcon,
+  PlusIcon,
+  PhotoIcon,
+  XMarkIcon,
+  ChevronDownIcon,
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { formatPhoneNumber } from "@/lib/formatPhone";
@@ -105,6 +113,49 @@ interface Inscription {
   Evolution_Retards?: Record<string, string>;
   Evolution_Actif?: boolean;
   Absences?: AbsenceRecord[];
+  // Bilan de formation — dates d'entrée/fin calculées depuis Session, le
+  // reste est renseigné à la main par l'équipe pédagogique.
+  Bilan_DateEvaluation1?: string;
+  Bilan_Evaluation1?: string;
+  Bilan_DateEvaluation2?: string;
+  Bilan_Evaluation2?: string;
+  Bilan_DateEvaluation3?: string;
+  Bilan_Evaluation3?: string;
+  Bilan_Adaptation?: string;
+  Bilan_CommentaireGeneral?: string;
+  Bilan_CompetencesTransversales?: string;
+  Bilan_Journal?: EntreeJournal[];
+  // Compte rendu d'entretien individuel de fin de parcours.
+  // Noms du staff Colombbus et/ou de personnes extérieures — ces dernières
+  // sont conservées dans configuration_bilan_formation/suggestions pour
+  // rester proposées ensuite (voir ajouterSuggestion).
+  Entretien_PersonnesPresentes?: string[];
+  Entretien_RetoursPix?: string;
+  Entretien_RetoursDevCyber?: string;
+  Entretien_RetoursMaintenance?: string;
+  Entretien_InterventionsExterieures?: EntreeAppreciation[];
+  Entretien_RetoursFormateurs?: string;
+  Entretien_TableFormateurs?: EntreeAppreciation[];
+  Entretien_ProjetProfessionnel?: string;
+  Entretien_PistesAExplorer?: string;
+  Entretien_FaitA?: string;
+  Entretien_FaitLe?: string;
+  // Images de signature encodées en base64, stockées directement dans le
+  // document (comme la bibliothèque de logos avant sa migration vers
+  // Firebase Storage) — pas besoin d'un vrai fichier hébergé pour ça.
+  Entretien_SignatureApprenantUrl?: string;
+  Entretien_SignatureColombbusUrl?: string;
+}
+
+interface EntreeJournal {
+  date: string;
+  module: string;
+  commentaire: string;
+}
+
+interface EntreeAppreciation {
+  nom: string;
+  appreciation: string;
 }
 
 const CODES_LABELS: Record<string, { label: string; bg: string }> = {
@@ -127,6 +178,27 @@ function formaterDateFr(iso: string): string {
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 }
+
+const MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+
+// Dates d'entrée/fin de formation — calculées depuis le libellé de la
+// session ("Du lundi 19 janvier 2026 au vendredi 13 février 2026 (91)"),
+// jamais ressaisies à la main.
+function extraireDatesSession(session?: string): { debut: string; fin: string } {
+  if (!session) return { debut: "—", fin: "—" };
+  const regex = new RegExp(`(\\d{1,2})\\s+(${MOIS_FR.join("|")})\\s+(\\d{4})`, "gi");
+  const trouvees: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(session.toLowerCase())) !== null) {
+    const jour = m[1].padStart(2, "0");
+    const mois = String(MOIS_FR.indexOf(m[2].toLowerCase()) + 1).padStart(2, "0");
+    trouvees.push(`${jour}/${mois}/${m[3]}`);
+  }
+  return { debut: trouvees[0] || "—", fin: trouvees[trouvees.length - 1] || "—" };
+}
+
+const inputEditClass = "w-full bg-[#F3F3F2] border border-[#404040]/10 focus:border-[#005259] focus:bg-white rounded-lg px-2.5 py-2 text-xs text-[#404040] outline-none font-medium transition-colors";
+const textareaEditClass = `${inputEditClass} resize-y`;
 
 function Section({ icon: Icon, titre, children }: { icon: React.ComponentType<{ className?: string }>; titre: string; children: React.ReactNode }) {
   return (
@@ -158,6 +230,249 @@ function Puce({ actif, label }: { actif?: boolean; label: string }) {
   );
 }
 
+// Champ texte libre édité en place (onBlur seulement, pas à chaque frappe —
+// même convention que le journal des absences déjà existant sur cette
+// fiche/le reste de l'appli).
+function ChampEditable({ label, valeur, onValide, rows = 2 }: { label: string; valeur?: string; onValide: (v: string) => void; rows?: number }) {
+  return (
+    <div>
+      <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">{label}</label>
+      <textarea defaultValue={valeur || ""} onBlur={(e) => onValide(e.target.value)} rows={rows} className={textareaEditClass} />
+    </div>
+  );
+}
+
+// Champ texte libre (une ligne ou multiligne) avec suggestions issues d'une
+// liste PARTAGÉE entre toutes les fiches (voir configuration_bilan_formation
+// dans le composant principal) : au fur et à mesure que l'équipe saisit de
+// nouvelles valeurs, elles s'ajoutent à la liste pour tout le monde — sans
+// jamais empêcher de taper une valeur qui n'y figure pas encore.
+function ChampAutocomplete({ label, valeur, suggestions, onValide, onAjouterSuggestion, multiline = false, rows = 2 }: {
+  label: string;
+  valeur?: string;
+  suggestions: string[];
+  onValide: (v: string) => void;
+  onAjouterSuggestion: (v: string) => void;
+  multiline?: boolean;
+  rows?: number;
+}) {
+  const [saisie, setSaisie] = useState(valeur || "");
+  const [ouvert, setOuvert] = useState(false);
+  // true quand la liste a été ouverte via la flèche (toutes les valeurs déjà
+  // saisies) plutôt qu'en tapant (liste filtrée au fil de la frappe).
+  const [viaFleche, setViaFleche] = useState(false);
+
+  useEffect(() => setSaisie(valeur || ""), [valeur]);
+
+  const filtrees = suggestions.filter((s) => s.toLowerCase().includes(saisie.toLowerCase()) && s !== saisie).slice(0, 8);
+  const toutes = suggestions.filter((s) => s !== saisie).slice(0, 12);
+  const listeAffichee = viaFleche ? toutes : filtrees;
+
+  const choisir = (v: string) => {
+    setSaisie(v);
+    setOuvert(false);
+    onValide(v);
+    if (v.trim()) onAjouterSuggestion(v.trim());
+  };
+
+  return (
+    <div className="relative">
+      <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">{label}</label>
+      <div className="relative">
+        {multiline ? (
+          <textarea
+            value={saisie}
+            onChange={(e) => { setSaisie(e.target.value); setViaFleche(false); }}
+            onFocus={() => { setOuvert(true); setViaFleche(false); }}
+            onBlur={() => choisir(saisie)}
+            rows={rows}
+            className={`${textareaEditClass} pr-7`}
+          />
+        ) : (
+          <input
+            type="text"
+            value={saisie}
+            onChange={(e) => { setSaisie(e.target.value); setViaFleche(false); }}
+            onFocus={() => { setOuvert(true); setViaFleche(false); }}
+            onBlur={() => choisir(saisie)}
+            className={`${inputEditClass} pr-7`}
+          />
+        )}
+        {suggestions.length > 0 && (
+          <button
+            type="button"
+            tabIndex={-1}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => { setOuvert((o) => !(o && viaFleche)); setViaFleche(true); }}
+            title="Voir les valeurs déjà saisies"
+            className="absolute right-1.5 top-1.5 p-0.5 text-[#404040]/40 hover:text-[#005259] cursor-pointer"
+          >
+            <ChevronDownIcon className={`w-4 h-4 transition-transform ${ouvert && viaFleche ? "rotate-180" : ""}`} />
+          </button>
+        )}
+      </div>
+      {ouvert && listeAffichee.length > 0 && (
+        <div className="absolute z-10 mt-1 w-full bg-white border border-[#404040]/15 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+          {listeAffichee.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => choisir(s)}
+              className="block w-full text-left px-2.5 py-1.5 text-xs text-[#404040] hover:bg-[#F3F3F2] transition-colors cursor-pointer"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Liste de noms ajoutés un par un (personnes présentes à l'entretien) —
+// suggestions mêlant le staff Colombbus (toujours proposé) et les personnes
+// extérieures déjà saisies par le passé (conservées dans
+// configuration_bilan_formation/suggestions, voir ajouterSuggestion).
+function ListeNoms({ noms, brouillon, onChangeBrouillon, onAjouter, onSupprimer, suggestions }: {
+  noms: string[];
+  brouillon: string;
+  onChangeBrouillon: (v: string) => void;
+  onAjouter: () => void;
+  onSupprimer: (index: number) => void;
+  suggestions: string[];
+}) {
+  return (
+    <div>
+      <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Personnes présentes</label>
+      <div className="flex gap-2 mb-2">
+        <input
+          type="text"
+          list="datalist-personnes"
+          value={brouillon}
+          onChange={(e) => onChangeBrouillon(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onAjouter(); } }}
+          placeholder="Nom, puis Entrée ou +"
+          className={inputEditClass}
+        />
+        <datalist id="datalist-personnes">
+          {suggestions.map((s) => <option key={s} value={s} />)}
+        </datalist>
+        <button type="button" onClick={onAjouter} className="p-2.5 bg-[#005259] hover:bg-[#EA601F] text-white rounded-lg transition-colors cursor-pointer shrink-0">
+          <PlusIcon className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {noms.map((nom, index) => (
+          <span key={index} className="inline-flex items-center gap-1.5 bg-[#F3F3F2] border border-[#404040]/10 rounded-lg px-2.5 py-1 text-xs font-bold text-[#404040]">
+            {nom}
+            <button type="button" onClick={() => onSupprimer(index)} className="text-[#404040]/40 hover:text-[#EF736A] cursor-pointer">
+              <XMarkIcon className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
+        {noms.length === 0 && <span className="text-xs text-[#404040]/50 font-medium">Aucune personne ajoutée.</span>}
+      </div>
+    </div>
+  );
+}
+
+// Tableau à lignes ajoutables {nom, appréciation} — partagé par les deux
+// tableaux du compte rendu d'entretien (interventions extérieures et
+// retours formateur·rices), qui n'ont que l'intitulé de colonne qui diffère.
+function TableauAppreciations({
+  titre, colonneNom, lignes, brouillon, onChangeBrouillon, onAjouter, onSupprimer, suggestions, datalistId,
+}: {
+  titre: string;
+  colonneNom: string;
+  lignes: { nom: string; appreciation: string }[];
+  brouillon: { nom: string; appreciation: string };
+  onChangeBrouillon: (v: { nom: string; appreciation: string }) => void;
+  onAjouter: () => void;
+  onSupprimer: (index: number) => void;
+  suggestions: string[];
+  datalistId: string;
+}) {
+  return (
+    <div className="pt-2">
+      <div className="text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-2">{titre}</div>
+      <div className="grid grid-cols-1 md:grid-cols-[200px_1fr_auto] gap-2 items-end mb-3">
+        <div>
+          <label className="block text-[9px] font-bold uppercase text-[#404040]/50 mb-1">{colonneNom}</label>
+          <input type="text" list={datalistId} value={brouillon.nom} onChange={(e) => onChangeBrouillon({ ...brouillon, nom: e.target.value })} className={inputEditClass} />
+          <datalist id={datalistId}>
+            {suggestions.map((s) => <option key={s} value={s} />)}
+          </datalist>
+        </div>
+        <div>
+          <label className="block text-[9px] font-bold uppercase text-[#404040]/50 mb-1">Appréciation</label>
+          <input type="text" value={brouillon.appreciation} onChange={(e) => onChangeBrouillon({ ...brouillon, appreciation: e.target.value })} className={inputEditClass} />
+        </div>
+        <button type="button" onClick={onAjouter} className="p-2.5 bg-[#005259] hover:bg-[#EA601F] text-white rounded-lg transition-colors cursor-pointer shrink-0">
+          <PlusIcon className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="space-y-2">
+        {lignes.map((ligne, index) => (
+          <div key={index} className="flex items-start gap-3 bg-[#F3F3F2] rounded-lg p-2.5">
+            <span className="text-xs font-bold text-[#005259] shrink-0 w-40">{ligne.nom}</span>
+            <span className="text-xs text-[#404040] flex-1 whitespace-pre-wrap">{ligne.appreciation}</span>
+            <button type="button" onClick={() => onSupprimer(index)} className="text-[#404040]/40 hover:text-[#EF736A] shrink-0">
+              <TrashIcon className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+        {lignes.length === 0 && <p className="text-xs text-[#404040]/50 font-medium">Aucune entrée pour le moment.</p>}
+      </div>
+    </div>
+  );
+}
+
+// Case à signature : image téléversée (encodée en base64) affichée en
+// grand, ou zone cliquable pour en ajouter une tant qu'aucune n'est
+// enregistrée.
+function BoiteSignature({ label, url, uploading, onUpload, onSupprimer }: {
+  label: string;
+  url?: string;
+  uploading: boolean;
+  onUpload: (file: File) => void;
+  onSupprimer: () => void;
+}) {
+  const inputId = `signature-${label.replace(/\s+/g, "-")}`;
+  return (
+    <div>
+      <div className="text-center text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-2">{label}</div>
+      <div className="relative h-40 rounded-xl border-2 border-dashed border-[#404040]/20 bg-[#F3F3F2] flex items-center justify-center overflow-hidden">
+        {url ? (
+          <>
+            <img src={url} alt={label} className="max-h-full max-w-full object-contain p-2" />
+            <button type="button" onClick={onSupprimer} title="Retirer cette signature" className="absolute top-1.5 right-1.5 p-1.5 bg-white/90 border border-[#404040]/10 text-[#404040]/50 hover:text-[#EF736A] rounded-lg shadow-sm cursor-pointer">
+              <TrashIcon className="w-3.5 h-3.5" />
+            </button>
+          </>
+        ) : (
+          <label htmlFor={inputId} className="flex flex-col items-center gap-1.5 text-[#404040]/40 hover:text-[#005259] transition-colors cursor-pointer">
+            <PhotoIcon className="w-7 h-7" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">{uploading ? "Envoi..." : "Ajouter une image"}</span>
+          </label>
+        )}
+        <input
+          id={inputId}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          disabled={uploading}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onUpload(file);
+            e.target.value = "";
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 // Fiche consolidée d'un·e apprenant·e : regroupe en un seul écran ce qui est
 // aujourd'hui réparti entre Réponses, Suivi de recrutement, Apprenant·e·s et
 // Évolution, en lisant un unique document Firestore.
@@ -169,6 +484,7 @@ export default function FicheApprenantDigitalUpPage() {
   const [inscription, setInscription] = useState<Inscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [introuvable, setIntrouvable] = useState(false);
+  const { mediateurs } = useMediateurs();
 
   useEffect(() => {
     const charger = async () => {
@@ -188,6 +504,142 @@ export default function FicheApprenantDigitalUpPage() {
     };
     if (apprenantId) charger();
   }, [apprenantId]);
+
+  // Suggestions PARTAGÉES entre toutes les fiches des 3 programmes (module,
+  // intervenant, formateur·rice, évaluation, personne extérieure) — un seul
+  // document Firestore, mis à jour à chaque nouvelle valeur saisie, relu ici
+  // à l'ouverture de la fiche pour bénéficier immédiatement des ajouts faits
+  // depuis d'autres fiches (déjà créées ou futures).
+  const MODULES_PAR_DEFAUT = ["Pix", "Développement", "Cybersécurité", "Maintenance", "Autre"];
+  const [suggestions, setSuggestions] = useState<{ modules: string[]; intervenants: string[]; formateurs: string[]; evaluations: string[]; personnesExternes: string[] }>({
+    modules: MODULES_PAR_DEFAUT, intervenants: [], formateurs: [], evaluations: [], personnesExternes: [],
+  });
+  useEffect(() => {
+    const chargerSuggestions = async () => {
+      try {
+        const snap = await getDoc(doc(db, "configuration_bilan_formation", "suggestions"));
+        if (snap.exists()) {
+          const data = snap.data();
+          setSuggestions({
+            modules: data.modules?.length ? data.modules : MODULES_PAR_DEFAUT,
+            intervenants: data.intervenants || [],
+            formateurs: data.formateurs || [],
+            evaluations: data.evaluations || [],
+            personnesExternes: data.personnesExternes || [],
+          });
+        } else {
+          setDoc(doc(db, "configuration_bilan_formation", "suggestions"), { modules: MODULES_PAR_DEFAUT }).catch(() => {});
+        }
+      } catch (error) {
+        console.error("Erreur lors du chargement des suggestions :", error);
+      }
+    };
+    chargerSuggestions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const ajouterSuggestion = (champ: "modules" | "intervenants" | "formateurs" | "evaluations" | "personnesExternes", valeur: string) => {
+    const v = valeur.trim();
+    if (!v) return;
+    setSuggestions((prev) => (prev[champ].includes(v) ? prev : { ...prev, [champ]: [...prev[champ], v] }));
+    setDoc(doc(db, "configuration_bilan_formation", "suggestions"), { [champ]: arrayUnion(v) }, { merge: true }).catch((error) => {
+      console.error(`Erreur lors de l'enregistrement de la suggestion (${champ}) :`, error);
+    });
+  };
+
+  // Noms du staff Colombbus, toujours proposés en priorité pour "Personnes
+  // présentes" — combinés aux personnes extérieures déjà saisies (suggestions.personnesExternes).
+  const nomsStaff = useMemo(
+    () => mediateurs.map((m: any) => `${m.prenom || ""} ${m.nom || ""}`.trim()).filter(Boolean).sort((a: string, b: string) => a.localeCompare(b, "fr")),
+    [mediateurs]
+  );
+  const suggestionsPersonnes = useMemo(
+    () => [...nomsStaff, ...suggestions.personnesExternes.filter((n) => !nomsStaff.includes(n))],
+    [nomsStaff, suggestions.personnesExternes]
+  );
+  const [brouillonPersonne, setBrouillonPersonne] = useState("");
+  const ajouterPersonnePresente = () => {
+    const nom = brouillonPersonne.trim();
+    if (!nom) return;
+    const liste = [...(inscription?.Entretien_PersonnesPresentes || []), nom];
+    mettreAJourChamp("Entretien_PersonnesPresentes", liste);
+    if (!nomsStaff.includes(nom)) ajouterSuggestion("personnesExternes", nom);
+    setBrouillonPersonne("");
+  };
+  const supprimerPersonnePresente = (index: number) => {
+    const liste = (inscription?.Entretien_PersonnesPresentes || []).filter((_, i) => i !== index);
+    mettreAJourChamp("Entretien_PersonnesPresentes", liste);
+  };
+
+  // Écriture directe sur le document Firestore de l'apprenant·e — mêmes
+  // mécanismes que les autres pages de suivi (mise à jour optimiste locale
+  // + persistance en base).
+  const mettreAJourChamp = async (champ: keyof Inscription, valeur: any) => {
+    setInscription((prev) => (prev ? { ...prev, [champ]: valeur } : prev));
+    try {
+      await updateDoc(doc(db, "inscriptions_digitalup", apprenantId), { [champ]: valeur });
+    } catch (error) {
+      console.error(`Erreur lors de la mise à jour de ${champ} :`, error);
+    }
+  };
+
+  // Signatures : image encodée en base64, gardée uniquement en état local le
+  // temps de la session (jamais écrite en base, volontairement — voir la
+  // mention affichée sous les cases) pour ne pas conserver ces images
+  // sensibles dans Firestore. Elles ne servent qu'à l'impression/export PDF
+  // de la fiche pendant qu'elle est ouverte.
+  const [televersementSignature, setTeleversementSignature] = useState<"apprenant" | "colombbus" | null>(null);
+  const televerserSignature = (type: "apprenant" | "colombbus", file: File) => {
+    if (file.size > 500 * 1024) {
+      console.error("Image de signature trop lourde (max 500 Ko).");
+      return;
+    }
+    setTeleversementSignature(type);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const champ = type === "apprenant" ? "Entretien_SignatureApprenantUrl" : "Entretien_SignatureColombbusUrl";
+      setInscription((prev) => (prev ? { ...prev, [champ]: reader.result as string } : prev));
+      setTeleversementSignature(null);
+    };
+    reader.onerror = () => setTeleversementSignature(null);
+    reader.readAsDataURL(file);
+  };
+  const supprimerSignature = (type: "apprenant" | "colombbus") => {
+    const champ = type === "apprenant" ? "Entretien_SignatureApprenantUrl" : "Entretien_SignatureColombbusUrl";
+    setInscription((prev) => (prev ? { ...prev, [champ]: "" } : prev));
+  };
+
+  const [nouvelleEntreeJournal, setNouvelleEntreeJournal] = useState({ date: "", module: "Pix", commentaire: "" });
+  const ajouterEntreeJournal = () => {
+    if (!nouvelleEntreeJournal.date || !nouvelleEntreeJournal.commentaire.trim()) return;
+    const liste = [...(inscription?.Bilan_Journal || []), { ...nouvelleEntreeJournal }].sort((a, b) => a.date.localeCompare(b.date));
+    mettreAJourChamp("Bilan_Journal", liste);
+    ajouterSuggestion("modules", nouvelleEntreeJournal.module);
+    setNouvelleEntreeJournal({ date: "", module: nouvelleEntreeJournal.module, commentaire: "" });
+  };
+  const supprimerEntreeJournal = (index: number) => {
+    const liste = (inscription?.Bilan_Journal || []).filter((_, i) => i !== index);
+    mettreAJourChamp("Bilan_Journal", liste);
+  };
+
+  // Les deux tableaux du compte rendu d'entretien (interventions extérieures
+  // / retours formateur·rices) partagent la même forme {nom, appréciation} —
+  // un seul jeu de handlers paramétré par le nom du champ Firestore visé.
+  const [nouvelleAppreciation, setNouvelleAppreciation] = useState<Record<string, { nom: string; appreciation: string }>>({
+    Entretien_InterventionsExterieures: { nom: "", appreciation: "" },
+    Entretien_TableFormateurs: { nom: "", appreciation: "" },
+  });
+  const ajouterAppreciation = (champ: "Entretien_InterventionsExterieures" | "Entretien_TableFormateurs") => {
+    const brouillon = nouvelleAppreciation[champ];
+    if (!brouillon.nom.trim()) return;
+    const liste = [...(inscription?.[champ] || []), { ...brouillon }];
+    mettreAJourChamp(champ, liste);
+    ajouterSuggestion(champ === "Entretien_InterventionsExterieures" ? "intervenants" : "formateurs", brouillon.nom);
+    setNouvelleAppreciation((prev) => ({ ...prev, [champ]: { nom: "", appreciation: "" } }));
+  };
+  const supprimerAppreciation = (champ: "Entretien_InterventionsExterieures" | "Entretien_TableFormateurs", index: number) => {
+    const liste = (inscription?.[champ] || []).filter((_, i) => i !== index);
+    mettreAJourChamp(champ, liste);
+  };
 
   // Résumé de présence calculé directement à partir des cases déjà
   // renseignées sur la grille Évolution — inutile de reconstituer tout le
@@ -222,6 +674,7 @@ export default function FicheApprenantDigitalUpPage() {
   }, [inscription]);
 
   const referent = `${inscription?.Conseiller_Prenom || ""} ${inscription?.Conseiller_Nom || ""}`.trim();
+  const datesFormation = extraireDatesSession(inscription?.Session || sessionId);
 
   if (loading) {
     return (
@@ -448,6 +901,170 @@ export default function FicheApprenantDigitalUpPage() {
               </div>
             )}
           </Section>
+
+          <div className="lg:col-span-2">
+            <Section icon={ClipboardDocumentCheckIcon} titre="Bilan de formation">
+              <div className="grid grid-cols-2 gap-4">
+                <Champ label="Date d'entrée en formation" valeur={datesFormation.debut} />
+                <Champ label="Date de fin de formation" valeur={datesFormation.fin} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                {([1, 2, 3] as const).map((n) => (
+                  <div key={n} className="space-y-2">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Date</label>
+                      <input
+                        type="date"
+                        defaultValue={(inscription?.[`Bilan_DateEvaluation${n}` as keyof Inscription] as string) || ""}
+                        onChange={(e) => mettreAJourChamp(`Bilan_DateEvaluation${n}` as keyof Inscription, e.target.value)}
+                        className={inputEditClass}
+                      />
+                    </div>
+                    <ChampAutocomplete
+                      label={`Évaluation ${n}`}
+                      valeur={inscription?.[`Bilan_Evaluation${n}` as keyof Inscription] as string}
+                      suggestions={suggestions.evaluations}
+                      onValide={(v) => mettreAJourChamp(`Bilan_Evaluation${n}` as keyof Inscription, v)}
+                      onAjouterSuggestion={(v) => ajouterSuggestion("evaluations", v)}
+                      multiline
+                    />
+                  </div>
+                ))}
+              </div>
+              <ChampEditable label="Adaptation en cours de formation" valeur={inscription?.Bilan_Adaptation} onValide={(v) => mettreAJourChamp("Bilan_Adaptation", v)} />
+              <ChampEditable label="Commentaire général" valeur={inscription?.Bilan_CommentaireGeneral} onValide={(v) => mettreAJourChamp("Bilan_CommentaireGeneral", v)} rows={3} />
+              <ChampEditable label="Compétences transversales" valeur={inscription?.Bilan_CompetencesTransversales} onValide={(v) => mettreAJourChamp("Bilan_CompetencesTransversales", v)} rows={3} />
+
+              <div className="pt-3 border-t border-[#404040]/10">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-2">Journal des évaluations par module</div>
+                <div className="grid grid-cols-1 md:grid-cols-[140px_160px_1fr_auto] gap-2 items-end mb-3">
+                  <div>
+                    <label className="block text-[9px] font-bold uppercase text-[#404040]/50 mb-1">Date</label>
+                    <input type="date" value={nouvelleEntreeJournal.date} onChange={(e) => setNouvelleEntreeJournal({ ...nouvelleEntreeJournal, date: e.target.value })} className={inputEditClass} />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold uppercase text-[#404040]/50 mb-1">Module</label>
+                    <input type="text" list="datalist-modules-journal" value={nouvelleEntreeJournal.module} onChange={(e) => setNouvelleEntreeJournal({ ...nouvelleEntreeJournal, module: e.target.value })} className={inputEditClass} />
+                    <datalist id="datalist-modules-journal">
+                      {suggestions.modules.map((m) => <option key={m} value={m} />)}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold uppercase text-[#404040]/50 mb-1">Commentaire ou score</label>
+                    <input type="text" value={nouvelleEntreeJournal.commentaire} onChange={(e) => setNouvelleEntreeJournal({ ...nouvelleEntreeJournal, commentaire: e.target.value })} className={inputEditClass} />
+                  </div>
+                  <button type="button" onClick={ajouterEntreeJournal} className="p-2.5 bg-[#005259] hover:bg-[#EA601F] text-white rounded-lg transition-colors cursor-pointer shrink-0">
+                    <PlusIcon className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {(inscription?.Bilan_Journal || []).map((entree, index) => (
+                    <div key={index} className="flex items-start gap-3 bg-[#F3F3F2] rounded-lg p-2.5">
+                      <span className="text-[10px] font-bold text-[#005259] shrink-0 w-16">{formaterDateFr(entree.date)}</span>
+                      <span className="text-[10px] font-bold uppercase text-[#EA601F] shrink-0 w-24">{entree.module}</span>
+                      <span className="text-xs text-[#404040] flex-1 whitespace-pre-wrap">{entree.commentaire}</span>
+                      <button type="button" onClick={() => supprimerEntreeJournal(index)} className="text-[#404040]/40 hover:text-[#EF736A] shrink-0">
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                  {(inscription?.Bilan_Journal || []).length === 0 && (
+                    <p className="text-xs text-[#404040]/50 font-medium">Aucune évaluation enregistrée pour le moment.</p>
+                  )}
+                </div>
+              </div>
+            </Section>
+          </div>
+
+          <div className="lg:col-span-2">
+            <Section icon={ChatBubbleLeftRightIcon} titre="Compte rendu d'entretien individuel">
+              <div className="grid grid-cols-2 gap-4">
+                <Champ label="Apprenant·e concerné·e" valeur={`${inscription?.Prénom || ""} ${inscription?.Nom || ""}`.trim()} />
+                <ListeNoms
+                  noms={inscription?.Entretien_PersonnesPresentes || []}
+                  brouillon={brouillonPersonne}
+                  onChangeBrouillon={setBrouillonPersonne}
+                  onAjouter={ajouterPersonnePresente}
+                  onSupprimer={supprimerPersonnePresente}
+                  suggestions={suggestionsPersonnes}
+                />
+              </div>
+
+              <div className="pt-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-2">Retours sur la formation</div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <ChampEditable label="Module Pix" valeur={inscription?.Entretien_RetoursPix} onValide={(v) => mettreAJourChamp("Entretien_RetoursPix", v)} rows={3} />
+                  <ChampEditable label="Développement & Cybersécurité" valeur={inscription?.Entretien_RetoursDevCyber} onValide={(v) => mettreAJourChamp("Entretien_RetoursDevCyber", v)} rows={3} />
+                  <ChampEditable label="Maintenance informatique" valeur={inscription?.Entretien_RetoursMaintenance} onValide={(v) => mettreAJourChamp("Entretien_RetoursMaintenance", v)} rows={3} />
+                </div>
+              </div>
+
+              <TableauAppreciations
+                titre="Interventions extérieures"
+                colonneNom="Intervenant"
+                lignes={inscription?.Entretien_InterventionsExterieures || []}
+                brouillon={nouvelleAppreciation.Entretien_InterventionsExterieures}
+                onChangeBrouillon={(v) => setNouvelleAppreciation((prev) => ({ ...prev, Entretien_InterventionsExterieures: v }))}
+                onAjouter={() => ajouterAppreciation("Entretien_InterventionsExterieures")}
+                onSupprimer={(index) => supprimerAppreciation("Entretien_InterventionsExterieures", index)}
+                suggestions={suggestions.intervenants}
+                datalistId="datalist-intervenants"
+              />
+
+              <ChampEditable label="Retours formateur·rices (général)" valeur={inscription?.Entretien_RetoursFormateurs} onValide={(v) => mettreAJourChamp("Entretien_RetoursFormateurs", v)} rows={3} />
+
+              <TableauAppreciations
+                titre="Retours sur les formateur·rices"
+                colonneNom="Formateur·rice"
+                lignes={inscription?.Entretien_TableFormateurs || []}
+                brouillon={nouvelleAppreciation.Entretien_TableFormateurs}
+                onChangeBrouillon={(v) => setNouvelleAppreciation((prev) => ({ ...prev, Entretien_TableFormateurs: v }))}
+                onAjouter={() => ajouterAppreciation("Entretien_TableFormateurs")}
+                onSupprimer={(index) => supprimerAppreciation("Entretien_TableFormateurs", index)}
+                suggestions={suggestions.formateurs}
+                datalistId="datalist-formateurs"
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ChampEditable label="Projet professionnel" valeur={inscription?.Entretien_ProjetProfessionnel} onValide={(v) => mettreAJourChamp("Entretien_ProjetProfessionnel", v)} rows={3} />
+                <ChampEditable label="Pistes à explorer" valeur={inscription?.Entretien_PistesAExplorer} onValide={(v) => mettreAJourChamp("Entretien_PistesAExplorer", v)} rows={3} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-[#404040]/10">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Fait à</label>
+                  <input type="text" defaultValue={inscription?.Entretien_FaitA || "Paris"} onBlur={(e) => mettreAJourChamp("Entretien_FaitA", e.target.value)} className={inputEditClass} />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Le</label>
+                  <input type="date" defaultValue={inscription?.Entretien_FaitLe || new Date().toISOString().slice(0, 10)} onChange={(e) => mettreAJourChamp("Entretien_FaitLe", e.target.value)} className={inputEditClass} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-[#404040]/10">
+                <BoiteSignature
+                  label="Signature apprenant·e"
+                  url={inscription?.Entretien_SignatureApprenantUrl}
+                  uploading={televersementSignature === "apprenant"}
+                  onUpload={(file) => televerserSignature("apprenant", file)}
+                  onSupprimer={() => supprimerSignature("apprenant")}
+                />
+                <BoiteSignature
+                  label="Signature Colombbus"
+                  url={inscription?.Entretien_SignatureColombbusUrl}
+                  uploading={televersementSignature === "colombbus"}
+                  onUpload={(file) => televerserSignature("colombbus", file)}
+                  onSupprimer={() => supprimerSignature("colombbus")}
+                />
+              </div>
+              <div className="print:hidden flex items-center gap-2.5 bg-[#F9C44E]/20 border border-[#F9C44E] rounded-xl p-3">
+                <ExclamationTriangleIcon className="w-5 h-5 shrink-0 text-[#404040]" />
+                <p className="text-xs font-bold text-[#404040]">
+                  Ces signatures ne sont pas enregistrées : elles ne servent qu'à l'impression/l'export de cette fiche et seront perdues si vous quittez la page.
+                </p>
+              </div>
+            </Section>
+          </div>
 
         </div>
 

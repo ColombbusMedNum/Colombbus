@@ -267,7 +267,8 @@ export default function FicheBeneficiaire() {
             actif: estActif
           };
         })
-        .filter(l => l.actif);
+        .filter(l => l.actif)
+        .sort((a, b) => a.nomCourt.localeCompare(b.nomCourt, "fr"));
 
       setLieuxGlobaux(lieuxEnregistres);
 
@@ -424,6 +425,23 @@ export default function FicheBeneficiaire() {
     }
   };
 
+  // Supprime la fiche ET tout son historique de visites (Firestore ne
+  // supprime pas les sous-collections en cascade) — réservé aux
+  // administrateurs (voir PermissionGuard sur le bouton), action
+  // irréversible donc confirmée explicitement.
+  const handleDeleteBeneficiaire = async () => {
+    if (!(await confirm(`Supprimer définitivement la fiche de ${user?.Prénom} ${user?.Nom} ainsi que tout son historique (${rdvs.length} rendez-vous) ? Cette action est irréversible.`))) return;
+    try {
+      await Promise.all(rdvs.map((rdv) => deleteDoc(doc(db, "utilisateurs", userId, "visites", rdv.id))));
+      await deleteDoc(doc(db, "utilisateurs", userId));
+      showToast("Bénéficiaire supprimé définitivement.");
+      router.push("/mediation/rencontres-numeriques/liste-beneficiaires");
+    } catch (error) {
+      console.error("Erreur lors de la suppression du bénéficiaire :", error);
+      showToast("Erreur lors de la suppression.", "error");
+    }
+  };
+
   const startEditing = (rdv: Visite) => {
     setEditingId(rdv.id);
     const satisfactionNum = rdv.satisfaction && typeof rdv.satisfaction === "object" ? rdv.satisfaction.evaluationGlobale : rdv.satisfaction;
@@ -469,6 +487,14 @@ export default function FicheBeneficiaire() {
   };
 
   const statutAdhesion = verifierRenouvellementAdhesion(user?.Date_Adhesion);
+
+  // Une Résidence Autonomie ne fonctionne pas sur une logique d'adhésion —
+  // la date d'adhésion n'a alors pas de sens et doit rester masquée. Le
+  // champ ne stocke que le nom RACCOURCI du lieu (nomCourt) ; "Résidence
+  // Autonomie" n'apparaît que dans son nom COMPLET (nomComplet), d'où la
+  // recherche du lieu correspondant avant de tester le texte.
+  const lieuRattachementSelectionne = lieuxGlobaux.find(l => l.nomCourt === profilFormData.Lieu_RDV);
+  const estResidenceAutonomie = /r[ée]sidence autonomie/i.test(lieuRattachementSelectionne?.nomComplet || profilFormData.Lieu_RDV || "");
 
   return (
     <PageGuard pageId="page_access_fiche_beneficiaire">
@@ -556,19 +582,31 @@ export default function FicheBeneficiaire() {
                   )}
                 </div>
               </div>
-              <PermissionGuard actionId="fiche_edit_profil">
-                <button
-                  onClick={() => setIsModalProfilOpen(true)}
-                  className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 ${
-                    isProfilIncomplet
-                      ? "bg-[#F9945D]/15 border border-[#F9945D] text-[#EA601F] hover:bg-[#F9945D]/30"
-                      : "bg-[#EA601F] hover:bg-[#EF736A] text-white"
-                  }`}
-                >
-                  <PencilSquareIcon className="w-4 h-4" />
-                  <span>{isProfilIncomplet ? "Compléter le profil" : "Éditer le profil"}</span>
-                </button>
-              </PermissionGuard>
+              <div className="flex items-center gap-2">
+                <PermissionGuard actionId="fiche_edit_profil">
+                  <button
+                    onClick={() => setIsModalProfilOpen(true)}
+                    className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 ${
+                      isProfilIncomplet
+                        ? "bg-[#F9945D]/15 border border-[#F9945D] text-[#EA601F] hover:bg-[#F9945D]/30"
+                        : "bg-[#EA601F] hover:bg-[#EF736A] text-white"
+                    }`}
+                  >
+                    <PencilSquareIcon className="w-4 h-4" />
+                    <span>{isProfilIncomplet ? "Compléter le profil" : "Éditer le profil"}</span>
+                  </button>
+                </PermissionGuard>
+                <PermissionGuard actionId="fiche_delete_beneficiaire">
+                  <button
+                    onClick={handleDeleteBeneficiaire}
+                    title="Supprimer définitivement ce bénéficiaire (réservé aux administrateurs)"
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 bg-white border border-[#EF736A]/40 text-[#EF736A] hover:bg-[#EF736A] hover:text-white"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                    <span>Supprimer</span>
+                  </button>
+                </PermissionGuard>
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mt-6">
               <div className="flex items-center gap-3 bg-[#F3F3F2] p-3 rounded-xl border border-[#404040]/10"><PhoneIcon className="w-4 h-4 text-[#EA601F]" /><span className="text-xs text-[#404040] font-medium">{formatPhoneNumber(user?.Téléphone)}</span></div>
@@ -1050,6 +1088,23 @@ export default function FicheBeneficiaire() {
                   </PermissionGuard>
                 </div>
 
+                <div className="bg-[#F3F3F2] p-3 rounded-2xl border border-[#404040]/10">
+                  <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Rattachement Événementiel principal</label>
+                  <select
+                    value={profilFormData.Lieu_RDV}
+                    onChange={e => setProfilFormData({...profilFormData, Lieu_RDV: e.target.value, lieuRDV: e.target.value})}
+                    className="bg-white border border-[#404040]/15 text-xs text-[#404040] rounded p-1.5 w-full outline-none font-medium"
+                  >
+                    <option value="">-- Aucun ou Standard --</option>
+                    {lieuxGlobaux.map((l) => (
+                      <option key={l.id} value={l.nomCourt}>{l.nomCourt}</option>
+                    ))}
+                    {profilFormData.Lieu_RDV && !lieuxGlobaux.some(l => l.nomCourt === profilFormData.Lieu_RDV) && (
+                      <option value={profilFormData.Lieu_RDV}>{profilFormData.Lieu_RDV}</option>
+                    )}
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Civilité</label>
@@ -1069,15 +1124,17 @@ export default function FicheBeneficiaire() {
                   <input type="text" value={profilFormData.Nom} onChange={e => setProfilFormData({...profilFormData, Nom: e.target.value})} className={inputClass} placeholder="Nom..." required />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className={estResidenceAutonomie ? "grid grid-cols-1 gap-3" : "grid grid-cols-2 gap-3"}>
                   <div>
                     <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Date de Naissance</label>
                     <input type="date" value={profilFormData.Date_Naissance} onChange={e => setProfilFormData({...profilFormData, Date_Naissance: e.target.value})} className={inputClass} />
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Date d'Adhésion (Optionnel)</label>
-                    <input type="date" value={profilFormData.Date_Adhesion} onChange={e => setProfilFormData({...profilFormData, Date_Adhesion: e.target.value})} className={inputClass} />
-                  </div>
+                  {!estResidenceAutonomie && (
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Date d'Adhésion (Optionnel)</label>
+                      <input type="date" value={profilFormData.Date_Adhesion} onChange={e => setProfilFormData({...profilFormData, Date_Adhesion: e.target.value})} className={inputClass} />
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -1129,7 +1186,7 @@ export default function FicheBeneficiaire() {
 
                 <div className="grid grid-cols-2 gap-3 bg-[#F3F3F2] p-3 rounded-2xl border border-[#404040]/10">
                   <div>
-                    <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Situation de Handicap</label>
+                    <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Personne en Situation de Handicap</label>
                     <select value={profilFormData.Situation_Handicap} onChange={e => setProfilFormData({...profilFormData, Situation_Handicap: e.target.value})} className="bg-white border border-[#404040]/15 text-xs text-[#404040] rounded p-1.5 w-full outline-none font-medium">
                       <option value="Non">Non</option>
                       <option value="Oui">Oui</option>
@@ -1142,18 +1199,6 @@ export default function FicheBeneficiaire() {
                       <option value="Oui">Oui</option>
                     </select>
                   </div>
-                </div>
-
-                <div className="bg-[#F3F3F2] p-3 rounded-2xl border border-[#404040]/10">
-                  <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Rattachement Événementnel principal</label>
-                  <select 
-                    value={profilFormData.Lieu_RDV} 
-                    onChange={e => setProfilFormData({...profilFormData, Lieu_RDV: e.target.value, lieuRDV: e.target.value})} 
-                    className="bg-white border border-[#404040]/15 text-xs text-[#404040] rounded p-1.5 w-full outline-none font-medium"
-                  >
-                    <option value="">-- Aucun ou Standard --</option>
-                    <option value="92 - Collecte Tech">92 - Collecte Tech</option>
-                  </select>
                 </div>
 
                 <div className="pt-4 space-y-3">

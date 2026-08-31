@@ -1217,9 +1217,14 @@ export default function PlanningExpertMix() {
       showToast("🔒 Semaine validée et verrouillée.", "error");
       return;
     }
-    const joursOuvres = weekDays.filter((d) => !joursFeries.has(d.toLocaleDateString('en-CA')));
+    // Un ACI à 26h n'est pas positionné le mercredi (jour de formation/heures
+    // complémentaires, voir estMercrediACI plus bas) — un ACI à 35h l'est,
+    // comme le reste de la semaine.
+    const estACI26h = m.statut === 'ACI' && m.dureeHebdoACI !== '35h';
+    const joursOuvres = weekDays.filter((d) => !joursFeries.has(d.toLocaleDateString('en-CA')) && !(estACI26h && d.getDay() === 3));
     const nomComplet = `${m.prenom || ""} ${m.nom || ""}`.trim();
-    if (!(await confirm(`Injecter "${selectedModel.lieu}" sur toute la semaine (matin et après-midi) pour ${nomComplet} ?`))) return;
+    const messageMercredi = estACI26h ? " (hors mercredi, ACI 26h)" : "";
+    if (!(await confirm(`Injecter "${selectedModel.lieu}" sur toute la semaine (matin et après-midi) pour ${nomComplet}${messageMercredi} ?`))) return;
 
     for (const day of joursOuvres) {
       const dateStr = day.toLocaleDateString('en-CA');
@@ -1227,7 +1232,7 @@ export default function PlanningExpertMix() {
         await processActionCreation(m.id, m.prenom || "", m.nom || "", moment, dateStr, selectedModel.lieu);
       }
     }
-    showToast(`"${selectedModel.lieu}" injecté sur la semaine pour ${nomComplet}.`);
+    showToast(`"${selectedModel.lieu}" injecté sur la semaine pour ${nomComplet}${messageMercredi}.`);
   };
 
   const startOfWeekStr = weekDays[0].toLocaleDateString('en-CA');

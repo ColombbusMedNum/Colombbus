@@ -93,6 +93,7 @@ const NAV_TREE: NavNode[] = [
             ],
           },
           { id: "emargement-docs", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Émargements & Doc. internes", subtitle: "Accéder aux feuilles archivées", actionId: "home_nav_emargement_docs", href: "/mediation/rencontres-numeriques/emargements" },
+          { id: "rn-agenda-suresnes", kind: "leaf", accent: "orange", icon: CalendarIcon, title: "Agenda RN", subtitle: "Consulter l'agenda du Relais Numérique", actionId: "home_nav_agenda_suresnes", fallbackLocked: true, href: "/mediation/rencontres-numeriques/suresnes" },
         ],
       },
       { id: "actions-coll", kind: "leaf", accent: "teal", icon: UserGroupIcon, title: "Cafés Numériques", subtitle: "Saisir les bilans simplifiés d'ateliers", actionId: "home_nav_actions_coll", href: "/mediation/actions-collectives" },

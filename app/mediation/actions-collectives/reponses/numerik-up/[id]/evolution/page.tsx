@@ -302,6 +302,12 @@ export default function EvolutionSessionPage() {
     return heuresPrevues > 0 ? Math.round((heuresPresence / heuresPrevues) * 100) : null;
   };
 
+  // Badge permanent (indépendant de la pop-up ponctuelle déclenchée à la
+  // saisie) : signale d'un coup d'œil, en consultant la grille plus tard,
+  // qu'une personne a déjà 2 absences non justifiées ou plus sur la session.
+  const aDeuxANJOuPlus = (apprenant: Apprenant): boolean =>
+    Object.values(apprenant.Evolution || {}).filter((v) => v === "ANJ").length >= 2;
+
   // Tous les jours des 4 semaines, pour le tableau récapitulatif GLOBAL.
   const tousLesJours = useMemo(() => semaines.flat(), [semaines]);
 
@@ -468,7 +474,14 @@ export default function EvolutionSessionPage() {
                         </td>
                         <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{index + 1}</td>
                         <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{a.Prénom || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">{a.Nom || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">
+                          <Link href={`/mediation/actions-collectives/reponses/numerik-up/${encodeURIComponent(sessionId)}/apprenants/${a.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
+                            {a.Nom || "—"}
+                          </Link>
+                          {aDeuxANJOuPlus(a) && (
+                            <span title="2 absences non justifiées ou plus sur cette session" className="inline-block ml-1 align-middle">⚠️</span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -534,7 +547,14 @@ export default function EvolutionSessionPage() {
                           </td>
                           <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{index + 1}</td>
                           <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{a.Prénom || "—"}</td>
-                          <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">{a.Nom || "—"}</td>
+                          <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">
+                          <Link href={`/mediation/actions-collectives/reponses/numerik-up/${encodeURIComponent(sessionId)}/apprenants/${a.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
+                            {a.Nom || "—"}
+                          </Link>
+                          {aDeuxANJOuPlus(a) && (
+                            <span title="2 absences non justifiées ou plus sur cette session" className="inline-block ml-1 align-middle">⚠️</span>
+                          )}
+                        </td>
                           {jours.map((jour) => {
                             const iso = versISO(jour);
                             return (
@@ -581,8 +601,9 @@ export default function EvolutionSessionPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 text-center space-y-4">
             <ExclamationTriangleIcon className="w-10 h-10 text-[#EA601F] mx-auto" />
+            <h3 className="text-sm font-bold uppercase tracking-wider text-[#005259]">Alerte au médiateur</h3>
             <p className="text-sm font-medium text-[#404040]">
-              {alerteANJ.prenom} {alerteANJ.nom} totalise désormais {alerteANJ.nombre} absences non justifiées sur cette session. Ce point mérite d'être signalé à votre coordinateur.
+              Merci d'appeler le bénéficiaire et/ou son référent. {alerteANJ.prenom} {alerteANJ.nom} totalise désormais {alerteANJ.nombre} absences non justifiées sur cette session. Ce point mérite d'être signalé à votre coordinateur.
             </p>
             <button
               type="button"

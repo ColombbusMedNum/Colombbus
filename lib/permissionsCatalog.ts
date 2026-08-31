@@ -141,6 +141,7 @@ const DETAILED_PAGES: PageEntry[] = [
       { id: "fiche_nav_bilan_tech", nom: "Lien Bilan Tech", type: "Link", description: "Accède au bilan technique du diagnostic Collecte Tech" },
       { id: "fiche_nav_agenda_suresnes", nom: "Lien Agenda Suresnes", type: "Link", description: "Accède à l'agenda de Suresnes depuis la fiche" },
       { id: "fiche_nav_equipe", nom: "Lien Gérer l'équipe RH", type: "Link", description: "Accède à la gestion de l'équipe depuis la fiche" },
+      { id: "fiche_delete_beneficiaire", nom: "Bouton Supprimer le bénéficiaire", type: "button", description: "Efface définitivement la fiche et son historique — réservé aux administrateurs" },
     ],
   },
   {

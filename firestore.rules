@@ -157,6 +157,9 @@ service cloud.firestore {
         isCoordinateurOuPlus() ||
         request.resource.data.get('Statut_Blacklist', 'Non') == resource.data.get('Statut_Blacklist', 'Non')
       );
+      // Suppression définitive de la fiche — réservée aux administrateurs
+      // (voir fiche_delete_beneficiaire dans permissionsCatalog.ts).
+      allow delete: if isAdmin();
     }
     // Sous-collection "visites" de chaque bénéficiaire (rendez-vous,
     // diagnostics...). Le joker récursif {path=**} est nécessaire — pas
@@ -174,6 +177,13 @@ service cloud.firestore {
       allow read, write: if isStaff();
     }
     match /liste_lieux/{docId} {
+      allow read, write: if isStaff();
+    }
+    // Suggestions partagées entre toutes les fiches apprenant·e (modules,
+    // intervenant·e·s, formateur·rice·s, évaluations, personnes extérieures)
+    // — voir "Bilan de formation" / "Compte rendu d'entretien" sur les fiches
+    // Numérik'UP, Digital'UP et NUMERIK PRO.
+    match /configuration_bilan_formation/{docId} {
       allow read, write: if isStaff();
     }
     match /planning_mediateurs/{docId} {
