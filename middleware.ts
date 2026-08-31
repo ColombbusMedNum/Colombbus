@@ -13,6 +13,15 @@ export function middleware(request: Request) {
   const req = request as NextRequest;
   const { pathname } = req.nextUrl;
 
+  // 0. Domaine canonique : toute visite sur l'URL technique *.hosted.app
+  // (générée automatiquement par Firebase App Hosting) redirige vers le
+  // domaine personnalisé cosmos.colombbus.org, chemin et paramètres
+  // conservés. Ne concerne que ce suffixe précis — jamais localhost en dev.
+  if (req.nextUrl.hostname.endsWith(".hosted.app")) {
+    const url = new URL(req.nextUrl.pathname + req.nextUrl.search, "https://cosmos.colombbus.org");
+    return NextResponse.redirect(url, 308);
+  }
+
   // 1. Récupérer le token de session et le rôle depuis les cookies
   const token = req.cookies.get("session_token")?.value;
   const userRole = normalizeRole(req.cookies.get("user_role")?.value);

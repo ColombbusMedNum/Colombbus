@@ -22,13 +22,13 @@ export const db = getFirestore(app);
 export const auth = getAuth(app); // <-- L'instance d'authentification liée à l'app
 export const storage = getStorage(app);
 
-// URL de production de l'application (Firebase App Hosting, voir firebase.json
-// apphosting.backendId "cosmos") — utilisée comme "continueUrl" des e-mails
-// d'authentification Firebase (configuration de compte, réinitialisation de
-// mot de passe). Codée en dur plutôt que dérivée de window.location.origin :
+// URL de production de l'application (domaine personnalisé cosmos.colombbus.org,
+// voir Firebase App Hosting > Domaines) — utilisée comme "continueUrl" des
+// e-mails d'authentification Firebase (configuration de compte, réinitialisation
+// de mot de passe). Codée en dur plutôt que dérivée de window.location.origin :
 // un envoi déclenché depuis un poste en développement (localhost) enverrait
 // sinon un lien qui ne fonctionne que sur cette machine-là.
-export const APP_URL = "https://cosmos--mediation-numerique.europe-west4.hosted.app";
+export const APP_URL = "https://cosmos.colombbus.org";
 
 export const initAnalytics = async () => {
   if (typeof window !== "undefined" && await isSupported()) {
