@@ -28,6 +28,13 @@ service firebase.storage {
       allow read, write: if isStaff();
     }
 
+    // Bibliothèque de logos partenaires (voir
+    // app/mediation/bibliotheque-logos/page.tsx et le générateur
+    // d'émargements) — remplace l'ancien stockage en base64 dans Firestore.
+    match /logos_emargement/{allPaths=**} {
+      allow read, write: if isStaff();
+    }
+
     // Par défaut, tout le reste du bucket reste fermé.
     match /{allPaths=**} {
       allow read, write: if false;

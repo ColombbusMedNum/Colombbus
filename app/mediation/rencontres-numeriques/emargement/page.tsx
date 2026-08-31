@@ -43,6 +43,12 @@ function GenerateurEmargementPagesIdentiques() {
   const [logosBank, setLogosBank] = useState<LogoEmargement[]>([]);
   const [selectedLogos, setSelectedLogos] = useState<string[]>([]);
   const [nbLignesVoulues, setNbLignesVoulues] = useState<number>(12);
+  // Échelle manuelle appliquée aux logos, en plus de la taille automatique
+  // selon leur nombre (tailleBaseLogos ci-dessous) — un seul facteur agrandit
+  // ou réduit tous les logos sélectionnés EN GARDANT LEURS PROPORTIONS
+  // (on ne fixe jamais que la hauteur ; la largeur suit automatiquement via
+  // object-contain, jamais l'inverse, donc jamais de déformation).
+  const [echelleLogos, setEchelleLogos] = useState(100);
   const [nomsPreremplis, setNomsPreremplis] = useState<{ prenom: string; nom: string }[]>([]);
 
   const [form, setForm] = useState({
@@ -95,9 +101,10 @@ function GenerateurEmargementPagesIdentiques() {
   let alignementClasse = "justify-center gap-12"; 
   if (nbLogos >= 3) alignementClasse = "justify-around gap-6";
 
-  let tailleClasse = "h-16 max-w-[240px]"; // S'il y a 3 logos ou plus
-  if (nbLogos === 1) tailleClasse = "h-28 max-w-[320px]"; // S'il est tout seul
-  if (nbLogos === 2) tailleClasse = "h-24 max-w-[240px]"; // S'ils sont deux
+  let tailleBaseLogosPx = 64; // S'il y a 3 logos ou plus (h-16)
+  if (nbLogos === 1) tailleBaseLogosPx = 112; // S'il est tout seul (h-28)
+  if (nbLogos === 2) tailleBaseLogosPx = 96; // S'ils sont deux (h-24)
+  const hauteurLogosPx = Math.round(tailleBaseLogosPx * (echelleLogos / 100));
 
   const inputStyle = "w-full bg-[#F3F3F2] text-[#404040] border border-[#404040]/15 text-xs font-bold rounded-xl px-3 py-2.5 outline-none focus:border-[#005259] transition-all";
 
@@ -189,7 +196,28 @@ function GenerateurEmargementPagesIdentiques() {
 
           {/* SÉLECTION DES LOGOS */}
           <div>
-            <label className="block text-[10px] font-bold uppercase text-[#005259] mb-3">Sélectionnez les logos :</label>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-[10px] font-bold uppercase text-[#005259]">Sélectionnez les logos :</label>
+              {nbLogos > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-[#005259] uppercase">Taille : <span className="text-[#EA601F] font-extrabold">{echelleLogos}%</span></span>
+                  <button
+                    onClick={() => setEchelleLogos(prev => Math.max(50, prev - 10))}
+                    title="Réduire les logos (proportions conservées)"
+                    className="p-1.5 bg-white border border-[#404040]/15 rounded-lg hover:bg-[#005259] hover:text-white text-[#005259] transition-all shadow-sm cursor-pointer"
+                  >
+                    <MinusIcon className="w-3.5 h-3.5"/>
+                  </button>
+                  <button
+                    onClick={() => setEchelleLogos(prev => Math.min(200, prev + 10))}
+                    title="Agrandir les logos (proportions conservées)"
+                    className="p-1.5 bg-white border border-[#404040]/15 rounded-lg hover:bg-[#005259] hover:text-white text-[#005259] transition-all shadow-sm cursor-pointer"
+                  >
+                    <PlusIcon className="w-3.5 h-3.5"/>
+                  </button>
+                </div>
+              )}
+            </div>
             <div className="flex flex-wrap gap-3">
               {logosBank.map(logo => {
                 const active = selectedLogos.includes(logo.url);
@@ -221,7 +249,7 @@ function GenerateurEmargementPagesIdentiques() {
               {nbLogos > 0 && (
                 <div className={`flex items-center ${alignementClasse} mb-12 min-h-[2.4cm] w-full border-b border-gray-100 pb-4`}>
                   {logosBank.filter(l => selectedLogos.includes(l.url)).map((logo, idx) => (
-                    <img key={idx} src={logo.url} alt={logo.nom} className={`${tailleClasse} object-contain transition-all`} />
+                    <img key={idx} src={logo.url} alt={logo.nom} style={{ height: `${hauteurLogosPx}px`, width: "auto" }} className="object-contain transition-all" />
                   ))}
                 </div>
               )}

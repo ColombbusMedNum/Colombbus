@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { db } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase";
 import { collection, addDoc, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { TrashIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
@@ -57,28 +58,26 @@ export default function BibliothequeLogosGratuite() {
     }
   };
 
-  // 2. Encoder l'image en base64 et l'enregistrer directement dans le
-  // document Firestore. Ni Firebase Storage (nécessite le forfait Blaze) ni
-  // Vercel Blob (blocage de déploiement lié à l'identité Git de ce dépôt) ne
-  // sont utilisables sur ce projet ; le fichier reste limité à 1 Mo
-  // (cf. handleFileChange), donc le coût en taille de document Firestore
-  // reste négligeable.
+  // 2. Téléverse l'image sur Firebase Storage (voir aussi
+  // app/mediation/rencontres-numeriques/emargements/page.tsx, même
+  // principe) — remplace l'ancien encodage base64 stocké directement dans
+  // le document Firestore, qui datait d'avant l'activation de Storage sur
+  // ce projet.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFile || !nomLogo) return showToast("Veuillez donner un nom et choisir une image.", "error");
 
     setUploading(true);
     try {
-      const url = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(selectedFile);
-      });
+      const storagePath = `logos_emargement/${Date.now()}_${selectedFile.name}`;
+      const storageRef = ref(storage, storagePath);
+      await uploadBytes(storageRef, selectedFile);
+      const url = await getDownloadURL(storageRef);
 
       await addDoc(collection(db, "logos_emargement"), {
         nom: nomLogo,
         url,
+        storagePath,
         createdAt: new Date().toISOString()
       });
 
@@ -97,11 +96,15 @@ export default function BibliothequeLogosGratuite() {
     }
   };
 
-  // 3. L'image vit directement dans le document Firestore (champ `url` en
-  // base64) : la supprimer ne demande rien de plus que supprimer le document.
+  // 3. Supprime aussi le fichier de Storage s'il y en a un (logos ajoutés
+  // avant ce champ storagePath restent supprimables, juste sans nettoyage
+  // du fichier — silencieux si déjà absent).
   const handleDelete = async (logo: any) => {
     if (!(await confirm("Supprimer ce logo définitivement ?"))) return;
     try {
+      if (logo.storagePath) {
+        await deleteObject(ref(storage, logo.storagePath)).catch(() => {});
+      }
       await deleteDoc(doc(db, "logos_emargement", logo.id));
       await fetchLogos();
     } catch (error) {

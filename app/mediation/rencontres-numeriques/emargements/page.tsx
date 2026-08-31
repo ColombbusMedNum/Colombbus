@@ -130,7 +130,7 @@ export default function EmargementsPage() {
                   Émargements <span className="text-[#EA601F] font-light">et autres documents</span>
                 </h1>
                 <p className="text-[10px] text-[#404040]/70 font-bold uppercase tracking-widest mt-0.5">
-                  Accès direct aux registres Google Docs par structure
+                  Documents et émargements par structure
                 </p>
               </div>
             </div>
