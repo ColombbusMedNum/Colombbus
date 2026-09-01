@@ -95,6 +95,38 @@ interface LieuGlobal {
   nomComplet: string;
 }
 
+// Thématiques d'un RDV : plusieurs sélections possibles, stockées comme une
+// seule chaîne "Thème A, Thème B" (déjà le format lu par le split(",") de
+// app/mediation/rencontres-numeriques/rendez-vous-par-lieu/page.tsx) — pas de
+// migration de schéma, juste ce format déjà attendu ailleurs.
+const THEMATIQUES_LISTE: { value: string; label: string }[] = [
+  { value: "Ordinateur", label: "💻 Ordinateur" },
+  { value: "Smartphone", label: "📱 Smartphone" },
+  { value: "Premiers pas vers le numérique", label: "🌱 Premiers pas vers le numérique" },
+  { value: "Gestion documentaire", label: "📂 Gestion documentaire" },
+  { value: "Communiquer par internet", label: "🌐 Communiquer par internet" },
+  { value: "Utilisation sécurisée d’internet", label: "🔒 Utilisation sécurisée d’internet" },
+  { value: "Le numérique au quotidien", label: "☀️ Le numérique au quotidien" },
+  { value: "Accès aux droits et aux offres de soin", label: "🩺 Accès aux droits et aux offres de soin" },
+  { value: "Les outils pour la vie professionnelle", label: "💼 Les outils pour la vie professionnelle" },
+  { value: "Recherche d’emploi sur internet", label: "🔍 Recherche d’emploi sur internet" },
+  { value: "Choisir ses logiciels informatiques", label: "⚙️ Choisir ses logiciels informatiques" },
+  { value: "Création multimédia", label: "🎨 Création multimédia" },
+  { value: "Outils informatiques pour la fabrication", label: "🛠️ Outils informatiques pour la fabrication" },
+  { value: "Collecte Tech", label: "🧺 Collecte Tech" },
+  { value: "Collecte Tech - Remise de matériel", label: "🧺 Collecte Tech - Remise de matériel" },
+  { value: "Collecte Tech - Tests de positionnement", label: "🧺 Collecte Tech - Tests de positionnement" },
+];
+
+// Convertit la chaîne stockée en tableau de thématiques individuelles — les
+// compteurs statistiques (thématique phare, alertes tous les 5 RDV) doivent
+// compter chaque thématique séparément plutôt que la combinaison entière
+// comme une seule valeur, sans quoi un RDV multi-thématiques fausserait ces
+// statistiques.
+function decomposerThematiques(valeur: string | undefined): string[] {
+  return (valeur || "").split(",").map(t => t.trim()).filter(Boolean);
+}
+
 export default function FicheBeneficiaire() {
   const { showToast } = useToast();
   const confirm = useConfirm();
@@ -173,28 +205,16 @@ export default function FicheBeneficiaire() {
     return texte.replace(/\s+(Q\d+:)/g, "\n$1");
   };
 
-  // Composant réutilisable pour rendre la liste des options de thématiques
-  const ThematiqueOptions = () => (
-    <>
-      <option value="" className="text-[#404040]/40">-- Thématique --</option>
-      <option value="Ordinateur">💻 Ordinateur</option>
-      <option value="Smartphone">📱 Smartphone</option>
-      <option value="Premiers pas vers le numérique">🌱 Premiers pas vers le numérique</option>
-      <option value="Gestion documentaire">📂 Gestion documentaire</option>
-      <option value="Communiquer par internet">🌐 Communiquer par internet</option>
-      <option value="Utilisation sécurisée d’internet">🔒 Utilisation sécurisée d’internet</option>
-      <option value="Le numérique au quotidien">☀️ Le numérique au quotidien</option>
-      <option value="Accès aux droits et aux offres de soin">🩺 Accès aux droits et aux offres de soin</option>
-      <option value="Les outils pour la vie professionnelle">💼 Les outils pour la vie professionnelle</option>
-      <option value="Recherche d’emploi sur internet">🔍 Recherche d’emploi sur internet</option>
-      <option value="Choisir ses logiciels informatiques">⚙️ Choisir ses logiciels informatiques</option>
-      <option value="Création multimédia">🎨 Création multimédia</option>
-      <option value="Outils informatiques pour la fabrication">🛠️ Outils informatiques pour la fabrication</option>
-      <option value="Collecte Tech" className="text-[#EA601F] font-bold">🧺 Collecte Tech</option>
-      <option value="Collecte Tech - Remise de matériel" className="text-[#EA601F] font-bold">🧺 Collecte Tech - Remise de matériel</option>
-      <option value="Collecte Tech - Tests de positionnement" className="text-[#EA601F] font-bold">🧺 Collecte Tech - Tests de positionnement</option>
-    </>
-  );
+  // Bascule une thématique dans la sélection courante du formulaire RDV
+  // (formData.thematique reste une seule chaîne "A, B" — voir
+  // decomposerThematiques ci-dessus).
+  const basculerThematique = (valeur: string) => {
+    const actuelles = decomposerThematiques(formData.thematique);
+    const nouvelles = actuelles.includes(valeur)
+      ? actuelles.filter(t => t !== valeur)
+      : [...actuelles, valeur];
+    setFormData({ ...formData, thematique: nouvelles.join(", ") });
+  };
 
   // MÉDIATEURS : dérivés du cache partagé (lib/MediateursProvider.tsx)
   const listeMediateurs = useMemo<Mediateur[]>(() => {
@@ -313,10 +333,10 @@ export default function FicheBeneficiaire() {
     const moyenneSat = totalPresentsCount > 0 ? parseFloat((sommeSatisfaction / totalPresentsCount).toFixed(1)) : 0;
 
     const compteurs: Record<string, number> = {};
-    presents.forEach(r => { 
-      if (r.thematique && r.thematique.trim() !== "") { 
-        compteurs[r.thematique] = (compteurs[r.thematique] || 0) + 1; 
-      } 
+    presents.forEach(r => {
+      decomposerThematiques(r.thematique).forEach(theme => {
+        compteurs[theme] = (compteurs[theme] || 0) + 1;
+      });
     });
 
     const keys = Object.keys(compteurs);
@@ -384,20 +404,22 @@ export default function FicheBeneficiaire() {
         await addDoc(collection(db, "utilisateurs", userId, "visites"), { ...donnees, createdAt: serverTimestamp() });
 
         if (formData.statut === "Présent" && formData.thematique) {
-          const visitesMemeThematique = rdvs.filter(
+          // Compte chaque thématique séparément (un RDV peut désormais en
+          // cumuler plusieurs) plutôt que la combinaison entière choisie.
+          const rdvsEligibles = rdvs.filter(
             r => r.statut === "Présent" &&
-            r.thematique === formData.thematique &&
             !["Diagnostic Initial", "Diagnostic Final", "Questionnaire de satisfaction", "Collecte Tech"].includes(r.moment)
           );
-
-          const nouveauTotal = visitesMemeThematique.length + 1;
-
-          if (nouveauTotal % 5 === 0) {
-            const reponse = await confirm(
-              `🚨 Alerte : Ce bénéficiaire vient d'atteindre ${nouveauTotal} rendez-vous sur la thématique "${formData.thematique}".\n\nSouhaitez-vous le rediriger immédiatement vers le formulaire pour passer un nouveau diagnostic ?`
-            );
-            if (reponse) {
-              router.push(`/mediation/rencontres-numeriques/diagnosticform?id=${userId}`);
+          for (const theme of decomposerThematiques(formData.thematique)) {
+            const nouveauTotal = rdvsEligibles.filter(r => decomposerThematiques(r.thematique).includes(theme)).length + 1;
+            if (nouveauTotal % 5 === 0) {
+              const reponse = await confirm(
+                `🚨 Alerte : Ce bénéficiaire vient d'atteindre ${nouveauTotal} rendez-vous sur la thématique "${theme}".\n\nSouhaitez-vous le rediriger immédiatement vers le formulaire pour passer un nouveau diagnostic ?`
+              );
+              if (reponse) {
+                router.push(`/mediation/rencontres-numeriques/diagnosticform?id=${userId}`);
+              }
+              break;
             }
           }
         }
@@ -908,10 +930,28 @@ export default function FicheBeneficiaire() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Thématique</label>
-                  <select value={formData.thematique} onChange={e => setFormData({...formData, thematique: e.target.value})} className={inputClass}>
-                    <ThematiqueOptions />
-                  </select>
+                  <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Thématique(s)</label>
+                  <div className="bg-[#F3F3F2] border border-[#404040]/15 rounded-xl p-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
+                    {THEMATIQUES_LISTE.map(({ value, label }) => {
+                      const estCochee = decomposerThematiques(formData.thematique).includes(value);
+                      return (
+                        <label
+                          key={value}
+                          className={`flex items-center gap-2 p-1.5 rounded-lg cursor-pointer select-none text-[11px] transition-colors ${
+                            estCochee ? "bg-white border border-[#005259]/30 text-[#005259] font-bold" : "border border-transparent text-[#404040]/80 hover:bg-white/60"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="w-3.5 h-3.5 rounded accent-[#005259] cursor-pointer shrink-0"
+                            checked={estCochee}
+                            onChange={() => basculerThematique(value)}
+                          />
+                          <span className="truncate">{label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div>

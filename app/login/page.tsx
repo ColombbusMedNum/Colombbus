@@ -114,9 +114,12 @@ function LoginPageContent() {
       localStorage.setItem("login_timestamp", Date.now().toString());
 
       // 4. Redirection — destination forcée (bouton "Agenda Mobile"), sinon
-      // vers celle demandée par ?next= (ex /planning), sinon l'accueil.
+      // vers celle demandée par ?next= (ex /planning), sinon l'accueil — sauf
+      // pour un formateur, qui n'a pas accès à l'accueil (voir
+      // lib/permissionsCatalog.ts) et atterrirait sur "Accès Refusé".
       const next = searchParams.get("next");
-      const destination = destinationForcee || (next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
+      const accueilParDefaut = role === "formateur" ? "/agenda" : "/";
+      const destination = destinationForcee || (next && next.startsWith("/") && !next.startsWith("//") ? next : accueilParDefaut);
       router.push(destination);
       
     } catch (err: any) {

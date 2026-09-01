@@ -21,7 +21,8 @@ import {
   ChevronDownIcon,
   ShieldCheckIcon,
   AcademicCapIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  ArrowDownTrayIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import PageGuard from "@/components/PageGuard";
@@ -433,6 +434,42 @@ export default function GestionEquipe() {
     return groupes;
   }, [filteredMediateurs]);
 
+  // Champ CSV toujours entre guillemets (plus simple et sûr que de ne
+  // guillemetter qu'au besoin) — norme attendue par l'import Google Contacts.
+  const echapperCSV = (valeur: string) => `"${(valeur || "").replace(/"/g, '""')}"`;
+
+  // Format "Google CSV" (celui que Google Contacts sait importer nativement) :
+  // seul le staff actif est exporté, et Group Membership combine territoire(s)
+  // + statut pour que l'import crée déjà des groupes exploitables côté Google.
+  const handleExportContacts = () => {
+    const actifs = mediateurs
+      .filter((m: any) => m.actif !== false && m.email)
+      .sort((a: any, b: any) => (a.nom || "").localeCompare(b.nom || ""));
+    const entetes = ["Name", "Given Name", "Family Name", "E-mail 1 - Value", "Phone 1 - Value", "Organization Name", "Organization Title", "Group Membership"];
+    const lignes = actifs.map((m: any) => {
+      const nomComplet = `${m.prenom || ""} ${m.nom || ""}`.trim();
+      const groupes = [...(m.sites || []), m.statut].filter(Boolean).join(" ::: ");
+      return [
+        nomComplet,
+        m.prenom || "",
+        m.nom || "",
+        m.email || "",
+        formatPhoneNumber(m.telephone || "") || "",
+        "Colombbus",
+        m.poste || "",
+        groupes
+      ].map(echapperCSV).join(",");
+    });
+    const contenu = "﻿" + entetes.map(echapperCSV).join(",") + "\n" + lignes.join("\n");
+    const blob = new Blob([contenu], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "contacts_equipe_colombbus.csv");
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <PageGuard pageId="page_access_equipe">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
@@ -475,6 +512,17 @@ export default function GestionEquipe() {
                 <AcademicCapIcon className="w-4 h-4 text-[#EA601F]" />
                 <span>Compétences</span>
               </Link>
+            </PermissionGuard>
+
+            <PermissionGuard actionId="equipe_export_contacts">
+              <button
+                onClick={handleExportContacts}
+                title="Télécharge le staff actif au format d'import Google Contacts"
+                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm cursor-pointer"
+              >
+                <ArrowDownTrayIcon className="w-4 h-4 text-[#EA601F]" />
+                <span>Exporter (Contacts Google)</span>
+              </button>
             </PermissionGuard>
 
             <PermissionGuard actionId="equipe_add_member">

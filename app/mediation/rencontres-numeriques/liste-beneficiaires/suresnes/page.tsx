@@ -78,6 +78,14 @@ function thematiqueMairieCorrespondante(thematique: string): string {
   return THEMATIQUES_MAIRIE[thematique] || THEMATIQUE_MAIRIE_PAR_DEFAUT;
 }
 
+// Un RDV peut cumuler plusieurs thématiques, stockées comme une seule chaîne
+// "Thème A, Thème B" (voir app/mediation/rencontres-numeriques/[id]/page.tsx) —
+// il faut les compter séparément, sinon une combinaison ne matche jamais
+// THEMATIQUES_MAIRIE et retombe systématiquement sur la valeur par défaut.
+function decomposerThematiques(valeur: string | undefined): string[] {
+  return (valeur || "").split(",").map(t => t.trim()).filter(Boolean);
+}
+
 // Beaucoup de profils n'ont qu'une Date_Naissance et pas de champ Age figé
 // (l'âge y est toujours recalculé à l'affichage, cf. calculerAgeEnDirect
 // dans [id]/page.tsx) — sans ce calcul, leur âge n'apparaît jamais ici.
@@ -147,9 +155,9 @@ export default function ListeBeneficiairesSuresnes() {
             );
             const compteurs: Record<string, number> = {};
             presentsStandard.forEach((v) => {
-              if (v.thematique && v.thematique.trim() !== "") {
-                compteurs[v.thematique] = (compteurs[v.thematique] || 0) + 1;
-              }
+              decomposerThematiques(v.thematique).forEach((theme) => {
+                compteurs[theme] = (compteurs[theme] || 0) + 1;
+              });
             });
             const cles = Object.keys(compteurs);
             const thematiquePhare = cles.length === 0 ? "—" : cles.reduce((a, b) => (compteurs[a] > compteurs[b] ? a : b));

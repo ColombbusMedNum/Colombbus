@@ -233,6 +233,7 @@ const DETAILED_PAGES: PageEntry[] = [
       { id: "equipe_modal_competence", nom: "Boutons + / Qualités Rapides / X (Modale)", type: "button", description: "Gère les tags de compétences du membre" },
       { id: "equipe_horaires_aci_edit", nom: "Grille Horaires ACI (Paris/Massy)", type: "input", description: "Modifie les horaires de référence utilisés pour la paie/planning ACI" },
       { id: "equipe_nav_competences", nom: "Lien Qualités", type: "Link", description: "Accède à la page des compétences depuis l'équipe" },
+      { id: "equipe_export_contacts", nom: "Bouton Exporter (Contacts Google)", type: "button", description: "Télécharge un CSV du staff actif au format d'import Google Contacts" },
       // equipe_nav_agenda ("Lien Agenda") et equipe_create_access ("Bouton
       // Créer l'accès de connexion") retirés : aucun élément correspondant
       // n'existe plus dans app/mediation/equipe/page.tsx (audit droits).
@@ -391,7 +392,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     suresnes_slot_assign: true, suresnes_slot_clear: true, suresnes_slot_thematique_edit: true, suresnes_slot_demande_edit: true,
     suresnes_nav_beneficiaires: true, suresnes_nav_agenda_med: true,
     equipe_add_member: true, equipe_territory_manage: true, equipe_display_toggles: true, equipe_member_actions: true, equipe_modal_competence: true,
-    equipe_horaires_aci_edit: true, equipe_nav_competences: true,
+    equipe_horaires_aci_edit: true, equipe_nav_competences: true, equipe_export_contacts: true,
   },
 
   // ACI reprend exactement les anciens droits du rôle "Lecteur" (fusionné),
@@ -420,6 +421,14 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     benef_nav_suresnes_liste: true,
     page_access_liste_beneficiaires_suresnes: true, benef_suresnes_filter_trimestre: true,
     suresnes_filter_today: true, suresnes_month_nav: true,
+    agenda_week_nav: true, agenda_comment_view: true,
+  },
+
+  // Rôle dédié aux formateurs (statut "Formateur" dans /mediation/equipe) :
+  // aucun accès en dehors de l'agenda — pas même l'accueil, puisque
+  // app/login/page.tsx les redirige directement vers /agenda après connexion.
+  formateur: {
+    page_access_login: true, page_access_agenda: true,
     agenda_week_nav: true, agenda_comment_view: true,
   },
 };
