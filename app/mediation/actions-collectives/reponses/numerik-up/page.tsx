@@ -256,6 +256,17 @@ export default function ReponsesNumerikUpPage() {
     charger();
   }, []);
 
+  // Lien vers la fiche de suivi pédagogique ("apprenant") une fois affecté·e
+  // à une session — apprenantId est le même id que le document
+  // inscriptions_numerikup (voir [id]/apprenants/page.tsx, qui liste cette
+  // même collection). Avant affectation, il n'y a pas encore de session à
+  // mettre dans l'URL : on retombe alors sur l'édition locale de la
+  // préinscription (voir ouvrirEdition).
+  const lienFicheApprenant = (i: Inscription): string | null => {
+    if (!i.Suivi_Recrutement || !i.Session) return null;
+    return `/mediation/actions-collectives/reponses/numerik-up/${encodeURIComponent(i.Session)}/apprenants/${i.id}`;
+  };
+
   // Toutes les sessions existantes, groupées par territoire, tous parkours
   // confondus — permet de forcer le passage d'un·e inscrit·e vers n'importe
   // quelle autre session, y compris hors de son territoire déclaré.
@@ -709,6 +720,7 @@ export default function ReponsesNumerikUpPage() {
                   inscriptionsFiltrees.map((i, index) => {
                     const prescripteur = [...(i.Structures_Accompagnement || []), i.Structure_Autre].filter(Boolean).join(", ");
                     const estE2C = prescripteur.toUpperCase().includes("E2C");
+                    const lienApprenant = lienFicheApprenant(i);
                     return (
                       <tr key={i.id} className={`transition-colors align-top ${estE2C ? "bg-[#7C1FD1]/5 hover:bg-[#7C1FD1]/10" : "hover:bg-[#F3F3F2]/60"}`}>
                         {onglet === "doublons" && (
@@ -788,9 +800,27 @@ export default function ReponsesNumerikUpPage() {
                         </td>
                         <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{index + 1}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Civilité || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{i.Prénom || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">
+                          {lienApprenant ? (
+                            <Link href={lienApprenant} title="Ouvrir la fiche de suivi (apprenant·e)" className="hover:underline">
+                              {i.Prénom || "—"}
+                            </Link>
+                          ) : (
+                            <button type="button" onClick={() => ouvrirEdition(i)} title="Modifier la fiche de préinscription" className="hover:underline cursor-pointer">
+                              {i.Prénom || "—"}
+                            </button>
+                          )}
+                        </td>
                         <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">
-                          {i.Nom || "—"}
+                          {lienApprenant ? (
+                            <Link href={lienApprenant} title="Ouvrir la fiche de suivi (apprenant·e)" className="hover:underline">
+                              {i.Nom || "—"}
+                            </Link>
+                          ) : (
+                            <button type="button" onClick={() => ouvrirEdition(i)} title="Modifier la fiche de préinscription" className="hover:underline cursor-pointer">
+                              {i.Nom || "—"}
+                            </button>
+                          )}
                           {infosDoublons.has(i.id) && (
                             <span
                               title="Fait partie d'un groupe de doublons probable (même email, ou même nom+prénom+téléphone)"

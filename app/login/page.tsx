@@ -8,7 +8,7 @@ import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from "fir
 import { collection, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { normalizeRole } from "../../lib/roles";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LockClosedIcon, EnvelopeIcon, ShieldExclamationIcon, ArrowRightEndOnRectangleIcon, CheckCircleIcon, EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
+import { LockClosedIcon, EnvelopeIcon, ShieldExclamationIcon, ArrowRightEndOnRectangleIcon, CheckCircleIcon, EyeIcon, EyeSlashIcon, DevicePhoneMobileIcon } from "@heroicons/react/24/outline";
 
 const quicksand = Quicksand({
   subsets: ["latin"],
@@ -37,8 +37,10 @@ function LoginPageContent() {
   const [loading, setLoading] = useState(false);
   const [motDePasseVisible, setMotDePasseVisible] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // destinationForcee : utilisé par le bouton "Agenda Mobile" pour toujours
+  // atterrir sur /agenda/mobile après connexion, quel que soit un éventuel
+  // ?next= déjà présent dans l'URL (voir handleAgendaMobile ci-dessous).
+  const effectuerConnexion = async (destinationForcee?: string) => {
     setError(null);
     setSuccessMessage(null);
 
@@ -111,8 +113,11 @@ function LoginPageContent() {
       // (illimitée) de Firebase Auth.
       localStorage.setItem("login_timestamp", Date.now().toString());
 
-      // 4. Redirection vers la page d'accueil principale
-      router.push("/");
+      // 4. Redirection — destination forcée (bouton "Agenda Mobile"), sinon
+      // vers celle demandée par ?next= (ex /planning), sinon l'accueil.
+      const next = searchParams.get("next");
+      const destination = destinationForcee || (next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
+      router.push(destination);
       
     } catch (err: any) {
       console.error("Erreur détectée :", err.code, err);
@@ -136,6 +141,16 @@ function LoginPageContent() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    effectuerConnexion();
+  };
+
+  const handleAgendaMobile = (e: React.MouseEvent) => {
+    e.preventDefault();
+    effectuerConnexion("/agenda/mobile");
   };
 
   const handleForgotPassword = async () => {
@@ -228,7 +243,7 @@ function LoginPageContent() {
         )}
 
         {/* Formulaire de saisie */}
-        <form onSubmit={handleLogin} className="space-y-4 text-xs">
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           <div>
             <label className="block text-[10px] font-black uppercase text-[#005259] mb-1.5 tracking-wider">Adresse Email *</label>
             <div className="relative">
@@ -283,6 +298,18 @@ function LoginPageContent() {
                 <span>Se connecter</span>
               </>
             )}
+          </button>
+
+          {/* Raccourci mobile : mêmes identifiants, atterrit directement sur
+              "Mon planning" (vue simplifiée d'une semaine) au lieu de l'accueil. */}
+          <button
+            type="button"
+            disabled={loading}
+            onClick={handleAgendaMobile}
+            className="w-full py-3 bg-white hover:bg-[#F3F3F2] disabled:opacity-50 text-[#005259] border border-[#404040]/15 font-extrabold uppercase tracking-widest text-xs rounded-xl transition-all shadow-sm active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <DevicePhoneMobileIcon className="w-4 h-4 text-[#EA601F]" />
+            <span>Agenda Mobile</span>
           </button>
         </form>
 

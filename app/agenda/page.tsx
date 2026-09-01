@@ -19,7 +19,7 @@ import {
   CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon,
   LockClosedIcon, BellIcon,
   ChatBubbleLeftRightIcon, ExclamationTriangleIcon,
-  ChevronDownIcon, HomeIcon, ClockIcon, WrenchScrewdriverIcon
+  ChevronDownIcon, HomeIcon, ClockIcon, WrenchScrewdriverIcon, DevicePhoneMobileIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
@@ -117,6 +117,7 @@ const ACTIVITE_VIDE: ActiviteType = {
   lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "",
   couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "",
   blocs: [], mediateursIds: [], generationMoment: "Les deux", datesActives: [],
+  estProduction: false,
 };
 
 // Replie par défaut les sections avancées de la modale de modèle, sauf
@@ -453,7 +454,8 @@ export default function PlanningExpertMix() {
         blocs: newActivite.blocs || [],
         mediateursIds: newActivite.mediateursIds || [],
         generationMoment: newActivite.generationMoment || "Les deux",
-        datesActives: newActivite.datesActives || []
+        datesActives: newActivite.datesActives || [],
+        estProduction: newActivite.estProduction || false
       };
 
       let idModele = editingActivite?.id;
@@ -471,7 +473,8 @@ export default function PlanningExpertMix() {
             debut: newActivite.debut,
             fin: newActivite.fin,
             adresse: newActivite.adresse.trim(),
-            territoire: newActivite.territoire
+            territoire: newActivite.territoire,
+            estProduction: newActivite.estProduction || false
           })
         );
         await Promise.all(updates);
@@ -514,7 +517,8 @@ export default function PlanningExpertMix() {
       blocs: type.blocs || [],
       mediateursIds: type.mediateursIds || [],
       generationMoment: type.generationMoment || "Les deux",
-      datesActives: type.datesActives || []
+      datesActives: type.datesActives || [],
+      estProduction: type.estProduction || false
     });
     // Retrouve, si possible, l'adresse prédéfinie correspondante pour que le
     // menu déroulant affiche la bonne sélection au lieu de retomber sur
@@ -709,6 +713,7 @@ export default function PlanningExpertMix() {
     const adresseFinale = actionSource?.adresse || selectedModel?.adresse;
     const territoireFinal = actionSource?.territoire || selectedModel?.territoire;
     const codeAnalytiqueFinal = actionSource?.codeAnalytique || selectedModel?.codeAnalytique;
+    const estProductionFinal = actionSource?.estProduction ?? selectedModel?.estProduction ?? false;
 
     await addDoc(collection(db, "planning_mediateurs"), {
       mediatId: mediatId,
@@ -720,6 +725,7 @@ export default function PlanningExpertMix() {
       commentaire: "",
       ordre: ordreMax + 1,
       couleur: actionSource?.couleur || selectedModel?.couleur || "#005259",
+      estProduction: estProductionFinal,
       ...(adresseFinale ? { adresse: adresseFinale } : {}),
       ...(horaireFinal ? { debut: horaireFinal.debut, fin: horaireFinal.fin } : {}),
       ...(territoireFinal ? { territoire: territoireFinal } : {}),
@@ -1491,6 +1497,16 @@ export default function PlanningExpertMix() {
               <CalendarDaysIcon className="w-3.5 h-3.5"/>
             </Link>
           </PermissionGuard>
+
+          <PermissionGuard actionId="page_access_agenda_mobile">
+            <Link
+              href="/agenda/mobile"
+              className="w-7 h-7 flex items-center justify-center rounded-full bg-white border-2 border-[#005259] text-[#005259] hover:bg-[#005259] hover:text-white shadow-md transition-all cursor-pointer"
+              title="Mon planning (vue mobile)"
+            >
+              <DevicePhoneMobileIcon className="w-3.5 h-3.5"/>
+            </Link>
+          </PermissionGuard>
         </div>
 
         {/* SIDEBAR : MODÈLES D'ACTIVITÉS */}
@@ -2185,6 +2201,16 @@ export default function PlanningExpertMix() {
                 onChange={e => setNewActivite({...newActivite, codeAnalytique: e.target.value})}
               />
             </div>
+
+            <label className="flex items-center gap-2 text-xs text-[#404040] font-semibold cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!newActivite.estProduction}
+                onChange={e => setNewActivite({...newActivite, estProduction: e.target.checked})}
+                className="w-4 h-4 accent-[#005259] cursor-pointer"
+              />
+              Production Médiation Numérique
+            </label>
 
             <Accordion title="Apparence (bloc thématique, couleur)" open={!!openSections.apparence} onToggle={() => toggleSection("apparence")}>
               <div className="flex flex-col gap-1">

@@ -48,6 +48,11 @@ export interface ActiviteType {
   // estVisibleCetteSemaine) — ne déclenche PAS de génération automatique
   // de créneaux, contrairement à dateDebut/dateFin.
   datesActives?: string[];
+  // Coché si ce modèle correspond à de la production Médiation Numérique
+  // (par opposition aux congés, réunions internes, etc.) — copié sur chaque
+  // créneau généré depuis ce modèle pour permettre un filtrage ultérieur
+  // (ex volume horaire de production) sans avoir à ré-identifier le modèle.
+  estProduction?: boolean;
 }
 
 // Un modèle est-il visible dans la sidebar de l'agenda pour la semaine

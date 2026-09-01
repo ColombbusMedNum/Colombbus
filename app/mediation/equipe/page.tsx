@@ -1,9 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { initializeApp, deleteApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { auth, db, firebaseConfig, APP_URL } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { collection, onSnapshot, doc, getDoc, updateDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { Quicksand } from "next/font/google";
 import { 
@@ -23,7 +21,6 @@ import {
   ChevronDownIcon,
   ShieldCheckIcon,
   AcademicCapIcon,
-  KeyIcon,
   CheckCircleIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
@@ -109,7 +106,6 @@ export default function GestionEquipe() {
   
   const [listeQualitesGlobales, setListeQualitesGlobales] = useState<string[]>([]);
   const [competenceInput, setCompetenceInput] = useState("");
-  const [uidsConnectes, setUidsConnectes] = useState<Set<string>>(new Set());
 
   const [formData, setFormData] = useState({
     prenom: "",      
@@ -206,18 +202,10 @@ export default function GestionEquipe() {
 
     demarrer();
 
-    // Sert à savoir quels membres se sont déjà connectés au moins une fois
-    // (voir firestore.rules /premieres_connexions et app/login/page.tsx),
-    // pour retirer le bouton d'envoi de l'e-mail d'activation une fois inutile.
-    const unsubConnexions = onSnapshot(collection(db, "premieres_connexions"), (snapshot) => {
-      setUidsConnectes(new Set(snapshot.docs.map((d) => d.id)));
-    });
-
     return () => {
       annule = true;
       unsubConfig();
       unsubHoraires();
-      unsubConnexions();
     };
   }, []);
 
@@ -330,9 +318,23 @@ export default function GestionEquipe() {
       return;
     }
 
+    const emailNormalise = formData.email.trim().toLowerCase();
+
+    // Sécurité : bloque la création d'une deuxième fiche avec le même e-mail
+    // qu'une fiche existante (ex. faute de frappe créant "Nouveau membre" au
+    // lieu de mettre à jour la fiche en cours d'édition) — sans ça, deux
+    // fiches distinctes peuvent coexister pour la même personne.
+    const doublon = mediateurs.find(
+      (m: any) => m.email?.trim().toLowerCase() === emailNormalise && m.id !== editingMed?.id
+    );
+    if (doublon) {
+      showToast(`Une fiche existe déjà avec cet e-mail : ${doublon.prenom} ${doublon.nom}. Modifiez cette fiche existante plutôt que d'en créer une nouvelle.`, "error");
+      return;
+    }
+
     const netPayload = {
       ...formData,
-      email: formData.email.trim().toLowerCase(),
+      email: emailNormalise,
       telephone: formData.telephone.trim(),
       taux: Number(formData.taux) || 0
     };
@@ -343,9 +345,9 @@ export default function GestionEquipe() {
       } else {
         // Créer la fiche seule, sans compte de connexion : certains
         // médiateurs ajoutés à la plateforme n'ont pas vocation à s'y
-        // connecter. L'accès (compte Auth + email de configuration) se
-        // déclenche séparément, à la demande, via le bouton clé
-        // (handleCreateAccess) — jamais automatiquement à la création.
+        // connecter. La création du compte Auth et l'envoi des identifiants
+        // se font désormais manuellement (Firebase Console), pas depuis
+        // cette page.
         await setDoc(doc(collection(db, "liste_mediateurs")), netPayload);
       }
       closeModal();
@@ -360,59 +362,6 @@ export default function GestionEquipe() {
       await updateDoc(doc(db, "liste_mediateurs", m.id), { actif: !m.actif });
     } catch (err) {
       console.error(err);
-    }
-  };
-
-  // Pour une fiche créée avant l'automatisation ci-dessus (handleSubmit),
-  // encore indexée par un ID Firestore aléatoire au lieu de l'UID Firebase
-  // Auth : crée le compte manquant puis migre la fiche vers l'UID, avec la
-  // même mécanique d'app Firebase secondaire (ne remplace pas la session de
-  // l'admin en cours).
-  const handleCreateAccess = async (m: any) => {
-    if (!m.email) {
-      showToast("Cette fiche n'a pas d'adresse email, impossible de créer un accès.", "error");
-      return;
-    }
-    if (!(await confirm(`Créer l'accès de connexion pour ${m.prenom} ${m.nom} (${m.email}) ?`))) return;
-
-    const secondaryApp = initializeApp(firebaseConfig, `secondary-${Date.now()}`);
-    const secondaryAuth = getAuth(secondaryApp);
-    try {
-      const tempPassword = crypto.randomUUID();
-      const credential = await createUserWithEmailAndPassword(secondaryAuth, m.email, tempPassword);
-      const { id, ...data } = m;
-      await setDoc(doc(db, "liste_mediateurs", credential.user.uid), data);
-      await deleteDoc(doc(db, "liste_mediateurs", m.id));
-      await sendPasswordResetEmail(auth, m.email, {
-        url: `${APP_URL}/reset-password`,
-        handleCodeInApp: true,
-      });
-      showToast("Compte créé et e-mail de configuration envoyé avec succès.");
-    } catch (err: any) {
-      if (err.code === "auth/email-already-in-use") {
-        // Cas prévu (pas une anomalie) : on ne passe pas par console.error,
-        // qui déclenche l'overlay plein écran de Next.js en développement
-        // même quand l'erreur est bien gérée juste en dessous.
-        console.warn("Compte déjà existant, renvoi de l'e-mail de configuration :", err.code);
-        // Le compte Auth existe déjà (ex. premier e-mail de configuration
-        // jamais arrivé) — on ne peut pas le recréer, mais on peut renvoyer
-        // un nouvel e-mail de configuration vers la même adresse.
-        try {
-          await sendPasswordResetEmail(auth, m.email, {
-            url: `${APP_URL}/reset-password`,
-            handleCodeInApp: true,
-          });
-          showToast("Un compte existait déjà : e-mail de configuration renvoyé.");
-        } catch (errRenvoi) {
-          console.error(errRenvoi);
-          showToast("Un compte existe déjà, mais le renvoi de l'e-mail a échoué.", "error");
-        }
-      } else {
-        console.error(err);
-        showToast("Erreur lors de la création de l'accès.", "error");
-      }
-    } finally {
-      await deleteApp(secondaryApp);
     }
   };
 
@@ -742,11 +691,6 @@ export default function GestionEquipe() {
                               )}
                             </div>
                             <div className="flex gap-1.5">
-                              {!uidsConnectes.has(m.id) && (
-                                <PermissionGuard actionId="equipe_create_access">
-                                  <button onClick={() => handleCreateAccess(m)} title="Créer l'accès de connexion" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#EA601F] hover:bg-[#EA601F]/10 transition-colors cursor-pointer"><KeyIcon className="w-4 h-4" /></button>
-                                </PermissionGuard>
-                              )}
                               <PermissionGuard actionId="equipe_member_actions">
                                 <button onClick={() => openModal(m)} title="Modifier" className="p-2 rounded-xl bg-[#F3F3F2] text-[#404040]/70 border border-[#404040]/10 hover:text-[#005259] hover:bg-[#005259]/10 transition-colors cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
                               </PermissionGuard>
@@ -793,11 +737,6 @@ export default function GestionEquipe() {
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                  {!uidsConnectes.has(m.id) && (
-                                    <PermissionGuard actionId="equipe_create_access">
-                                      <button onClick={() => handleCreateAccess(m)} title="Créer l'accès de connexion" className="p-1.5 text-[#404040]/60 hover:text-[#EA601F] mr-1 cursor-pointer"><KeyIcon className="w-4 h-4" /></button>
-                                    </PermissionGuard>
-                                  )}
                                   <PermissionGuard actionId="equipe_member_actions">
                                     <button onClick={() => openModal(m)} className="p-1.5 text-[#404040]/60 hover:text-[#005259] mr-1 cursor-pointer"><PencilSquareIcon className="w-4 h-4" /></button>
                                   </PermissionGuard>

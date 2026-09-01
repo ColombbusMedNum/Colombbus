@@ -33,13 +33,18 @@ export function middleware(request: Request) {
   // Pages publiques accessibles sans être connecté — /reset-password reçoit
   // le lien d'activation/réinitialisation envoyé par e-mail (voir
   // app/login/page.tsx et app/mediation/equipe/page.tsx), donc forcément
-  // visité avant toute connexion.
-  const pagesPubliques = ["/login", "/reset-password"];
+  // visité avant toute connexion. /planning est la seule route qui ne fait
+  // que rediriger (voir app/planning/page.tsx) : la laisser publique évite
+  // un aller-retour de redirection en plus avant même d'atteindre /login.
+  const pagesPubliques = ["/login", "/reset-password", "/planning"];
 
-  // 2. CAS 1 : L'utilisateur n'est pas connecté
+  // 2. CAS 1 : L'utilisateur n'est pas connecté — on retient la page visée
+  // (ex /agenda/mobile via /planning) pour y revenir juste après connexion.
   if (!token) {
     if (!pagesPubliques.includes(pathname)) {
-      return NextResponse.redirect(new URL("/login", req.url));
+      const loginUrl = new URL("/login", req.url);
+      loginUrl.searchParams.set("next", pathname + req.nextUrl.search);
+      return NextResponse.redirect(loginUrl);
     }
     return NextResponse.next();
   }
@@ -47,7 +52,9 @@ export function middleware(request: Request) {
   // 3. CAS 2 : L'utilisateur est connecté
   if (token) {
     if (pathname === "/login") {
-      return NextResponse.redirect(new URL("/", req.url));
+      const next = req.nextUrl.searchParams.get("next");
+      const destination = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+      return NextResponse.redirect(new URL(destination, req.url));
     }
 
     // --- RESTRICTIONS DE DOSSIERS (réservés aux administrateurs) ---

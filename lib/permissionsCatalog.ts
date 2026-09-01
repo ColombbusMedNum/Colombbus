@@ -233,9 +233,9 @@ const DETAILED_PAGES: PageEntry[] = [
       { id: "equipe_modal_competence", nom: "Boutons + / Qualités Rapides / X (Modale)", type: "button", description: "Gère les tags de compétences du membre" },
       { id: "equipe_horaires_aci_edit", nom: "Grille Horaires ACI (Paris/Massy)", type: "input", description: "Modifie les horaires de référence utilisés pour la paie/planning ACI" },
       { id: "equipe_nav_competences", nom: "Lien Qualités", type: "Link", description: "Accède à la page des compétences depuis l'équipe" },
-      // equipe_nav_agenda ("Lien Agenda") retiré : aucun lien correspondant
-      // n'existe dans app/mediation/equipe/page.tsx (audit droits).
-      { id: "equipe_create_access", nom: "Bouton Créer l'accès de connexion (clé)", type: "button", description: "Crée le compte Firebase Auth et envoie l'e-mail d'activation" },
+      // equipe_nav_agenda ("Lien Agenda") et equipe_create_access ("Bouton
+      // Créer l'accès de connexion") retirés : aucun élément correspondant
+      // n'existe plus dans app/mediation/equipe/page.tsx (audit droits).
     ],
   },
   {
@@ -277,6 +277,7 @@ const PAGE_ONLY_ROUTES: Omit<PageEntry, "actions">[] = [
   { pageId: "page_access_actions_collectives_accueil", pageName: "Actions Collectives (Accueil)", route: "/mediation/actions-collectives/accueil", filePath: "app/mediation/actions-collectives/accueil/page.tsx" },
   { pageId: "page_access_agenda_historique", pageName: "Historique de l'Agenda", route: "/agenda/historique", filePath: "app/agenda/historique/page.tsx" },
   { pageId: "page_access_agenda_mois", pageName: "Agenda — Vue Mois", route: "/agenda/mois", filePath: "app/agenda/mois/page.tsx" },
+  { pageId: "page_access_agenda_mobile", pageName: "Agenda — Mon Planning (Mobile)", route: "/agenda/mobile", filePath: "app/agenda/mobile/page.tsx" },
 ];
 
 export const PAGES_CATALOG: PageEntry[] = [
@@ -320,7 +321,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   mediateur: {
     page_access_home: true, page_access_login: true, page_access_liste_beneficiaires: true,
     page_access_fiche_beneficiaire: true, page_access_diagnosticform: true, page_access_actions_collectives: true, page_access_actions_collectives_accueil: true,
-    page_access_agenda: true, page_access_suivi_collecte: true, page_access_suresnes: true,
+    page_access_agenda: true, page_access_agenda_mobile: true, page_access_suivi_collecte: true, page_access_suresnes: true,
     page_access_adresses: true, page_access_equipe: true, page_access_mediateurs: true,
     page_access_localisations: true, page_access_bilan_tech: true, page_access_emargement: true,
     page_access_emargements: true, page_access_fiches_bilans: true, page_access_fiches_bilans_historique: true,
@@ -354,7 +355,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   coordinateur: {
     page_access_home: true, page_access_login: true, page_access_liste_beneficiaires: true,
     page_access_fiche_beneficiaire: true, page_access_diagnosticform: true, page_access_actions_collectives: true, page_access_actions_collectives_accueil: true,
-    page_access_agenda: true, page_access_suivi_collecte: true, page_access_suresnes: true, page_access_equipe: true,
+    page_access_agenda: true, page_access_agenda_mobile: true, page_access_suivi_collecte: true, page_access_suresnes: true, page_access_equipe: true,
     page_access_adresses: true, page_access_mediateurs: true, page_access_localisations: true,
     page_access_rdv_par_lieu: true, page_access_bilan_tech: true, page_access_emargement: true,
     page_access_emargements: true, page_access_competences: true, page_access_statistiques: true,
@@ -390,7 +391,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     suresnes_slot_assign: true, suresnes_slot_clear: true, suresnes_slot_thematique_edit: true, suresnes_slot_demande_edit: true,
     suresnes_nav_beneficiaires: true, suresnes_nav_agenda_med: true,
     equipe_add_member: true, equipe_territory_manage: true, equipe_display_toggles: true, equipe_member_actions: true, equipe_modal_competence: true,
-    equipe_horaires_aci_edit: true, equipe_nav_competences: true, equipe_create_access: true,
+    equipe_horaires_aci_edit: true, equipe_nav_competences: true,
   },
 
   // ACI reprend exactement les anciens droits du rôle "Lecteur" (fusionné),
@@ -399,7 +400,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   // créneau ni modifier une note.
   aci: {
     page_access_home: true, page_access_login: true, page_access_liste_beneficiaires: true, page_access_suresnes: true,
-    page_access_agenda: true, page_access_adresses: true, page_access_fiche_beneficiaire: true,
+    page_access_agenda: true, page_access_agenda_mobile: true, page_access_adresses: true, page_access_fiche_beneficiaire: true,
     page_access_diagnosticform: true, page_access_actions_collectives: true, page_access_actions_collectives_accueil: true, page_access_mediateurs: true,
     page_access_localisations: true, page_access_notifications: true, page_access_guide: true,
     home_logout: true, home_folder_rencontres: true, home_folder_stats: true, home_nav_liste_benef: true,

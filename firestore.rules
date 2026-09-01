@@ -54,9 +54,9 @@ service cloud.firestore {
 
     // Profil et rôle de chaque membre du staff. Écriture ouverte au
     // coordinateur (pas seulement l'admin) : equipe_add_member,
-    // equipe_member_actions, equipe_create_access et agenda_staff_mask lui
-    // sont accordés côté UI (lib/permissionsCatalog.ts) — la règle doit
-    // suivre, sans quoi ces boutons échouent pour un vrai coordinateur.
+    // equipe_member_actions et agenda_staff_mask lui sont accordés côté UI
+    // (lib/permissionsCatalog.ts) — la règle doit suivre, sans quoi ces
+    // boutons échouent pour un vrai coordinateur.
     match /liste_mediateurs/{uid} {
       allow read: if isSignedIn();
       allow write: if isCoordinateurOuPlus();

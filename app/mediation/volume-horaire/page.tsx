@@ -50,14 +50,11 @@ export default function VolumeHoraireComplet() {
   const [anneeFiltre, setAnneeFiltre] = useState("toutes");
   const [moisFiltre, setMoisFiltre] = useState("tous");
   const [statutFiltre, setStatutFiltre] = useState<"tous" | "ACI">("tous");
-  // Masque les actions Terrage/Suresnes (permanences, comptées via
-  // planning_suresnes/le suivi dédié — pas destinées à alourdir ce
-  // volume horaire global) — comparaison insensible à la casse sur le lieu,
-  // même convention que le reste de l'agenda (voir app/agenda/page.tsx).
-  const [masquerTerrageSuresnes, setMasquerTerrageSuresnes] = useState(false);
-  // Masque les actions "Congés" — comparaison insensible à la casse et à
-  // l'accent (le modèle par défaut est "Congés", voir app/agenda/page.tsx).
-  const [masquerConges, setMasquerConges] = useState(false);
+  // Filtre sur le champ estProduction (voir lib/types.ts), coché sur le
+  // modèle d'activité pour les créneaux de production Médiation Numérique —
+  // remplace les anciens boutons "Masquer Terrage/Suresnes"/"Masquer Congés"
+  // basés sur une comparaison de nom de lieu.
+  const [filtreProduction, setFiltreProduction] = useState<"tous" | "production">("tous");
 
   const { role } = usePermissions();
   const peutConfigurerSeuils = role === "admin" || role === "coordinateur";
@@ -110,14 +107,10 @@ export default function VolumeHoraireComplet() {
       if (!a.date) return anneeFiltre === "toutes" && moisFiltre === "tous";
       if (anneeFiltre !== "toutes" && a.date.slice(0, 4) !== anneeFiltre) return false;
       if (moisFiltre !== "tous" && a.date.slice(5, 7) !== moisFiltre) return false;
-      if (masquerTerrageSuresnes || masquerConges) {
-        const upperLieu = (a.lieu || "").toUpperCase();
-        if (masquerTerrageSuresnes && (upperLieu.includes("TERRAGE") || upperLieu.includes("SURESNES"))) return false;
-        if (masquerConges && (upperLieu.includes("CONGÉ") || upperLieu.includes("CONGE"))) return false;
-      }
+      if (filtreProduction === "production" && !a.estProduction) return false;
       return true;
     });
-  }, [planningRaw, anneeFiltre, moisFiltre, masquerTerrageSuresnes, masquerConges]);
+  }, [planningRaw, anneeFiltre, moisFiltre, filtreProduction]);
 
   // Table de correspondance par id ET par nom complet, dérivée du cache
   // partagé de liste_mediateurs (lib/MediateursProvider.tsx).
@@ -352,24 +345,26 @@ export default function VolumeHoraireComplet() {
                 ACI uniquement
               </button>
             </div>
-            <button
-              onClick={() => setMasquerTerrageSuresnes(v => !v)}
-              title="Exclut les actions Terrage et Suresnes du volume horaire"
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer border ${
-                masquerTerrageSuresnes ? "bg-[#005259] text-white border-[#005259]" : "bg-[#F3F3F2] border-[#404040]/15 text-[#404040]/70 hover:text-[#005259]"
-              }`}
-            >
-              {masquerTerrageSuresnes ? "Terrage/Suresnes masqués" : "Masquer Terrage/Suresnes"}
-            </button>
-            <button
-              onClick={() => setMasquerConges(v => !v)}
-              title="Exclut les actions Congés du volume horaire"
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer border ${
-                masquerConges ? "bg-[#005259] text-white border-[#005259]" : "bg-[#F3F3F2] border-[#404040]/15 text-[#404040]/70 hover:text-[#005259]"
-              }`}
-            >
-              {masquerConges ? "Congés masqués" : "Masquer Congés"}
-            </button>
+            <div className="flex items-center gap-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-xl p-1">
+              <button
+                onClick={() => setFiltreProduction("tous")}
+                title="Affiche toutes les actions"
+                className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                  filtreProduction === "tous" ? "bg-[#005259] text-white" : "text-[#404040]/70 hover:text-[#005259]"
+                }`}
+              >
+                Tout
+              </button>
+              <button
+                onClick={() => setFiltreProduction("production")}
+                title="N'affiche que les actions marquées comme production Médiation Numérique"
+                className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                  filtreProduction === "production" ? "bg-[#EA601F] text-white" : "text-[#404040]/70 hover:text-[#EA601F]"
+                }`}
+              >
+                Production
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-2 sm:ml-auto">
             {peutConfigurerSeuils && (

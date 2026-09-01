@@ -64,4 +64,8 @@ export interface ActionPlanning {
   // réordonnable par glisser-déposer sur l'agenda, plutôt que figée sur
   // l'ordre d'arrivée Firestore.
   ordre?: number;
+  // Copié depuis le modèle d'activité à la création (voir ActiviteType dans
+  // lib/activitesTypes.ts) — coché si ce créneau correspond à de la
+  // production Médiation Numérique.
+  estProduction?: boolean;
 }
