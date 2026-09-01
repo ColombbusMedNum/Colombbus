@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { collection, doc, getDoc, getDocs, onSnapshot, query, where } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { normalizeRole } from "./roles";
 import { resolvePermission } from "./permissionsCatalog";
@@ -12,6 +12,7 @@ interface PermissionsContextValue {
   role: string | null;
   loading: boolean;
   can: (actionId: string) => boolean;
+  terminerSession: () => Promise<void>;
 }
 
 const PermissionsContext = createContext<PermissionsContextValue>({
@@ -19,7 +20,25 @@ const PermissionsContext = createContext<PermissionsContextValue>({
   role: null,
   loading: true,
   can: () => false,
+  terminerSession: async () => {},
 });
+
+// Marque la fin de la session de connexion en cours (voir journal_connexions
+// ci-dessous) — appelée explicitement par le bouton Déconnexion (qui ne
+// passe pas par signOut(auth), voir app/page.tsx) et par la déconnexion
+// automatique après 3 jours plus bas dans ce fichier. Best-effort : une
+// écriture manquée n'empêche jamais la déconnexion de continuer.
+async function terminerSessionJournal() {
+  const sessionId = localStorage.getItem("journal_session_id");
+  if (!sessionId) return;
+  localStorage.removeItem("journal_session_id");
+  try {
+    await updateDoc(doc(db, "journal_connexions", sessionId), { fin: serverTimestamp() });
+  } catch {
+    // Ignoré : la session reste sans "fin" explicite, le dernier heartbeat
+    // sert alors d'estimation (voir app/mediation/journal-connexions).
+  }
+}
 
 // Source unique de vérité côté client pour "qui est connecté" et "qui a le
 // droit de faire quoi". Remplace les anciennes lectures de cookies/localStorage
@@ -65,6 +84,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       const TROIS_JOURS_MS = 3 * 24 * 60 * 60 * 1000;
       const loginTimestamp = Number(localStorage.getItem("login_timestamp") || 0);
       if (loginTimestamp && Date.now() - loginTimestamp > TROIS_JOURS_MS) {
+        await terminerSessionJournal();
         await signOut(auth);
         localStorage.removeItem("login_timestamp");
         localStorage.removeItem("user_role");
@@ -141,6 +161,80 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     return () => unsubMatrix();
   }, []);
 
+  // Journal des connexions (voir app/mediation/journal-connexions) : un
+  // document par session, prolongé toutes les 3 minutes tant que l'onglet
+  // reste ouvert (dernierHeartbeat), pour obtenir une durée de connexion même
+  // quand la personne ferme l'onglet sans cliquer sur Déconnexion — dans ce
+  // cas "fin" reste vide et dernierHeartbeat sert d'estimation de fin.
+  useEffect(() => {
+    if (!user || !role) return;
+
+    let annule = false;
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+    const HEARTBEAT_MS = 3 * 60 * 1000;
+
+    const demarrerSuivi = async () => {
+      let sessionId = localStorage.getItem("journal_session_id");
+      if (!sessionId) {
+        try {
+          const ref = await addDoc(collection(db, "journal_connexions"), {
+            mediatId: user.uid,
+            debut: serverTimestamp(),
+            dernierHeartbeat: serverTimestamp(),
+            fin: null,
+          });
+          sessionId = ref.id;
+          localStorage.setItem("journal_session_id", sessionId);
+        } catch (err) {
+          console.error("Impossible de créer la session du journal des connexions :", err);
+          return;
+        }
+      }
+      if (annule || !sessionId) return;
+      intervalId = setInterval(() => {
+        updateDoc(doc(db, "journal_connexions", sessionId!), { dernierHeartbeat: serverTimestamp() }).catch(() => {});
+      }, HEARTBEAT_MS);
+    };
+    demarrerSuivi();
+
+    return () => {
+      annule = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [user, role]);
+
+  // Couvre-feu ACI : un compte ACI connecté doit être déconnecté chaque soir
+  // à 18h30, y compris en pleine session (pas seulement au prochain
+  // chargement de page) — d'où la vérification chaque minute plutôt qu'une
+  // seule fois à la connexion. Se réapplique tant qu'il est plus tard que
+  // 18h30 le même jour ; une connexion le lendemain matin n'est pas concernée
+  // (nouveau Date().setHours(18,30,...) calculé sur le jour courant).
+  useEffect(() => {
+    if (!user || role !== "aci") return;
+
+    const verifierCouvreFeu = async () => {
+      const maintenant = new Date();
+      const couvreFeu = new Date(maintenant);
+      couvreFeu.setHours(18, 30, 0, 0);
+      if (maintenant < couvreFeu) return;
+
+      await terminerSessionJournal();
+      await signOut(auth);
+      localStorage.removeItem("login_timestamp");
+      localStorage.removeItem("user_role");
+      localStorage.removeItem("user_email");
+      document.cookie = "session_token=; path=/; max-age=0";
+      document.cookie = "user_role=; path=/; max-age=0";
+      setUser(null);
+      setRole(null);
+      setOverrides([]);
+    };
+
+    verifierCouvreFeu();
+    const intervalId = setInterval(verifierCouvreFeu, 60 * 1000);
+    return () => clearInterval(intervalId);
+  }, [user, role]);
+
   const can = (actionId: string): boolean => {
     if (!role) return false;
     // Une exception individuelle (accordée sur la fiche du médiateur, en plus
@@ -153,7 +247,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   const loading = !authResolved || !roleResolved || !matrixResolved;
 
   return (
-    <PermissionsContext.Provider value={{ user, role, loading, can }}>
+    <PermissionsContext.Provider value={{ user, role, loading, can, terminerSession: terminerSessionJournal }}>
       {children}
     </PermissionsContext.Provider>
   );

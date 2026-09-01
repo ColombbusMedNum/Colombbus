@@ -122,6 +122,10 @@ function LoginPageContent() {
       // au-delà de 3 jours, indépendamment de la persistance par défaut
       // (illimitée) de Firebase Auth.
       localStorage.setItem("login_timestamp", Date.now().toString());
+      // Une session du journal des connexions (voir lib/PermissionsProvider.tsx)
+      // qui n'aurait pas été proprement close (onglet fermé sans déconnexion)
+      // ne doit pas être reprise par cette nouvelle connexion.
+      localStorage.removeItem("journal_session_id");
 
       // 4. Redirection — destination forcée (bouton "Agenda Mobile"), sinon
       // vers celle demandée par ?next= (ex /planning), sinon l'accueil — sauf

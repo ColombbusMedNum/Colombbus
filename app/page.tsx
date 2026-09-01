@@ -36,6 +36,7 @@ import {
   ChevronLeftIcon,
   Cog6ToothIcon,
   IdentificationIcon,
+  FingerPrintIcon,
 } from "@heroicons/react/24/outline";
 
 const quicksand = Quicksand({
@@ -185,6 +186,7 @@ const NAV_TREE: NavNode[] = [
           { id: "stats-glob", kind: "leaf", accent: "orange", icon: ChartBarIcon, title: "Bilan & Stats Globaux", subtitle: "Consulter les rapports et indicateurs transversaux de la plateforme", actionId: "home_nav_stats_glob", href: "/mediation/statistiques" },
           { id: "bilan-suresnes", kind: "leaf", accent: "teal", icon: BuildingOfficeIcon, title: "Analyse par Territoire", subtitle: "Édition et étude du bilan d'impact annuel du Relais Numérique", actionId: "home_nav_bilan_suresnes", href: "/mediation/bilan-suresnes" },
           { id: "volume-horaire", kind: "leaf", accent: "orange", icon: ClockIcon, title: "Volume Horaire", subtitle: "Analyser le temps de travail et coûts RH", actionId: "home_nav_volume_horaire", href: "/mediation/volume-horaire" },
+          { id: "journal-connexions", kind: "leaf", accent: "teal", icon: FingerPrintIcon, title: "Journal des Connexions", subtitle: "Qui s'est connecté, quand, et combien de temps", actionId: "home_nav_journal_connexions", href: "/mediation/journal-connexions" },
           { id: "admin-droits", kind: "leaf", accent: "teal", icon: CpuChipIcon, title: "Gérer les Droits", subtitle: "Matrice de sécurité et modification des rôles de l'équipe", actionId: "home_nav_admin_droits", href: "/mediation/analyse" },
         ],
       },
@@ -326,7 +328,7 @@ function LeafTile({ node }: { node: LeafNode }) {
 
 export default function HomePage() {
   const [path, setPath] = useState<string[]>([]);
-  const { can } = usePermissions();
+  const { can, terminerSession } = usePermissions();
   const [recherche, setRecherche] = useState("");
   const [rechercheOuverte, setRechercheOuverte] = useState(false);
 
@@ -339,11 +341,12 @@ export default function HomePage() {
       .slice(0, 8);
   }, [recherche, can]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     document.cookie = "session_token=; path=/; max-age=0; SameSite=Lax; Secure";
     document.cookie = "user_role=; path=/; max-age=0; SameSite=Lax; Secure";
     localStorage.removeItem("user_role");
     localStorage.removeItem("user_email");
+    await terminerSession();
     window.location.href = "/login";
   };
 

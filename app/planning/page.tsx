@@ -114,6 +114,7 @@ function FormulaireConnexion() {
       localStorage.setItem("user_role", role);
       localStorage.setItem("user_email", emailNettoye);
       localStorage.setItem("login_timestamp", Date.now().toString());
+      localStorage.removeItem("journal_session_id");
       // PermissionsProvider (global) détecte la connexion automatiquement
       // via onAuthStateChanged — pas besoin de router.push, le composant
       // parent bascule de lui-même sur <MonPlanning/>.
@@ -196,7 +197,7 @@ function FormulaireConnexion() {
 }
 
 function MonPlanning() {
-  const { user } = usePermissions();
+  const { user, terminerSession } = usePermissions();
   const { mediateurs: mediateursBruts } = useMediateurs();
 
   const monProfil = useMemo(() => {
@@ -250,6 +251,7 @@ function MonPlanning() {
     localStorage.removeItem("user_role");
     localStorage.removeItem("user_email");
     localStorage.removeItem("login_timestamp");
+    await terminerSession();
     await signOut(auth);
   };
 

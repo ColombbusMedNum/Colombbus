@@ -88,6 +88,20 @@ service cloud.firestore {
       allow update: if false;
     }
 
+    // Journal des connexions (voir lib/PermissionsProvider.tsx et
+    // app/mediation/journal-connexions) : une session par connexion, posée
+    // et prolongée par l'utilisateur lui-même (mediatId == son propre uid),
+    // jamais par quelqu'un d'autre — seuls dernierHeartbeat et fin peuvent
+    // être modifiés après création, jamais mediatId ni debut. Lecture
+    // réservée au coordinateur+ (page RH sensible).
+    match /journal_connexions/{sessionId} {
+      allow read: if isCoordinateurOuPlus();
+      allow create: if isSignedIn() && request.resource.data.mediatId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.mediatId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['dernierHeartbeat', 'fin']);
+      allow delete: if false;
+    }
+
     // Matrice centralisée des droits par page/action (lue par
     // PermissionsProvider, éditée uniquement depuis /analyse).
     match /configuration_droits/{actionId} {
