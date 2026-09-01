@@ -170,24 +170,26 @@ function LoginPageContent() {
     setLoading(true);
 
     try {
-      const q = query(collection(db, "liste_mediateurs"), where("email", "==", emailNettoye));
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        setError("Cette adresse email n'est pas répertoriée dans notre équipe.");
-        return;
-      }
-
+      // Pas de vérification préalable dans liste_mediateurs : cette page
+      // s'utilise avant toute connexion, or firestore.rules exige
+      // isSignedIn() pour lire cette collection (PII du staff) — une requête
+      // ici échouerait systématiquement avec "Missing or insufficient
+      // permissions", quel que soit le compte. sendPasswordResetEmail suffit
+      // seul : Firebase Auth sait déjà si le compte existe.
       await sendPasswordResetEmail(auth, emailNettoye, {
         url: `${APP_URL}/reset-password`,
         handleCodeInApp: true,
       });
       setSuccessMessage(
-        "Un e-mail de configuration / récupération de mot de passe vient de vous être envoyé. Pensez à vérifier vos spams !"
+        "Si cette adresse est bien enregistrée dans notre équipe, un e-mail de configuration / récupération de mot de passe vient de vous être envoyé. Pensez à vérifier vos spams !"
       );
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Une erreur est survenue lors de l'envoi de l'e-mail.");
+      if (err.code === "auth/user-not-found") {
+        setError("Cette adresse email n'est pas répertoriée dans notre équipe.");
+      } else {
+        console.error(err);
+        setError(err.message || "Une erreur est survenue lors de l'envoi de l'e-mail.");
+      }
     } finally {
       setLoading(false);
     }
