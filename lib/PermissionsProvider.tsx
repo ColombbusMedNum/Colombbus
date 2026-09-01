@@ -53,6 +53,12 @@ async function terminerSessionJournal() {
 export function PermissionsProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  // Type de contrat (fiche liste_mediateurs.statut) — distinct du rôle
+  // applicatif "aci" (droits de consultation) : un membre "Permanent" peut
+  // très bien avoir le rôle "aci" sans être un ACI au sens contractuel. Sert
+  // uniquement au couvre-feu 18h30 ci-dessous, qui ne doit viser que les
+  // vrais contrats ACI.
+  const [statut, setStatut] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<string[]>([]);
   const [matrix, setMatrix] = useState<Record<string, Record<string, boolean>>>({});
   const [authResolved, setAuthResolved] = useState(false);
@@ -66,6 +72,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
       if (!firebaseUser) {
         setRole(null);
+        setStatut(null);
         setOverrides([]);
         setRoleResolved(true);
         return;
@@ -93,6 +100,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         document.cookie = "user_role=; path=/; max-age=0";
         setUser(null);
         setRole(null);
+        setStatut(null);
         setOverrides([]);
         setRoleResolved(true);
         return;
@@ -104,11 +112,13 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       setRoleResolved(false);
       try {
         let roleRaw: string | null = null;
+        let statutRaw: string | null = null;
         let overridesRaw: string[] = [];
         let actif = true;
         const uidSnap = await getDoc(doc(db, "liste_mediateurs", firebaseUser.uid));
         if (uidSnap.exists()) {
           roleRaw = uidSnap.data().role || null;
+          statutRaw = uidSnap.data().statut || null;
           overridesRaw = uidSnap.data().permissionsOverrides || [];
           actif = uidSnap.data().actif !== false;
         } else if (firebaseUser.email) {
@@ -120,6 +130,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
           const legacySnap = await getDocs(q);
           if (!legacySnap.empty) {
             roleRaw = legacySnap.docs[0].data().role || null;
+            statutRaw = legacySnap.docs[0].data().statut || null;
             overridesRaw = legacySnap.docs[0].data().permissionsOverrides || [];
             actif = legacySnap.docs[0].data().actif !== false;
           }
@@ -128,10 +139,12 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         // soit son rôle enregistré — voir firestore.rules pour la barrière
         // réelle côté serveur (isStaff()/isAdmin()).
         setRole(actif ? normalizeRole(roleRaw) : null);
+        setStatut(actif ? statutRaw : null);
         setOverrides(actif ? overridesRaw : []);
       } catch (err) {
         console.error("Impossible de lire le rôle de l'utilisateur :", err);
         setRole(normalizeRole(null));
+        setStatut(null);
         setOverrides([]);
       } finally {
         setRoleResolved(true);
@@ -167,7 +180,9 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   // quand la personne ferme l'onglet sans cliquer sur Déconnexion — dans ce
   // cas "fin" reste vide et dernierHeartbeat sert d'estimation de fin.
   useEffect(() => {
-    if (!user || !role) return;
+    // Exclut les connexions de développement/test en local, qui pollueraient
+    // le journal réel du staff — seul le site déployé doit être suivi.
+    if (!user || !role || window.location.hostname === "localhost") return;
 
     let annule = false;
     let intervalId: ReturnType<typeof setInterval> | undefined;
@@ -203,14 +218,16 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     };
   }, [user, role]);
 
-  // Couvre-feu ACI : un compte ACI connecté doit être déconnecté chaque soir
-  // à 18h30, y compris en pleine session (pas seulement au prochain
+  // Couvre-feu ACI : un compte dont le CONTRAT est "ACI" (statut, pas le
+  // rôle applicatif — un membre "Permanent" peut avoir le rôle "aci" en
+  // consultation sans être concerné) doit être déconnecté chaque soir à
+  // 18h30, y compris en pleine session (pas seulement au prochain
   // chargement de page) — d'où la vérification chaque minute plutôt qu'une
   // seule fois à la connexion. Se réapplique tant qu'il est plus tard que
   // 18h30 le même jour ; une connexion le lendemain matin n'est pas concernée
   // (nouveau Date().setHours(18,30,...) calculé sur le jour courant).
   useEffect(() => {
-    if (!user || role !== "aci") return;
+    if (!user || statut !== "ACI") return;
 
     const verifierCouvreFeu = async () => {
       const maintenant = new Date();
@@ -227,13 +244,14 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       document.cookie = "user_role=; path=/; max-age=0";
       setUser(null);
       setRole(null);
+      setStatut(null);
       setOverrides([]);
     };
 
     verifierCouvreFeu();
     const intervalId = setInterval(verifierCouvreFeu, 60 * 1000);
     return () => clearInterval(intervalId);
-  }, [user, role]);
+  }, [user, statut]);
 
   const can = (actionId: string): boolean => {
     if (!role) return false;
