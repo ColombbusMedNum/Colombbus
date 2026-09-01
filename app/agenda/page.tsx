@@ -606,11 +606,12 @@ export default function PlanningExpertMix() {
 
   // Médiateurs réellement affichés dans la grille cette semaine (actifs,
   // avec une identité, jamais les Formateurs — statut réservé à la page
-  // Équipe, sans créneaux à planifier ici — et masqués uniquement s'ils
+  // Équipe, sans créneaux à planifier ici — ni les fiches exclureAgenda
+  // (comptes génériques non individuels) — et masqués uniquement s'ils
   // n'ont aucune action cette semaine ou si "voir les masqués" est activé)
   // — base commune du tri par catégorie ci-dessous.
   const mediateursAffiches = mediateurs
-    .filter(m => m.actif !== false && (m.prenom || m.nom) && m.statut !== "Formateur")
+    .filter(m => m.actif !== false && (m.prenom || m.nom) && m.statut !== "Formateur" && !m.exclureAgenda)
     .filter(m => {
       if (voirMasques) return true;
       if (!m.masque) return true;

@@ -34,6 +34,11 @@ export interface Mediateur {
   // voir lib/planningHours.ts). Un ACI "35h" travaille normalement le
   // mercredi et ne déclenche pas cette règle.
   dureeHebdoACI?: "26h" | "35h";
+  // Coché pour une fiche qui n'est pas une vraie personne à planifier (ex.
+  // compte générique de service) : exclut définitivement cette fiche des
+  // lignes de l'agenda (app/agenda/page.tsx), contrairement à `masque` qui
+  // ne fait que la griser/masquer temporairement.
+  exclureAgenda?: boolean;
 }
 
 // Créneau planifié (collection "planning_mediateurs"). Seuls mediatId et

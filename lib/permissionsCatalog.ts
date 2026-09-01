@@ -234,6 +234,7 @@ const DETAILED_PAGES: PageEntry[] = [
       { id: "equipe_horaires_aci_edit", nom: "Grille Horaires ACI (Paris/Massy)", type: "input", description: "Modifie les horaires de référence utilisés pour la paie/planning ACI" },
       { id: "equipe_nav_competences", nom: "Lien Qualités", type: "Link", description: "Accède à la page des compétences depuis l'équipe" },
       { id: "equipe_export_contacts", nom: "Bouton Exporter (Contacts Google)", type: "button", description: "Télécharge un CSV du staff actif au format d'import Google Contacts" },
+      { id: "equipe_fix_access", nom: "Bandeau + Bouton Corriger l'accès", type: "button", description: "Réindexe une fiche mal positionnée sous l'UID du compte Firebase Auth correspondant" },
       // equipe_nav_agenda ("Lien Agenda") et equipe_create_access ("Bouton
       // Créer l'accès de connexion") retirés : aucun élément correspondant
       // n'existe plus dans app/mediation/equipe/page.tsx (audit droits).
@@ -392,7 +393,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     suresnes_slot_assign: true, suresnes_slot_clear: true, suresnes_slot_thematique_edit: true, suresnes_slot_demande_edit: true,
     suresnes_nav_beneficiaires: true, suresnes_nav_agenda_med: true,
     equipe_add_member: true, equipe_territory_manage: true, equipe_display_toggles: true, equipe_member_actions: true, equipe_modal_competence: true,
-    equipe_horaires_aci_edit: true, equipe_nav_competences: true, equipe_export_contacts: true,
+    equipe_horaires_aci_edit: true, equipe_nav_competences: true, equipe_export_contacts: true, equipe_fix_access: true,
   },
 
   // ACI reprend exactement les anciens droits du rôle "Lecteur" (fusionné),

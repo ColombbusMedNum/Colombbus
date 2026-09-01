@@ -74,8 +74,18 @@ function LoginPageContent() {
         const q = query(collection(db, "liste_mediateurs"), where("email", "==", emailNettoye));
         const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
-          roleRaw = querySnapshot.docs[0].data().role || null;
-          actif = querySnapshot.docs[0].data().actif !== false;
+          const ancienDoc = querySnapshot.docs[0];
+          roleRaw = ancienDoc.data().role || null;
+          actif = ancienDoc.data().actif !== false;
+          // Signale ce décalage d'ID pour qu'un coordinateur+ le corrige
+          // depuis /mediation/equipe (voir firestore.rules
+          // /migrations_uid_requises) — non bloquant, la connexion continue
+          // même si cette écriture échoue.
+          setDoc(doc(db, "migrations_uid_requises", user.uid), {
+            email: emailNettoye,
+            ancienDocId: ancienDoc.id,
+            demandeLe: serverTimestamp(),
+          }).catch(() => {});
         }
       }
 

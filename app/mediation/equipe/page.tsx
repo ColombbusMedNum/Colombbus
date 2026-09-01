@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, doc, getDoc, updateDoc, setDoc, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, getDoc, updateDoc, setDoc, deleteDoc, writeBatch } from "firebase/firestore";
 import { Quicksand } from "next/font/google";
 import { 
   UserPlusIcon,
@@ -22,7 +22,8 @@ import {
   ShieldCheckIcon,
   AcademicCapIcon,
   CheckCircleIcon,
-  ArrowDownTrayIcon
+  ArrowDownTrayIcon,
+  KeyIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import PageGuard from "@/components/PageGuard";
@@ -105,6 +106,10 @@ export default function GestionEquipe() {
   const [listeTerritoires, setListeTerritoires] = useState<string[]>(["Paris", "Massy"]);
   const [nouveauTerritoireInput, setNouveauTerritoireInput] = useState("");
   
+  // Comptes signalés par app/login/page.tsx dont la fiche liste_mediateurs
+  // vit encore sous un ancien ID Firestore aléatoire au lieu de leur UID —
+  // voir handleCorrigerAcces et firestore.rules /migrations_uid_requises.
+  const [migrationsRequises, setMigrationsRequises] = useState<any[]>([]);
   const [listeQualitesGlobales, setListeQualitesGlobales] = useState<string[]>([]);
   const [competenceInput, setCompetenceInput] = useState("");
 
@@ -122,6 +127,7 @@ export default function GestionEquipe() {
     dureeHebdoACI: "26h" as "26h" | "35h",
     taux: 0,
     actif: true,
+    exclureAgenda: false,
     competences: [] as string[]
   });
 
@@ -209,6 +215,43 @@ export default function GestionEquipe() {
       unsubHoraires();
     };
   }, []);
+
+  useEffect(() => {
+    // Lecture réservée au coordinateur+ par firestore.rules — pour un rôle
+    // sans ce droit, l'écoute échoue silencieusement (onSnapshot n'appelle
+    // jamais son callback de succès), migrationsRequises reste vide.
+    const unsub = onSnapshot(
+      collection(db, "migrations_uid_requises"),
+      (snap) => setMigrationsRequises(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      () => {}
+    );
+    return () => unsub();
+  }, []);
+
+  // Corrige le décalage d'ID pour un compte signalé par app/login/page.tsx :
+  // recopie la fiche sous l'UID réel, supprime l'ancienne et le signalement.
+  // Ne crée ni compte Auth ni e-mail — juste le repositionnement Firestore
+  // (voir scripts/migrate-mediateurs-to-uid.js pour l'équivalent en masse).
+  const handleCorrigerAcces = async (migration: any) => {
+    if (!(await confirm(`Corriger l'accès pour ${migration.email} ?`))) return;
+    try {
+      const ancienSnap = await getDoc(doc(db, "liste_mediateurs", migration.ancienDocId));
+      if (!ancienSnap.exists()) {
+        showToast("La fiche d'origine est introuvable (déjà corrigée ou supprimée).", "error");
+        await deleteDoc(doc(db, "migrations_uid_requises", migration.id));
+        return;
+      }
+      const batch = writeBatch(db);
+      batch.set(doc(db, "liste_mediateurs", migration.id), ancienSnap.data());
+      batch.delete(doc(db, "liste_mediateurs", migration.ancienDocId));
+      batch.delete(doc(db, "migrations_uid_requises", migration.id));
+      await batch.commit();
+      showToast("Accès corrigé avec succès.");
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors de la correction de l'accès.", "error");
+    }
+  };
 
   const handleAddTerritoire = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -383,6 +426,7 @@ export default function GestionEquipe() {
         dureeHebdoACI: med.dureeHebdoACI || "26h",
         taux: med.taux !== undefined ? Number(med.taux) : 0,
         actif: med.actif !== undefined ? med.actif : true,
+        exclureAgenda: med.exclureAgenda || false,
         competences: med.competences || []
       });
     } else {
@@ -401,6 +445,7 @@ export default function GestionEquipe() {
         dureeHebdoACI: "26h",
         taux: 0,
         actif: true,
+        exclureAgenda: false,
         competences: []
       });
     }
@@ -536,6 +581,32 @@ export default function GestionEquipe() {
             </PermissionGuard>
           </div>
         </div>
+
+        {/* ACCÈS À CORRIGER — comptes connectés dont la fiche n'est pas encore
+            indexée par leur UID (voir handleCorrigerAcces) */}
+        <PermissionGuard actionId="equipe_fix_access">
+          {migrationsRequises.length > 0 && (
+            <div className="p-4 bg-[#F9945D]/10 border border-[#F9945D]/30 rounded-2xl space-y-2 shadow-sm">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase text-[#EA601F]">
+                <KeyIcon className="w-4 h-4" />
+                <span>{migrationsRequises.length} accès à corriger</span>
+              </div>
+              <div className="space-y-1.5">
+                {migrationsRequises.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between gap-3 bg-white border border-[#F9945D]/30 rounded-xl px-3 py-2">
+                    <span className="text-xs text-[#404040] font-mono">{m.email}</span>
+                    <button
+                      onClick={() => handleCorrigerAcces(m)}
+                      className="px-3 py-1 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors shrink-0"
+                    >
+                      Corriger l'accès
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </PermissionGuard>
 
         {/* REFERENTIEL DES TERRITOIRES */}
         <div className="p-4 bg-white border border-[#404040]/10 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
@@ -888,6 +959,16 @@ export default function GestionEquipe() {
                     />
                   </div>
                 </div>
+
+                <label className="flex items-center gap-2 text-xs text-[#404040] font-semibold cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.exclureAgenda}
+                    onChange={e => setFormData({ ...formData, exclureAgenda: e.target.checked })}
+                    className="w-4 h-4 accent-[#EF736A] cursor-pointer"
+                  />
+                  Compte générique — exclure entièrement de l'agenda (n'apparaît jamais comme ligne à planifier)
+                </label>
 
                 {formData.statut === "ACI" && (
                   <div className="p-3.5 bg-[#F9945D]/10 border border-[#F9945D]/30 rounded-xl space-y-3">

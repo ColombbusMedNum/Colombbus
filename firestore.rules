@@ -74,6 +74,20 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Auto-signalement posé par app/login/page.tsx quand un compte se
+    // connecte mais que sa fiche liste_mediateurs vit encore sous un ancien
+    // ID Firestore aléatoire au lieu de son UID (compte créé directement
+    // dans la Console Auth, sans passer par l'ancien bouton clé qui migrait
+    // automatiquement). L'utilisateur concerné n'a pas le droit d'écrire
+    // liste_mediateurs lui-même (voir isCoordinateurOuPlus() ci-dessus) : il
+    // ne fait que signaler le besoin, un coordinateur+ traite ensuite la
+    // correction depuis /mediation/equipe (voir handleCorrigerAcces).
+    match /migrations_uid_requises/{uid} {
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow read, delete: if isCoordinateurOuPlus();
+      allow update: if false;
+    }
+
     // Matrice centralisée des droits par page/action (lue par
     // PermissionsProvider, éditée uniquement depuis /analyse).
     match /configuration_droits/{actionId} {
