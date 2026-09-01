@@ -431,4 +431,10 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     page_access_login: true, page_access_agenda: true,
     agenda_week_nav: true, agenda_comment_view: true,
   },
+
+  // Même périmètre que "formateur" ci-dessus, pour le statut "CIP".
+  cip: {
+    page_access_login: true, page_access_agenda: true,
+    agenda_week_nav: true, agenda_comment_view: true,
+  },
 };

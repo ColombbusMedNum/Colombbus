@@ -14,6 +14,7 @@ export const ROLES: Role[] = [
   { id: "aci", nom: "ACI", desc: "Agent de coordination et d'intervention — consultation uniquement (reprend les droits de l'ancien rôle Lecteur)" },
   { id: "coordinateur", nom: "Coordinateur", desc: "Suivi global et gestion d'équipe" },
   { id: "formateur", nom: "Formateur", desc: "Accès limité à l'agenda uniquement" },
+  { id: "cip", nom: "CIP", desc: "Accès limité à l'agenda uniquement" },
 ];
 
 export const ROLE_IDS = ROLES.map((r) => r.id);

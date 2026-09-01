@@ -115,10 +115,10 @@ function LoginPageContent() {
 
       // 4. Redirection — destination forcée (bouton "Agenda Mobile"), sinon
       // vers celle demandée par ?next= (ex /planning), sinon l'accueil — sauf
-      // pour un formateur, qui n'a pas accès à l'accueil (voir
-      // lib/permissionsCatalog.ts) et atterrirait sur "Accès Refusé".
+      // pour un formateur ou un CIP, qui n'ont pas accès à l'accueil (voir
+      // lib/permissionsCatalog.ts) et atterriraient sur "Accès Refusé".
       const next = searchParams.get("next");
-      const accueilParDefaut = role === "formateur" ? "/agenda" : "/";
+      const accueilParDefaut = (role === "formateur" || role === "cip") ? "/agenda" : "/";
       const destination = destinationForcee || (next && next.startsWith("/") && !next.startsWith("//") ? next : accueilParDefaut);
       router.push(destination);
       
