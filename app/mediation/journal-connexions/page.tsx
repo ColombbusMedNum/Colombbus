@@ -131,6 +131,14 @@ export default function JournalConnexions() {
     [mediateurs]
   );
 
+  // Regroupement Paris/Massy, même convention que l'agenda (rattachementHoraireACI,
+  // "Paris" par défaut si absent — voir lib/equipeCategories.ts).
+  const aciAbsentsParSite = useMemo(() => {
+    const paris = aciAbsents.filter((m: any) => (m.rattachementHoraireACI || "Paris") === "Paris");
+    const massy = aciAbsents.filter((m: any) => (m.rattachementHoraireACI || "Paris") === "Massy");
+    return { Paris: paris, Massy: massy };
+  }, [aciAbsents]);
+
   const sessionsFiltrees = useMemo(() => {
     return sessions
       .filter((s) => medFiltre === "tous" || s.mediatId === medFiltre)
@@ -244,14 +252,25 @@ export default function JournalConnexions() {
                 <p className="text-[11px] text-[#404040]/70 font-bold uppercase tracking-wide">
                   {aciAbsents.length} / {totalAciActifs} ACI non connecté(s)
                 </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {aciAbsents.map((m: any) => (
-                    <span
-                      key={m.id}
-                      className="px-2.5 py-1 bg-white border border-[#F9945D]/40 text-[#EA601F] rounded-lg text-[11px] font-bold"
-                    >
-                      {m.prenom} {m.nom}
-                    </span>
+                <div className="space-y-2.5">
+                  {(["Paris", "Massy"] as const).map((site) => (
+                    aciAbsentsParSite[site].length > 0 && (
+                      <div key={site}>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-[#EA601F]/70 mb-1">
+                          ACI {site} ({aciAbsentsParSite[site].length})
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {aciAbsentsParSite[site].map((m: any) => (
+                            <span
+                              key={m.id}
+                              className="px-2.5 py-1 bg-white border border-[#F9945D]/40 text-[#EA601F] rounded-lg text-[11px] font-bold"
+                            >
+                              {m.prenom} {m.nom}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )
                   ))}
                 </div>
               </>
