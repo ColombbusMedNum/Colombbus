@@ -115,6 +115,7 @@ function FormulaireConnexion() {
       localStorage.setItem("user_email", emailNettoye);
       localStorage.setItem("login_timestamp", Date.now().toString());
       localStorage.removeItem("journal_session_id");
+      localStorage.removeItem("journal_dernier_heartbeat");
       // PermissionsProvider (global) détecte la connexion automatiquement
       // via onAuthStateChanged — pas besoin de router.push, le composant
       // parent bascule de lui-même sur <MonPlanning/>.

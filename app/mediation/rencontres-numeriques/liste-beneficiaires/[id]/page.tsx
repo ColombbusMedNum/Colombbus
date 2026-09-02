@@ -43,6 +43,7 @@ import { useToast } from "@/components/ToastProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { formatPhoneNumber } from "@/lib/formatPhone";
 import type { Mediateur } from "@/lib/types";
+import Accordion from "@/components/Accordion";
 
 // Initialisation de la police Quicksand
 const quicksand = Quicksand({
@@ -85,8 +86,9 @@ interface Visite {
   statut: "Présent" | "Absent";
   absencePar?: "Bénéficiaire" | "Colombbus" | string;
   dateAction?: string;
-  score?: string; 
-  reponses?: any; 
+  score?: string;
+  reponses?: any;
+  niveau?: string;
 }
 
 interface LieuGlobal {
@@ -117,6 +119,11 @@ const THEMATIQUES_LISTE: { value: string; label: string }[] = [
   { value: "Collecte Tech - Remise de matériel", label: "🧺 Collecte Tech - Remise de matériel" },
   { value: "Collecte Tech - Tests de positionnement", label: "🧺 Collecte Tech - Tests de positionnement" },
 ];
+
+// Niveau global évalué par le médiateur sur ce RDV — un seul choix, distinct
+// des thématiques (qui peuvent être multiples). Ordre croissant volontaire,
+// affiché tel quel dans les boutons du formulaire.
+const NIVEAUX = ["Grand débutant", "Débutant", "Intermédiaire", "Avancé"];
 
 // Convertit la chaîne stockée en tableau de thématiques individuelles — les
 // compteurs statistiques (thématique phare, alertes tous les 5 RDV) doivent
@@ -159,13 +166,17 @@ export default function FicheBeneficiaire() {
   // valeurs déjà remplies — voir startEditing) ; null = création d'un nouveau
   // rendez-vous.
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Repliée par défaut : la grille de thématiques à elle seule dépassait la
+  // hauteur de l'écran sur la modale d'ajout de RDV.
+  const [thematiquesOuvertes, setThematiquesOuvertes] = useState(false);
 
   const aujourdhuiStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
 
   // Formulaire d'ajout d'action
   const [formData, setFormData] = useState({
-    mediateur: "", 
+    mediateur: "",
     thematique: "",
+    niveau: "",
     lieu: "",
     details: "",
     satisfaction: "5",
@@ -177,7 +188,7 @@ export default function FicheBeneficiaire() {
 
   // Statistiques calculées
   const [stats, setStats] = useState({
-    totalPresents: 0, tauxAssiduite: 100, satisfactionMoyenne: 0, thematiquePhare: "—"
+    totalPresents: 0, tauxAssiduite: 100, satisfactionMoyenne: 0, thematiquePhare: "—", niveauPhare: ""
   });
 
   const [thematiquesAAlerter, setThematiquesAAlerter] = useState<string[]>([]);
@@ -310,7 +321,7 @@ export default function FicheBeneficiaire() {
   // Calcul stats et alertes
   useEffect(() => {
     if (rdvs.length === 0) {
-      setStats({ totalPresents: 0, tauxAssiduite: 100, satisfactionMoyenne: 0, thematiquePhare: "—" });
+      setStats({ totalPresents: 0, tauxAssiduite: 100, satisfactionMoyenne: 0, thematiquePhare: "—", niveauPhare: "" });
       setThematiquesAAlerter([]);
       return;
     }
@@ -342,9 +353,16 @@ export default function FicheBeneficiaire() {
     const keys = Object.keys(compteurs);
     const topThematique = keys.length === 0 ? "—" : keys.reduce((a, b) => compteurs[a] > compteurs[b] ? a : b);
     const alertes = keys.filter(thematique => compteurs[thematique] > 0 && compteurs[thematique] % 5 === 0);
-    
+
+    // Niveau le plus fréquemment renseigné — pas une moyenne numérique,
+    // "niveau" reste une catégorie (Grand débutant à Avancé), pas un score.
+    const compteursNiveau: Record<string, number> = {};
+    presents.forEach(r => { if (r.niveau) compteursNiveau[r.niveau] = (compteursNiveau[r.niveau] || 0) + 1; });
+    const clesNiveau = Object.keys(compteursNiveau);
+    const topNiveau = clesNiveau.length === 0 ? "" : clesNiveau.reduce((a, b) => compteursNiveau[b] >= compteursNiveau[a] ? b : a);
+
     setThematiquesAAlerter(alertes);
-    setStats({ totalPresents: totalPresentsCount, tauxAssiduite: taux, satisfactionMoyenne: moyenneSat, thematiquePhare: topThematique });
+    setStats({ totalPresents: totalPresentsCount, tauxAssiduite: taux, satisfactionMoyenne: moyenneSat, thematiquePhare: topThematique, niveauPhare: topNiveau });
   }, [rdvs]);
 
   const handleSaveProfil = async (e: React.FormEvent) => {
@@ -387,6 +405,7 @@ export default function FicheBeneficiaire() {
     const donnees = {
       mediateur: formData.mediateur,
       thematique: formData.statut === "Absent" ? "" : formData.thematique,
+      niveau: formData.statut === "Absent" ? "" : formData.niveau,
       lieu: formData.lieu,
       details: formData.statut === "Absent" ? "" : formData.details.trim(),
       statut: formData.statut,
@@ -470,6 +489,7 @@ export default function FicheBeneficiaire() {
     setFormData({
       mediateur: rdv.mediateur,
       thematique: rdv.thematique || "",
+      niveau: rdv.niveau || "",
       lieu: rdv.lieu,
       details: rdv.details || "",
       satisfaction: String(satisfactionNum || 5),
@@ -669,6 +689,9 @@ export default function FicheBeneficiaire() {
           <div className="bg-white border border-[#404040]/10 p-4 rounded-2xl shadow-sm">
             <p className="text-[10px] uppercase font-bold tracking-widest text-[#404040]/60">Thématique Phare</p>
             <p className="text-xs font-bold text-[#EA601F] mt-2 truncate">{stats.thematiquePhare}</p>
+            {stats.niveauPhare && (
+              <p className="text-[10px] font-bold text-[#005259] mt-1 uppercase tracking-wide">Niveau : {stats.niveauPhare}</p>
+            )}
           </div>
         </section>
 
@@ -929,16 +952,19 @@ export default function FicheBeneficiaire() {
                   </datalist>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Thématique(s)</label>
-                  <div className="bg-[#F3F3F2] border border-[#404040]/15 rounded-xl p-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
+                <Accordion
+                  title={`Thématique(s)${decomposerThematiques(formData.thematique).length > 0 ? ` — ${decomposerThematiques(formData.thematique).length} sélectionnée(s)` : ""}`}
+                  open={thematiquesOuvertes}
+                  onToggle={() => setThematiquesOuvertes(v => !v)}
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto">
                     {THEMATIQUES_LISTE.map(({ value, label }) => {
                       const estCochee = decomposerThematiques(formData.thematique).includes(value);
                       return (
                         <label
                           key={value}
                           className={`flex items-center gap-2 p-1.5 rounded-lg cursor-pointer select-none text-[11px] transition-colors ${
-                            estCochee ? "bg-white border border-[#005259]/30 text-[#005259] font-bold" : "border border-transparent text-[#404040]/80 hover:bg-white/60"
+                            estCochee ? "bg-white border border-[#005259]/30 text-[#005259] font-bold" : "border border-transparent text-[#404040]/80 hover:bg-[#F3F3F2]"
                           }`}
                         >
                           <input
@@ -951,6 +977,26 @@ export default function FicheBeneficiaire() {
                         </label>
                       );
                     })}
+                  </div>
+                </Accordion>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Niveau</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {NIVEAUX.map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, niveau: formData.niveau === n ? "" : n })}
+                        className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                          formData.niveau === n
+                            ? "bg-[#005259] border-[#005259] text-white"
+                            : "bg-[#F3F3F2] border-[#404040]/15 text-[#404040]/70 hover:border-[#005259]/40"
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    ))}
                   </div>
                 </div>
 

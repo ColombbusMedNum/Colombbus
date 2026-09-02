@@ -32,6 +32,7 @@ async function terminerSessionJournal() {
   const sessionId = localStorage.getItem("journal_session_id");
   if (!sessionId) return;
   localStorage.removeItem("journal_session_id");
+  localStorage.removeItem("journal_dernier_heartbeat");
   try {
     await updateDoc(doc(db, "journal_connexions", sessionId), { fin: serverTimestamp() });
   } catch {
@@ -187,9 +188,19 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     let annule = false;
     let intervalId: ReturnType<typeof setInterval> | undefined;
     const HEARTBEAT_MS = 3 * 60 * 1000;
+    // Si le dernier heartbeat local remonte à plus longtemps que ça, l'onglet
+    // n'est pas resté simplement ouvert en arrière-plan — l'ordinateur a été
+    // fermé/éteint entre-temps (ex. toute une nuit). Reprendre l'ancienne
+    // session donnerait une durée absurde (parfois 15h+) et ferait
+    // disparaître la nouvelle connexion du jour ; on en ouvre une nouvelle.
+    const SEUIL_NOUVELLE_SESSION_MS = 15 * 60 * 1000;
 
     const demarrerSuivi = async () => {
       let sessionId = localStorage.getItem("journal_session_id");
+      const dernierHeartbeatLocal = Number(localStorage.getItem("journal_dernier_heartbeat") || 0);
+      if (sessionId && dernierHeartbeatLocal && Date.now() - dernierHeartbeatLocal > SEUIL_NOUVELLE_SESSION_MS) {
+        sessionId = null;
+      }
       if (!sessionId) {
         try {
           const ref = await addDoc(collection(db, "journal_connexions"), {
@@ -200,6 +211,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
           });
           sessionId = ref.id;
           localStorage.setItem("journal_session_id", sessionId);
+          localStorage.setItem("journal_dernier_heartbeat", Date.now().toString());
         } catch (err) {
           console.error("Impossible de créer la session du journal des connexions :", err);
           return;
@@ -207,7 +219,9 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       }
       if (annule || !sessionId) return;
       intervalId = setInterval(() => {
-        updateDoc(doc(db, "journal_connexions", sessionId!), { dernierHeartbeat: serverTimestamp() }).catch(() => {});
+        updateDoc(doc(db, "journal_connexions", sessionId!), { dernierHeartbeat: serverTimestamp() })
+          .then(() => localStorage.setItem("journal_dernier_heartbeat", Date.now().toString()))
+          .catch(() => {});
       }, HEARTBEAT_MS);
     };
     demarrerSuivi();

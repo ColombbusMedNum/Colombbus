@@ -50,6 +50,9 @@ export default function JournalConnexions() {
   const [anneeFiltre, setAnneeFiltre] = useState(String(new Date().getFullYear()));
   const [moisFiltre, setMoisFiltre] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
   const [medFiltre, setMedFiltre] = useState("tous");
+  // Raccourci "Aujourd'hui" : remplace le filtre année/mois par la seule
+  // journée en cours, sans changer leur valeur (on peut y revenir en un clic).
+  const [filtreAujourdhui, setFiltreAujourdhui] = useState(false);
 
   // Panneau "ACI non connectés" : requête indépendante du filtre principal,
   // scopée à un seul jour choisi (par défaut aujourd'hui) — l'ACI concerné
@@ -76,9 +79,17 @@ export default function JournalConnexions() {
 
   useEffect(() => {
     setLoading(true);
-    const annee = Number(anneeFiltre);
-    const debutRange = moisFiltre === "tous" ? new Date(annee, 0, 1) : new Date(annee, Number(moisFiltre) - 1, 1);
-    const finRange = moisFiltre === "tous" ? new Date(annee + 1, 0, 1) : new Date(annee, Number(moisFiltre), 1);
+    let debutRange: Date;
+    let finRange: Date;
+    if (filtreAujourdhui) {
+      const maintenant = new Date();
+      debutRange = new Date(maintenant.getFullYear(), maintenant.getMonth(), maintenant.getDate());
+      finRange = new Date(maintenant.getFullYear(), maintenant.getMonth(), maintenant.getDate() + 1);
+    } else {
+      const annee = Number(anneeFiltre);
+      debutRange = moisFiltre === "tous" ? new Date(annee, 0, 1) : new Date(annee, Number(moisFiltre) - 1, 1);
+      finRange = moisFiltre === "tous" ? new Date(annee + 1, 0, 1) : new Date(annee, Number(moisFiltre), 1);
+    }
 
     const q = query(
       collection(db, "journal_connexions"),
@@ -97,7 +108,7 @@ export default function JournalConnexions() {
       }
     );
     return () => unsub();
-  }, [anneeFiltre, moisFiltre]);
+  }, [anneeFiltre, moisFiltre, filtreAujourdhui]);
 
   const mediateursParId = useMemo(() => {
     const map = new Map<string, any>();
@@ -180,7 +191,8 @@ export default function JournalConnexions() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", `journal_connexions_${anneeFiltre}${moisFiltre !== "tous" ? `-${moisFiltre}` : ""}.csv`);
+    const suffixe = filtreAujourdhui ? new Date().toLocaleDateString("en-CA") : `${anneeFiltre}${moisFiltre !== "tous" ? `-${moisFiltre}` : ""}`;
+    link.setAttribute("download", `journal_connexions_${suffixe}.csv`);
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -292,7 +304,8 @@ export default function JournalConnexions() {
             <select
               value={anneeFiltre}
               onChange={(e) => setAnneeFiltre(e.target.value)}
-              className="px-3 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl text-xs font-bold outline-none focus:border-[#005259] cursor-pointer"
+              disabled={filtreAujourdhui}
+              className="px-3 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl text-xs font-bold outline-none focus:border-[#005259] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {anneesDisponibles.map((a) => (
                 <option key={a} value={a}>{a}</option>
@@ -301,13 +314,22 @@ export default function JournalConnexions() {
             <select
               value={moisFiltre}
               onChange={(e) => setMoisFiltre(e.target.value)}
-              className="px-3 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl text-xs font-bold outline-none focus:border-[#005259] cursor-pointer"
+              disabled={filtreAujourdhui}
+              className="px-3 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl text-xs font-bold outline-none focus:border-[#005259] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <option value="tous">Toute l'année</option>
               {MOIS.map((m) => (
                 <option key={m.value} value={m.value}>{m.label}</option>
               ))}
             </select>
+            <button
+              onClick={() => setFiltreAujourdhui((v) => !v)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer border ${
+                filtreAujourdhui ? "bg-[#005259] text-white border-[#005259]" : "bg-[#F3F3F2] border-[#404040]/15 text-[#404040]/70 hover:border-[#005259]/40"
+              }`}
+            >
+              Aujourd'hui
+            </button>
 
             <div className="sm:ml-auto flex items-center gap-2">
               <span className="flex items-center gap-1.5 px-3 py-1.5 bg-[#005259]/10 text-[#005259] rounded-xl text-xs font-bold uppercase tracking-wider">

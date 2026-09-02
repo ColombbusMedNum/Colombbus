@@ -161,23 +161,11 @@ export default function PlanningExpertMix() {
   const [actionEnGlisse, setActionEnGlisse] = useState<ActionPlanning | null>(null);
   const [voirMasques, setVoirMasques] = useState(false);
   const [openBlocs, setOpenBlocs] = useState<Record<string, boolean>>({ inclusion: false, decouverte: false, insertion: false, divers: false, "sans-bloc": false }); 
-  const [voirSamedi, setVoirSamedi] = useState(false);
-  // Une fois que l'utilisateur a cliqué manuellement sur "+ Samedi"/"Masquer
-  // Samedi", on ne doit plus jamais réimposer l'affichage automatique
-  // (sinon "Masquer Samedi" se voyait immédiatement re-forcé à true par
-  // l'effet ci-dessous, puisque voirSamedi faisait partie de ses
-  // dépendances). Un ref plutôt qu'un state : il ne doit pas redéclencher
-  // l'effet, seulement le désactiver pour le reste de la session — reprend
-  // à false à chaque nouvelle ouverture de la page agenda.
-  const voirSamediChoisiManuellementRef = useRef(false);
-
-  // Bascule automatiquement l'affichage du samedi dès qu'une action existe
-  // ce jour-là sur la semaine affichée (ex. créneau posé via génération en
-  // masse sur une période incluant un samedi) — évite de laisser un créneau
-  // invisible tant que "+ Samedi" n'est pas cliqué manuellement. Ne s'applique
-  // plus après un choix manuel de l'utilisateur (voir ref ci-dessus).
-  useEffect(() => {
-    if (voirSamediChoisiManuellementRef.current) return;
+  // Par défaut, le samedi est affiché uniquement si la semaine affichée a
+  // effectivement un créneau ce jour-là (ex. généré en masse sur une période
+  // qui déborde sur un samedi) — pas de case invisible tant que "+ Samedi"
+  // n'est pas cliqué, mais pas de samedi vide affiché sans raison non plus.
+  const samediADesActions = React.useMemo(() => {
     const d = new Date(currentDate);
     const jour = d.getDay();
     const diffLundi = d.getDate() - jour + (jour === 0 ? -6 : 1);
@@ -185,8 +173,18 @@ export default function PlanningExpertMix() {
     const samedi = new Date(lundi);
     samedi.setDate(lundi.getDate() + 5);
     const samediStr = samedi.toLocaleDateString('en-CA');
-    if (actions.some((a) => a.date === samediStr)) setVoirSamedi(true);
+    return actions.some((a) => a.date === samediStr);
   }, [actions, currentDate]);
+
+  // Un clic manuel sur "+ Samedi"/"Masquer Samedi" prime sur la valeur par
+  // défaut ci-dessus, mais uniquement pour la semaine affichée au moment du
+  // clic — changer de semaine (ou revenir sur la page) réinitialise ce choix,
+  // pour que le samedi se calcule à nouveau automatiquement sur la nouvelle
+  // semaine plutôt que de garder un choix devenu obsolète.
+  const [samediChoixManuel, setSamediChoixManuel] = useState<boolean | null>(null);
+  useEffect(() => { setSamediChoixManuel(null); }, [currentDate]);
+
+  const voirSamedi = samediChoixManuel ?? samediADesActions;
 
   // Repliée par défaut à chaque arrivée sur la page — l'utilisateur la
   // déplie via la poignée quand il a besoin d'injecter un modèle.
@@ -1398,7 +1396,7 @@ export default function PlanningExpertMix() {
           {/* BOUTON SAMEDI */}
           <PermissionGuard actionId="agenda_display_toggles">
             <button
-              onClick={() => { voirSamediChoisiManuellementRef.current = true; setVoirSamedi(!voirSamedi); }}
+              onClick={() => setSamediChoixManuel(!voirSamedi)}
               className={`px-3 h-9 rounded-md text-xs transition-colors border flex items-center gap-1.5 cursor-pointer font-bold ${
                 voirSamedi ? "bg-[#F9945D] border-[#F9945D] text-white" : "bg-[#003d42] border-[#002b2f] text-white hover:bg-[#002b2f]"
               }`}

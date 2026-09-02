@@ -126,6 +126,7 @@ function LoginPageContent() {
       // qui n'aurait pas été proprement close (onglet fermé sans déconnexion)
       // ne doit pas être reprise par cette nouvelle connexion.
       localStorage.removeItem("journal_session_id");
+      localStorage.removeItem("journal_dernier_heartbeat");
 
       // 4. Redirection — destination forcée (bouton "Agenda Mobile"), sinon
       // vers celle demandée par ?next= (ex /planning), sinon l'accueil — sauf

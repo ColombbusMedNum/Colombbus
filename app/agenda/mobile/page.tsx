@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { addDoc, collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { Quicksand } from "next/font/google";
-import { HomeIcon, ChevronLeftIcon, ChevronRightIcon, DevicePhoneMobileIcon, MapPinIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ChevronLeftIcon, ChevronRightIcon, DevicePhoneMobileIcon, MapPinIcon, ChatBubbleLeftRightIcon, XMarkIcon, TrashIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import PageGuard from "@/components/PageGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
@@ -36,8 +36,10 @@ function getMonday(d: Date) {
 // lieu, qui est positionné dessus ce jour-là, tous médiateurs confondus.
 export default function AgendaMobilePage() {
   const { mediateurs: mediateursBruts } = useMediateurs();
-  const { user, role } = usePermissions();
+  const { user, role, can } = usePermissions();
   const estAdminOuCoordo = role === "admin" || role === "coordinateur";
+  const canViewComment = can("agenda_comment_view");
+  const canEditComment = can("agenda_comment_edit");
 
   const mediateurs = useMemo(() => {
     return (mediateursBruts as Mediateur[])
@@ -100,14 +102,59 @@ export default function AgendaMobilePage() {
   const joursFeries = useMemo(() => getJoursFeries(monday.getFullYear()), [monday]);
 
   const parJourEtMoment = useMemo(() => {
-    const map: Record<string, string[]> = Object.create(null);
+    const map: Record<string, ActionPlanning[]> = Object.create(null);
     actionsDuMedAffiche.forEach((a) => {
       const cle = `${a.date}_${a.moment || ""}`;
       if (!map[cle]) map[cle] = [];
-      map[cle].push(a.lieu || "Activité");
+      map[cle].push(a);
     });
     return map;
   }, [actionsDuMedAffiche]);
+
+  // Commentaire d'un créneau — même mécanique que app/agenda/page.tsx
+  // (handleEditCommentaire/handleSaveCommentaire), version compacte pour
+  // cette page mobile.
+  const [activeCommentModal, setActiveCommentModal] = useState<{
+    actionId: string;
+    currentText: string;
+    inputText: string;
+    readOnly: boolean;
+  } | null>(null);
+
+  const handleEditCommentaire = (action: ActionPlanning) => {
+    if (!canViewComment && !canEditComment) return;
+    setActiveCommentModal({
+      actionId: action.id,
+      currentText: action.commentaire || "",
+      inputText: action.commentaire || "",
+      readOnly: !canEditComment,
+    });
+  };
+
+  const handleSaveCommentaire = async (supprimer = false) => {
+    if (!activeCommentModal || activeCommentModal.readOnly) return;
+    const { actionId, inputText } = activeCommentModal;
+    try {
+      const texteFinal = supprimer ? "" : inputText.trim();
+      await updateDoc(doc(db, "planning_mediateurs", actionId), { commentaire: texteFinal });
+
+      const actionCible = actions.find((a) => a.id === actionId);
+      if (actionCible?.mediatId && texteFinal !== (actionCible.commentaire || "")) {
+        await addDoc(collection(db, "notifications"), {
+          destinataireId: actionCible.mediatId,
+          message: supprimer
+            ? `🗑️ Note supprimée sur le créneau du ${actionCible.date} (${actionCible.moment || "Présence"}).`
+            : `📝 Note mise à jour sur le créneau du ${actionCible.date} (${actionCible.moment || "Présence"}) : "${texteFinal}"`,
+          createdAt: Date.now(),
+          lue: false,
+        });
+      }
+    } catch (error) {
+      console.error("Erreur de commentaire :", error);
+    } finally {
+      setActiveCommentModal(null);
+    }
+  };
 
   // Vue "Aujourd'hui" (admin/coordinateur) : indépendante de la navigation
   // semaine ci-dessus, toujours centrée sur la date du jour, tous
@@ -288,10 +335,28 @@ export default function AgendaMobilePage() {
                           {estFerie && <div className="text-[9px] font-black uppercase text-[#EF736A]">Férié</div>}
                         </div>
                         <div className="p-2.5 text-center break-words">
-                          {matin.length > 0 ? matin.map((l, i) => <div key={i} className="text-[#404040] font-semibold">{l}</div>) : <span className="text-[#404040]/30">—</span>}
+                          {matin.length > 0 ? matin.map((a) => (
+                            <div key={a.id} className="flex items-center justify-center gap-1 text-[#404040] font-semibold">
+                              <span>{a.lieu || "Activité"}</span>
+                              {a.commentaire && (canViewComment || canEditComment) && (
+                                <button onClick={() => handleEditCommentaire(a)} className="shrink-0 cursor-pointer">
+                                  <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-[#EA601F]" />
+                                </button>
+                              )}
+                            </div>
+                          )) : <span className="text-[#404040]/30">—</span>}
                         </div>
                         <div className="p-2.5 text-center break-words">
-                          {apresMidi.length > 0 ? apresMidi.map((l, i) => <div key={i} className="text-[#404040] font-semibold">{l}</div>) : <span className="text-[#404040]/30">—</span>}
+                          {apresMidi.length > 0 ? apresMidi.map((a) => (
+                            <div key={a.id} className="flex items-center justify-center gap-1 text-[#404040] font-semibold">
+                              <span>{a.lieu || "Activité"}</span>
+                              {a.commentaire && (canViewComment || canEditComment) && (
+                                <button onClick={() => handleEditCommentaire(a)} className="shrink-0 cursor-pointer">
+                                  <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-[#EA601F]" />
+                                </button>
+                              )}
+                            </div>
+                          )) : <span className="text-[#404040]/30">—</span>}
                         </div>
                       </div>
                     );
@@ -301,6 +366,63 @@ export default function AgendaMobilePage() {
             </>
           )}
         </div>
+
+        {/* MODALE COMMENTAIRE */}
+        {activeCommentModal && (
+          <div className="fixed inset-0 bg-[#005259]/40 backdrop-blur-xs flex items-center justify-center z-[120] p-4">
+            <div className="bg-white border border-[#404040]/10 p-5 rounded-xl w-full max-w-sm space-y-4 shadow-2xl text-[#404040]">
+              <div className="flex justify-between items-center border-b border-[#F3F3F2] pb-2">
+                <h3 className="font-bold text-sm text-[#005259] flex items-center gap-2">
+                  <ChatBubbleLeftRightIcon className="w-4 h-4 text-[#EA601F]" />
+                  {activeCommentModal.readOnly ? "Note (Lecture seule)" : "Notes & Commentaires"}
+                </h3>
+                <button onClick={() => setActiveCommentModal(null)} className="text-[#404040]/50 hover:text-[#404040]">
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-[#404040] font-bold">Précisions ou commentaires :</label>
+                {activeCommentModal.readOnly ? (
+                  <div className="w-full bg-[#F3F3F2] border border-[#404040]/10 rounded-md text-xs text-[#404040] min-h-24 p-2.5 overflow-y-auto whitespace-pre-wrap">
+                    {activeCommentModal.inputText || "Aucun commentaire."}
+                  </div>
+                ) : (
+                  <textarea
+                    rows={3}
+                    className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none focus:border-[#005259] transition-colors resize-none h-24"
+                    placeholder="Saisissez une note..."
+                    value={activeCommentModal.inputText}
+                    onChange={(e) => setActiveCommentModal({ ...activeCommentModal, inputText: e.target.value })}
+                  />
+                )}
+              </div>
+
+              <div className="flex justify-between gap-2 pt-2 border-t border-[#F3F3F2]">
+                {!activeCommentModal.readOnly && activeCommentModal.currentText ? (
+                  <button
+                    type="button"
+                    onClick={() => handleSaveCommentaire(true)}
+                    className="bg-[#EF736A]/10 border border-[#EF736A] text-[#EF736A] hover:bg-[#EF736A] hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
+                  >
+                    <TrashIcon className="w-3.5 h-3.5" /> Supprimer
+                  </button>
+                ) : <div />}
+
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setActiveCommentModal(null)} className="text-[#404040]/60 text-xs px-2 font-bold">
+                    {activeCommentModal.readOnly ? "Fermer" : "Annuler"}
+                  </button>
+                  {!activeCommentModal.readOnly && (
+                    <button type="button" onClick={() => handleSaveCommentaire(false)} className="bg-[#005259] hover:bg-[#003d42] text-white px-4 py-1.5 rounded-lg text-xs font-bold">
+                      Enregistrer
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </PageGuard>
   );
