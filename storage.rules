@@ -35,6 +35,14 @@ service firebase.storage {
       allow read, write: if isStaff();
     }
 
+    // Captures d'écran collées dans le formulaire de signalement de bug
+    // (voir components/BugReportButton.tsx) — la restriction réelle sur qui
+    // peut consulter la liste des signalements se fait côté Firestore
+    // (isAdmin() sur la collection signalements), pas ici.
+    match /signalements/{allPaths=**} {
+      allow read, write: if isStaff();
+    }
+
     // Par défaut, tout le reste du bucket reste fermé.
     match /{allPaths=**} {
       allow read, write: if false;

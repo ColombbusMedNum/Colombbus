@@ -21,6 +21,7 @@ interface Signalement {
   auteurEmail?: string;
   createdAt?: Timestamp;
   traite: boolean;
+  captureUrl?: string | null;
 }
 
 // Liste des signalements envoyés via le bouton "B" (voir
@@ -171,6 +172,15 @@ export default function SignalementsPage() {
                     </div>
                   </div>
                   <p className="text-sm text-[#404040] whitespace-pre-wrap">{s.description}</p>
+                  {s.captureUrl && (
+                    <a href={s.captureUrl} target="_blank" rel="noopener noreferrer">
+                      <img
+                        src={s.captureUrl}
+                        alt="Capture d'écran jointe"
+                        className="max-h-48 rounded-lg border border-[#404040]/15 hover:border-[#005259]/40 transition-colors"
+                      />
+                    </a>
+                  )}
                   <a
                     href={s.url}
                     target="_blank"
