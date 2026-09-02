@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePermissions } from "@/lib/PermissionsProvider";
 import { db, storage } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, onSnapshot, query, serverTimestamp, where } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { XMarkIcon, PhotoIcon, ExclamationTriangleIcon, ClipboardDocumentListIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
@@ -23,11 +23,22 @@ export default function BugReportButton() {
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [capture, setCapture] = useState<{ fichier: File; apercu: string } | null>(null);
   const choixRef = useRef<HTMLDivElement>(null);
+  const [nonTraites, setNonTraites] = useState(0);
 
   // Un admin a accès à la page de suivi (voir app/mediation/signalements) :
   // le clic propose donc un choix plutôt que d'ouvrir directement le
   // formulaire, comme pour le reste du staff.
   const estAdmin = role === "admin";
+
+  // Pastille d'alerte sur le bouton quand des signalements attendent d'être
+  // traités — lecture réservée aux admins par firestore.rules, on ne
+  // s'abonne donc que pour ce rôle.
+  useEffect(() => {
+    if (!estAdmin) { setNonTraites(0); return; }
+    const q = query(collection(db, "signalements"), where("traite", "==", false));
+    const unsub = onSnapshot(q, (snap) => setNonTraites(snap.size), () => {});
+    return () => unsub();
+  }, [estAdmin]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -119,10 +130,15 @@ export default function BugReportButton() {
         )}
         <button
           onClick={() => (estAdmin ? setShowChoix((v) => !v) : setIsOpen(true))}
-          title="Signaler un problème"
-          className="h-9 px-3.5 rounded-full bg-[#404040] hover:bg-[#EF736A] text-white font-black text-xs uppercase tracking-wider flex items-center justify-center shadow-lg transition-colors cursor-pointer"
+          title={nonTraites > 0 ? `${nonTraites} signalement(s) à traiter` : "Signaler un problème"}
+          className="relative h-9 px-3.5 rounded-full bg-[#404040] hover:bg-[#EF736A] text-white font-black text-xs uppercase tracking-wider flex items-center justify-center shadow-lg transition-colors cursor-pointer"
         >
           Bug
+          {estAdmin && nonTraites > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#EF736A] border-2 border-[#F3F3F2] text-white text-[9px] font-black flex items-center justify-center">
+              {nonTraites > 9 ? "9+" : nonTraites}
+            </span>
+          )}
         </button>
       </div>
 

@@ -2498,9 +2498,20 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
             </span>
 
             {hasCommentaire && (
-              <span className="absolute right-5 top-1 text-[#EA601F]">
-                <ChatBubbleLeftRightIcon className="w-2.5 h-2.5 fill-[#EA601F]/20" />
-              </span>
+              canOpenCommentaire ? (
+                <button
+                  type="button"
+                  title="Voir la note de ce créneau"
+                  onClick={(e) => { e.stopPropagation(); onEditCommentaire(a.id, a.commentaire || ""); }}
+                  className="absolute right-5 top-1 text-[#EA601F] hover:scale-125 transition-transform cursor-pointer z-10"
+                >
+                  <ChatBubbleLeftRightIcon className="w-2.5 h-2.5 fill-[#EA601F]/20" />
+                </button>
+              ) : (
+                <span className="absolute right-5 top-1 text-[#EA601F]">
+                  <ChatBubbleLeftRightIcon className="w-2.5 h-2.5 fill-[#EA601F]/20" />
+                </span>
+              )
             )}
 
             {!estSemaineValidee && canDeleteSlot && (

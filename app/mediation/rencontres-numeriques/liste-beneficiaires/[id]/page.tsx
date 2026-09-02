@@ -166,6 +166,10 @@ export default function FicheBeneficiaire() {
   // valeurs déjà remplies — voir startEditing) ; null = création d'un nouveau
   // rendez-vous.
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Détail en lecture seule d'un RDV — utile quand le lieu/les détails sont
+  // tronqués dans le tableau (line-clamp), notamment pour un rôle ACI qui
+  // n'a pas les boutons Éditer/Supprimer pour voir le texte complet autrement.
+  const [detailRdvOuvert, setDetailRdvOuvert] = useState<Visite | null>(null);
   // Repliée par défaut : la grille de thématiques à elle seule dépassait la
   // hauteur de l'écran sur la modale d'ajout de RDV.
   const [thematiquesOuvertes, setThematiquesOuvertes] = useState(false);
@@ -769,10 +773,15 @@ export default function FicheBeneficiaire() {
                         return (
                           <tr key={rdv.id} className="hover:bg-[#F3F3F2]/60 transition-colors">
                             <td className="py-3 px-3">
-                              <div>
-                                <p className="font-bold text-[#005259]">{new Date(rdv.date).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'})}</p>
+                              <button
+                                type="button"
+                                onClick={() => setDetailRdvOuvert(rdv)}
+                                title="Voir le détail complet de ce rendez-vous"
+                                className="text-left cursor-pointer hover:opacity-70 transition-opacity"
+                              >
+                                <p className="font-bold text-[#005259] underline decoration-dotted underline-offset-2">{new Date(rdv.date).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'})}</p>
                                 <p className="text-[10px] text-[#404040]/60 uppercase tracking-wider font-bold">{rdv.moment}</p>
-                              </div>
+                              </button>
                             </td>
 
                             <td className="py-3 px-3">
@@ -831,6 +840,76 @@ export default function FicheBeneficiaire() {
                 </div>
               )}
             </section>
+
+            {/* DÉTAIL RDV (lecture seule) */}
+            {detailRdvOuvert && (
+              <div className="fixed inset-0 bg-[#005259]/40 backdrop-blur-xs flex items-center justify-center z-[130] p-4">
+                <div className="bg-white border border-[#404040]/10 p-5 rounded-xl w-full max-w-md space-y-4 shadow-2xl text-[#404040]">
+                  <div className="flex justify-between items-center border-b border-[#F3F3F2] pb-2">
+                    <h3 className="font-bold text-sm text-[#005259]">
+                      Rendez-vous du {new Date(detailRdvOuvert.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })} — {detailRdvOuvert.moment}
+                    </h3>
+                    <button onClick={() => setDetailRdvOuvert(null)} className="text-[#404040]/50 hover:text-[#404040] cursor-pointer">
+                      <XMarkIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-[#404040]/50">Médiateur</p>
+                    <p className="text-sm font-bold text-[#404040]">{detailRdvOuvert.mediateur}</p>
+                  </div>
+
+                  {detailRdvOuvert.statut !== "Absent" && decomposerThematiques(detailRdvOuvert.thematique).length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-[#404040]/50 mb-1">Thématique(s)</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {decomposerThematiques(detailRdvOuvert.thematique).map((t) => (
+                          <span key={t} className="px-2 py-0.5 bg-[#EA601F]/10 border border-[#EA601F]/30 text-[#EA601F] rounded-md text-[11px] font-bold">{t}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {detailRdvOuvert.niveau && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-[#404040]/50">Niveau</p>
+                      <p className="text-xs font-bold text-[#005259]">{detailRdvOuvert.niveau}</p>
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-[#404040]/50">Lieu</p>
+                    <p className="text-xs text-[#404040] font-bold">{detailRdvOuvert.lieu}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-[#404040]/50">
+                      {detailRdvOuvert.statut === "Absent" ? "Absence" : "Détails"}
+                    </p>
+                    <p className="text-xs text-[#404040] whitespace-pre-wrap leading-relaxed">
+                      {detailRdvOuvert.statut === "Absent"
+                        ? `Absent (${detailRdvOuvert.absencePar || "Bénéficiaire"})`
+                        : (detailRdvOuvert.details || "Aucune note rédigée.")}
+                    </p>
+                  </div>
+
+                  {detailRdvOuvert.statut === "Présent" && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-[#404040]/50">Satisfaction</p>
+                      <p className="text-xs font-bold text-[#EA601F]">
+                        ⭐ {detailRdvOuvert.satisfaction && typeof detailRdvOuvert.satisfaction === "object" ? detailRdvOuvert.satisfaction.evaluationGlobale : detailRdvOuvert.satisfaction}/5
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end pt-2 border-t border-[#F3F3F2]">
+                    <button type="button" onClick={() => setDetailRdvOuvert(null)} className="text-[#404040]/60 text-xs px-2 font-bold cursor-pointer">
+                      Fermer
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* DIAGS & EVALS */}
             <section className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm">
