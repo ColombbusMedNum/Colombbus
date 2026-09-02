@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from "firebase/firestore";
 import { auth, db } from "./firebase";
 import { normalizeRole } from "./roles";
 import { resolvePermission } from "./permissionsCatalog";
@@ -202,16 +202,22 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         sessionId = null;
       }
       if (!sessionId) {
+        // Réservation synchrone de l'identifiant AVANT l'écriture réseau :
+        // ferme la fenêtre de concurrence entre plusieurs onglets ouverts
+        // presque en même temps, qui verraient sinon tous "aucune session"
+        // pendant l'attente du addDoc et en créeraient chacun une (plusieurs
+        // sessions quasi simultanées pour la même personne).
+        const ref = doc(collection(db, "journal_connexions"));
+        sessionId = ref.id;
+        localStorage.setItem("journal_session_id", sessionId);
+        localStorage.setItem("journal_dernier_heartbeat", Date.now().toString());
         try {
-          const ref = await addDoc(collection(db, "journal_connexions"), {
+          await setDoc(ref, {
             mediatId: user.uid,
             debut: serverTimestamp(),
             dernierHeartbeat: serverTimestamp(),
             fin: null,
           });
-          sessionId = ref.id;
-          localStorage.setItem("journal_session_id", sessionId);
-          localStorage.setItem("journal_dernier_heartbeat", Date.now().toString());
         } catch (err) {
           console.error("Impossible de créer la session du journal des connexions :", err);
           return;
