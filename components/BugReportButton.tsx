@@ -171,7 +171,7 @@ export default function BugReportButton() {
               </div>
             ) : (
               <p className="flex items-center gap-1.5 text-[10px] text-[#404040]/50 font-medium">
-                <PhotoIcon className="w-3.5 h-3.5" /> Colle une capture d'écran (Ctrl+V) dans le champ ci-dessus si besoin.
+                <PhotoIcon className="w-3.5 h-3.5" /> Collez une capture d'écran (Ctrl+V) dans le champ ci-dessus si besoin.
               </p>
             )}
 
