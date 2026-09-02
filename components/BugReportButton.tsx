@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePermissions } from "@/lib/PermissionsProvider";
 import { db, storage } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
-import { XMarkIcon, PhotoIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, PhotoIcon, ExclamationTriangleIcon, ClipboardDocumentListIcon } from "@heroicons/react/24/outline";
+import Link from "next/link";
 import { useToast } from "./ToastProvider";
 
 // Équivalent du badge "N" de Next.js en développement (bas de l'écran), mais
@@ -17,9 +18,26 @@ export default function BugReportButton() {
   const { role, user } = usePermissions();
   const { showToast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
+  const [showChoix, setShowChoix] = useState(false);
   const [description, setDescription] = useState("");
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [capture, setCapture] = useState<{ fichier: File; apercu: string } | null>(null);
+  const choixRef = useRef<HTMLDivElement>(null);
+
+  // Un admin a accès à la page de suivi (voir app/mediation/signalements) :
+  // le clic propose donc un choix plutôt que d'ouvrir directement le
+  // formulaire, comme pour le reste du staff.
+  const estAdmin = role === "admin";
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (choixRef.current && !choixRef.current.contains(event.target as Node)) {
+        setShowChoix(false);
+      }
+    }
+    if (showChoix) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showChoix]);
 
   if (!role) return null;
   if (typeof window !== "undefined" && window.location.hostname === "localhost") return null;
@@ -78,13 +96,35 @@ export default function BugReportButton() {
 
   return (
     <>
-      <button
-        onClick={() => setIsOpen(true)}
-        title="Signaler un problème"
-        className="fixed bottom-4 left-4 z-[200] h-9 px-3.5 rounded-full bg-[#404040] hover:bg-[#EF736A] text-white font-black text-xs uppercase tracking-wider flex items-center justify-center shadow-lg transition-colors cursor-pointer"
-      >
-        Bug
-      </button>
+      <div ref={choixRef} className="fixed bottom-4 left-4 z-[200]">
+        {showChoix && (
+          <div className="absolute bottom-full left-0 mb-2 min-w-[220px] bg-white border border-[#404040]/15 rounded-xl shadow-xl overflow-hidden divide-y divide-[#404040]/5">
+            <button
+              type="button"
+              onClick={() => { setShowChoix(false); setIsOpen(true); }}
+              className="w-full flex items-center gap-2 px-3.5 py-2.5 text-left text-xs font-bold text-[#404040] hover:bg-[#F3F3F2] cursor-pointer transition-colors"
+            >
+              <ExclamationTriangleIcon className="w-4 h-4 text-[#EA601F]" />
+              Signaler un problème
+            </button>
+            <Link
+              href="/mediation/signalements"
+              onClick={() => setShowChoix(false)}
+              className="w-full flex items-center gap-2 px-3.5 py-2.5 text-left text-xs font-bold text-[#404040] hover:bg-[#F3F3F2] cursor-pointer transition-colors"
+            >
+              <ClipboardDocumentListIcon className="w-4 h-4 text-[#005259]" />
+              Voir les signalements
+            </Link>
+          </div>
+        )}
+        <button
+          onClick={() => (estAdmin ? setShowChoix((v) => !v) : setIsOpen(true))}
+          title="Signaler un problème"
+          className="h-9 px-3.5 rounded-full bg-[#404040] hover:bg-[#EF736A] text-white font-black text-xs uppercase tracking-wider flex items-center justify-center shadow-lg transition-colors cursor-pointer"
+        >
+          Bug
+        </button>
+      </div>
 
       {isOpen && (
         <div className="fixed inset-0 bg-[#005259]/40 backdrop-blur-xs flex items-center justify-center z-[210] p-4">
