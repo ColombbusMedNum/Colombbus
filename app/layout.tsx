@@ -4,6 +4,7 @@ import { PermissionsProvider } from "../lib/PermissionsProvider";
 import { MediateursProvider } from "../lib/MediateursProvider";
 import { ToastProvider } from "../components/ToastProvider";
 import { ConfirmProvider } from "../components/ConfirmProvider";
+import BugReportButton from "../components/BugReportButton";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -35,7 +36,10 @@ export default function RootLayout({
         <PermissionsProvider>
           <MediateursProvider>
             <ToastProvider>
-              <ConfirmProvider>{children}</ConfirmProvider>
+              <ConfirmProvider>
+                {children}
+                <BugReportButton />
+              </ConfirmProvider>
             </ToastProvider>
           </MediateursProvider>
         </PermissionsProvider>

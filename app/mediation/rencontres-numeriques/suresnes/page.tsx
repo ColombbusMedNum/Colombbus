@@ -246,6 +246,33 @@ export default function PlanningSuresnes() {
     return () => { unsub(); unsubBenef(); unsubVisites(); };
   }, []);
 
+  // Une résidence autonomie n'a pas de planning saisi à la main (voir plus
+  // haut) : la seule date exploitable est celle de la dernière visite
+  // réellement effectuée, retrouvée dans les fiches de visites du
+  // bénéficiaire plutôt que dans un créneau à venir.
+  const derniereVisiteParBeneficiaire = React.useMemo(() => {
+    const map: Record<string, string> = {};
+    rawVisites.forEach((v) => {
+      if (v.statut !== "Présent" || !v.date) return;
+      if (!map[v.userId] || v.date > map[v.userId]) map[v.userId] = v.date;
+    });
+    return map;
+  }, [rawVisites]);
+
+  // Liste chronologique de toutes les visites de la résidence sur le mois
+  // sélectionné (même sélecteur de mois — viewDate — que le reste de la
+  // page), pas seulement la dernière par bénéficiaire.
+  const visitesDuMoisResidence = React.useMemo(() => {
+    if (!estSiteResidenceAutonomie) return [];
+    const idsResidence = new Set(beneficiairesDeLaResidence.map((b) => b.id));
+    const beneficiairesParId = new Map(beneficiairesDeLaResidence.map((b) => [b.id, b]));
+    const prefixeMois = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, "0")}`;
+    return rawVisites
+      .filter((v) => v.statut === "Présent" && v.date?.startsWith(prefixeMois) && idsResidence.has(v.userId))
+      .map((v) => ({ ...v, beneficiaire: beneficiairesParId.get(v.userId) }))
+      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  }, [rawVisites, beneficiairesDeLaResidence, estSiteResidenceAutonomie, viewDate]);
+
   // Dérivé pur de creneaux/beneficiaires/rawVisites : plus besoin d'un
   // useEffect+setState (qui provoquait un rendu supplémentaire à chaque
   // changement d'une de ces trois sources).
@@ -648,7 +675,9 @@ export default function PlanningSuresnes() {
         {estSiteResidenceAutonomie ? (
         /* AGENDA RÉSIDENCE AUTONOMIE — construit directement depuis les fiches
            bénéficiaires (champ Lieu d'accueil) plutôt que depuis des créneaux
-           saisis à la main : simple liste des personnes rattachées à ce lieu. */
+           saisis à la main : simple liste des personnes rattachées à ce lieu,
+           puis liste chronologique de leurs visites du mois sélectionné. */
+        <div className="space-y-4">
         <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm overflow-hidden">
           <div className="bg-[#F3F3F2] px-5 py-3 border-b border-[#404040]/10">
             <span className="text-xs font-bold uppercase tracking-wider text-[#005259]">
@@ -664,6 +693,14 @@ export default function PlanningSuresnes() {
                     <div className="text-xs text-[#404040]">{b.prenom || "Sans prénom"}</div>
                   </div>
                   <div className="text-xs text-[#404040]/70 shrink-0 hidden sm:block">{b.telephone}</div>
+                  <div className="text-xs shrink-0 text-center min-w-[110px] hidden md:block">
+                    <div className="text-[9px] font-bold uppercase text-[#404040]/50">Dernière visite</div>
+                    <div className={derniereVisiteParBeneficiaire[b.id] ? "text-[#005259] font-bold" : "text-[#404040]/40 italic"}>
+                      {derniereVisiteParBeneficiaire[b.id]
+                        ? new Date(derniereVisiteParBeneficiaire[b.id]).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
+                        : "Aucune"}
+                    </div>
+                  </div>
                   <Link
                     href={`/mediation/rencontres-numeriques/liste-beneficiaires/${b.id}`}
                     className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#005259] hover:bg-[#EA601F] text-white text-[10px] font-bold uppercase tracking-wider rounded-xl transition-all"
@@ -678,6 +715,40 @@ export default function PlanningSuresnes() {
               Aucun bénéficiaire n'a ce lieu d'accueil renseigné sur sa fiche.
             </div>
           )}
+        </div>
+
+        {/* VISITES DU MOIS — même sélecteur de mois (viewDate) que le reste
+            de la page, liste chaque visite individuellement plutôt que la
+            seule dernière par personne. */}
+        <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm overflow-hidden">
+          <div className="bg-[#F3F3F2] px-5 py-3 border-b border-[#404040]/10">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#005259]">
+              Visites de {viewDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })} ({visitesDuMoisResidence.length})
+            </span>
+          </div>
+          {visitesDuMoisResidence.length > 0 ? (
+            <div className="divide-y divide-[#404040]/5">
+              {visitesDuMoisResidence.map((v, i) => (
+                <div key={i} className="flex items-center justify-between gap-3 px-5 py-3">
+                  <div className="text-xs font-bold text-[#005259] min-w-[90px]">
+                    {new Date(v.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="font-bold text-sm text-[#404040] uppercase truncate">{v.beneficiaire?.nom || "SANS NOM"}</span>{" "}
+                    <span className="text-xs text-[#404040]/70">{v.beneficiaire?.prenom}</span>
+                  </div>
+                  {v.moment && (
+                    <span className="text-[9px] font-bold uppercase text-[#404040]/50 shrink-0">{v.moment}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="px-5 py-10 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/50">
+              Aucune visite enregistrée ce mois-ci.
+            </div>
+          )}
+        </div>
         </div>
         ) : (
         <>

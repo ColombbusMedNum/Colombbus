@@ -37,6 +37,7 @@ import {
   Cog6ToothIcon,
   IdentificationIcon,
   FingerPrintIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 
 const quicksand = Quicksand({
@@ -187,6 +188,7 @@ const NAV_TREE: NavNode[] = [
           { id: "bilan-suresnes", kind: "leaf", accent: "teal", icon: BuildingOfficeIcon, title: "Analyse par Territoire", subtitle: "Édition et étude du bilan d'impact annuel du Relais Numérique", actionId: "home_nav_bilan_suresnes", href: "/mediation/bilan-suresnes" },
           { id: "volume-horaire", kind: "leaf", accent: "orange", icon: ClockIcon, title: "Volume Horaire", subtitle: "Analyser le temps de travail et coûts RH", actionId: "home_nav_volume_horaire", href: "/mediation/volume-horaire" },
           { id: "journal-connexions", kind: "leaf", accent: "teal", icon: FingerPrintIcon, title: "Journal des Connexions", subtitle: "Qui s'est connecté, quand, et combien de temps", actionId: "home_nav_journal_connexions", href: "/mediation/journal-connexions" },
+          { id: "signalements", kind: "leaf", accent: "orange", icon: ExclamationTriangleIcon, title: "Signalements de Bugs", subtitle: "Problèmes remontés via le bouton \"B\" (admin)", actionId: "home_nav_signalements", href: "/mediation/signalements" },
           { id: "admin-droits", kind: "leaf", accent: "teal", icon: CpuChipIcon, title: "Gérer les Droits", subtitle: "Matrice de sécurité et modification des rôles de l'équipe", actionId: "home_nav_admin_droits", href: "/mediation/analyse" },
         ],
       },
@@ -540,6 +542,14 @@ export default function HomePage() {
               <p className="text-xs text-[#404040]/70 font-medium mt-0.5">
                 Les données sont stockées de manière sécurisée et synchronisées en direct.
               </p>
+              <a
+                href="https://www.colombbus.org/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] text-[#404040]/50 font-medium mt-1 block hover:text-[#EA601F] hover:underline transition-colors"
+              >
+                Création et développement : Emmanuel CHAUDY pour l'Association Colombbus
+              </a>
             </div>
           </div>
           <div className="flex items-center bg-[#F3F3F2] px-5 py-3 rounded-2xl border border-[#404040]/10">

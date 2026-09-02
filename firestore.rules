@@ -102,6 +102,15 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Signalements de bugs (voir components/BugReportButton.tsx) — bouton
+    // "B" ouvert à tout le staff connecté sur le site déployé ; le suivi/
+    // traitement (lecture, modification, suppression) reste réservé aux
+    // admins (voir app/mediation/signalements).
+    match /signalements/{docId} {
+      allow create: if isStaff();
+      allow read, update, delete: if isAdmin();
+    }
+
     // Matrice centralisée des droits par page/action (lue par
     // PermissionsProvider, éditée uniquement depuis /analyse).
     match /configuration_droits/{actionId} {

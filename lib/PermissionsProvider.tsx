@@ -232,21 +232,22 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     };
   }, [user, role]);
 
-  // Couvre-feu ACI : un compte dont le CONTRAT est "ACI" (statut, pas le
-  // rôle applicatif — un membre "Permanent" peut avoir le rôle "aci" en
-  // consultation sans être concerné) doit être déconnecté chaque soir à
-  // 18h30, y compris en pleine session (pas seulement au prochain
-  // chargement de page) — d'où la vérification chaque minute plutôt qu'une
-  // seule fois à la connexion. Se réapplique tant qu'il est plus tard que
-  // 18h30 le même jour ; une connexion le lendemain matin n'est pas concernée
-  // (nouveau Date().setHours(18,30,...) calculé sur le jour courant).
+  // Couvre-feu par type de contrat (statut de la fiche, pas le rôle
+  // applicatif — un membre "Permanent" peut avoir le rôle "aci" en
+  // consultation sans que ça change son couvre-feu) : déconnecté chaque soir
+  // à l'heure ci-dessous, y compris en pleine session (pas seulement au
+  // prochain chargement de page) — d'où la vérification chaque minute plutôt
+  // qu'une seule fois à la connexion. Se réapplique tant qu'il est plus tard
+  // que cette heure le même jour ; une connexion le lendemain matin n'est pas
+  // concernée (nouveau Date().setHours(...) calculé sur le jour courant).
   useEffect(() => {
-    if (!user || statut !== "ACI") return;
+    const heureCouvreFeu = statut === "ACI" ? [18, 30] : statut === "Permanent" ? [19, 0] : null;
+    if (!user || !heureCouvreFeu) return;
 
     const verifierCouvreFeu = async () => {
       const maintenant = new Date();
       const couvreFeu = new Date(maintenant);
-      couvreFeu.setHours(18, 30, 0, 0);
+      couvreFeu.setHours(heureCouvreFeu[0], heureCouvreFeu[1], 0, 0);
       if (maintenant < couvreFeu) return;
 
       await terminerSessionJournal();
