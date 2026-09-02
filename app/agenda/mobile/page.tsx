@@ -337,7 +337,20 @@ export default function AgendaMobilePage() {
                         <div className="p-2.5 text-center break-words">
                           {matin.length > 0 ? matin.map((a) => (
                             <div key={a.id} className="flex items-center justify-center gap-1 text-[#404040] font-semibold">
-                              <span>{a.lieu || "Activité"}</span>
+                              {a.adresse ? (
+                                <a
+                                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.adresse)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-0.5 underline decoration-dotted underline-offset-2"
+                                  title={`Ouvrir dans Google Maps : ${a.adresse}`}
+                                >
+                                  <MapPinIcon className="w-3 h-3 text-[#EA601F] shrink-0" />
+                                  {a.lieu || "Activité"}
+                                </a>
+                              ) : (
+                                <span>{a.lieu || "Activité"}</span>
+                              )}
                               {a.commentaire && (canViewComment || canEditComment) && (
                                 <button onClick={() => handleEditCommentaire(a)} className="shrink-0 cursor-pointer">
                                   <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-[#EA601F]" />
@@ -349,7 +362,20 @@ export default function AgendaMobilePage() {
                         <div className="p-2.5 text-center break-words">
                           {apresMidi.length > 0 ? apresMidi.map((a) => (
                             <div key={a.id} className="flex items-center justify-center gap-1 text-[#404040] font-semibold">
-                              <span>{a.lieu || "Activité"}</span>
+                              {a.adresse ? (
+                                <a
+                                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.adresse)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-0.5 underline decoration-dotted underline-offset-2"
+                                  title={`Ouvrir dans Google Maps : ${a.adresse}`}
+                                >
+                                  <MapPinIcon className="w-3 h-3 text-[#EA601F] shrink-0" />
+                                  {a.lieu || "Activité"}
+                                </a>
+                              ) : (
+                                <span>{a.lieu || "Activité"}</span>
+                              )}
                               {a.commentaire && (canViewComment || canEditComment) && (
                                 <button onClick={() => handleEditCommentaire(a)} className="shrink-0 cursor-pointer">
                                   <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-[#EA601F]" />
