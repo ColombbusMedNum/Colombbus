@@ -785,7 +785,7 @@ export default function PlanningSuresnes() {
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#A9E0C9]" /> Disponible</span>
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#EF736A]" /> Complet</span>
             </div>
-            <div className="grid grid-cols-7 gap-1.5">
+            <div className="grid grid-cols-7 gap-1.5 max-w-[380px] mx-auto">
               {["L", "M", "M", "J", "V", "S", "D"].map((j, idx) => (
                 <div key={idx} className="text-center text-[9px] font-bold uppercase text-[#404040]/40">{j}</div>
               ))}
@@ -799,7 +799,7 @@ export default function PlanningSuresnes() {
                     type="button"
                     onClick={() => allerAuJour(dateStr)}
                     title={nbDisponibles > 0 ? `${nbDisponibles} créneau(x) disponible(s)` : "Complet / aucun créneau"}
-                    className={`aspect-square rounded-lg flex flex-col items-center justify-center leading-tight transition-transform hover:scale-110 cursor-pointer ${
+                    className={`aspect-square max-w-12 mx-auto w-full rounded-lg flex flex-col items-center justify-center leading-tight transition-transform hover:scale-110 cursor-pointer ${
                       nbDisponibles > 0 ? "bg-[#A9E0C9]/40 text-[#005259]" : "bg-[#EF736A]/20 text-[#EF736A]"
                     }`}
                   >
