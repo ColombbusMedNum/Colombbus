@@ -5,6 +5,7 @@ import { db } from "@/lib/firebase";
 import PageGuard from "@/components/PageGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { useToast } from "@/components/ToastProvider";
+import { useConfirm } from "@/components/ConfirmProvider";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import Accordion from "@/components/Accordion";
@@ -1275,6 +1276,7 @@ function UsagerInput({ docId, initialValue, beneficiairesListe, afficherAlerteSu
   quotaDomicile?: number;
 }) {
   const { showToast } = useToast();
+  const confirm = useConfirm();
   const [value, setValue] = useState(initialValue);
   const [suggestions, setSuggestions] = useState<Beneficiaire[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -1320,6 +1322,18 @@ function UsagerInput({ docId, initialValue, beneficiairesListe, afficherAlerteSu
       setValue("");
       setShowDropdown(false);
       return;
+    }
+
+    const nbVisitesDomicile = estRND ? (visitesDomicileParBeneficiaire?.[b.id] || 0) : 0;
+    if (estRND && quotaDomicile !== undefined && nbVisitesDomicile >= quotaDomicile) {
+      setShowDropdown(false);
+      const ok = await confirm(
+        `⚠️ ${b.prenom} ${b.nom.toUpperCase()} a déjà eu ${nbVisitesDomicile} visite(s) à domicile cette année, soit le quota maximum de ${quotaDomicile} par an. Voulez-vous vraiment positionner cette personne sur ce créneau ?`
+      );
+      if (!ok) {
+        setValue("");
+        return;
+      }
     }
 
     const nomComplet = `${b.prenom.trim()} ${b.nom.trim().toUpperCase()}`;
