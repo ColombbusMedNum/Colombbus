@@ -11,18 +11,22 @@ export default function Accordion({
   open,
   onToggle,
   children,
+  headerClassName = "bg-[#F3F3F2] hover:bg-[#F3F3F2]/70",
 }: {
   title: string;
   open: boolean;
   onToggle: () => void;
   children: ReactNode;
+  // Couleur du bandeau replié, pour faire ressortir un accordéon précis
+  // (par défaut le gris neutre habituel) — voir /mediation/rencontres-numeriques/suresnes.
+  headerClassName?: string;
 }) {
   return (
     <div className="border border-[#404040]/10 rounded-md overflow-hidden">
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center justify-between px-2.5 py-2 bg-[#F3F3F2] hover:bg-[#F3F3F2]/70 cursor-pointer text-left transition-colors"
+        className={`w-full flex items-center justify-between px-2.5 py-2 cursor-pointer text-left transition-colors ${headerClassName}`}
       >
         <span className="text-[10px] text-[#404040] font-bold uppercase tracking-wide">{title}</span>
         <ChevronDownIcon className={`w-3.5 h-3.5 text-[#404040]/50 transition-transform duration-200 shrink-0 ${open ? "rotate-180 text-[#EA601F]" : ""}`} />

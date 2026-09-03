@@ -7,6 +7,7 @@ import { PermissionGuard } from "@/components/PermissionGuard";
 import { useToast } from "@/components/ToastProvider";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
+import Accordion from "@/components/Accordion";
 import {
   collection, onSnapshot, query, orderBy, updateDoc, doc, addDoc, deleteDoc, collectionGroup, serverTimestamp, getDocs, where
 } from "firebase/firestore";
@@ -109,6 +110,7 @@ export default function PlanningSuresnes() {
   const [reassignSearch, setReassignSearch] = useState("");
   const { showToast } = useToast();
   const [viewDate, setViewDate] = useState(new Date());
+  const [miniMoisOuvert, setMiniMoisOuvert] = useState(false);
   const [filterTodayOnly, setFilterTodayOnly] = useState(false);
   // Un même agenda héberge plusieurs sites, distingués par le champ "site"
   // posé à la création du créneau (voir lib/activitesTypes.ts et
@@ -490,6 +492,23 @@ export default function PlanningSuresnes() {
     };
   }, [creneauxDuSite, year, month, mediateursActifs, beneficiaires, statutsVisitesRealtime]);
 
+  // Disponibilité par jour pour la mini-vue mois ci-dessous : rouge si aucun
+  // créneau libre ce jour-là (qu'il n'y ait aucun créneau du tout — "pas de
+  // RN" — ou qu'ils soient tous occupés), vert dès qu'il en reste au moins un
+  // — le nombre affiché est celui des créneaux encore libres.
+  const disponibiliteParJour = React.useMemo(() => {
+    const map: Record<string, number> = {};
+    days.forEach((day) => {
+      const dateStr = day.toLocaleDateString('en-CA');
+      map[dateStr] = filteredCreneauxDuMois.filter((c) => c.date === dateStr && (!c.usager || c.usager.trim() === "")).length;
+    });
+    return map;
+  }, [days, filteredCreneauxDuMois]);
+
+  const allerAuJour = (dateStr: string) => {
+    document.getElementById(`jour-${dateStr}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   const handleThematiqueChange = async (creneauId: string, nouvelleThematique: string) => {
     try {
       await updateDoc(doc(db, "planning_suresnes", creneauId), { thematique: nouvelleThematique });
@@ -753,6 +772,45 @@ export default function PlanningSuresnes() {
         ) : (
         <>
 
+        {/* MINI VUE MOIS — repère rapide des jours avec/sans disponibilité,
+            pour éviter de dérouler toute la liste ci-dessous. Un clic sur un
+            jour y fait défiler directement (voir allerAuJour/id="jour-..."). */}
+        <Accordion
+          title={`Disponibilités du mois — ${viewDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}`}
+          open={miniMoisOuvert}
+          onToggle={() => setMiniMoisOuvert((v) => !v)}
+          headerClassName="bg-[#F9C44E]/25 hover:bg-[#F9C44E]/35"
+        >
+            <div className="flex items-center justify-end gap-3 text-[9px] font-bold uppercase text-[#404040]/50 mb-1">
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#A9E0C9]" /> Disponible</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#EF736A]" /> Complet</span>
+            </div>
+            <div className="grid grid-cols-7 gap-1.5">
+              {["L", "M", "M", "J", "V", "S", "D"].map((j, idx) => (
+                <div key={idx} className="text-center text-[9px] font-bold uppercase text-[#404040]/40">{j}</div>
+              ))}
+              {Array.from({ length: (days[0].getDay() + 6) % 7 }, (_, i) => <div key={`vide-${i}`} />)}
+              {days.map((day) => {
+                const dateStr = day.toLocaleDateString('en-CA');
+                const nbDisponibles = disponibiliteParJour[dateStr] || 0;
+                return (
+                  <button
+                    key={dateStr}
+                    type="button"
+                    onClick={() => allerAuJour(dateStr)}
+                    title={nbDisponibles > 0 ? `${nbDisponibles} créneau(x) disponible(s)` : "Complet / aucun créneau"}
+                    className={`aspect-square rounded-lg flex flex-col items-center justify-center leading-tight transition-transform hover:scale-110 cursor-pointer ${
+                      nbDisponibles > 0 ? "bg-[#A9E0C9]/40 text-[#005259]" : "bg-[#EF736A]/20 text-[#EF736A]"
+                    }`}
+                  >
+                    <span className="text-base font-bold">{day.getDate()}</span>
+                    {nbDisponibles > 0 && <span className="text-xs font-black">{nbDisponibles}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </Accordion>
+
         {/* ANALYTICS / KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="p-4 bg-white border border-[#404040]/10 rounded-2xl flex flex-col justify-between shadow-sm">
@@ -874,7 +932,7 @@ export default function PlanningSuresnes() {
             if (entries.length === 0) return null;
 
             return (
-              <div key={i} className={`bg-white border rounded-2xl shadow-sm overflow-hidden ${dateStr === todayStr ? 'border-[#005259] ring-1 ring-[#005259]' : 'border-[#404040]/10'}`}>
+              <div id={`jour-${dateStr}`} key={i} className={`bg-white border rounded-2xl shadow-sm overflow-hidden scroll-mt-4 ${dateStr === todayStr ? 'border-[#005259] ring-1 ring-[#005259]' : 'border-[#404040]/10'}`}>
                 
                 <div className="bg-[#F3F3F2] px-5 py-3 border-b border-[#404040]/10 flex items-center justify-between">
                   <div className="flex items-center gap-2">
