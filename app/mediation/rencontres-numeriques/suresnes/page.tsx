@@ -7,6 +7,7 @@ import { PermissionGuard } from "@/components/PermissionGuard";
 import { useToast } from "@/components/ToastProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { useMediateurs } from "@/lib/MediateursProvider";
+import { usePermissions } from "@/lib/PermissionsProvider";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import Accordion from "@/components/Accordion";
 import {
@@ -31,7 +32,8 @@ import {
   ChartBarIcon,
   ClipboardDocumentCheckIcon,
   ChatBubbleBottomCenterTextIcon,
-  XCircleIcon
+  XCircleIcon,
+  Cog6ToothIcon
 } from "@heroicons/react/24/outline";
 
 // Initialisation de la police Quicksand
@@ -98,6 +100,8 @@ function normaliserSiteId(site: string | undefined): string {
 
 export default function PlanningSuresnes() {
   const [creneaux, setCreneaux] = useState<any[]>([]);
+  const { role } = usePermissions();
+  const peutConfigurerParametres = role === "admin" || role === "coordinateur";
   const { mediateurs: mediateursBruts } = useMediateurs();
   const mediateursActifs = React.useMemo(() => {
     return mediateursBruts.map((data: any) => {
@@ -185,6 +189,15 @@ export default function PlanningSuresnes() {
   
   // États synchronisés en temps réel depuis les fiches de visites
   const [rawVisites, setRawVisites] = useState<any[]>([]);
+  // Quota de visites à domicile RND, configurable depuis /mediation/parametres
+  // (4 par défaut, valeur historique) — voir visitesDomicileAnneeParBeneficiaire ci-dessous.
+  const [quotaDomicileRND, setQuotaDomicileRND] = useState(4);
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "configuration_equipe", "parametres_configuration"), (snap) => {
+      setQuotaDomicileRND(Number(snap.data()?.quotaDomicileRND) || 4);
+    });
+    return () => unsub();
+  }, []);
   const [totalVisitesPresents, setTotalVisitesPresents] = useState<{ [key: string]: number }>({});
   const [thematiquesVisitees, setThematiquesVisitees] = useState<{ [key: string]: string[] }>({});
 
@@ -259,7 +272,6 @@ export default function PlanningSuresnes() {
   // "92 - RND Suresnes" une fois ce quota atteint (voir UsagerInput). Même
   // logique de repérage du lieu que normaliserSiteId ci-dessus.
   const ANNEE_COURANTE = new Date().getFullYear();
-  const QUOTA_DOMICILE_PAR_AN = 4;
   const visitesDomicileAnneeParBeneficiaire = React.useMemo(() => {
     const map: Record<string, number> = {};
     rawVisites.forEach((v) => {
@@ -515,12 +527,20 @@ export default function PlanningSuresnes() {
   // Disponibilité par jour pour la mini-vue mois ci-dessous : rouge si aucun
   // créneau libre ce jour-là (qu'il n'y ait aucun créneau du tout — "pas de
   // RN" — ou qu'ils soient tous occupés), vert dès qu'il en reste au moins un
-  // — le nombre affiché est celui des créneaux encore libres.
+  // — avec le distingo RN (sur place) / RND (domicile), même détection que
+  // "estDomicile" ci-dessus, pour repérer d'un coup d'œil quel type de
+  // créneau est encore disponible ce jour-là.
   const disponibiliteParJour = React.useMemo(() => {
-    const map: Record<string, number> = {};
+    const map: Record<string, { rn: number; rnd: number }> = {};
     days.forEach((day) => {
       const dateStr = day.toLocaleDateString('en-CA');
-      map[dateStr] = filteredCreneauxDuMois.filter((c) => c.date === dateStr && (!c.usager || c.usager.trim() === "")).length;
+      const libresJour = filteredCreneauxDuMois.filter((c) => c.date === dateStr && (!c.usager || c.usager.trim() === ""));
+      let rn = 0, rnd = 0;
+      libresJour.forEach((c) => {
+        const estDomicile = c.mediateurNom?.includes("(RND)") || (c.site || "").toUpperCase().includes("DOMICILE");
+        if (estDomicile) rnd++; else rn++;
+      });
+      map[dateStr] = { rn, rnd };
     });
     return map;
   }, [days, filteredCreneauxDuMois]);
@@ -542,6 +562,11 @@ export default function PlanningSuresnes() {
   // attendant que l'écriture (différée) soit effective.
   const [demandeSpecifiqueLocal, setDemandeSpecifiqueLocal] = useState<Record<string, string>>({});
   const demandeSpecifiqueTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // Pop-up de visualisation/édition confortable d'une demande déjà notée,
+  // le champ inline étant trop étroit pour lire un texte long (voir input
+  // "Demande spécifique" ci-dessous : onFocus ouvre cette pop-up au lieu
+  // d'éditer sur place dès qu'il y a déjà du texte).
+  const [demandeModal, setDemandeModal] = useState<{ id: string; valeur: string } | null>(null);
 
   useEffect(() => {
     const timers = demandeSpecifiqueTimers.current;
@@ -648,6 +673,17 @@ export default function PlanningSuresnes() {
                 <span>Agenda Médiateurs</span>
               </Link>
             </PermissionGuard>
+
+            {peutConfigurerParametres && (
+              <Link
+                href="/mediation/parametres"
+                title="Modifier le quota de visites à domicile RND"
+                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+              >
+                <Cog6ToothIcon className="w-4 h-4 text-[#EA601F]" />
+                <span>Paramètres</span>
+              </Link>
+            )}
 
             {/* SÉLECTEUR DE MOIS */}
             <PermissionGuard actionId="suresnes_month_nav">
@@ -802,7 +838,8 @@ export default function PlanningSuresnes() {
           headerClassName="bg-[#F9C44E]/25 hover:bg-[#F9C44E]/35"
         >
             <div className="flex items-center justify-end gap-3 text-[9px] font-bold uppercase text-[#404040]/50 mb-1">
-              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#A9E0C9]" /> Disponible</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#005259]" /> RN</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#EA601F]" /> RND</span>
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#EF736A]" /> Complet</span>
             </div>
             <div className="grid grid-cols-7 gap-1.5 max-w-[380px] mx-auto">
@@ -812,19 +849,25 @@ export default function PlanningSuresnes() {
               {Array.from({ length: (days[0].getDay() + 6) % 7 }, (_, i) => <div key={`vide-${i}`} />)}
               {days.map((day) => {
                 const dateStr = day.toLocaleDateString('en-CA');
-                const nbDisponibles = disponibiliteParJour[dateStr] || 0;
+                const { rn, rnd } = disponibiliteParJour[dateStr] || { rn: 0, rnd: 0 };
+                const nbDisponibles = rn + rnd;
                 return (
                   <button
                     key={dateStr}
                     type="button"
                     onClick={() => allerAuJour(dateStr)}
-                    title={nbDisponibles > 0 ? `${nbDisponibles} créneau(x) disponible(s)` : "Complet / aucun créneau"}
+                    title={nbDisponibles > 0 ? `${rn} RN, ${rnd} RND disponible(s)` : "Complet / aucun créneau"}
                     className={`aspect-square max-w-12 mx-auto w-full rounded-lg flex flex-col items-center justify-center leading-tight transition-transform hover:scale-110 cursor-pointer ${
                       nbDisponibles > 0 ? "bg-[#A9E0C9]/40 text-[#005259]" : "bg-[#EF736A]/20 text-[#EF736A]"
                     }`}
                   >
                     <span className="text-base font-bold">{day.getDate()}</span>
-                    {nbDisponibles > 0 && <span className="text-xs font-black">{nbDisponibles}</span>}
+                    {nbDisponibles > 0 && (
+                      <span className="flex items-center gap-1 leading-none">
+                        {rn > 0 && <span className="text-[9px] font-black text-[#005259]">{rn}</span>}
+                        {rnd > 0 && <span className="text-[9px] font-black text-[#EA601F]">{rnd}D</span>}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -1055,7 +1098,7 @@ export default function PlanningSuresnes() {
                                     afficherChampVille={siteActif === "rn91"}
                                     estRND={isRND}
                                     visitesDomicileParBeneficiaire={visitesDomicileAnneeParBeneficiaire}
-                                    quotaDomicile={QUOTA_DOMICILE_PAR_AN}
+                                    quotaDomicile={quotaDomicileRND}
                                   />
                                 </div>
 
@@ -1129,6 +1172,13 @@ export default function PlanningSuresnes() {
                                       disabled={!c.usager}
                                       value={demandeSpecifiqueLocal[c.id] ?? c.demandeSpecifique ?? ""}
                                       onChange={(e) => handleDemandeSpecifiqueChange(c.id, e.target.value)}
+                                      onFocus={(e) => {
+                                        const valeurActuelle = demandeSpecifiqueLocal[c.id] ?? c.demandeSpecifique ?? "";
+                                        if (valeurActuelle.trim() !== "") {
+                                          e.target.blur();
+                                          setDemandeModal({ id: c.id, valeur: valeurActuelle });
+                                        }
+                                      }}
                                       placeholder="Demande (ex: photos...)"
                                       className="w-full bg-transparent border-none p-0 text-xs text-[#404040] placeholder-[#404040]/40 outline-none focus:ring-0 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
                                     />
@@ -1257,6 +1307,36 @@ export default function PlanningSuresnes() {
           </div>
         );
       })()}
+
+      {demandeModal && (
+        <div className="fixed inset-0 bg-[#404040]/50 backdrop-blur-sm flex items-center justify-center z-[150] p-4">
+          <div className="bg-white border border-[#404040]/10 p-6 rounded-2xl w-full max-w-md space-y-4 shadow-2xl">
+            <h3 className="flex items-center gap-2 font-bold text-sm text-[#005259] uppercase tracking-wide">
+              <ChatBubbleBottomCenterTextIcon className="w-4 h-4 text-[#EA601F]" />
+              Demande spécifique
+            </h3>
+            <textarea
+              autoFocus
+              rows={5}
+              value={demandeModal.valeur}
+              onChange={(e) => {
+                setDemandeModal({ ...demandeModal, valeur: e.target.value });
+                handleDemandeSpecifiqueChange(demandeModal.id, e.target.value);
+              }}
+              className="w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-xs text-[#404040] outline-none font-medium resize-none"
+            />
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setDemandeModal(null)}
+                className="px-4 py-2 bg-[#005259] hover:bg-[#EA601F] text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ScrollToTopButton />
     </main>

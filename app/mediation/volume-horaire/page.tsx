@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, doc, onSnapshot, setDoc } from "firebase/firestore";
+import { collection, doc, onSnapshot } from "firebase/firestore";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import Link from "next/link";
 import { Quicksand } from "next/font/google";
@@ -59,15 +59,11 @@ export default function VolumeHoraireComplet() {
   const { role } = usePermissions();
   const peutConfigurerSeuils = role === "admin" || role === "coordinateur";
 
-  // Seuils d'alerte sur les heures complémentaires ACI, configurables
-  // manuellement en heures et/ou en pourcentage (les deux peuvent être actifs
-  // en même temps ; 0 = seuil désactivé). Stockés à côté des autres réglages
-  // globaux de l'équipe (voir app/mediation/equipe/page.tsx).
+  // Seuils d'alerte sur les heures complémentaires ACI (0 = seuil désactivé),
+  // configurables depuis /mediation/parametres — stockés à côté des autres
+  // réglages globaux de l'équipe (voir app/mediation/equipe/page.tsx).
   const [seuilHeures, setSeuilHeures] = useState(0);
   const [seuilPourcentage, setSeuilPourcentage] = useState(0);
-  const [seuilsOuvert, setSeuilsOuvert] = useState(false);
-  const [seuilHeuresInput, setSeuilHeuresInput] = useState("0");
-  const [seuilPourcentageInput, setSeuilPourcentageInput] = useState("0");
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "configuration_equipe", "parametres_configuration"), (snap) => {
@@ -75,24 +71,9 @@ export default function VolumeHoraireComplet() {
       const seuils = data?.seuilsComplementairesACI || {};
       setSeuilHeures(Number(seuils.heures) || 0);
       setSeuilPourcentage(Number(seuils.pourcentage) || 0);
-      setSeuilHeuresInput(String(Number(seuils.heures) || 0));
-      setSeuilPourcentageInput(String(Number(seuils.pourcentage) || 0));
     });
     return () => unsub();
   }, []);
-
-  const enregistrerSeuils = async () => {
-    const heures = Math.max(0, Number(seuilHeuresInput) || 0);
-    const pourcentage = Math.max(0, Number(seuilPourcentageInput) || 0);
-    try {
-      await setDoc(doc(db, "configuration_equipe", "parametres_configuration"), {
-        seuilsComplementairesACI: { heures, pourcentage }
-      }, { merge: true });
-      setSeuilsOuvert(false);
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
   // Années réellement présentes dans les données, pour ne proposer que des
   // choix pertinents plutôt qu'une plage arbitraire.
@@ -368,15 +349,14 @@ export default function VolumeHoraireComplet() {
           </div>
           <div className="flex items-center gap-2 sm:ml-auto">
             {peutConfigurerSeuils && (
-              <button
-                onClick={() => setSeuilsOuvert(v => !v)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                  seuilsOuvert ? "bg-[#005259] text-white" : "bg-[#F3F3F2] hover:bg-[#005259] hover:text-white border border-[#404040]/10 text-[#404040]/70"
-                }`}
+              <Link
+                href="/mediation/parametres"
+                title="Modifier les seuils d'alerte ACI"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors bg-[#F3F3F2] hover:bg-[#005259] hover:text-white border border-[#404040]/10 text-[#404040]/70"
               >
                 <Cog6ToothIcon className="w-4 h-4" />
                 <span>Seuils d'alerte ACI</span>
-              </button>
+              </Link>
             )}
             <button
               onClick={exporterCSV}
@@ -388,48 +368,6 @@ export default function VolumeHoraireComplet() {
             </button>
           </div>
         </div>
-
-        {peutConfigurerSeuils && seuilsOuvert && (
-          <div className="bg-white border border-[#005259]/20 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-end gap-3 shadow-sm">
-            <div>
-              <label className="block text-[10px] font-bold uppercase text-[#005259] mb-1.5">Seuil en heures complémentaires</label>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={seuilHeuresInput}
-                  onChange={e => setSeuilHeuresInput(e.target.value)}
-                  className="w-24 p-2 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl text-xs font-mono outline-none focus:border-[#005259]"
-                />
-                <span className="text-[11px] text-[#404040]/60 font-bold">h (0 = désactivé)</span>
-              </div>
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold uppercase text-[#005259] mb-1.5">Seuil en % du volume contractuel</label>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={seuilPourcentageInput}
-                  onChange={e => setSeuilPourcentageInput(e.target.value)}
-                  className="w-24 p-2 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl text-xs font-mono outline-none focus:border-[#005259]"
-                />
-                <span className="text-[11px] text-[#404040]/60 font-bold">% (0 = désactivé)</span>
-              </div>
-            </div>
-            <button
-              onClick={enregistrerSeuils}
-              className="px-4 py-2 bg-[#005259] hover:bg-[#EA601F] text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
-            >
-              Enregistrer
-            </button>
-            <p className="text-[10px] text-[#404040]/60 italic sm:ml-auto">
-              Un ACI est signalé dès qu'il dépasse l'un OU l'autre des deux seuils.
-            </p>
-          </div>
-        )}
 
         {/* CARTES DE SYNTHÈSE DES CHIFFRES KIS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

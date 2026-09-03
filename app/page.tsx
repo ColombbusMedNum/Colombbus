@@ -190,6 +190,7 @@ const NAV_TREE: NavNode[] = [
           { id: "journal-connexions", kind: "leaf", accent: "teal", icon: FingerPrintIcon, title: "Journal des Connexions", subtitle: "Qui s'est connecté, quand, et combien de temps", actionId: "home_nav_journal_connexions", href: "/mediation/journal-connexions" },
           { id: "signalements", kind: "leaf", accent: "orange", icon: ExclamationTriangleIcon, title: "Signalements de Bugs", subtitle: "Problèmes remontés via le bouton \"B\" (admin)", actionId: "home_nav_signalements", href: "/mediation/signalements" },
           { id: "admin-droits", kind: "leaf", accent: "teal", icon: CpuChipIcon, title: "Gérer les Droits", subtitle: "Matrice de sécurité et modification des rôles de l'équipe", actionId: "home_nav_admin_droits", href: "/mediation/analyse" },
+          { id: "parametres", kind: "leaf", accent: "orange", icon: Cog6ToothIcon, title: "Paramètres Généraux", subtitle: "Quotas, seuils d'alerte et autres réglages variables", actionId: "home_nav_parametres", href: "/mediation/parametres" },
         ],
       },
     ],

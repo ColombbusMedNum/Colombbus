@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, doc, getDoc, updateDoc, setDoc, deleteDoc, writeBatch } from "firebase/firestore";
 import { Quicksand } from "next/font/google";
@@ -18,10 +18,8 @@ import {
   ListBulletIcon,
   MapPinIcon,
   PlusIcon,
-  ChevronDownIcon,
   ShieldCheckIcon,
   AcademicCapIcon,
-  CheckCircleIcon,
   ArrowDownTrayIcon,
   KeyIcon
 } from "@heroicons/react/24/outline";
@@ -41,22 +39,6 @@ const quicksand = Quicksand({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
 });
-
-const JOURS_SEMAINE = [
-  { key: "lundi", label: "Lundi" },
-  { key: "mardi", label: "Mardi" },
-  { key: "mercredi", label: "Mercredi" },
-  { key: "jeudi", label: "Jeudi" },
-  { key: "vendredi", label: "Vendredi" }
-];
-
-const HORAIRES_PAR_DEFAUT = {
-  lundi: { debut: "09:30", fin: "17:00" },
-  mardi: { debut: "09:30", fin: "17:00" },
-  mercredi: { debut: "09:30", fin: "17:00" },
-  jeudi: { debut: "09:30", fin: "17:00" },
-  vendredi: { debut: "09:30", fin: "17:00" }
-};
 
 // Les deux fonctions ci-dessous acceptent aussi bien les ids canoniques
 // (lib/roles.ts) que d'anciennes valeurs ("Mediateur", "CoordinateurProjet"...)
@@ -91,17 +73,6 @@ export default function GestionEquipe() {
     cadres: true, permanents: true, aci_massy: true, aci_paris: true, stagiaires: true, autres: true,
   });
 
-  const [grillesHorairesACI, setGrillesHorairesACI] = useState<{ [site: string]: any }>({
-    Paris: { ...HORAIRES_PAR_DEFAUT },
-    Massy: { ...HORAIRES_PAR_DEFAUT }
-  });
-  const [horaireEnregistre, setHoraireEnregistre] = useState<{ [site: string]: boolean }>({});
-  const horaireEnregistreTimers = useRef<{ [site: string]: ReturnType<typeof setTimeout> }>({});
-
-  const [accordionOpen, setAccordionOpen] = useState<{ [site: string]: boolean }>({
-    Paris: false,
-    Massy: false
-  });
 
   const [listeTerritoires, setListeTerritoires] = useState<string[]>(["Paris", "Massy"]);
   const [nouveauTerritoireInput, setNouveauTerritoireInput] = useState("");
@@ -133,17 +104,16 @@ export default function GestionEquipe() {
 
   useEffect(() => {
     let unsubConfig = () => {};
-    let unsubHoraires = () => {};
     let annule = false;
 
     const configRef = doc(db, "configuration_equipe", "parametres_configuration");
-    const horairesRef = doc(db, "configuration_equipe", "parametres_horaires");
-    // Anciens emplacements : ces deux documents vivaient par erreur dans
-    // liste_mediateurs (qui ne devrait contenir que des fiches de médiateurs
-    // indexées par UID), provoquant des "médiateurs fantômes" dans toute
-    // page listant liste_mediateurs sans filtre dédié.
+    // Ancien emplacement : ce document vivait par erreur dans liste_mediateurs
+    // (qui ne devrait contenir que des fiches de médiateurs indexées par UID),
+    // provoquant des "médiateurs fantômes" dans toute page listant
+    // liste_mediateurs sans filtre dédié. La grille horaire ACI (Paris/Massy),
+    // qui vivait au même endroit, est migrée séparément par
+    // /mediation/parametres, qui en a désormais la charge exclusive.
     const ancienConfigRef = doc(db, "liste_mediateurs", "parametres_configuration");
-    const ancienHoraireRef = doc(db, "liste_mediateurs", "parametres_horaires");
 
     const demarrer = async () => {
       // Migration transparente, une seule fois : si le nouvel emplacement est
@@ -153,21 +123,13 @@ export default function GestionEquipe() {
       // firestore.rules) : un coordinateur copie sans supprimer, un admin
       // finira le nettoyage à sa prochaine visite de la page.
       try {
-        const [nouveauConfig, nouveauHoraires] = await Promise.all([getDoc(configRef), getDoc(horairesRef)]);
+        const nouveauConfig = await getDoc(configRef);
 
         if (!nouveauConfig.exists()) {
           const ancien = await getDoc(ancienConfigRef);
           if (ancien.exists()) {
             await setDoc(configRef, ancien.data());
             await deleteDoc(ancienConfigRef).catch(() => {});
-          }
-        }
-
-        if (!nouveauHoraires.exists()) {
-          const ancien = await getDoc(ancienHoraireRef);
-          if (ancien.exists()) {
-            await setDoc(horairesRef, ancien.data());
-            await deleteDoc(ancienHoraireRef).catch(() => {});
           }
         }
       } catch (err) {
@@ -194,17 +156,6 @@ export default function GestionEquipe() {
           });
         }
       });
-
-      unsubHoraires = onSnapshot(horairesRef, (snapshot) => {
-        if (snapshot.exists()) {
-          setGrillesHorairesACI(snapshot.data());
-        } else {
-          setDoc(horairesRef, {
-            Paris: { ...HORAIRES_PAR_DEFAUT },
-            Massy: { ...HORAIRES_PAR_DEFAUT }
-          });
-        }
-      });
     };
 
     demarrer();
@@ -212,7 +163,6 @@ export default function GestionEquipe() {
     return () => {
       annule = true;
       unsubConfig();
-      unsubHoraires();
     };
   }, []);
 
@@ -290,27 +240,6 @@ export default function GestionEquipe() {
     }
   };
 
-  const handleGlobalHoraireChange = async (site: "Paris" | "Massy", jour: string, type: "debut" | "fin", val: string) => {
-    const updated = {
-      ...grillesHorairesACI,
-      [site]: {
-        ...grillesHorairesACI[site],
-        [jour]: { ...grillesHorairesACI[site][jour], [type]: val }
-      }
-    };
-    setGrillesHorairesACI(updated);
-    try {
-      await setDoc(doc(db, "configuration_equipe", "parametres_horaires"), updated);
-      setHoraireEnregistre(prev => ({ ...prev, [site]: true }));
-      clearTimeout(horaireEnregistreTimers.current[site]);
-      horaireEnregistreTimers.current[site] = setTimeout(() => {
-        setHoraireEnregistre(prev => ({ ...prev, [site]: false }));
-      }, 2000);
-    } catch (err) {
-      console.error(err);
-      showToast("Erreur lors de l'enregistrement des horaires.", "error");
-    }
-  };
 
   const handleCheckboxTerritoireChange = (territoryName: string) => {
     setFormData(prev => {
@@ -645,58 +574,18 @@ export default function GestionEquipe() {
           </PermissionGuard>
         </div>
 
-        {/* GRILLES HORAIRES */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {(["Paris", "Massy"] as const).map(site => {
-            const isOpen = accordionOpen[site];
-            return (
-              <div key={site} className="bg-white border border-[#404040]/10 rounded-2xl overflow-hidden shadow-sm">
-                <div 
-                  onClick={() => setAccordionOpen(prev => ({ ...prev, [site]: !prev[site] }))}
-                  className="p-4 bg-white hover:bg-[#F3F3F2]/60 cursor-pointer flex items-center justify-between transition-all select-none"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <ClockIcon className="w-4 h-4 text-[#EA601F]" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#005259]">
-                      Grille Horaires ACI — {site}
-                    </h3>
-                    <span className={`flex items-center gap-1 text-[10px] font-bold uppercase text-[#005259] transition-opacity duration-300 ${horaireEnregistre[site] ? "opacity-100" : "opacity-0"}`}>
-                      <CheckCircleIcon className="w-3.5 h-3.5 text-[#A9E0C9]" /> Enregistré
-                    </span>
-                  </div>
-                  <ChevronDownIcon className={`w-4 h-4 text-[#404040]/50 transition-transform duration-200 ${isOpen ? "rotate-180 text-[#EA601F]" : ""}`} />
-                </div>
-
-                {isOpen && (
-                  <div className="p-4 border-t border-[#404040]/10 space-y-2 bg-[#F3F3F2]/40">
-                    {JOURS_SEMAINE.map(j => (
-                      <div key={j.key} className="flex items-center justify-between p-2 bg-white border border-[#404040]/10 rounded-xl shadow-xs">
-                        <span className="text-[11px] font-bold text-[#005259] uppercase tracking-wide pl-1">{j.label}</span>
-                        <PermissionGuard actionId="equipe_horaires_aci_edit">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="time"
-                              className="p-1 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] font-mono text-xs rounded text-center w-20 outline-none focus:border-[#005259]"
-                              value={grillesHorairesACI[site]?.[j.key]?.debut || "09:30"}
-                              onChange={e => handleGlobalHoraireChange(site, j.key, "debut", e.target.value)}
-                            />
-                            <span className="text-[#404040]/50 text-[10px] font-bold uppercase">à</span>
-                            <input
-                              type="time"
-                              className="p-1 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] font-mono text-xs rounded text-center w-20 outline-none focus:border-[#005259]"
-                              value={grillesHorairesACI[site]?.[j.key]?.fin || "17:00"}
-                              onChange={e => handleGlobalHoraireChange(site, j.key, "fin", e.target.value)}
-                            />
-                          </div>
-                        </PermissionGuard>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        {/* GRILLES HORAIRES ACI — éditées depuis /mediation/parametres, avec les
+            autres réglages globaux susceptibles de changer d'une année sur l'autre. */}
+        <PermissionGuard actionId="equipe_horaires_aci_edit">
+          <Link
+            href="/mediation/parametres"
+            className="flex items-center gap-2.5 bg-white hover:bg-[#F3F3F2]/60 border border-[#404040]/10 rounded-2xl p-4 shadow-sm transition-all w-fit"
+          >
+            <ClockIcon className="w-4 h-4 text-[#EA601F]" />
+            <span className="text-xs font-bold uppercase tracking-wider text-[#005259]">Grilles Horaires ACI (Paris / Massy)</span>
+            <span className="text-[10px] text-[#404040]/50 font-medium normal-case">→ Paramètres Généraux</span>
+          </Link>
+        </PermissionGuard>
 
         {/* FILTRES & VUES */}
         <PermissionGuard actionId="equipe_display_toggles">

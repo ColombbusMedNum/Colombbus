@@ -53,6 +53,7 @@ const DETAILED_PAGES: PageEntry[] = [
       { id: "home_nav_journal_connexions", nom: "Lien Journal des Connexions", type: "Link", description: "Accède à l'historique des connexions du staff (qui, quand, combien de temps)" },
       { id: "home_nav_signalements", nom: "Lien Signalements de Bugs", type: "Link", description: "Accède aux problèmes remontés via le bouton \"B\" (admin uniquement)" },
       { id: "home_nav_admin_droits", nom: "Lien Gérer les Droits", type: "Link", description: "Accède à la configuration de la sécurité (Admin)" },
+      { id: "home_nav_parametres", nom: "Lien Paramètres Généraux", type: "Link", description: "Accède aux réglages variables (quotas, seuils d'alerte...) — Admin et Coordinateur" },
       { id: "home_nav_modeles", nom: "Lien Modèles d'Activités", type: "Link", description: "Accède à la gestion des modèles depuis le dossier Agenda" },
       { id: "home_nav_equipe", nom: "Lien Équipe", type: "Link", description: "Accède à la gestion de l'équipe depuis l'accueil" },
       { id: "home_nav_participants", nom: "Lien Participants & Prescripteurs", type: "Link", description: "Accède à la vue transversale des participant·e·s et prescripteurs des actions collectives" },
@@ -284,6 +285,7 @@ const PAGE_ONLY_ROUTES: Omit<PageEntry, "actions">[] = [
   { pageId: "page_access_agenda_historique", pageName: "Historique de l'Agenda", route: "/agenda/historique", filePath: "app/agenda/historique/page.tsx" },
   { pageId: "page_access_agenda_mois", pageName: "Agenda — Vue Mois", route: "/agenda/mois", filePath: "app/agenda/mois/page.tsx" },
   { pageId: "page_access_agenda_mobile", pageName: "Agenda — Mon Planning (Mobile)", route: "/agenda/mobile", filePath: "app/agenda/mobile/page.tsx" },
+  { pageId: "page_access_parametres", pageName: "Paramètres Généraux", route: "/mediation/parametres", filePath: "app/mediation/parametres/page.tsx" },
 ];
 
 export const PAGES_CATALOG: PageEntry[] = [
@@ -375,6 +377,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     home_nav_collectes: true, home_nav_agenda_suresnes: true, home_nav_emargement_docs: true,
     home_nav_emargement_gen: true, home_nav_actions_coll: true, home_nav_stats_glob: true,
     home_nav_bilan_suresnes: true, home_nav_volume_horaire: true, home_nav_journal_connexions: true, home_nav_agenda_med: true,
+    page_access_parametres: true, home_nav_parametres: true,
     home_folder_inclusion_numerique: true, home_folder_rencontres_numeriques: true, home_nav_digital_up: true, home_nav_digitalup_inscription: true, home_nav_digitalup_reponses: true, home_nav_digitalup_suivi: true, home_nav_digitalup_stats: true,
     home_folder_decouvertes_metiers: true, home_nav_nkup: true, home_nav_nkup_inscription: true, home_nav_nkup_reponses: true, home_nav_nkup_suivi: true, home_nav_nkup_stats: true, home_folder_insertion_pro: true, home_nav_nkpro_tech: true, home_nav_nkpro_inscription: true, home_nav_nkpro_reponses: true, home_nav_nkpro_suivi: true, home_nav_nkpro_stats: true,
     home_folder_gestion_colombbus: true,
