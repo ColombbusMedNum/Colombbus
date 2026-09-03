@@ -3,12 +3,13 @@
 import { useEffect, useState, Suspense } from "react";
 import { db } from "@/lib/firebase";
 import PageGuard from "@/components/PageGuard";
-import { 
-  collectionGroup, 
-  onSnapshot, 
-  getDoc, 
-  doc, 
-  setDoc 
+import {
+  collection,
+  collectionGroup,
+  onSnapshot,
+  getDoc,
+  doc,
+  setDoc
 } from "firebase/firestore";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -40,12 +41,27 @@ interface RDVItem {
   details: string;
   statut: string;
   mediateur: string;
+  userId: string;
 }
 
 interface InterventionDetail {
   date: string;
   mediateur: string;
   details: string;
+}
+
+// Classe une valeur de genre issue soit d'un champ Sexe ("Homme"/"Femme"),
+// soit d'une Civilité ("M."/"Mme") — les deux conventions coexistent selon
+// comment la fiche bénéficiaire a été créée (voir sexeParBeneficiaire).
+// "M." et "Mme" commencent tous les deux par "m" : il faut les distinguer
+// explicitement plutôt qu'un simple startsWith("m").
+function classerGenre(valeurBrute: string): "H" | "F" | null {
+  const v = valeurBrute.trim().toLowerCase();
+  if (!v) return null;
+  if (v.startsWith("h") || v.includes("homme") || v.startsWith("mr") || v.startsWith("mons")) return "H";
+  if (v.startsWith("f") || v.includes("femme") || v.startsWith("mme") || v.startsWith("mrs") || v.startsWith("mad")) return "F";
+  if (v === "m." || v === "m") return "H";
+  return null;
 }
 
 interface FicheBilanData {
@@ -82,6 +98,25 @@ function FichesBilansContent() {
   const [tousLesRdvs, setTousLesRdvs] = useState<{ lieu: string; rdv: RDVItem }[]>([]);
   const [fichesEditees, setFichesEditees] = useState<Record<string, FicheBilanData>>({});
   const [statusSauvegarde, setStatusSauvegarde] = useState<Record<string, string>>({});
+  // Sexe par bénéficiaire (id -> "Homme"/"Femme"/...), pour compter les
+  // hommes/femmes uniques à côté du total d'interventions (une même
+  // personne peut avoir plusieurs RDV dans le mois).
+  const [sexeParBeneficiaire, setSexeParBeneficiaire] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const unsubBenef = onSnapshot(collection(db, "utilisateurs"), (snapshot) => {
+      const map: Record<string, string> = {};
+      // Certaines fiches (résidences autonomie notamment) n'ont pas de champ
+      // Sexe rempli, seulement Civilité ("M."/"Mme") — on s'en sert alors en
+      // repli plutôt que de compter la personne comme genre inconnu.
+      snapshot.docs.forEach((d) => {
+        const data = d.data();
+        map[d.id] = data.Sexe || data.sexe || data.Civilité || data.civilite || "";
+      });
+      setSexeParBeneficiaire(map);
+    });
+    return () => unsubBenef();
+  }, []);
 
   useEffect(() => {
     const unsubVisites = onSnapshot(collectionGroup(db, "visites"), (snapshot) => {
@@ -94,7 +129,8 @@ function FichesBilansContent() {
             date: data.date || "",
             details: data.details || "",
             statut: data.statut || "Présent",
-            mediateur: data.mediateur || "—"
+            mediateur: data.mediateur || "—",
+            userId: docSnap.ref.parent.parent?.id || ""
           }
         };
       });
@@ -335,6 +371,13 @@ function FichesBilansContent() {
               const rdvsLieu = rdvsDuMois.filter(i => i.lieu.trim().toLowerCase() === lieu.trim().toLowerCase());
               rdvsLieu.sort((a, b) => new Date(a.rdv.date).getTime() - new Date(b.rdv.date).getTime());
 
+              // Hommes/femmes uniques (une même personne comptée une seule
+              // fois même avec plusieurs interventions ce mois-ci).
+              const idsUniques = Array.from(new Set(rdvsLieu.map(i => i.rdv.userId).filter(Boolean)));
+              const genresUniques = idsUniques.map(id => classerGenre(sexeParBeneficiaire[id] || ""));
+              const hommesUniques = genresUniques.filter(g => g === "H").length;
+              const femmesUniques = genresUniques.filter(g => g === "F").length;
+
               const ficheInfo = fichesEditees[lieu] || {
                 lieu,
                 mois: moisSelectionne,
@@ -442,9 +485,14 @@ function FichesBilansContent() {
                         <CalendarIcon className="w-4 h-4 text-[#EA601F] print:hidden" />
                         <span>Détail des actions du mois ({rdvsLieu.length})</span>
                       </h3>
-                      <span className="text-[10px] font-bold text-[#005259] bg-[#A9E0C9]/30 px-2.5 py-1 rounded-md border border-[#A9E0C9] print:bg-slate-100 print:text-slate-600 print:border-slate-300">
-                        Total interventions : {rdvsLieu.length}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-[#005259] bg-[#A9E0C9]/30 px-2.5 py-1 rounded-md border border-[#A9E0C9] print:bg-slate-100 print:text-slate-600 print:border-slate-300">
+                          Total interventions : {rdvsLieu.length}
+                        </span>
+                        <span className="text-[10px] font-bold text-[#005259] bg-[#F3F3F2] px-2.5 py-1 rounded-md border border-[#404040]/10 print:bg-slate-100 print:text-slate-600 print:border-slate-300">
+                          H : {hommesUniques} · F : {femmesUniques}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="overflow-x-auto rounded-xl border border-[#404040]/10 print:border-slate-300">
