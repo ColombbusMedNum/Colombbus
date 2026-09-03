@@ -197,6 +197,19 @@ export default function FicheBeneficiaire() {
 
   const [thematiquesAAlerter, setThematiquesAAlerter] = useState<string[]>([]);
 
+  // Quota légal : 4 visites à domicile (RND Suresnes) maximum par an — même
+  // repérage du lieu que app/mediation/rencontres-numeriques/suresnes
+  // (normaliserSiteId) : "suresnes" et "domicile" tous les deux présents.
+  const QUOTA_DOMICILE_PAR_AN = 4;
+  const visitesDomicileAnnee = useMemo(() => {
+    const anneeActuelle = new Date().getFullYear();
+    return rdvs.filter((r) => {
+      if (r.statut !== "Présent" || !r.date || !r.date.startsWith(String(anneeActuelle))) return false;
+      const lieuNorm = (r.lieu || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+      return lieuNorm.includes("suresnes") && lieuNorm.includes("domicile");
+    }).length;
+  }, [rdvs]);
+
   const isProfilIncomplet = user ? (!user.Téléphone || !user.email || !user.Situation_Socio_Pro) : false;
 
   const calculerAgeEnDirect = (dateNaissanceStr: string): string => {
@@ -662,6 +675,19 @@ export default function FicheBeneficiaire() {
             </div>
           </div>
         </header>
+
+        {/* ALERTE QUOTA VISITES À DOMICILE (RND Suresnes) */}
+        {visitesDomicileAnnee >= QUOTA_DOMICILE_PAR_AN && (
+          <div className="mb-6 p-4 bg-[#EA601F]/10 border border-[#EA601F]/30 rounded-2xl flex items-start gap-3 shadow-sm">
+            <ExclamationTriangleIcon className="w-6 h-6 text-[#EA601F] shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-bold text-[#EA601F] uppercase tracking-wide">Quota de visites à domicile atteint</h3>
+              <p className="text-xs text-[#404040] mt-1">
+                Ce bénéficiaire a déjà eu <span className="font-bold text-[#EA601F]">{visitesDomicileAnnee}</span> visite(s) à domicile (RND Suresnes) cette année — le maximum autorisé est de <span className="font-bold text-[#005259]">{QUOTA_DOMICILE_PAR_AN} par an</span>.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ALERTE ÉVALUATION */}
         {thematiquesAAlerter.length > 0 && (

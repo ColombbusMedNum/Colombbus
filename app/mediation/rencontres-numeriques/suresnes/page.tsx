@@ -225,7 +225,8 @@ export default function PlanningSuresnes() {
           date: data.date,
           moment: data.moment,
           statut: data.statut || "Présent",
-          thematique: data.thematique
+          thematique: data.thematique,
+          lieu: data.lieu || ""
         });
 
         if (data.statut === "Présent") {
@@ -252,6 +253,24 @@ export default function PlanningSuresnes() {
   // haut) : la seule date exploitable est celle de la dernière visite
   // réellement effectuée, retrouvée dans les fiches de visites du
   // bénéficiaire plutôt que dans un créneau à venir.
+  // Quota légal : 4 visites à domicile (RND) maximum par bénéficiaire et par
+  // année civile — sert à faire apparaître son nom en orange sur un créneau
+  // "92 - RND Suresnes" une fois ce quota atteint (voir UsagerInput). Même
+  // logique de repérage du lieu que normaliserSiteId ci-dessus.
+  const ANNEE_COURANTE = new Date().getFullYear();
+  const QUOTA_DOMICILE_PAR_AN = 4;
+  const visitesDomicileAnneeParBeneficiaire = React.useMemo(() => {
+    const map: Record<string, number> = {};
+    rawVisites.forEach((v) => {
+      if (v.statut !== "Présent" || !v.date || !v.date.startsWith(String(ANNEE_COURANTE))) return;
+      const lieuNorm = (v.lieu || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+      if (lieuNorm.includes("suresnes") && lieuNorm.includes("domicile")) {
+        map[v.userId] = (map[v.userId] || 0) + 1;
+      }
+    });
+    return map;
+  }, [rawVisites, ANNEE_COURANTE]);
+
   const derniereVisiteParBeneficiaire = React.useMemo(() => {
     const map: Record<string, string> = {};
     rawVisites.forEach((v) => {
@@ -1033,6 +1052,9 @@ export default function PlanningSuresnes() {
                                     beneficiairesListe={beneficiaires}
                                     afficherAlerteSuresnes={siteActif === "suresnes"}
                                     afficherChampVille={siteActif === "rn91"}
+                                    estRND={isRND}
+                                    visitesDomicileParBeneficiaire={visitesDomicileAnneeParBeneficiaire}
+                                    quotaDomicile={QUOTA_DOMICILE_PAR_AN}
                                   />
                                 </div>
 
@@ -1242,7 +1264,16 @@ export default function PlanningSuresnes() {
 }
 
 // --- COMPO INPUT RECHERCHE AVEC ALERTE DE BLACKLIST INTERNE ---
-function UsagerInput({ docId, initialValue, beneficiairesListe, afficherAlerteSuresnes, afficherChampVille }: { docId: string; initialValue: string; beneficiairesListe: Beneficiaire[]; afficherAlerteSuresnes: boolean; afficherChampVille: boolean }) {
+function UsagerInput({ docId, initialValue, beneficiairesListe, afficherAlerteSuresnes, afficherChampVille, estRND = false, visitesDomicileParBeneficiaire, quotaDomicile }: {
+  docId: string;
+  initialValue: string;
+  beneficiairesListe: Beneficiaire[];
+  afficherAlerteSuresnes: boolean;
+  afficherChampVille: boolean;
+  estRND?: boolean;
+  visitesDomicileParBeneficiaire?: Record<string, number>;
+  quotaDomicile?: number;
+}) {
   const { showToast } = useToast();
   const [value, setValue] = useState(initialValue);
   const [suggestions, setSuggestions] = useState<Beneficiaire[]>([]);
@@ -1310,6 +1341,11 @@ function UsagerInput({ docId, initialValue, beneficiairesListe, afficherAlerteSu
   const isHomme = g.startsWith("h") || g.includes("homme");
   const isFemme = g.startsWith("f") || g.includes("femme");
 
+  // Quota de 4 visites à domicile (RND) par an atteint ou dépassé — voir
+  // visitesDomicileAnneeParBeneficiaire dans le composant parent.
+  const nbVisitesDomicile = estRND && matchingBeneficiaire ? (visitesDomicileParBeneficiaire?.[matchingBeneficiaire.id] || 0) : 0;
+  const quotaAtteint = estRND && quotaDomicile !== undefined && nbVisitesDomicile >= quotaDomicile;
+
   return (
     <div ref={containerRef} className="w-full relative">
       {matchingBeneficiaire ? (
@@ -1325,9 +1361,13 @@ function UsagerInput({ docId, initialValue, beneficiairesListe, afficherAlerteSu
               <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#F3F3F2] border border-[#404040]/10 text-[#404040]/50 font-bold shrink-0">?</span>
             )}
             
-            <span className="font-bold text-[#005259] truncate uppercase">
-              <span className="text-[#404040]/70 font-normal normal-case mr-1">{matchingBeneficiaire.prenom}</span>
+            <span
+              className={`font-bold truncate uppercase ${quotaAtteint ? "text-[#EA601F]" : "text-[#005259]"}`}
+              title={quotaAtteint ? `⚠️ ${nbVisitesDomicile} visite(s) à domicile cette année — quota de ${quotaDomicile} atteint` : undefined}
+            >
+              <span className={`font-normal normal-case mr-1 ${quotaAtteint ? "text-[#EA601F]/80" : "text-[#404040]/70"}`}>{matchingBeneficiaire.prenom}</span>
               {matchingBeneficiaire.nom}
+              {quotaAtteint && <ExclamationTriangleIcon className="w-3 h-3 inline-block ml-1 -mt-0.5" />}
             </span>
           </div>
           <PermissionGuard actionId="suresnes_slot_clear">
