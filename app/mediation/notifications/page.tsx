@@ -7,13 +7,7 @@ import { useConfirm } from "@/components/ConfirmProvider";
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, writeBatch } from "firebase/firestore";
 import { ArrowLeftIcon, TrashIcon, CheckCircleIcon, BellIcon, HomeIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
-
-// Police Quicksand pour toute la page
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
+import { quicksand } from "@/lib/fonts";
 
 export default function AllNotificationsPage() {
   const confirm = useConfirm();

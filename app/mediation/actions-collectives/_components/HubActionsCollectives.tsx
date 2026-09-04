@@ -1,15 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import { HomeIcon, ArrowLeftIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import type { ComponentType, SVGProps } from "react";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 interface TuileHub {
   href: string;

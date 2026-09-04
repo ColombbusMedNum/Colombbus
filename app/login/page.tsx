@@ -2,18 +2,13 @@
 
 import React, { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import { auth, db, APP_URL } from "../../lib/firebase";
 import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from "firebase/auth";
 import { collection, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { normalizeRole } from "../../lib/roles";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LockClosedIcon, EnvelopeIcon, ShieldExclamationIcon, ArrowRightEndOnRectangleIcon, CheckCircleIcon, EyeIcon, EyeSlashIcon, DevicePhoneMobileIcon } from "@heroicons/react/24/outline";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 export default function LoginPage() {
   return (

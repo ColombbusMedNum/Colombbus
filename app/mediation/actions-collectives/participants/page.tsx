@@ -4,17 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { db } from "@/lib/firebase";
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, updateDoc } from "firebase/firestore";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import { HomeIcon, MagnifyingGlassIcon, UsersIcon, IdentificationIcon, ArrowPathIcon, PencilSquareIcon, CheckIcon, XMarkIcon, BuildingOffice2Icon, TrashIcon, DocumentDuplicateIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { chargerPrescripteurs, Prescripteur } from "@/lib/prescripteurs";
 import { formatPhoneNumber, formatPhoneForStorage } from "@/lib/formatPhone";
 import { formatNom, formatPrenom } from "@/lib/formatName";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 // Champs communs aux 3 collections d'inscriptions — suffisants pour
 // regrouper les participant·e·s et les prescripteurs sans avoir besoin du

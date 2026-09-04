@@ -5,7 +5,7 @@ import { db, storage } from "@/lib/firebase";
 import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import {
   HomeIcon,
   MapPinIcon,
@@ -15,11 +15,6 @@ import {
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { useConfirm } from "@/components/ConfirmProvider";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 export default function EmargementsPage() {
   const confirm = useConfirm();

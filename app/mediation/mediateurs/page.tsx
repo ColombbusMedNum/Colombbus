@@ -5,18 +5,13 @@ import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import { UserIcon, ArrowLeftIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import PageGuard from "@/components/PageGuard";
 import MediateurAnalyticsPanel from "@/components/MediateurAnalyticsPanel";
 import MediateurActionsParMois from "@/components/MediateurActionsParMois";
 import { useAnalyticsSummary } from "@/lib/useAnalyticsSummary";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import { estActionDuMediateur } from "@/lib/matchMediateur";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 export default function StatsMediateursAnalytique() {
   const [actions, setActions] = useState<any[]>([]);

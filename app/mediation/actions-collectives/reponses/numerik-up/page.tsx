@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { db } from "@/lib/firebase";
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import { useRouter } from "next/navigation";
 import { HomeIcon, MagnifyingGlassIcon, ClipboardDocumentCheckIcon, DocumentArrowUpIcon, TrashIcon, DocumentDuplicateIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, PencilSquareIcon, XMarkIcon, CheckIcon, EnvelopeIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
@@ -26,11 +26,6 @@ const CHAMPS_PERSONNELS_A_DUPLIQUER = [
   "Comment_Connu", "Structures_Accompagnement", "Structure_Autre", "ASE",
   "Conseiller_Prenom", "Conseiller_Nom", "Conseiller_Telephone", "Conseiller_Email", "RGPD", "Parcours",
 ] as const;
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 // Champs issus du formulaire de pré-inscription — modifiables ici par
 // l'équipe pour corriger une réponse ou fusionner un doublon.

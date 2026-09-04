@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, where, Timestamp } from "firebase/firestore";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import {
   HomeIcon,
   FingerPrintIcon,
@@ -14,11 +14,6 @@ import {
   ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 const MOIS = [
   { value: "01", label: "Janvier" }, { value: "02", label: "Février" }, { value: "03", label: "Mars" },

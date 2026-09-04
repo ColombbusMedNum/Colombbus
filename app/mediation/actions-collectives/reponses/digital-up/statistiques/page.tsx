@@ -4,14 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, orderBy, query } from "firebase/firestore";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import { HomeIcon, ArrowLeftIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 interface Apprenant {
   id: string;

@@ -22,7 +22,7 @@ import {
   ChevronDownIcon, HomeIcon, ClockIcon, WrenchScrewdriverIcon, DevicePhoneMobileIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import type { Mediateur, ActionPlanning } from "../../lib/types";
 import { useConfirm } from "../../components/ConfirmProvider";
 import Accordion from "../../components/Accordion";
@@ -34,12 +34,6 @@ import {
 } from "../../lib/activitesTypes";
 import { regrouperParCategorie } from "../../lib/equipeCategories";
 import { estActionDuMediateur } from "../../lib/matchMediateur";
-
-// Police Quicksand conforme à la charte
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"]
-});
 
 interface NotificationItem {
   id: string;

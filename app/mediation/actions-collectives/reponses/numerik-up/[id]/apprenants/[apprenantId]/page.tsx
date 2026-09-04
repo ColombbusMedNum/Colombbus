@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, setDoc, arrayUnion } from "firebase/firestore";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import {
   HomeIcon,
   ArrowLeftIcon,
@@ -31,11 +31,6 @@ import {
 import PageGuard from "@/components/PageGuard";
 import { formatPhoneNumber, formatPhoneForStorage } from "@/lib/formatPhone";
 import { formatNom, formatPrenom } from "@/lib/formatName";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 interface AbsenceRecord {
   date: string;

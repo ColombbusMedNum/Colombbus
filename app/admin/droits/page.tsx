@@ -8,7 +8,7 @@ import { usePermissions } from "../../../lib/PermissionsProvider";
 import { useMediateurs } from "../../../lib/MediateursProvider";
 import PageGuard from "../../../components/PageGuard";
 import { useToast } from "../../../components/ToastProvider";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import {
   ShieldCheckIcon,
   UserGroupIcon,
@@ -17,11 +17,6 @@ import {
   Cog6ToothIcon,
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 // La matrice de droits par action/page a été fusionnée dans /mediation/analyse, qui est
 // désormais la seule source éditée et lue (collection Firestore

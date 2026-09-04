@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import { auth, db } from "@/lib/firebase";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, where } from "firebase/firestore";
@@ -16,11 +16,6 @@ import {
   EnvelopeIcon, LockClosedIcon, EyeIcon, EyeSlashIcon, ShieldExclamationIcon,
   ArrowRightEndOnRectangleIcon, ChevronLeftIcon, ChevronRightIcon, ArrowRightStartOnRectangleIcon,
 } from "@heroicons/react/24/outline";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 const JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 

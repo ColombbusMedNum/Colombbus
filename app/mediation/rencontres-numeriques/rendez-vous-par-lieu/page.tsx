@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { db } from "@/lib/firebase";
 import { collection, collectionGroup, getDocs, onSnapshot } from "firebase/firestore";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import { 
   ChevronLeftIcon, 
   MapPinIcon, 
@@ -20,12 +20,6 @@ import {
   XCircleIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
-
-// Police Quicksand pour l'ensemble de la page
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 // --- TYPES ---
 interface VisiteBrute {

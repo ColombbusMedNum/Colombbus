@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import { 
   HomeIcon,
   MapPinIcon,
@@ -30,12 +30,6 @@ import {
   ExclamationTriangleIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
-
-// Initialisation de la police Quicksand
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 interface Lieu {
   id: string;

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { addDoc, collection, doc, getDoc, serverTimestamp } from "firebase/firestore";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import { HomeIcon, ArrowLeftIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { useToast } from "@/components/ToastProvider";
@@ -13,11 +13,6 @@ import PrescripteurAutocomplete from "@/components/PrescripteurAutocomplete";
 import { chargerPrescripteurs, upsertPrescripteur } from "@/lib/prescripteurs";
 import { formatNom, formatPrenom } from "@/lib/formatName";
 import { formatPhoneForStorage } from "@/lib/formatPhone";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 interface Parcours {
   id: string;

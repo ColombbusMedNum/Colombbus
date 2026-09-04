@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import {
   ArrowLeftIcon,
   AcademicCapIcon,
@@ -14,11 +14,6 @@ import Link from "next/link";
 import PageGuard from "@/components/PageGuard";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import { getTerritoryColor } from "@/lib/territoryColor";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 export default function SuiviCompetences() {
   // Depuis la migration vers la collection configuration_equipe, liste_mediateurs

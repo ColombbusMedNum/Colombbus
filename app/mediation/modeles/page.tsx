@@ -6,7 +6,7 @@ import {
   collection, onSnapshot, query, orderBy, addDoc,
   deleteDoc, doc, getDocs, where, updateDoc,
 } from "firebase/firestore";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import {
   PlusIcon, PencilSquareIcon, TrashIcon, HomeIcon,
   CalendarDaysIcon, ClockIcon, UsersIcon, LockClosedIcon,
@@ -23,11 +23,6 @@ import {
   type ActiviteType, BLOCS_THEMATIQUES,
   genererCreneauxPourModele, estimerNombreCreneaux, formatDateFrCourt, estModeleProtege,
 } from "@/lib/activitesTypes";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 const ACTIVITE_VIDE: ActiviteType = {
   lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "",

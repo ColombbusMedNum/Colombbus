@@ -1,14 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import { HomeIcon, ArrowLeftIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 // Page Actions Collectives affichant un Google Form public (lien "viewform",
 // jamais le lien "/edit" du propriétaire) intégré en iframe, avec un lien de

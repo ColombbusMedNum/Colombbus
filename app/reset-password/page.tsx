@@ -2,16 +2,11 @@
 
 import React, { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import { auth } from "../../lib/firebase";
 import { verifyPasswordResetCode, confirmPasswordReset } from "firebase/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LockClosedIcon, ShieldExclamationIcon, CheckCircleIcon, KeyIcon, EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 // Page d'activation / réinitialisation de mot de passe, appelée directement
 // par le lien envoyé par sendPasswordResetEmail (voir app/login/page.tsx et

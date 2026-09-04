@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import { UserIcon, HomeIcon, CalendarDaysIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import PageGuard from "@/components/PageGuard";
 import MediateurAnalyticsPanel from "@/components/MediateurAnalyticsPanel";
 import MediateurActionsParMois from "@/components/MediateurActionsParMois";
@@ -13,12 +13,6 @@ import { useAnalyticsSummary } from "@/lib/useAnalyticsSummary";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import { usePermissions } from "@/lib/PermissionsProvider";
 import { estActionDuMediateur } from "@/lib/matchMediateur";
-
-// Police Quicksand pour toute la page
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 function normaliser(texte: string): string {
   return texte.trim().toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");

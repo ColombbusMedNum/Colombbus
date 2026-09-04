@@ -2,13 +2,8 @@
 
 import { ReactNode } from "react";
 import { LockClosedIcon } from "@heroicons/react/24/outline";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import { usePermissions } from "../lib/PermissionsProvider";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 // Protège l'accès à une page entière (à la place d'un simple bouton/lien) :
 // affiche un écran "Accès Refusé" si le rôle de l'utilisateur connecté n'a pas
