@@ -4,22 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, collectionGroup, getDocs } from "firebase/firestore";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import PageGuard from "@/components/PageGuard";
 import { formatPhoneNumber } from "@/lib/formatPhone";
+import { lireNom, lirePrenom, lireTelephone } from "@/lib/beneficiaireFields";
 import {
   HomeIcon,
   ArrowLeftIcon,
   ArrowDownTrayIcon,
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
-
-// Police Quicksand pour toute la page
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 const CODE_POSTAL_SURESNES = "92150";
 
@@ -130,8 +125,8 @@ export default function ListeBeneficiairesSuresnes() {
           })
           .filter(({ codePostal }) => codePostal === CODE_POSTAL_SURESNES)
           .map(({ id, userData, codePostal }) => {
-            const nom = userData.Nom || userData.nom || "";
-            const prenom = userData.Prénom || userData.prénom || userData.Prenom || userData.prenom || "";
+            const nom = lireNom(userData);
+            const prenom = lirePrenom(userData);
             const docsVisites = visitesParUtilisateur.get(id) || [];
 
             // La première visite doit correspondre à une venue effective : on
@@ -168,7 +163,7 @@ export default function ListeBeneficiairesSuresnes() {
               nom,
               prenom,
               codePostal,
-              telephone: userData.Téléphone || userData.telephone || "",
+              telephone: lireTelephone(userData),
               age: userData.Age || userData.age || calculerAge(userData.Date_Naissance) || "",
               // Le type de visite (Domicile/Suresnes) de la 1ère venue est
               // fondu directement dans le lieu d'accueil plutôt que d'avoir

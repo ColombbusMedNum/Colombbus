@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, doc, getDoc, updateDoc, setDoc, deleteDoc, writeBatch } from "firebase/firestore";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import { 
   UserPlusIcon,
   PencilSquareIcon,
@@ -34,11 +34,6 @@ import { formatPhoneNumber } from "@/lib/formatPhone";
 import { getTerritoryColor } from "@/lib/territoryColor";
 import Accordion from "@/components/Accordion";
 import { regrouperParCategorie } from "@/lib/equipeCategories";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 // Les deux fonctions ci-dessous acceptent aussi bien les ids canoniques
 // (lib/roles.ts) que d'anciennes valeurs ("Mediateur", "CoordinateurProjet"...)

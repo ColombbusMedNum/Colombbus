@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import type { ComponentType, SVGProps } from "react";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
@@ -39,11 +39,6 @@ import {
   FingerPrintIcon,
   ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 type Accent = "teal" | "orange";
 type IconType = ComponentType<SVGProps<SVGSVGElement>>;
@@ -187,6 +182,13 @@ const NAV_TREE: NavNode[] = [
           { id: "stats-glob", kind: "leaf", accent: "orange", icon: ChartBarIcon, title: "Bilan & Stats Globaux", subtitle: "Consulter les rapports et indicateurs transversaux de la plateforme", actionId: "home_nav_stats_glob", href: "/mediation/statistiques" },
           { id: "bilan-suresnes", kind: "leaf", accent: "teal", icon: BuildingOfficeIcon, title: "Analyse par Territoire", subtitle: "Édition et étude du bilan d'impact annuel du Relais Numérique", actionId: "home_nav_bilan_suresnes", href: "/mediation/bilan-suresnes" },
           { id: "volume-horaire", kind: "leaf", accent: "orange", icon: ClockIcon, title: "Volume Horaire", subtitle: "Analyser le temps de travail et coûts RH", actionId: "home_nav_volume_horaire", href: "/mediation/volume-horaire" },
+        ],
+      },
+      {
+        id: "parametres-admin", kind: "folder", accent: "orange", icon: Cog6ToothIcon,
+        title: "Paramètres", subtitle: "Connexions, droits, signalements et réglages variables",
+        actionId: "home_folder_parametres",
+        children: [
           { id: "journal-connexions", kind: "leaf", accent: "teal", icon: FingerPrintIcon, title: "Journal des Connexions", subtitle: "Qui s'est connecté, quand, et combien de temps", actionId: "home_nav_journal_connexions", href: "/mediation/journal-connexions" },
           { id: "signalements", kind: "leaf", accent: "orange", icon: ExclamationTriangleIcon, title: "Signalements de Bugs", subtitle: "Problèmes remontés via le bouton \"B\" (admin)", actionId: "home_nav_signalements", href: "/mediation/signalements" },
           { id: "admin-droits", kind: "leaf", accent: "teal", icon: CpuChipIcon, title: "Gérer les Droits", subtitle: "Matrice de sécurité et modification des rôles de l'équipe", actionId: "home_nav_admin_droits", href: "/mediation/analyse" },
@@ -202,10 +204,17 @@ const NAV_TREE: NavNode[] = [
 // d'Ariane des dossiers parents — sert à la barre de recherche : peu importe
 // la profondeur où se trouve une page dans NAV_TREE, elle est trouvable
 // directement sans naviguer dossier par dossier.
-interface PageIndexee { node: LeafNode; chemin: string[] }
-function aplatirNavTree(nodes: NavNode[], chemin: string[] = []): PageIndexee[] {
+// actionIdsParents : actionId de chaque dossier ancêtre, pour que la
+// recherche vérifie aussi ces droits — sinon une page dont le droit propre
+// est accordé mais dont un dossier parent ne l'est pas (incohérence de
+// configuration, ex. rôle ACI avant nettoyage) remontait quand même dans les
+// résultats de recherche alors qu'elle est invisible en navigation normale.
+interface PageIndexee { node: LeafNode; chemin: string[]; actionIdsParents: string[] }
+function aplatirNavTree(nodes: NavNode[], chemin: string[] = [], actionIdsParents: string[] = []): PageIndexee[] {
   return nodes.flatMap((node) =>
-    node.kind === "leaf" ? [{ node, chemin }] : aplatirNavTree(node.children, [...chemin, node.title])
+    node.kind === "leaf"
+      ? [{ node, chemin, actionIdsParents }]
+      : aplatirNavTree(node.children, [...chemin, node.title], [...actionIdsParents, node.actionId])
   );
 }
 const PAGES_INDEXEES = aplatirNavTree(NAV_TREE);
@@ -339,7 +348,7 @@ export default function HomePage() {
     const q = normaliserRecherche(recherche.trim());
     if (!q) return [];
     return PAGES_INDEXEES
-      .filter(({ node }) => can(node.actionId))
+      .filter(({ node, actionIdsParents }) => can(node.actionId) && actionIdsParents.every((id) => can(id)))
       .filter(({ node, chemin }) => normaliserRecherche(`${node.title} ${node.subtitle} ${chemin.join(" ")}`).includes(q))
       .slice(0, 8);
   }, [recherche, can]);

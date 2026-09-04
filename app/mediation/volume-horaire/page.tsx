@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot } from "firebase/firestore";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import {
   HomeIcon,
   ClockIcon,
@@ -23,12 +23,6 @@ import { usePermissions } from "@/lib/PermissionsProvider";
 import { calculerHeuresComplementairesACI, repartirHeuresSansChevauchement } from "@/lib/planningHours";
 import { identifiantMediateur } from "@/lib/matchMediateur";
 import { getTerritoryColor } from "@/lib/territoryColor";
-
-// Police Quicksand pour toute la page
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 const MOIS = [
   { value: "01", label: "Janvier" }, { value: "02", label: "Février" }, { value: "03", label: "Mars" },

@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { db } from "@/lib/firebase"; 
 import { doc, getDoc, collection, addDoc } from "firebase/firestore";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import { 
   ArrowLeftIcon, 
   CheckCircleIcon, 
@@ -18,13 +18,8 @@ import {
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
+import { lireNom, lirePrenom } from "@/lib/beneficiaireFields";
 import { useToast } from "@/components/ToastProvider";
-
-// Initialisation de la police Quicksand
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 // --- RÉFÉRENTIEL DES QUESTIONS DU QCM ---
 const QUESTIONS_BUREAUTIQUE = [
@@ -99,8 +94,8 @@ function FormulaireDiagnosticContent() {
         if (docSnap.exists()) {
           const data = docSnap.data();
           setUsager({
-            nom: (data.Nom || "").toUpperCase(),
-            prenom: data.Prénom || data.prenom || ""
+            nom: lireNom(data).toUpperCase(),
+            prenom: lirePrenom(data)
           });
         }
       } catch (err) {

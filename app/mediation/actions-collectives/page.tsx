@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import {
   HomeIcon,
   PlusIcon,
@@ -20,11 +20,6 @@ import PageGuard from "@/components/PageGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { useToast } from "@/components/ToastProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 // Interfaces pour la structure Lieu > Trimestre
 interface TrimestreStats {

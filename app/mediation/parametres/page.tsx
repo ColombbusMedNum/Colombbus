@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot, setDoc, getDoc, deleteDoc } from "firebase/firestore";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import {
   HomeIcon,
   Cog6ToothIcon,
@@ -15,11 +15,6 @@ import {
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { useToast } from "@/components/ToastProvider";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 const JOURS_SEMAINE = [
   { key: "lundi", label: "Lundi" },

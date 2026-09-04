@@ -8,13 +8,14 @@ import { useToast } from "@/components/ToastProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import { usePermissions } from "@/lib/PermissionsProvider";
+import { lireNom, lirePrenom, lireTelephone } from "@/lib/beneficiaireFields";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import Accordion from "@/components/Accordion";
 import {
   collection, onSnapshot, query, orderBy, updateDoc, doc, addDoc, deleteDoc, collectionGroup, serverTimestamp, getDocs, where
 } from "firebase/firestore";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import { 
   ExclamationTriangleIcon, 
   ChevronLeftIcon, 
@@ -35,12 +36,6 @@ import {
   XCircleIcon,
   Cog6ToothIcon
 } from "@heroicons/react/24/outline";
-
-// Initialisation de la police Quicksand
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 // Vocabulaire fixe du <select> Thématique ci-dessous — une valeur importée
 // (texte libre du fichier Google Forms) qui n'y figure pas doit être ajoutée
@@ -210,12 +205,11 @@ export default function PlanningSuresnes() {
       setBeneficiaires(
         snap.docs.map(d => {
           const data = d.data();
-          const phone = data.Téléphone || data.telephone || data.Telephone || "Non renseigné";
           return {
             id: d.id,
-            nom: (data.Nom || "").trim(),
-            prenom: (data.Prénom || data.prenom || "").trim(),
-            telephone: phone,
+            nom: lireNom(data).trim(),
+            prenom: lirePrenom(data).trim(),
+            telephone: lireTelephone(data) || "Non renseigné",
             sexe: data.Sexe || data.sexe || "Non renseigné",
             statutBlacklist: data.Statut_Blacklist || "Non",
             lieuRDV: data.Lieu_RDV || data.lieuRDV || ""

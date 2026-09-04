@@ -5,14 +5,10 @@ import { db } from "@/lib/firebase";
 import { collection, doc, updateDoc, getDocs, addDoc } from "firebase/firestore";
 import { ChevronLeftIcon, ArrowDownTrayIcon, UserGroupIcon, HomeIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import PageGuard from "@/components/PageGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
-
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
+import { lireNom, lirePrenom, lireTelephone } from "@/lib/beneficiaireFields";
 
 interface BeneficiaireCollecte {
   id: string;
@@ -88,9 +84,9 @@ export default function SuiviCollecteTech() {
             listeTemporaire.push({
               id: userDoc.id,
               annee: anneeExtraite,
-              nom: userData.Nom || "—",
-              prenom: userData.Prénom || "—",
-              telephone: userData.Téléphone || userData.telephone || "—",
+              nom: lireNom(userData) || "—",
+              prenom: lirePrenom(userData) || "—",
+              telephone: lireTelephone(userData) || "—",
               email: userData.email || userData.Email || "—",
               creationDossier: !!userData.creationDossier,
               testEntreeForm: !!userData.testEntreeForm,

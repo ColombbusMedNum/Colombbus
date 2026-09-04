@@ -2,16 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, collectionGroup, getDocs, query, where, updateDoc, doc } from "firebase/firestore";
+import { collection, collectionGroup, getDocs, query, where, updateDoc, doc, writeBatch } from "firebase/firestore";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import PageGuard from "@/components/PageGuard";
 import Accordion from "@/components/Accordion";
 import { useToast } from "@/components/ToastProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { formatPhoneNumber } from "@/lib/formatPhone";
+import { lireNom, lirePrenom, lireTelephone } from "@/lib/beneficiaireFields";
 import {
   MagnifyingGlassIcon,
   UserPlusIcon,
@@ -19,14 +20,10 @@ import {
   ArrowTopRightOnSquareIcon,
   UserGroupIcon,
   CalendarDaysIcon,
-  NoSymbolIcon
+  NoSymbolIcon,
+  ArrowsPointingInIcon,
+  XMarkIcon
 } from "@heroicons/react/24/outline";
-
-// Police Quicksand pour toute la page
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 export default function ListeBeneficiaires() {
   const { showToast } = useToast();
@@ -38,6 +35,16 @@ export default function ListeBeneficiaires() {
   const [loading, setLoading] = useState(true);
   const [lettresOuvertes, setLettresOuvertes] = useState<Set<string>>(new Set());
   const router = useRouter();
+
+  // Fusion de doublons (voir handleFusionner) : mode sélection (max 2 fiches
+  // à la fois), modale de choix de la fiche conservée, réservé aux
+  // administrateurs (benef_merge) puisque la fiche non conservée est
+  // définitivement supprimée après déplacement de son historique.
+  const [modeSelectionFusion, setModeSelectionFusion] = useState(false);
+  const [selectionFusion, setSelectionFusion] = useState<string[]>([]);
+  const [survivantChoisi, setSurvivantChoisi] = useState<string | null>(null);
+  const [fusionModalOuvert, setFusionModalOuvert] = useState(false);
+  const [fusionEnCours, setFusionEnCours] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -85,9 +92,8 @@ export default function ListeBeneficiaires() {
         let datePremierRDV = "—";
         let nbVisitesPresent = 0;
 
-        // Extraction tolérante aux majuscules/accents
-        const nom = userData.Nom || userData.nom || "";
-        const prenom = userData.Prénom || userData.prénom || userData.Prenom || userData.prenom || "";
+        const nom = lireNom(userData);
+        const prenom = lirePrenom(userData);
 
         const docsVisites = visitesParUtilisateur.get(docSnap.id) || [];
         if (docsVisites.length > 0) {
@@ -160,6 +166,141 @@ export default function ListeBeneficiaires() {
   const handleCreerNouveau = () => {
     const nouvelId = "user_" + Math.random().toString(36).substring(2, 11);
     router.push(`/mediation/rencontres-numeriques/liste-beneficiaires/${nouvelId}`);
+  };
+
+  const toggleModeSelectionFusion = () => {
+    setModeSelectionFusion((v) => !v);
+    setSelectionFusion([]);
+    setSurvivantChoisi(null);
+    setFusionModalOuvert(false);
+  };
+
+  const toggleSelectionFusion = (id: string) => {
+    setSelectionFusion((prev) => {
+      if (prev.includes(id)) {
+        const next = prev.filter((x) => x !== id);
+        setSurvivantChoisi((s) => (s === id ? null : s));
+        return next;
+      }
+      if (prev.length >= 2) return prev;
+      const next = [...prev, id];
+      // Présélectionne par défaut la fiche ayant le plus de visites comme
+      // fiche conservée, une fois les 2 sélectionnées — modifiable dans la modale.
+      if (next.length === 2) {
+        const [a, b] = next.map((bid) => beneficiaires.find((x) => x.id === bid));
+        if (a && b) setSurvivantChoisi(a.totalVisites >= b.totalVisites ? a.id : b.id);
+      }
+      return next;
+    });
+  };
+
+  // Fusionne deux fiches en doublon : l'historique (visites, fiches_bilan) de
+  // la fiche non conservée est déplacé sous la fiche conservée, ses champs
+  // vides sont complétés (jamais écrasés) avec ceux de la fiche non conservée,
+  // puis celle-ci est définitivement supprimée. Best-effort et non bloquant :
+  // les créneaux Suresnes déjà posés au nom de la fiche supprimée (simple
+  // texte, pas une référence d'ID — voir planning_suresnes.usager) sont
+  // repointés vers le nom conservé quand les noms diffèrent.
+  const handleFusionner = async () => {
+    if (selectionFusion.length !== 2 || !survivantChoisi) return;
+    const perdantId = selectionFusion.find((id) => id !== survivantChoisi);
+    const survivant = beneficiaires.find((b) => b.id === survivantChoisi);
+    const perdant = beneficiaires.find((b) => b.id === perdantId);
+    if (!perdantId || !survivant || !perdant) return;
+
+    const ok = await confirm(
+      `Fusionner "${perdant.prenomAffiche} ${perdant.nomAffiche}" (${perdant.totalVisites} visite(s)) dans "${survivant.prenomAffiche} ${survivant.nomAffiche}" (${survivant.totalVisites} visite(s)) ? L'historique sera déplacé, mais la fiche non conservée sera définitivement supprimée. Cette action est irréversible.`
+    );
+    if (!ok) return;
+
+    setFusionEnCours(true);
+    try {
+      const [visitesPerdant, fichesBilanPerdant] = await Promise.all([
+        getDocs(collection(db, "utilisateurs", perdantId, "visites")),
+        getDocs(collection(db, "utilisateurs", perdantId, "fiches_bilan")),
+      ]);
+
+      const batch = writeBatch(db);
+
+      visitesPerdant.docs.forEach((docSnap) => {
+        batch.set(doc(collection(db, "utilisateurs", survivantChoisi, "visites")), docSnap.data());
+        batch.delete(docSnap.ref);
+      });
+      fichesBilanPerdant.docs.forEach((docSnap) => {
+        batch.set(doc(collection(db, "utilisateurs", survivantChoisi, "fiches_bilan")), docSnap.data());
+        batch.delete(docSnap.ref);
+      });
+
+      const completion: Record<string, any> = {};
+
+      // Téléphone traité à part : certaines fiches (import en masse, création
+      // rapide depuis Suresnes sans numéro connu) stockent un numéro factice
+      // du type "0000000000" au lieu d'un champ vide — un tel numéro ne doit
+      // jamais être préféré à un vrai numéro trouvé sur l'autre fiche, même si
+      // la fiche conservée a "déjà" une valeur dans ce champ. Couvre aussi la
+      // 3e variante de casse "Telephone" (sans accent) lue en repli ailleurs
+      // dans l'app (voir suresnes/page.tsx).
+      const estTelephonePlaceholder = (v: any) => {
+        if (v === undefined || v === null || v === "") return true;
+        const chiffres = String(v).replace(/\D/g, "");
+        return chiffres === "" || /^0+$/.test(chiffres);
+      };
+      ["Téléphone", "telephone", "Telephone"].forEach((champ) => {
+        const valeurSurvivant = survivant[champ];
+        const valeurPerdant = perdant[champ];
+        if (estTelephonePlaceholder(valeurSurvivant) && !estTelephonePlaceholder(valeurPerdant)) {
+          completion[champ] = valeurPerdant;
+        }
+      });
+
+      const champsACompleter = [
+        "email", "Email", "Adresse_Rue", "Ville", "Code_Postal",
+        "Date_Naissance", "Situation_Socio_Pro", "Situation_Handicap", "RQTH", "QPV",
+        "Sexe", "sexe", "Civilité", "Lieu_RDV", "lieuRDV", "Date_Adhesion",
+      ];
+      champsACompleter.forEach((champ) => {
+        const valeurSurvivant = survivant[champ];
+        const valeurPerdant = perdant[champ];
+        const survivantVide = valeurSurvivant === undefined || valeurSurvivant === null || valeurSurvivant === "";
+        const perdantRenseigne = valeurPerdant !== undefined && valeurPerdant !== null && valeurPerdant !== "";
+        if (survivantVide && perdantRenseigne) completion[champ] = valeurPerdant;
+      });
+      if (Object.keys(completion).length > 0) {
+        batch.update(doc(db, "utilisateurs", survivantChoisi), completion);
+      }
+
+      batch.delete(doc(db, "utilisateurs", perdantId));
+
+      await batch.commit();
+
+      const nomPerdant = `${perdant.prenomAffiche.trim()} ${perdant.nomAffiche.trim().toUpperCase()}`;
+      const nomSurvivant = `${survivant.prenomAffiche.trim()} ${survivant.nomAffiche.trim().toUpperCase()}`;
+      if (nomPerdant && nomPerdant !== nomSurvivant) {
+        try {
+          const qCreneaux = query(collection(db, "planning_suresnes"), where("usager", "==", nomPerdant));
+          const creneauxSnap = await getDocs(qCreneaux);
+          if (!creneauxSnap.empty) {
+            const batchRenommage = writeBatch(db);
+            creneauxSnap.docs.forEach((c) => batchRenommage.update(c.ref, { usager: nomSurvivant }));
+            await batchRenommage.commit();
+          }
+        } catch (err) {
+          console.error("Erreur lors du repointage des créneaux Suresnes :", err);
+        }
+      }
+
+      showToast("Fiches fusionnées avec succès.", "success");
+      setModeSelectionFusion(false);
+      setSelectionFusion([]);
+      setSurvivantChoisi(null);
+      setFusionModalOuvert(false);
+      await fetchData();
+    } catch (error) {
+      console.error("Erreur lors de la fusion :", error);
+      showToast("Une erreur est survenue pendant la fusion.", "error");
+    } finally {
+      setFusionEnCours(false);
+    }
   };
 
   // Filtrage robuste
@@ -287,7 +428,7 @@ export default function ListeBeneficiaires() {
               </Link>
             </PermissionGuard>
 
-            <PermissionGuard actionId="page_access_bilan_suresnes">
+            <PermissionGuard actionId="benef_nav_bilan_suresnes">
               <Link
                 href="/mediation/bilan-suresnes"
                 className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
@@ -317,8 +458,8 @@ export default function ListeBeneficiaires() {
 
             {/* BOUTON CRÉER BÉNÉFICIAIRE (PROTÉGÉ) */}
             <PermissionGuard actionId="benef_create_new">
-              <button 
-                onClick={handleCreerNouveau} 
+              <button
+                onClick={handleCreerNouveau}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md active:scale-95 group"
               >
                 <UserPlusIcon className="w-4 h-4 transition-transform group-hover:scale-110" />
@@ -326,8 +467,50 @@ export default function ListeBeneficiaires() {
               </button>
             </PermissionGuard>
 
+            {/* FUSION DE DOUBLONS (RÉSERVÉ AUX ADMINS) */}
+            <PermissionGuard actionId="benef_merge">
+              <button
+                onClick={toggleModeSelectionFusion}
+                title="Sélectionner deux fiches en doublon à fusionner"
+                className={`inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-sm active:scale-95 ${
+                  modeSelectionFusion ? "bg-[#005259] text-white" : "bg-white border border-[#404040]/10 text-[#005259] hover:bg-[#005259] hover:text-white"
+                }`}
+              >
+                <ArrowsPointingInIcon className="w-4 h-4" />
+                <span>{modeSelectionFusion ? "Annuler la fusion" : "Fusionner des doublons"}</span>
+              </button>
+            </PermissionGuard>
+
           </div>
         </div>
+
+        {/* BARRE DE SÉLECTION POUR LA FUSION */}
+        {modeSelectionFusion && (
+          <div className="flex items-center justify-between gap-4 bg-[#005259] text-white p-3.5 rounded-2xl shadow-sm">
+            <span className="text-xs font-bold uppercase tracking-wide">
+              {selectionFusion.length === 0 && "Cochez 2 fiches en doublon dans la liste ci-dessous."}
+              {selectionFusion.length === 1 && "1 fiche sélectionnée — choisissez-en une deuxième."}
+              {selectionFusion.length === 2 && "2 fiches sélectionnées, prêtes à être fusionnées."}
+            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setSelectionFusion([])}
+                disabled={selectionFusion.length === 0}
+                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Vider la sélection
+              </button>
+              <button
+                onClick={() => setFusionModalOuvert(true)}
+                disabled={selectionFusion.length !== 2}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#EA601F] hover:bg-white hover:text-[#EA601F] rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#EA601F] disabled:hover:text-white"
+              >
+                <ArrowsPointingInIcon className="w-3.5 h-3.5" />
+                Fusionner
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* BARRE DE RECHERCHE */}
         <PermissionGuard actionId="benef_search">
@@ -457,8 +640,19 @@ export default function ListeBeneficiaires() {
                         const civilite = b.Civilité ? `${b.Civilité} ` : "";
 
                         return (
-                          <tr key={b.id} className={`hover:bg-[#F3F3F2]/60 transition-colors group ${isBlackliste ? "bg-[#EF736A]/10" : ""}`}>
+                          <tr key={b.id} className={`hover:bg-[#F3F3F2]/60 transition-colors group ${isBlackliste ? "bg-[#EF736A]/10" : ""} ${selectionFusion.includes(b.id) ? "bg-[#005259]/5" : ""}`}>
                             <td className="px-6 py-4">
+                              <div className="flex items-start gap-3">
+                                {modeSelectionFusion && (
+                                  <input
+                                    type="checkbox"
+                                    checked={selectionFusion.includes(b.id)}
+                                    disabled={!selectionFusion.includes(b.id) && selectionFusion.length >= 2}
+                                    onChange={() => toggleSelectionFusion(b.id)}
+                                    className="w-4 h-4 mt-1 accent-[#005259] cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 shrink-0"
+                                  />
+                                )}
+                                <div>
                               <div className={`font-bold text-base tracking-tight uppercase transition-colors ${isBlackliste ? "text-[#EF736A] line-through" : "text-[#005259] group-hover:text-[#EA601F]"}`}>
                                 <span className="text-[#404040]/60 font-normal normal-case text-xs mr-1">{civilite}</span>
                                 {b.nomAffiche || "SANS NOM"}
@@ -481,11 +675,13 @@ export default function ListeBeneficiaires() {
                                   </span>
                                 )}
                               </div>
+                                </div>
+                              </div>
                             </td>
 
                             <td className="px-6 py-4 hidden md:table-cell">
                               <div className="text-xs font-medium text-[#404040]">
-                                {formatPhoneNumber(b.Téléphone || b.telephone)}
+                                {formatPhoneNumber(lireTelephone(b))}
                               </div>
                               <div className="text-xs text-[#404040]/60 truncate max-w-[220px] mt-0.5">
                                 {b.email || b.Email || "—"}
@@ -581,6 +777,84 @@ export default function ListeBeneficiaires() {
         </div>
 
       </div>
+
+      {/* POP-UP : CHOIX DE LA FICHE CONSERVÉE AVANT FUSION */}
+      {fusionModalOuvert && selectionFusion.length === 2 && (() => {
+        const [fiche1, fiche2] = selectionFusion.map((id) => beneficiaires.find((b) => b.id === id)).filter(Boolean) as any[];
+        if (!fiche1 || !fiche2) return null;
+
+        const CarteFiche = ({ fiche }: { fiche: any }) => {
+          const estSurvivant = survivantChoisi === fiche.id;
+          return (
+            <button
+              type="button"
+              onClick={() => setSurvivantChoisi(fiche.id)}
+              className={`text-left w-full p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                estSurvivant ? "border-[#005259] bg-[#005259]/5" : "border-[#404040]/10 hover:border-[#404040]/25"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-bold text-sm text-[#005259] uppercase">{fiche.prenomAffiche} {fiche.nomAffiche}</span>
+                {estSurvivant && (
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-white bg-[#005259] px-2 py-0.5 rounded">Conservée</span>
+                )}
+              </div>
+              <div className="text-[11px] text-[#404040]/70 space-y-1">
+                <div>📞 {formatPhoneNumber(fiche.Téléphone || fiche.telephone) || "—"}</div>
+                <div>📍 {fiche.Ville || "—"} {fiche.Code_Postal || ""}</div>
+                <div>🗓️ 1er RDV : {fiche.premierRDV}</div>
+                <div>👥 {fiche.totalVisites} visite(s)</div>
+                <div>{fiche.Date_Adhesion?.trim() ? "✅ Adhérent" : "⚠️ Non adhérent"}</div>
+              </div>
+            </button>
+          );
+        };
+
+        return (
+          <div className="fixed inset-0 bg-[#404040]/50 backdrop-blur-sm flex items-center justify-center z-[150] p-4">
+            <div className="bg-white border border-[#404040]/10 p-6 rounded-2xl w-full max-w-lg space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-sm text-[#005259] uppercase tracking-wide flex items-center gap-2">
+                  <ArrowsPointingInIcon className="w-4 h-4 text-[#EA601F]" />
+                  Fusionner ces deux fiches
+                </h3>
+                <button onClick={() => setFusionModalOuvert(false)} className="text-[#404040]/40 hover:text-[#404040] cursor-pointer">
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="text-[11px] text-[#404040]/70">
+                Choisissez la fiche à <span className="font-bold text-[#005259]">conserver</span>. Son historique de visites recevra
+                celui de l'autre fiche, et ses champs vides seront complétés avec les informations de l'autre fiche sans écraser les
+                siens. La fiche non conservée sera <span className="font-bold text-[#EF736A]">définitivement supprimée</span>.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <CarteFiche fiche={fiche1} />
+                <CarteFiche fiche={fiche2} />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setFusionModalOuvert(false)}
+                  className="text-[#404040]/60 hover:text-[#404040] text-xs px-3 cursor-pointer transition-colors font-bold uppercase tracking-wider"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleFusionner}
+                  disabled={!survivantChoisi || fusionEnCours}
+                  className="px-4 py-2 bg-[#EA601F] hover:bg-[#005259] text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {fusionEnCours ? "Fusion en cours..." : "Fusionner"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </main>
     </PageGuard>
   );

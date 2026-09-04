@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, collectionGroup, getDocs } from "firebase/firestore";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import {
   HomeIcon,
   ArrowLeftIcon,
@@ -16,12 +16,7 @@ import {
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import Accordion from "@/components/Accordion";
-
-// Police Quicksand pour toute la page
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
+import { lireNom, lirePrenom } from "@/lib/beneficiaireFields";
 
 // Palette catégorielle des graphiques — dérivée des couleurs de marque
 // (teal/orange) mais recalée en luminosité/chroma pour rester lisible en
@@ -248,8 +243,8 @@ export default function BilanSuresnesPage() {
           // Récupère TOUTES les variantes possibles de clés utilisées pour le genre
           const genreExtrait = data.Genre || data.genre || data.Sexe || data.sexe || data.civility || data.civilite || "";
           return {
-            nom: (data.Nom || data.nom || "").trim().toLowerCase().replace(/\s+/g, " "),
-            prenom: (data.Prénom || data.prenom || "").trim().toLowerCase().replace(/\s+/g, " "),
+            nom: lireNom(data).trim().toLowerCase().replace(/\s+/g, " "),
+            prenom: lirePrenom(data).trim().toLowerCase().replace(/\s+/g, " "),
             genreBrut: genreExtrait.toString().toLowerCase().trim(),
           };
         }));
@@ -390,16 +385,16 @@ export default function BilanSuresnesPage() {
       })
       .filter(({ nbVisites }) => nbVisites > 0)
       .filter(({ b }) => {
-        const nom = (b.Nom || b.nom || "").trim().toLowerCase().replace(/\s+/g, " ");
-        const prenom = (b.Prénom || b.prenom || "").trim().toLowerCase().replace(/\s+/g, " ");
+        const nom = lireNom(b).trim().toLowerCase().replace(/\s+/g, " ");
+        const prenom = lirePrenom(b).trim().toLowerCase().replace(/\s+/g, " ");
         const combinPrenomNom = `${prenom} ${nom}`.trim();
         const combinNomPrenom = `${nom} ${prenom}`.trim();
         return !usagersDansAgenda.has(combinPrenomNom) && !usagersDansAgenda.has(combinNomPrenom);
       })
       .map(({ b, nbVisites }) => ({
         id: b.id,
-        nom: b.Nom || b.nom || "",
-        prenom: b.Prénom || b.prenom || "",
+        nom: lireNom(b),
+        prenom: lirePrenom(b),
         ville: b.Ville || "",
         nbVisites,
       }))

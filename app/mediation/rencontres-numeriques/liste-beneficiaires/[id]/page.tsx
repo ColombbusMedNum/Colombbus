@@ -17,7 +17,7 @@ import {
 } from "firebase/firestore";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Quicksand } from "next/font/google";
+import { quicksand } from "@/lib/fonts";
 import {
   ArrowLeftIcon,
   UserIcon,
@@ -42,14 +42,9 @@ import { PermissionGuard } from "@/components/PermissionGuard";
 import { useToast } from "@/components/ToastProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { formatPhoneNumber } from "@/lib/formatPhone";
+import { lireNom, lirePrenom, lireTelephone } from "@/lib/beneficiaireFields";
 import type { Mediateur } from "@/lib/types";
 import Accordion from "@/components/Accordion";
-
-// Initialisation de la police Quicksand
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
 
 // Fonction pour formater le numéro de téléphone en 00 00 00 00 00
 // --- TYPES & INTERFACES ---
@@ -272,10 +267,17 @@ export default function FicheBeneficiaire() {
     const userRef = doc(db, "utilisateurs", userId);
     const unsubUser = onSnapshot(userRef, (docSnap) => {
       if (docSnap.exists()) {
-        const data = docSnap.data() as Beneficiaire;
+        const dataBrute = docSnap.data() as Beneficiaire;
+        // Normalise Nom/Prénom/Téléphone une seule fois ici : d'anciennes
+        // fiches importées stockent encore ces champs sous une casse
+        // différente (voir lib/beneficiaireFields.ts) — sans ça, ouvrir une
+        // telle fiche affichait un nom/téléphone vide, au risque de
+        // l'enregistrer ainsi par-dessus la vraie valeur en sauvegardant le
+        // profil sans y prêter attention.
+        const data: Beneficiaire = { ...dataBrute, Nom: lireNom(dataBrute), Prénom: lirePrenom(dataBrute), Téléphone: lireTelephone(dataBrute) };
         setUser(data);
         setProfilFormData({
-          Civilité: data.Civilité || "M.", Nom: data.Nom || "", Prénom: data.Prénom || "", Age: data.Age ?? "",
+          Civilité: data.Civilité || "M.", Nom: data.Nom, Prénom: data.Prénom, Age: data.Age ?? "",
           Date_Naissance: data.Date_Naissance || "", Date_Adhesion: data.Date_Adhesion || "",
           Téléphone: data.Téléphone || "", email: data.email || "", Adresse_Rue: data.Adresse_Rue || "",
           Ville: data.Ville || "", Code_Postal: data.Code_Postal || "", Situation_Socio_Pro: data.Situation_Socio_Pro || "",

@@ -37,6 +37,7 @@ const DETAILED_PAGES: PageEntry[] = [
       { id: "home_folder_bilans", nom: "Badge Bilans", type: "button", description: "Déploie le dossier Bilans" },
       { id: "home_folder_lieux", nom: "Badge Lieux", type: "button", description: "Déploie le dossier Lieux" },
       { id: "home_folder_stats", nom: "Badge Statistiques & Bilans", type: "button", description: "Déploie le dossier analytique" },
+      { id: "home_folder_parametres", nom: "Badge Paramètres (Admin)", type: "button", description: "Déploie le dossier Journal des connexions / Signalements / Droits / Paramètres Généraux" },
       { id: "home_nav_liste_benef", nom: "Lien Liste des Bénéficiaires", type: "Link", description: "Accède au répertoire principal des usagers" },
       { id: "home_nav_collectes", nom: "Lien Suivi Collectes Tech", type: "Link", description: "Ouvre le tableau Excel de Collectes Tech" },
       { id: "home_nav_fiche_bilan", nom: "Lien Fiche Bilan", type: "Link", description: "Accède aux fiches de synthèses et bilans" },
@@ -96,6 +97,17 @@ const DETAILED_PAGES: PageEntry[] = [
     actions: [],
   },
   {
+    pageId: "page_access_reset_password",
+    pageName: "Réinitialisation du mot de passe",
+    route: "/reset-password",
+    filePath: "app/reset-password/page.tsx",
+    // Même raison que page_access_login ci-dessus : reçoit le lien envoyé par
+    // e-mail avant toute connexion, donc jamais gaté par <PageGuard> (middleware.ts
+    // la liste explicitement parmi les pages publiques). Catalogué uniquement
+    // pour apparaître dans /mediation/analyse — le toggle n'y a aucun effet réel.
+    actions: [],
+  },
+  {
     pageId: "page_access_liste_beneficiaires",
     pageName: "Liste des Bénéficiaires",
     route: "/mediation/rencontres-numeriques/liste-beneficiaires",
@@ -112,6 +124,8 @@ const DETAILED_PAGES: PageEntry[] = [
       { id: "benef_action_toggle_blacklist", nom: "Bouton Blacklist/Reclasser direct", type: "button", description: "Modifie l'état de blacklistage dans la liste" },
       { id: "benef_action_open", nom: "Bouton Ouvrir Fiche", type: "Link", description: "Navigue vers le profil du bénéficiaire" },
       { id: "benef_nav_suresnes_liste", nom: "Lien Bénéficiaires Suresnes", type: "Link", description: "Accède à la liste des bénéficiaires de Suresnes (92150) triée par 1ère visite" },
+      { id: "benef_nav_bilan_suresnes", nom: "Lien Analyse par Territoire", type: "Link", description: "Accède au bilan d'impact Suresnes depuis la liste des bénéficiaires" },
+      { id: "benef_merge", nom: "Fusionner des fiches en doublon", type: "button", description: "Sélectionne deux fiches et les fusionne (historique de visites déplacé, fiche non conservée supprimée) — réservé aux administrateurs" },
       // benef_nav_localisations ("Lien Ajouter un lieu") retiré : ce lien
       // n'existe plus dans app/.../liste-beneficiaires/page.tsx (audit droits).
     ],
@@ -281,10 +295,19 @@ const PAGE_ONLY_ROUTES: Omit<PageEntry, "actions">[] = [
   { pageId: "page_access_notifications", pageName: "Notifications", route: "/mediation/notifications", filePath: "app/mediation/notifications/page.tsx" },
   { pageId: "page_access_bibliotheque_logos", pageName: "Bibliothèque de logos", route: "/mediation/bibliotheque-logos", filePath: "app/mediation/bibliotheque-logos/page.tsx" },
   { pageId: "page_access_guide", pageName: "Mode d'emploi", route: "/mediation/guide", filePath: "app/mediation/guide/page.tsx" },
-  { pageId: "page_access_actions_collectives_accueil", pageName: "Actions Collectives (Accueil)", route: "/mediation/actions-collectives/accueil", filePath: "app/mediation/actions-collectives/accueil/page.tsx" },
+  // Ne correspond pas à une page unique : réutilisé tel quel par ~34 routes
+  // Digital'UP/Numérik'UP/NUMERIK PRO (inscription, réponses, suivi,
+  // statistiques, participants) via les composants partagés ci-dessous —
+  // route/filePath pointent donc sur un exemple représentatif, pas une
+  // page réelle "/accueil" (qui n'existe pas).
+  { pageId: "page_access_actions_collectives_accueil", pageName: "Actions Collectives (Accueil)", route: "/mediation/actions-collectives/participants (+ ~30 autres routes)", filePath: "app/mediation/actions-collectives/_components/HubActionsCollectives.tsx (et al.)" },
   { pageId: "page_access_agenda_historique", pageName: "Historique de l'Agenda", route: "/agenda/historique", filePath: "app/agenda/historique/page.tsx" },
   { pageId: "page_access_agenda_mois", pageName: "Agenda — Vue Mois", route: "/agenda/mois", filePath: "app/agenda/mois/page.tsx" },
   { pageId: "page_access_agenda_mobile", pageName: "Agenda — Mon Planning (Mobile)", route: "/agenda/mobile", filePath: "app/agenda/mobile/page.tsx" },
+  // Jamais gatée par <PageGuard> : conçue pour être vue par n'importe quel
+  // membre du staff connecté, peu importe son rôle (son propre planning
+  // personnel) — catalogué uniquement pour apparaître dans /mediation/analyse.
+  { pageId: "page_access_planning", pageName: "Mon Planning (Connexion directe)", route: "/planning", filePath: "app/planning/page.tsx" },
   { pageId: "page_access_parametres", pageName: "Paramètres Généraux", route: "/mediation/parametres", filePath: "app/mediation/parametres/page.tsx" },
 ];
 
@@ -327,13 +350,13 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   }, {} as Record<string, boolean>),
 
   mediateur: {
-    page_access_home: true, page_access_login: true, page_access_liste_beneficiaires: true,
+    page_access_home: true, page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_liste_beneficiaires: true,
     page_access_fiche_beneficiaire: true, page_access_diagnosticform: true, page_access_actions_collectives: true, page_access_actions_collectives_accueil: true,
     page_access_agenda: true, page_access_agenda_mobile: true, page_access_suivi_collecte: true, page_access_suresnes: true,
     page_access_adresses: true, page_access_equipe: true, page_access_mediateurs: true,
     page_access_localisations: true, page_access_bilan_tech: true, page_access_emargement: true,
     page_access_emargements: true, page_access_fiches_bilans: true, page_access_fiches_bilans_historique: true,
-    page_access_notifications: true, page_access_bibliotheque_logos: true, page_access_guide: true,
+    page_access_notifications: true, page_access_bibliotheque_logos: true, page_access_guide: true, page_access_statistiques: true,
     home_logout: true, home_folder_rencontres: true, home_folder_stats: true, home_nav_liste_benef: true,
     home_folder_beneficiaires: true, home_folder_bilans: true, home_folder_lieux: true,
     home_nav_fiche_bilan: true, home_nav_bilan_tech: true, home_nav_ajouter_lieu: true, home_nav_equipe: true, home_nav_participants: true,
@@ -361,7 +384,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   },
 
   coordinateur: {
-    page_access_home: true, page_access_login: true, page_access_liste_beneficiaires: true,
+    page_access_home: true, page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_liste_beneficiaires: true,
     page_access_fiche_beneficiaire: true, page_access_diagnosticform: true, page_access_actions_collectives: true, page_access_actions_collectives_accueil: true,
     page_access_agenda: true, page_access_agenda_mobile: true, page_access_suivi_collecte: true, page_access_suresnes: true, page_access_equipe: true,
     page_access_adresses: true, page_access_mediateurs: true, page_access_localisations: true,
@@ -377,13 +400,13 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     home_nav_collectes: true, home_nav_agenda_suresnes: true, home_nav_emargement_docs: true,
     home_nav_emargement_gen: true, home_nav_actions_coll: true, home_nav_stats_glob: true,
     home_nav_bilan_suresnes: true, home_nav_volume_horaire: true, home_nav_journal_connexions: true, home_nav_agenda_med: true,
-    page_access_parametres: true, home_nav_parametres: true,
+    page_access_parametres: true, home_nav_parametres: true, home_folder_parametres: true,
     home_folder_inclusion_numerique: true, home_folder_rencontres_numeriques: true, home_nav_digital_up: true, home_nav_digitalup_inscription: true, home_nav_digitalup_reponses: true, home_nav_digitalup_suivi: true, home_nav_digitalup_stats: true,
     home_folder_decouvertes_metiers: true, home_nav_nkup: true, home_nav_nkup_inscription: true, home_nav_nkup_reponses: true, home_nav_nkup_suivi: true, home_nav_nkup_stats: true, home_folder_insertion_pro: true, home_nav_nkpro_tech: true, home_nav_nkpro_inscription: true, home_nav_nkpro_reponses: true, home_nav_nkpro_suivi: true, home_nav_nkpro_stats: true,
     home_folder_gestion_colombbus: true,
     benef_search: true, benef_nav_agenda_suresnes: true, benef_create_new: true, benef_filter_alphabet: true,
     benef_filter_today: true, benef_filter_suresnes: true, benef_filter_de: true, benef_filter_blacklist: true,
-    benef_action_toggle_blacklist: true, benef_action_open: true, benef_nav_suresnes_liste: true,
+    benef_action_toggle_blacklist: true, benef_action_open: true, benef_nav_suresnes_liste: true, benef_nav_bilan_suresnes: true,
     page_access_liste_beneficiaires_suresnes: true, benef_suresnes_filter_trimestre: true, benef_suresnes_export_csv: true,
     fiche_edit_profil: true, fiche_nav_diagnostic: true, fiche_add_action: true, fiche_action_change_lieu: true,
     fiche_action_edit_rdv: true, fiche_action_save_rdv: true, fiche_action_delete_rdv: true, fiche_modal_toggle_blacklist: true, fiche_modal_submit: true,
@@ -408,14 +431,22 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   // médiateurs et à ses notes/commentaires — sans pouvoir créer/supprimer de
   // créneau ni modifier une note.
   aci: {
-    page_access_home: true, page_access_login: true, page_access_liste_beneficiaires: true, page_access_suresnes: true,
+    page_access_home: true, page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_liste_beneficiaires: true, page_access_suresnes: true,
     page_access_agenda: true, page_access_agenda_mobile: true, page_access_adresses: true, page_access_fiche_beneficiaire: true,
     page_access_diagnosticform: true, page_access_actions_collectives: true, page_access_actions_collectives_accueil: true, page_access_mediateurs: true,
     page_access_localisations: true, page_access_notifications: true, page_access_guide: true,
-    home_logout: true, home_folder_rencontres: true, home_folder_stats: true, home_nav_liste_benef: true,
-    home_folder_beneficiaires: true, home_folder_bilans: true, home_folder_lieux: true, home_nav_ajouter_lieu: true,
-    home_nav_collectes: true, home_nav_agenda_suresnes: true, home_nav_agenda_med: true, home_nav_emargement_docs: true,
-    home_nav_actions_coll: true, home_nav_stats_glob: true, home_nav_bilan_suresnes: true, home_nav_volume_horaire: true,
+    home_logout: true, home_folder_rencontres: true, home_nav_liste_benef: true,
+    home_folder_beneficiaires: true,
+    // Pas de home_folder_gestion_colombbus (dossier réservé aux permanents) :
+    // les anciens droits sur ses sous-dossiers/liens (Bilans, Lieux,
+    // Statistiques...) hérités du rôle "Lecteur" ont été retirés ci-dessus —
+    // ils étaient inatteignables depuis l'accueil (dossier parent non
+    // accordé) et, pour la plupart, menaient de toute façon à un "Accès
+    // Refusé" (page_access_* correspondant non accordé non plus).
+    // page_access_localisations reste accordé : utilisé via
+    // fiche_action_change_lieu (ajout de RDV), pas via cette navigation.
+    home_nav_agenda_suresnes: true, home_nav_agenda_med: true, home_nav_emargement_docs: true,
+    home_nav_actions_coll: true,
     home_nav_guide: true,
     home_folder_inclusion_numerique: true, home_folder_rencontres_numeriques: true,
     // Digital'UP, Découvertes Métiers (Numérik'UP) et Insertion
@@ -436,13 +467,13 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   // aucun accès en dehors de l'agenda — pas même l'accueil, puisque
   // app/login/page.tsx les redirige directement vers /agenda après connexion.
   formateur: {
-    page_access_login: true, page_access_agenda: true,
+    page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_agenda: true,
     agenda_week_nav: true, agenda_comment_view: true,
   },
 
   // Même périmètre que "formateur" ci-dessus, pour le statut "CIP".
   cip: {
-    page_access_login: true, page_access_agenda: true,
+    page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_agenda: true,
     agenda_week_nav: true, agenda_comment_view: true,
   },
 };
