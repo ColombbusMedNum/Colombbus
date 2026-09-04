@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "./firebase";
+import { usePermissions } from "./PermissionsProvider";
 
 interface MediateursContextValue {
   mediateurs: any[];
@@ -21,10 +22,24 @@ const MediateursContext = createContext<MediateursContextValue>({
 // cette centralisation). Chaque page dérive ses propres transformations
 // (tri, filtrage, maps par nom/id) via useMemo à partir de ce tableau brut.
 export function MediateursProvider({ children }: { children: React.ReactNode }) {
+  const { user } = usePermissions();
   const [mediateurs, setMediateurs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Dépend de l'uid (pas de []) : sans ça, une déconnexion fait échouer ce
+  // onSnapshot avec "permission-denied" (liste_mediateurs exige isSignedIn())
+  // et Firestore n'auto-relance JAMAIS un listener après une erreur de
+  // permission, même une fois reconnecté — la liste des médiateurs (donc
+  // toutes les pages qui en dépendent) restait figée/vide jusqu'à un
+  // rafraîchissement complet de la page.
   useEffect(() => {
+    if (!user) {
+      setMediateurs([]);
+      setLoading(true);
+      return;
+    }
+
+    setLoading(true);
     const unsub = onSnapshot(
       collection(db, "liste_mediateurs"),
       (snap) => {
@@ -37,7 +52,7 @@ export function MediateursProvider({ children }: { children: React.ReactNode }) 
       }
     );
     return () => unsub();
-  }, []);
+  }, [user?.uid]);
 
   return (
     <MediateursContext.Provider value={{ mediateurs, loading }}>

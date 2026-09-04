@@ -155,7 +155,20 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     return () => unsubAuth();
   }, []);
 
+  // Dépend de l'uid (pas de []) : sans ça, une déconnexion fait échouer ce
+  // onSnapshot avec "permission-denied" (configuration_droits exige
+  // isSignedIn()) et Firestore n'auto-relance JAMAIS un listener après une
+  // erreur de permission, même une fois reconnecté — la matrice restait
+  // figée jusqu'à un rafraîchissement complet de la page. Même correctif que
+  // lib/MediateursProvider.tsx.
   useEffect(() => {
+    if (!user) {
+      setMatrix({});
+      setMatrixResolved(true);
+      return;
+    }
+
+    setMatrixResolved(false);
     const unsubMatrix = onSnapshot(
       collection(db, "configuration_droits"),
       (snap) => {
@@ -173,7 +186,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     );
 
     return () => unsubMatrix();
-  }, []);
+  }, [user?.uid]);
 
   // Journal des connexions (voir app/mediation/journal-connexions) : un
   // document par session, prolongé toutes les 3 minutes tant que l'onglet
