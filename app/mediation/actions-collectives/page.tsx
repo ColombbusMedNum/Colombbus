@@ -86,6 +86,11 @@ export default function ActionsCollectivesPage() {
   const [editNbFemmes, setEditNbFemmes] = useState<number>(0);
   const [editCommentaire, setEditCommentaire] = useState("");
 
+  // Pop-up de lecture d'un commentaire tronqué (line-clamp-2 dans la liste
+  // "Dernières saisies") — utile notamment en vue ACI, qui ne peut pas passer
+  // par le mode Modification pour lire le texte complet.
+  const [commentaireModal, setCommentaireModal] = useState<{ thematique: string; lieu: string; texte: string } | null>(null);
+
   // Lieux prédéfinis, gérés depuis /mediation/localisations (collection
   // liste_lieux) — proposés dans le menu déroulant du formulaire de saisie,
   // en plus de l'option "Créer un nouveau lieu..." pour les cas non encore
@@ -618,9 +623,14 @@ export default function ActionsCollectivesPage() {
                       </div>
                       
                       {act.commentaire && (
-                        <p className="text-xs text-[#404040]/80 bg-[#F3F3F2] border border-[#404040]/10 p-2.5 rounded-xl mt-2 italic line-clamp-2">
+                        <button
+                          type="button"
+                          onClick={() => setCommentaireModal({ thematique: act.thematique || "", lieu: act.lieu || "", texte: act.commentaire || "" })}
+                          title="Voir le commentaire complet"
+                          className="block w-full text-left text-xs text-[#404040]/80 bg-[#F3F3F2] hover:bg-[#F3F3F2]/60 border border-[#404040]/10 p-2.5 rounded-xl mt-2 italic line-clamp-2 cursor-pointer transition-colors"
+                        >
                           « {act.commentaire} »
-                        </p>
+                        </button>
                       )}
 
                       <div className="flex gap-4 mt-2 text-xs font-bold text-[#404040]/70">
@@ -632,13 +642,19 @@ export default function ActionsCollectivesPage() {
 
                     {/* Bloc Actions de droite : Modifier + Supprimer */}
                     <div className="flex gap-1.5 self-end sm:self-center shrink-0">
-                      <button 
-                        onClick={() => startEditing(act)} 
-                        title="Modifier cette saisie"
-                        className="p-2 bg-[#F3F3F2] border border-[#404040]/10 text-[#005259] hover:bg-[#005259] hover:text-white rounded-xl transition-all cursor-pointer"
-                      >
-                        <PencilSquareIcon className="w-4 h-4" />
-                      </button>
+                      {/* Même droit que le bouton "Enregistrer" du mode édition
+                          (coll_save_edit) : inutile de pouvoir ouvrir l'édition
+                          si on ne peut de toute façon pas la valider, ça laissait
+                          un mode Modification avec seulement "Annuler". */}
+                      <PermissionGuard actionId="coll_save_edit">
+                        <button
+                          onClick={() => startEditing(act)}
+                          title="Modifier cette saisie"
+                          className="p-2 bg-[#F3F3F2] border border-[#404040]/10 text-[#005259] hover:bg-[#005259] hover:text-white rounded-xl transition-all cursor-pointer"
+                        >
+                          <PencilSquareIcon className="w-4 h-4" />
+                        </button>
+                      </PermissionGuard>
                       <PermissionGuard actionId="coll_delete">
                         <button
                           onClick={() => handleDelete(act.id)}
@@ -662,6 +678,32 @@ export default function ActionsCollectivesPage() {
         </div>
 
       </div>
+
+      {commentaireModal && (
+        <div className="fixed inset-0 bg-[#005259]/40 backdrop-blur-xs flex items-center justify-center z-[110] p-4">
+          <div className="bg-white border border-[#404040]/10 p-6 rounded-2xl w-full max-w-md space-y-3 shadow-2xl text-[#404040]">
+            <div className="flex items-center gap-2 pb-2 border-b border-[#404040]/10">
+              <ChatBubbleBottomCenterTextIcon className="w-4 h-4 text-[#EA601F]" />
+              <div className="min-w-0">
+                <h3 className="font-extrabold text-sm text-[#005259] uppercase tracking-wide truncate">{commentaireModal.thematique}</h3>
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#005259]">
+                  <MapPinIcon className="w-3 h-3 text-[#EA601F]" /> {commentaireModal.lieu}
+                </span>
+              </div>
+            </div>
+            <p className="text-xs text-[#404040] leading-relaxed whitespace-pre-wrap italic">« {commentaireModal.texte} »</p>
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setCommentaireModal(null)}
+                className="bg-[#005259] hover:bg-[#EA601F] text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
     </PageGuard>
   );
