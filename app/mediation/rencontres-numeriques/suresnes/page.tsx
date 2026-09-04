@@ -529,12 +529,14 @@ export default function PlanningSuresnes() {
   // RN" — ou qu'ils soient tous occupés), vert dès qu'il en reste au moins un
   // — avec le distingo RN (sur place) / RND (domicile), même détection que
   // "estDomicile" ci-dessus, pour repérer d'un coup d'œil quel type de
-  // créneau est encore disponible ce jour-là.
-  const disponibiliteParJour = React.useMemo(() => {
+  // créneau est encore disponible ce jour-là. Fonction générique (plutôt
+  // qu'un useMemo direct) pour être réutilisée à l'identique sur le mois
+  // suivant, affiché côte à côte dans la mini-vue.
+  const construireDisponibiliteParJour = (joursCible: Date[]) => {
     const map: Record<string, { rn: number; rnd: number }> = {};
-    days.forEach((day) => {
+    joursCible.forEach((day) => {
       const dateStr = day.toLocaleDateString('en-CA');
-      const libresJour = filteredCreneauxDuMois.filter((c) => c.date === dateStr && (!c.usager || c.usager.trim() === ""));
+      const libresJour = creneauxDuSite.filter((c) => c.date === dateStr && (!c.usager || c.usager.trim() === ""));
       let rn = 0, rnd = 0;
       libresJour.forEach((c) => {
         const estDomicile = c.mediateurNom?.includes("(RND)") || (c.site || "").toUpperCase().includes("DOMICILE");
@@ -543,10 +545,37 @@ export default function PlanningSuresnes() {
       map[dateStr] = { rn, rnd };
     });
     return map;
-  }, [days, filteredCreneauxDuMois]);
+  };
+
+  const disponibiliteParJour = React.useMemo(
+    () => construireDisponibiliteParJour(days),
+    [days, creneauxDuSite]
+  );
+
+  // Mois suivant, affiché à côté du mois courant dans la mini-vue (repère
+  // rapide des disponibilités à venir sans changer le mois affiché plus bas).
+  const dateMoisSuivant = new Date(year, month + 1, 1);
+  const yearSuivant = dateMoisSuivant.getFullYear();
+  const moisSuivant = dateMoisSuivant.getMonth();
+  const daysMoisSuivant = React.useMemo(
+    () => Array.from({ length: new Date(yearSuivant, moisSuivant + 1, 0).getDate() }, (_, i) => new Date(yearSuivant, moisSuivant, i + 1)),
+    [yearSuivant, moisSuivant]
+  );
+  const disponibiliteParJourMoisSuivant = React.useMemo(
+    () => construireDisponibiliteParJour(daysMoisSuivant),
+    [daysMoisSuivant, creneauxDuSite]
+  );
 
   const allerAuJour = (dateStr: string) => {
     document.getElementById(`jour-${dateStr}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  // Un jour du mois suivant n'est pas encore rendu dans la liste plus bas :
+  // on change d'abord le mois affiché, puis on défile une fois le nouveau
+  // mois monté.
+  const allerAuJourMoisSuivant = (dateStr: string) => {
+    setViewDate(new Date(yearSuivant, moisSuivant, 1));
+    setTimeout(() => allerAuJour(dateStr), 100);
   };
 
   const handleThematiqueChange = async (creneauId: string, nouvelleThematique: string) => {
@@ -830,9 +859,11 @@ export default function PlanningSuresnes() {
 
         {/* MINI VUE MOIS — repère rapide des jours avec/sans disponibilité,
             pour éviter de dérouler toute la liste ci-dessous. Un clic sur un
-            jour y fait défiler directement (voir allerAuJour/id="jour-..."). */}
+            jour y fait défiler directement (voir allerAuJour/id="jour-...") ;
+            le mois suivant est affiché à côté pour anticiper sans changer de
+            mois (voir allerAuJourMoisSuivant). */}
         <Accordion
-          title={`Disponibilités du mois — ${viewDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' })}`}
+          title="Disponibilités des prochains mois"
           open={miniMoisOuvert}
           onToggle={() => setMiniMoisOuvert((v) => !v)}
           headerClassName="bg-[#F9C44E]/25 hover:bg-[#F9C44E]/35"
@@ -842,35 +873,45 @@ export default function PlanningSuresnes() {
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#EA601F]" /> RND</span>
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#EF736A]" /> Complet</span>
             </div>
-            <div className="grid grid-cols-7 gap-1.5 max-w-[380px] mx-auto">
-              {["L", "M", "M", "J", "V", "S", "D"].map((j, idx) => (
-                <div key={idx} className="text-center text-[9px] font-bold uppercase text-[#404040]/40">{j}</div>
+            <div className="flex flex-col sm:flex-row gap-5 justify-center">
+              {[
+                { label: viewDate.toLocaleString('fr-FR', { month: 'long', year: 'numeric' }), joursCible: days, dispoCible: disponibiliteParJour, onClickJour: allerAuJour },
+                { label: dateMoisSuivant.toLocaleString('fr-FR', { month: 'long', year: 'numeric' }), joursCible: daysMoisSuivant, dispoCible: disponibiliteParJourMoisSuivant, onClickJour: allerAuJourMoisSuivant },
+              ].map(({ label, joursCible, dispoCible, onClickJour }) => (
+                <div key={label} className="max-w-[380px] w-full mx-auto">
+                  <p className="text-center text-[10px] font-bold uppercase tracking-wide text-[#005259] mb-1.5">{label}</p>
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {["L", "M", "M", "J", "V", "S", "D"].map((j, idx) => (
+                      <div key={idx} className="text-center text-[9px] font-bold uppercase text-[#404040]/40">{j}</div>
+                    ))}
+                    {Array.from({ length: (joursCible[0].getDay() + 6) % 7 }, (_, i) => <div key={`vide-${i}`} />)}
+                    {joursCible.map((day) => {
+                      const dateStr = day.toLocaleDateString('en-CA');
+                      const { rn, rnd } = dispoCible[dateStr] || { rn: 0, rnd: 0 };
+                      const nbDisponibles = rn + rnd;
+                      return (
+                        <button
+                          key={dateStr}
+                          type="button"
+                          onClick={() => onClickJour(dateStr)}
+                          title={nbDisponibles > 0 ? `${rn} RN, ${rnd} RND disponible(s)` : "Complet / aucun créneau"}
+                          className={`aspect-square max-w-12 mx-auto w-full rounded-lg flex flex-col items-center justify-center leading-tight transition-transform hover:scale-110 cursor-pointer ${
+                            nbDisponibles > 0 ? "bg-[#A9E0C9]/40 text-[#005259]" : "bg-[#EF736A]/20 text-[#EF736A]"
+                          }`}
+                        >
+                          <span className="text-base font-bold">{day.getDate()}</span>
+                          {nbDisponibles > 0 && (
+                            <span className="flex items-center gap-1 leading-none">
+                              {rn > 0 && <span className="text-[9px] font-black text-[#005259]">{rn}</span>}
+                              {rnd > 0 && <span className="text-[9px] font-black text-[#EA601F]">{rnd}D</span>}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               ))}
-              {Array.from({ length: (days[0].getDay() + 6) % 7 }, (_, i) => <div key={`vide-${i}`} />)}
-              {days.map((day) => {
-                const dateStr = day.toLocaleDateString('en-CA');
-                const { rn, rnd } = disponibiliteParJour[dateStr] || { rn: 0, rnd: 0 };
-                const nbDisponibles = rn + rnd;
-                return (
-                  <button
-                    key={dateStr}
-                    type="button"
-                    onClick={() => allerAuJour(dateStr)}
-                    title={nbDisponibles > 0 ? `${rn} RN, ${rnd} RND disponible(s)` : "Complet / aucun créneau"}
-                    className={`aspect-square max-w-12 mx-auto w-full rounded-lg flex flex-col items-center justify-center leading-tight transition-transform hover:scale-110 cursor-pointer ${
-                      nbDisponibles > 0 ? "bg-[#A9E0C9]/40 text-[#005259]" : "bg-[#EF736A]/20 text-[#EF736A]"
-                    }`}
-                  >
-                    <span className="text-base font-bold">{day.getDate()}</span>
-                    {nbDisponibles > 0 && (
-                      <span className="flex items-center gap-1 leading-none">
-                        {rn > 0 && <span className="text-[9px] font-black text-[#005259]">{rn}</span>}
-                        {rnd > 0 && <span className="text-[9px] font-black text-[#EA601F]">{rnd}D</span>}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
             </div>
           </Accordion>
 
