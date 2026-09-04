@@ -1372,7 +1372,7 @@ export default function PlanningExpertMix() {
           <PermissionGuard actionId="agenda_week_nav">
             <div className="flex items-center gap-1.5 bg-[#003d42] border border-[#002b2f] rounded-lg px-2 h-9">
               <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate()-7); setCurrentDate(d); }} className="text-white hover:text-[#F9C44E] transition-colors cursor-pointer text-xs font-bold">←</button>
-              <span className="text-xs font-semibold text-white min-w-28 text-center">Sem. du {monday.toLocaleDateString('fr-FR', {day:'numeric', month:'short'})}</span>
+              <span className="text-xs font-semibold text-white min-w-36 text-center">Sem. du {monday.toLocaleDateString('fr-FR', {day:'numeric', month:'short', year:'numeric'})}</span>
               <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate()+7); setCurrentDate(d); }} className="text-white hover:text-[#F9C44E] transition-colors cursor-pointer text-xs font-bold">→</button>
             </div>
           </PermissionGuard>
