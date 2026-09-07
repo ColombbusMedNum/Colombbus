@@ -792,34 +792,42 @@ export default function PlanningExpertMix() {
     }
     if (estActionDuMediateur(action, mDest) && action.moment === momentDest && action.date === dateDest) return;
 
-    const qSuresnesSource = query(collection(db, "planning_suresnes"), where("date", "==", action.date), where("moment", "==", action.moment));
-    const snapSuresnesSource = await getDocs(qSuresnesSource);
-    const docsDuMediateurSource = snapSuresnesSource.docs.filter((d) => {
-      const mNom = d.data().mediateurNom || "";
-      const cible = action.mediateurNom || "";
-      return mNom === cible || mNom === `${cible} (RN)` || mNom === `${cible} (RND)` || mNom === `${cible} (RN91)`;
-    });
-    if (docsDuMediateurSource.some((d) => d.data().usager && d.data().usager.trim() !== "")) {
-      showToast("⚠️ Déplacement impossible : des usagers sont inscrits à Suresnes sur la case d'origine.", "error");
-      return;
+    try {
+      const qSuresnesSource = query(collection(db, "planning_suresnes"), where("date", "==", action.date), where("moment", "==", action.moment));
+      const snapSuresnesSource = await getDocs(qSuresnesSource);
+      const docsDuMediateurSource = snapSuresnesSource.docs.filter((d) => {
+        const mNom = d.data().mediateurNom || "";
+        const cible = action.mediateurNom || "";
+        return mNom === cible || mNom === `${cible} (RN)` || mNom === `${cible} (RND)` || mNom === `${cible} (RN91)`;
+      });
+      if (docsDuMediateurSource.some((d) => d.data().usager && d.data().usager.trim() !== "")) {
+        showToast("⚠️ Déplacement par glisser-déposer impossible : des bénéficiaires sont déjà inscrits sur ce créneau Suresnes. Utilisez \"Réaffecter médiateur\" depuis l'agenda Suresnes pour les conserver.", "error");
+        return;
+      }
+
+      await processActionCreation(mDest.id, mDest.prenom || "", mDest.nom || "", momentDest, dateDest, action.lieu || "", null, action);
+
+      await Promise.all(docsDuMediateurSource.map((d) => deleteDoc(doc(db, "planning_suresnes", d.id))));
+      await deleteDoc(doc(db, "planning_mediateurs", action.id));
+
+      addDoc(collection(db, "historique_agenda"), {
+        type: "suppression",
+        date: action.date,
+        moment: action.moment,
+        mediatId: action.mediatId,
+        mediateurNom: action.mediateurNom || "",
+        lieu: action.lieu || "",
+        auteurUid: currentUserId,
+        auteurNom: currentUserNom,
+        horodatage: Date.now()
+      }).catch((err) => console.error("Historique agenda (déplacement, origine) :", err));
+    } catch (err) {
+      // Sans ce filet, une erreur ici (ex. droits insuffisants) restait une
+      // promesse rejetée jamais attendue par deposerIci — invisible pour
+      // l'utilisateur, qui ne voyait que le créneau ne pas bouger.
+      console.error("Erreur lors du déplacement du créneau :", err);
+      showToast("❌ Erreur lors du déplacement du créneau.", "error");
     }
-
-    await processActionCreation(mDest.id, mDest.prenom || "", mDest.nom || "", momentDest, dateDest, action.lieu || "", null, action);
-
-    await Promise.all(docsDuMediateurSource.map((d) => deleteDoc(doc(db, "planning_suresnes", d.id))));
-    await deleteDoc(doc(db, "planning_mediateurs", action.id));
-
-    addDoc(collection(db, "historique_agenda"), {
-      type: "suppression",
-      date: action.date,
-      moment: action.moment,
-      mediatId: action.mediatId,
-      mediateurNom: action.mediateurNom || "",
-      lieu: action.lieu || "",
-      auteurUid: currentUserId,
-      auteurNom: currentUserNom,
-      horodatage: Date.now()
-    }).catch((err) => console.error("Historique agenda (déplacement, origine) :", err));
   };
 
   const handleCaseClick = async (mediatId: string, prenom: string, nom: string, moment: string, dateStr: string) => {

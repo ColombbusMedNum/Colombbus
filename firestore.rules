@@ -272,6 +272,13 @@ service cloud.firestore {
     match /notifications/{docId} {
       allow read, write: if isStaff();
     }
+    // Marqueur "alerte collectes manquantes déjà envoyée ce jour-là" (voir
+    // app/mediation/rencontres-numeriques/suresnes/page.tsx) — distinct de
+    // notifications/ pour ne pas redéclencher l'alerte si son message a été
+    // supprimé via "Vider l'historique" avant la fin de la journée.
+    match /alertes_envoyees/{docId} {
+      allow read, write: if isStaff();
+    }
     match /lieux_emargement/{docId} {
       allow read, write: if isStaff();
     }

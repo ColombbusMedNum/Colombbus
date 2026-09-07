@@ -12,7 +12,7 @@ import { lireNom, lirePrenom, lireTelephone } from "@/lib/beneficiaireFields";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import Accordion from "@/components/Accordion";
 import {
-  collection, onSnapshot, query, orderBy, updateDoc, doc, addDoc, deleteDoc, collectionGroup, serverTimestamp, getDocs, where
+  collection, onSnapshot, query, orderBy, updateDoc, doc, addDoc, deleteDoc, collectionGroup, serverTimestamp, getDocs, getDoc, setDoc, where
 } from "firebase/firestore";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
@@ -344,17 +344,18 @@ export default function PlanningSuresnes() {
 
       if (manquantsDuJour.length > 0) {
         try {
-          // Vérification si une alerte n'a pas déjà été enregistrée aujourd'hui
-          const notifsRef = collection(db, "notifications");
-          const qNotif = query(
-            notifsRef,
-            where("type", "==", "collectes_manquantes"),
-            where("dateJour", "==", todayStr)
-          );
-          const existingNotifs = await getDocs(qNotif);
+          // Marqueur "alerte déjà envoyée aujourd'hui" séparé de la
+          // notification elle-même : la notification peut être supprimée par
+          // "Vider l'historique" (/mediation/notifications), auquel cas une
+          // vérification basée uniquement sur son existence recréerait une
+          // alerte identique à la prochaine visite de cette page le même
+          // jour, donnant l'impression qu'une entrée effacée "revient".
+          const alerteRef = doc(db, "alertes_envoyees", `collectes_manquantes_${todayStr}`);
+          const alerteSnap = await getDoc(alerteRef);
 
-          if (existingNotifs.empty) {
-            await addDoc(notifsRef, {
+          if (!alerteSnap.exists()) {
+            await setDoc(alerteRef, { envoyeeLe: serverTimestamp() });
+            await addDoc(collection(db, "notifications"), {
               message: "Attention collectes manquantes à compléter SVP",
               type: "collectes_manquantes",
               dateJour: todayStr,
@@ -1106,13 +1107,17 @@ export default function PlanningSuresnes() {
                                         Supprimer
                                       </button>
                                     )}
-                                    {isOrphan && (
+                                    {!creneauLibre && (
                                       <PermissionGuard actionId="suresnes_reassign">
                                         <button onClick={() => {
                                           setReassignSearch("");
                                           setReassignCreneau({ id: c.id, currentName: nomAffiche || c.mediateurNom || "", site: normaliserSiteId(c.site), isRND });
-                                        }} className="mt-1 px-2 py-0.5 bg-[#EF736A]/20 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/40 rounded-lg text-[9px] font-bold uppercase tracking-wide transition-colors cursor-pointer">
-                                          Réaffecter
+                                        }} className={`mt-1 px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wide transition-colors cursor-pointer ${
+                                          isOrphan
+                                            ? "bg-[#EF736A]/20 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/40"
+                                            : "bg-[#005259]/10 hover:bg-[#005259] text-[#005259] hover:text-white border border-[#005259]/30"
+                                        }`}>
+                                          Réaffecter médiateur
                                         </button>
                                       </PermissionGuard>
                                     )}

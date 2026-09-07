@@ -227,7 +227,7 @@ const DETAILED_PAGES: PageEntry[] = [
     actions: [
       { id: "suresnes_filter_today", nom: "Bouton Aujourd'hui uniquement", type: "button", description: "Isole les rendez-vous du jour" },
       { id: "suresnes_month_nav", nom: "Boutons Mois (Précédent / Suivant)", type: "button", description: "Navigation calendaire mensuelle" },
-      { id: "suresnes_reassign", nom: "Bouton Réaffecter médiateur", type: "button", description: "Attribue un créneau orphelin à un staff" },
+      { id: "suresnes_reassign", nom: "Bouton Réaffecter médiateur", type: "button", description: "Attribue un créneau (orphelin ou non, avec ou sans bénéficiaire déjà inscrit) à un autre membre du staff" },
       { id: "suresnes_slot_assign", nom: "Autocomplétion Assigner un bénéficiaire", type: "select", description: "Affecte un bénéficiaire existant à un créneau vide" },
       { id: "suresnes_slot_clear", nom: "Bouton Vider le créneau (✕)", type: "button", description: "Retire le bénéficiaire/thématique/demande d'un créneau" },
       { id: "suresnes_slot_thematique_edit", nom: "Sélecteur Thématique (créneau)", type: "select", description: "Modifie la thématique associée à un rendez-vous" },
@@ -377,7 +377,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     agenda_toggle_sidebar: true, agenda_notif_panel: true, agenda_week_nav: true, agenda_display_toggles: true,
     agenda_slot_create: true, agenda_slot_delete: true, agenda_comment_view: true, agenda_comment_edit: true,
     collecte_change_year: true, collecte_toggle_step: true, collecte_comment_edit: true,
-    suresnes_filter_today: true, suresnes_month_nav: true, suresnes_create_slot: true,
+    suresnes_filter_today: true, suresnes_month_nav: true, suresnes_reassign: true, suresnes_create_slot: true,
     suresnes_slot_assign: true, suresnes_slot_clear: true, suresnes_slot_thematique_edit: true, suresnes_slot_demande_edit: true,
     suresnes_nav_beneficiaires: true, suresnes_nav_agenda_med: true,
     page_access_liste_beneficiaires_suresnes: true, benef_suresnes_filter_trimestre: true,
