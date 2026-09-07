@@ -244,21 +244,53 @@ export default function FicheBeneficiaire() {
     return mediateursBruts
       .map((d: any) => {
         const nomComplet = `${d.prenom || ""} ${d.nom || ""}`.trim() || "Sans nom";
-        return { id: d.id, nom: nomComplet } as Mediateur;
-      });
+        return { id: d.id, nom: nomComplet, statut: d.statut } as Mediateur;
+      })
+      .sort((a, b) => (a.nom || "").localeCompare(b.nom || "", "fr", { sensitivity: "base" }));
   }, [mediateursBruts]);
 
-  useEffect(() => {
-    if (listeMediateurs.length === 0) return;
+  // Affichage d'un ou plusieurs médiateurs référents (champ "mediateur" d'un
+  // RDV, "A, B" — voir decomposerThematiques) avec un badge ACI à côté de
+  // chaque nom qui correspond à un statut de contrat ACI, dans le suivi des
+  // rendez-vous comme dans le formulaire d'ajout.
+  const afficherMediateurs = (nomsStr: string | undefined) => {
+    const noms = decomposerThematiques(nomsStr);
+    if (noms.length === 0) return null;
+    return (
+      <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+        {noms.map((nom, i) => {
+          const estACI = listeMediateurs.find(m => m.nom === nom)?.statut === "ACI";
+          return (
+            <span key={i} className="inline-flex items-center gap-1">
+              {nom}
+              {estACI && (
+                <span className="px-1 py-0.5 bg-[#EA601F]/15 border border-[#EA601F]/40 text-[#EA601F] rounded text-[9px] font-black uppercase tracking-wide">ACI</span>
+              )}
+              {i < noms.length - 1 && <span className="text-[#404040]/40">,</span>}
+            </span>
+          );
+        })}
+      </span>
+    );
+  };
 
-    setFormData(prev => {
-      const mediateurExiste = listeMediateurs.some(m => m.nom === prev.mediateur);
-      if (!prev.mediateur || !mediateurExiste) {
-        return { ...prev, mediateur: listeMediateurs[0].nom || "" };
-      }
-      return prev;
-    });
-  }, [listeMediateurs]);
+  // Ajoute/retire un nom à la sélection courante du formulaire RDV — un même
+  // champ texte "mediateur" peut désormais contenir plusieurs médiateurs
+  // référents, joints par ", " (même principe que formData.thematique/
+  // decomposerThematiques, pour rester compatible avec tout l'affichage
+  // existant qui lit ce champ comme une simple chaîne).
+  const [mediateurInput, setMediateurInput] = useState("");
+  const ajouterMediateur = (nom: string) => {
+    const actuels = decomposerThematiques(formData.mediateur);
+    if (!actuels.includes(nom)) {
+      setFormData(prev => ({ ...prev, mediateur: [...actuels, nom].join(", ") }));
+    }
+    setMediateurInput("");
+  };
+  const retirerMediateur = (nom: string) => {
+    const actuels = decomposerThematiques(formData.mediateur).filter(m => m !== nom);
+    setFormData(prev => ({ ...prev, mediateur: actuels.join(", ") }));
+  };
 
   // Écoute Profil, Visites & Lieux Globaux
   useEffect(() => {
@@ -517,6 +549,7 @@ export default function FicheBeneficiaire() {
       statut: rdv.statut,
       absencePar: (rdv.absencePar as "Bénéficiaire" | "Colombbus") || "Bénéficiaire",
     });
+    setMediateurInput("");
     setIsModalRdvOpen(true);
   };
 
@@ -814,7 +847,7 @@ export default function FicheBeneficiaire() {
 
                             <td className="py-3 px-3">
                               <div>
-                                <p className="text-[#404040] font-bold">{rdv.mediateur}</p>
+                                <p className="text-[#404040] font-bold">{afficherMediateurs(rdv.mediateur)}</p>
                                 <p className="text-[10px] font-bold text-[#EA601F] tracking-wide">{rdv.statut === "Absent" ? "—" : rdv.thematique}</p>
                               </div>
                             </td>
@@ -884,7 +917,7 @@ export default function FicheBeneficiaire() {
 
                   <div>
                     <p className="text-[10px] font-bold uppercase text-[#404040]/50">Médiateur</p>
-                    <p className="text-sm font-bold text-[#404040]">{detailRdvOuvert.mediateur}</p>
+                    <p className="text-sm font-bold text-[#404040]">{afficherMediateurs(detailRdvOuvert.mediateur)}</p>
                   </div>
 
                   {detailRdvOuvert.statut !== "Absent" && decomposerThematiques(detailRdvOuvert.thematique).length > 0 && (
@@ -1046,16 +1079,45 @@ export default function FicheBeneficiaire() {
 
               <form onSubmit={handleAddRDV} className="space-y-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Médiateur Référent</label>
+                  <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Médiateur(s) Référent(s)</label>
+                  {decomposerThematiques(formData.mediateur).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-1.5">
+                      {decomposerThematiques(formData.mediateur).map(nom => {
+                        const estACI = listeMediateurs.find(m => m.nom === nom)?.statut === "ACI";
+                        return (
+                          <span key={nom} className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 bg-[#005259]/10 border border-[#005259]/30 text-[#005259] rounded-lg text-[11px] font-bold">
+                            {nom}
+                            {estACI && (
+                              <span className="px-1 py-0.5 bg-[#EA601F]/15 border border-[#EA601F]/40 text-[#EA601F] rounded text-[9px] font-black uppercase tracking-wide">ACI</span>
+                            )}
+                            <button type="button" onClick={() => retirerMediateur(nom)} className="hover:text-[#EF736A] cursor-pointer">
+                              <XMarkIcon className="w-3.5 h-3.5" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                   <input
                     list="mediateurs-referents"
-                    value={formData.mediateur}
-                    onChange={e => setFormData({...formData, mediateur: e.target.value})}
-                    placeholder={listeMediateurs.length === 0 ? "Chargement de l'équipe..." : "Taper pour rechercher..."}
+                    value={mediateurInput}
+                    onChange={e => {
+                      const val = e.target.value;
+                      // Une sélection dans la datalist (ou une saisie qui
+                      // correspond exactement à un nom existant) l'ajoute
+                      // immédiatement à la sélection au lieu de remplacer le
+                      // champ, pour permettre d'en enchaîner plusieurs.
+                      if (listeMediateurs.some(m => m.nom === val)) {
+                        ajouterMediateur(val);
+                      } else {
+                        setMediateurInput(val);
+                      }
+                    }}
+                    placeholder={listeMediateurs.length === 0 ? "Chargement de l'équipe..." : "Taper pour ajouter un médiateur..."}
                     className={inputClass}
                   />
                   <datalist id="mediateurs-referents">
-                    {listeMediateurs.map(m => <option key={m.id} value={m.nom} />)}
+                    {listeMediateurs.filter(m => !decomposerThematiques(formData.mediateur).includes(m.nom || "")).map(m => <option key={m.id} value={m.nom} />)}
                   </datalist>
                 </div>
 
