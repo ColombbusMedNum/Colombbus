@@ -253,21 +253,31 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
   // Couvre-feu par type de contrat (statut de la fiche, pas le rôle
   // applicatif — un membre "Permanent" peut avoir le rôle "aci" en
-  // consultation sans que ça change son couvre-feu) : déconnecté chaque soir
-  // à l'heure ci-dessous, y compris en pleine session (pas seulement au
-  // prochain chargement de page) — d'où la vérification chaque minute plutôt
-  // qu'une seule fois à la connexion. Se réapplique tant qu'il est plus tard
-  // que cette heure le même jour ; une connexion le lendemain matin n'est pas
-  // concernée (nouveau Date().setHours(...) calculé sur le jour courant).
+  // consultation sans que ça change son couvre-feu) : coupe une session
+  // restée ouverte depuis avant l'heure ci-dessous (pas seulement au
+  // prochain chargement de page, d'où la vérification chaque minute), pour
+  // clôturer proprement le suivi des connexions du jour — mais une
+  // connexion volontaire faite APRÈS l'heure du couvre-feu doit rester
+  // possible (ex. besoin ponctuel en soirée) : dejaPasseAuMontage mémorise
+  // si le couvre-feu était déjà dépassé au moment où cette session a
+  // démarré, auquel cas on ne la coupe jamais. Sans cette distinction, la
+  // vérification immédiate (avant ce correctif) coupait aussi une
+  // connexion qui venait tout juste de réussir après l'heure dite,
+  // rendant toute reconnexion impossible jusqu'au lendemain.
   useEffect(() => {
     const heureCouvreFeu = statut === "ACI" ? [18, 30] : statut === "Permanent" ? [19, 0] : null;
     if (!user || !heureCouvreFeu) return;
 
+    const calculerCouvreFeu = () => {
+      const c = new Date();
+      c.setHours(heureCouvreFeu[0], heureCouvreFeu[1], 0, 0);
+      return c;
+    };
+    const dejaPasseAuMontage = new Date() >= calculerCouvreFeu();
+    if (dejaPasseAuMontage) return;
+
     const verifierCouvreFeu = async () => {
-      const maintenant = new Date();
-      const couvreFeu = new Date(maintenant);
-      couvreFeu.setHours(heureCouvreFeu[0], heureCouvreFeu[1], 0, 0);
-      if (maintenant < couvreFeu) return;
+      if (new Date() < calculerCouvreFeu()) return;
 
       await terminerSessionJournal();
       await signOut(auth);
@@ -282,7 +292,6 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       setOverrides([]);
     };
 
-    verifierCouvreFeu();
     const intervalId = setInterval(verifierCouvreFeu, 60 * 1000);
     return () => clearInterval(intervalId);
   }, [user, statut]);
