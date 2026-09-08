@@ -132,18 +132,34 @@ service cloud.firestore {
     }
 
     // Sessions disponibles par parcours pour le formulaire d'inscription
-    // Numérik'Up (voir actions-collectives/inscription/numerik-up) : lecture
-    // ouverte à tout le staff, édition réservée à l'admin (seul rôle à voir
-    // le panneau de gestion des sessions dans l'UI).
+    // Numérik'Up : lecture ouverte à tout le monde (voir le formulaire
+    // public app/inscription/numerik-up, consulté avant toute connexion),
+    // édition réservée à l'admin (seul rôle à voir le panneau de gestion des
+    // sessions dans l'UI, /mediation/actions-collectives/inscription/numerik-up/parametres).
     match /configuration_numerikup/{docId} {
-      allow read: if isStaff();
+      allow read: if true;
       allow write: if isAdmin();
     }
     // Inscriptions au parcours Numérik'Up : distinctes de "utilisateurs" car
     // ce sont des candidat.e.s au programme, pas encore des bénéficiaires
-    // suivis par Colombbus.
+    // suivis par Colombbus. Création ouverte à tout le monde (formulaire
+    // public app/inscription/numerik-up, rempli directement par le/la
+    // candidat.e — pas seulement en interne par le staff via
+    // .../inscription/numerik-up), avec une validation minimale des champs
+    // attendus pour limiter les écritures n'importe quoi ; la lecture reste
+    // réservée au staff (données personnelles).
     match /inscriptions_numerikup/{docId} {
-      allow read, create: if isStaff();
+      allow read: if isStaff();
+      allow create: if isStaff() || (
+        // Accès par index (data['Prénom']) plutôt que par point : un champ
+        // accentué n'est pas un identifiant valide en notation pointée dans
+        // le langage des règles Firestore.
+        request.resource.data.keys().hasAll(['Nom', 'Prénom', 'Téléphone', 'Email', 'Parcours', 'Territoire', 'Session', 'RGPD']) &&
+        request.resource.data['Nom'] is string && request.resource.data['Nom'].size() > 0 &&
+        request.resource.data['Prénom'] is string && request.resource.data['Prénom'].size() > 0 &&
+        request.resource.data['Email'] is string && request.resource.data['Email'].size() > 0 &&
+        request.resource.data['RGPD'] == true
+      );
       allow update, delete: if isCoordinateurOuPlus();
     }
 
@@ -282,8 +298,13 @@ service cloud.firestore {
     match /lieux_emargement/{docId} {
       allow read, write: if isStaff();
     }
+    // Lecture publique : ces logos s'affichent aussi dans l'en-tête du
+    // formulaire public app/inscription/numerik-up, consulté avant toute
+    // connexion — écriture (ajout/suppression de logo) toujours réservée au
+    // staff, via /mediation/bibliotheque-logos.
     match /logos_emargement/{docId} {
-      allow read, write: if isStaff();
+      allow read: if true;
+      allow write: if isStaff();
     }
 
     // Tout le reste est refusé par défaut.

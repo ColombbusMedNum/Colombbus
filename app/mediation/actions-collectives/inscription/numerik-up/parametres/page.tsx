@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
-import { HomeIcon, ArrowLeftIcon, PlusIcon, XMarkIcon, TrashIcon, TagIcon, WrenchScrewdriverIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ArrowLeftIcon, PlusIcon, XMarkIcon, TrashIcon, TagIcon, WrenchScrewdriverIcon, PhotoIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
 
@@ -104,13 +104,25 @@ export default function ParametresNumerikUpPage() {
   const [nouvelleSessionFin, setNouvelleSessionFin] = useState("");
   const [nouvelleSessionCreneau, setNouvelleSessionCreneau] = useState("Matin");
 
+  // Logos affichés dans l'en-tête du formulaire public (app/inscription/
+  // numerik-up), choisis parmi la bibliothèque partagée (voir
+  // /mediation/bibliotheque-logos) — pas de nouveau système d'upload dédié.
+  const [logosDisponibles, setLogosDisponibles] = useState<any[]>([]);
+  const [logosSelectionnes, setLogosSelectionnes] = useState<string[]>([]);
+
   useEffect(() => {
     const charger = async () => {
-      const [snapSessions, snapParcours, snapTerritoires] = await Promise.all([
+      const [snapSessions, snapParcours, snapTerritoires, snapLogosFormulaire, snapLogos] = await Promise.all([
         getDoc(doc(db, "configuration_numerikup", "sessions")),
         getDoc(doc(db, "configuration_numerikup", "parcours")),
         getDoc(doc(db, "configuration_numerikup", "territoires")),
+        getDoc(doc(db, "configuration_numerikup", "logosFormulaire")),
+        getDocs(collection(db, "logos_emargement")),
       ]);
+      setLogosDisponibles(snapLogos.docs.map((d) => ({ id: d.id, ...d.data() })));
+      if (snapLogosFormulaire.exists() && Array.isArray(snapLogosFormulaire.data().logoIds)) {
+        setLogosSelectionnes(snapLogosFormulaire.data().logoIds);
+      }
       const parcoursCharges = snapParcours.exists() && Array.isArray(snapParcours.data().liste) && snapParcours.data().liste.length > 0
         ? snapParcours.data().liste
         : PARCOURS_DEFAUT;
@@ -156,6 +168,14 @@ export default function ParametresNumerikUpPage() {
   // rechargement si on l'utilisait ici.
   const sauvegarderSessions = async (parTerritoire: Record<string, Record<string, string[]>>, codesActuels: Record<string, string>) => {
     await setDoc(doc(db, "configuration_numerikup", "sessions"), { parTerritoire, codes: codesActuels });
+  };
+
+  const basculerLogo = async (logoId: string) => {
+    const misesAJour = logosSelectionnes.includes(logoId)
+      ? logosSelectionnes.filter((id) => id !== logoId)
+      : [...logosSelectionnes, logoId];
+    setLogosSelectionnes(misesAJour);
+    await setDoc(doc(db, "configuration_numerikup", "logosFormulaire"), { logoIds: misesAJour });
   };
 
   const ajouterParcours = async () => {
@@ -407,6 +427,43 @@ export default function ParametresNumerikUpPage() {
               <span>Accueil</span>
             </Link>
           </div>
+        </div>
+
+        {/* LOGOS DU FORMULAIRE PUBLIC */}
+        <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-3">
+          <div className="flex items-center gap-2">
+            <PhotoIcon className="w-4 h-4 text-[#EA601F]" />
+            <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Logos du formulaire public</h2>
+          </div>
+          <p className="text-[10px] text-[#404040]/50">
+            Choisis parmi la <Link href="/mediation/bibliotheque-logos" className="underline hover:text-[#005259]">bibliothèque de logos</Link> — affichés dans l'en-tête de{" "}
+            <a href="/inscription/numerik-up" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#005259]">la version publique du formulaire</a>.
+          </p>
+          {logosDisponibles.length === 0 ? (
+            <p className="text-xs text-[#404040]/50 italic">Aucun logo dans la bibliothèque pour le moment.</p>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-3">
+              {logosDisponibles.map((logo) => {
+                const selectionne = logosSelectionnes.includes(logo.id);
+                return (
+                  <button
+                    key={logo.id}
+                    type="button"
+                    onClick={() => basculerLogo(logo.id)}
+                    title={logo.nom}
+                    className={`p-2 rounded-xl border-2 transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                      selectionne ? "border-[#005259] bg-[#005259]/5" : "border-[#404040]/10 hover:border-[#404040]/25"
+                    }`}
+                  >
+                    <div className="w-full h-12 flex items-center justify-center">
+                      <img src={logo.url} alt={logo.nom} className="max-h-full max-w-full object-contain" />
+                    </div>
+                    <span className="text-[9px] font-bold uppercase text-[#404040]/60 truncate w-full text-center">{logo.nom}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* PARKOURS */}

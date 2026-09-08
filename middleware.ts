@@ -36,7 +36,12 @@ export function middleware(request: Request) {
   // visité avant toute connexion. /planning est la seule route qui ne fait
   // que rediriger (voir app/planning/page.tsx) : la laisser publique évite
   // un aller-retour de redirection en plus avant même d'atteindre /login.
-  const pagesPubliques = ["/login", "/reset-password", "/planning"];
+  // /inscription/numerik-up est le formulaire public de pré-inscription,
+  // destiné aux candidat·e·s eux/elles-mêmes (pas seulement au staff, voir
+  // app/mediation/actions-collectives/inscription/numerik-up pour la
+  // version interne) — voir firestore.rules pour l'écriture ouverte
+  // correspondante sur inscriptions_numerikup.
+  const pagesPubliques = ["/login", "/reset-password", "/planning", "/inscription/numerik-up"];
 
   // 2. CAS 1 : L'utilisateur n'est pas connecté — on retient la page visée
   // (ex /agenda/mobile via /planning) pour y revenir juste après connexion.
