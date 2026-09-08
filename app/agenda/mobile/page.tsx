@@ -94,6 +94,39 @@ export default function AgendaMobilePage() {
     return actions.filter((a) => estActionDuMediateur(a, medAffiche));
   }, [actions, medAffiche]);
 
+  // Qui est positionné sur le même lieu/jour/demi-journée (utile notamment
+  // pour un ACI, qui veut savoir avec qui il/elle travaille). Regroupement
+  // par identifiantMediateur (déduplication) plutôt que par mediateurNom
+  // brut, pour rester fiable même sur d'anciens documents sans mediatId.
+  const equipeParCreneau = useMemo(() => {
+    const map: Record<string, { nom: string; statut?: string }[]> = Object.create(null);
+    actions.forEach((a) => {
+      if (!a.lieu) return;
+      const cle = `${a.date}_${a.moment || ""}_${a.lieu}`;
+      const idMed = identifiantMediateur(a);
+      const fiche = mediateurs.find((m) => m.id === idMed || nomCompletMediateur(m) === (a.mediateurNom || a.mediateur));
+      const nom = fiche ? nomCompletMediateur(fiche) : (a.mediateurNom || a.mediateur || "");
+      if (!nom) return;
+      if (!map[cle]) map[cle] = [];
+      if (!map[cle].some((p) => p.nom === nom)) map[cle].push({ nom, statut: fiche?.statut });
+    });
+    return map;
+  }, [actions, mediateurs]);
+
+  // Inclut la personne qui consulte sa propre liste (elle est bien
+  // positionnée sur ce créneau, ça doit se voir) — masqué seulement si elle
+  // est seule sur le lieu, où la liste n'apporterait rien.
+  const equipeDuCreneau = (a: ActionPlanning) => {
+    if (!a.lieu) return [];
+    // Terrage regroupe trop de monde à la fois pour qu'une liste "équipe" y
+    // soit utile (quasiment tout le monde y apparaîtrait) — pas affichée
+    // pour ce lieu précis.
+    if (a.lieu.toUpperCase().includes("TERRAGE")) return [];
+    const cle = `${a.date}_${a.moment || ""}_${a.lieu}`;
+    const liste = equipeParCreneau[cle] || [];
+    return liste.length > 1 ? liste : [];
+  };
+
   const joursFeries = useMemo(() => getJoursFeries(monday.getFullYear()), [monday]);
 
   const parJourEtMoment = useMemo(() => {
@@ -356,6 +389,16 @@ export default function AgendaMobilePage() {
                               {(a.debut || a.fin) && (
                                 <div className="text-[9px] text-[#404040]/50 font-medium">{a.debut || "?"} - {a.fin || "?"}</div>
                               )}
+                              {equipeDuCreneau(a).length > 0 && (
+                                <div className="text-[9px] text-[#404040]/60 font-medium leading-tight mt-0.5">
+                                  {equipeDuCreneau(a).map((p, i) => (
+                                    <span key={i}>
+                                      {i > 0 && ", "}
+                                      {p.statut === "Permanent" ? <span className="font-bold text-[#EA601F]">{p.nom}</span> : p.nom}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           )) : <span className="text-[#404040]/30">—</span>}
                         </div>
@@ -385,6 +428,16 @@ export default function AgendaMobilePage() {
                               </div>
                               {(a.debut || a.fin) && (
                                 <div className="text-[9px] text-[#404040]/50 font-medium">{a.debut || "?"} - {a.fin || "?"}</div>
+                              )}
+                              {equipeDuCreneau(a).length > 0 && (
+                                <div className="text-[9px] text-[#404040]/60 font-medium leading-tight mt-0.5">
+                                  {equipeDuCreneau(a).map((p, i) => (
+                                    <span key={i}>
+                                      {i > 0 && ", "}
+                                      {p.statut === "Permanent" ? <span className="font-bold text-[#EA601F]">{p.nom}</span> : p.nom}
+                                    </span>
+                                  ))}
+                                </div>
                               )}
                             </div>
                           )) : <span className="text-[#404040]/30">—</span>}
