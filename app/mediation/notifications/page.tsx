@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import PageGuard from "@/components/PageGuard";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { usePermissions } from "@/lib/PermissionsProvider";
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, writeBatch } from "firebase/firestore";
 import { ArrowLeftIcon, TrashIcon, CheckCircleIcon, BellIcon, HomeIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
@@ -11,20 +12,31 @@ import { quicksand } from "@/lib/fonts";
 
 export default function AllNotificationsPage() {
   const confirm = useConfirm();
+  const { user } = usePermissions();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Écoute temps réel de la collection "notifications"
+    // Écoute temps réel de la collection "notifications" : un document sans
+    // destinataireId/destinataireEmail est une notification diffusée à
+    // tout le monde (ex. verrouillage de planning, collectes manquantes) et
+    // reste visible par tou.te.s ; les autres ne concernent qu'une personne
+    // précise (ex. "vous êtes planifié.e sur...") et ne doivent être vues,
+    // marquées comme lues ou effacées que par elle.
     const unsubNotifs = onSnapshot(collection(db, "notifications"), (snap) => {
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const list = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter((n: any) =>
+          (!n.destinataireId || n.destinataireId === user?.uid) &&
+          (!n.destinataireEmail || n.destinataireEmail === user?.email)
+        );
       // Tri du plus récent au plus ancien
       setNotifications(list.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0)));
       setLoading(false);
     });
 
     return () => unsubNotifs();
-  }, []);
+  }, [user]);
 
   const marquerCommeLu = async (id: string) => {
     try {
