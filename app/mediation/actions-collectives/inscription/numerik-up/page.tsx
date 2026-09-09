@@ -145,12 +145,17 @@ export default function FormulaireNumerikUpPage() {
     }
   };
 
+  // Visuels "programme" par parcours, affichés dans un bloc dépliable sous
+  // le choix de session (voir .../numerik-up/parametres pour la gestion).
+  const [programmes, setProgrammes] = useState<Record<string, { storagePath: string; url: string }[]>>({});
+
   useEffect(() => {
     const charger = async () => {
-      const [snapSessions, snapParcours, snapTerritoires] = await Promise.all([
+      const [snapSessions, snapParcours, snapTerritoires, snapProgrammes] = await Promise.all([
         getDoc(doc(db, "configuration_numerikup", "sessions")),
         getDoc(doc(db, "configuration_numerikup", "parcours")),
         getDoc(doc(db, "configuration_numerikup", "territoires")),
+        getDoc(doc(db, "configuration_numerikup", "programmes")),
       ]);
       if (snapSessions.exists()) {
         setSessions(snapSessions.data().parTerritoire || {});
@@ -160,6 +165,9 @@ export default function FormulaireNumerikUpPage() {
       }
       if (snapTerritoires.exists() && Array.isArray(snapTerritoires.data().liste) && snapTerritoires.data().liste.length > 0) {
         setTerritoiresListe(snapTerritoires.data().liste);
+      }
+      if (snapProgrammes.exists()) {
+        setProgrammes(snapProgrammes.data().parParcours || {});
       }
     };
     charger();
@@ -419,6 +427,15 @@ export default function FormulaireNumerikUpPage() {
                     <option value={SESSION_AUCUNE_CONVIENT}>{SESSION_AUCUNE_CONVIENT}</option>
                   </select>
                 </div>
+
+                {(programmes[formData.parcours] || []).length > 0 && (
+                  <div className="space-y-3">
+                    <span className={labelClass}>Programme</span>
+                    {programmes[formData.parcours].map((img) => (
+                      <img key={img.storagePath} src={img.url} alt="Programme" className="w-full h-auto rounded-xl border border-[#404040]/10" />
+                    ))}
+                  </div>
+                )}
               </>
             )}
 

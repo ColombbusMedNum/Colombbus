@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { usePermissions } from "@/lib/PermissionsProvider";
 import { db, storage } from "@/lib/firebase";
 import { collection, addDoc, onSnapshot, query, serverTimestamp, where } from "firebase/firestore";
@@ -15,6 +16,7 @@ import { useToast } from "./ToastProvider";
 // réservé aux admins — voir app/mediation/signalements) ; masqué en local
 // (le badge Next.js suffit là).
 export default function BugReportButton() {
+  const pathname = usePathname();
   const { role, user } = usePermissions();
   const { showToast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
@@ -52,6 +54,10 @@ export default function BugReportButton() {
 
   if (!role) return null;
   if (typeof window !== "undefined" && window.location.hostname === "localhost") return null;
+  // Formulaires publics d'inscription (app/inscription/...) : destinés aux
+  // candidat.e.s externes, jamais au staff — même un.e admin qui les
+  // prévisualise en restant connecté.e ne doit pas y voir ce bouton interne.
+  if (pathname?.startsWith("/inscription/")) return null;
 
   // Ctrl+V d'une capture d'écran directement depuis le presse-papier (aucun
   // enregistrement de fichier requis au préalable, juste "Impr écran" puis

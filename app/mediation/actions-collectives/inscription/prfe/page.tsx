@@ -13,6 +13,7 @@ import PrescripteurAutocomplete from "@/components/PrescripteurAutocomplete";
 import { chargerPrescripteurs, upsertPrescripteur } from "@/lib/prescripteurs";
 import { formatNom, formatPrenom } from "@/lib/formatName";
 import { formatPhoneForStorage } from "@/lib/formatPhone";
+import { sessionEstAVenir } from "@/lib/sessionDates";
 
 interface Parcours {
   id: string;
@@ -27,8 +28,6 @@ const PARCOURS_DEFAUT: Parcours[] = [
 // Les dates de session varient selon le territoire (département) : chaque
 // parkours a donc ses propres sessions par territoire, pas une liste unique.
 const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
-
-const TRANCHES_AGE = ["16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "+ de 26 ans"];
 
 // Reprend les intitulés réels observés dans les réponses PRFE —
 // plus détaillés que la liste Numérik'UP d'origine ("Infra brevet" et
@@ -54,6 +53,11 @@ const CANAUX_CONNAISSANCE = [
   "Autre",
 ];
 
+// Option ajoutée à la liste des sessions pour les personnes intéressées par
+// le parcours mais indisponibles aux dates proposées (plutôt que de les
+// forcer à choisir une session à laquelle elles ne pourront pas venir).
+const SESSION_AUCUNE_CONVIENT = "Aucune date ne me convient — me recontacter";
+
 const inputClass = "w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-sm text-[#404040] placeholder-[#404040]/40 outline-none font-medium transition-colors";
 const labelClass = "block text-[11px] font-bold text-[#404040]/70 uppercase tracking-wide mb-1";
 
@@ -63,6 +67,7 @@ const FORM_VIDE = {
   prenom: "",
   telephone: "",
   email: "",
+  adressePostale: "",
   codePostal: "",
   ville: "",
   qpv: "Je ne sais pas",
@@ -85,7 +90,7 @@ const FORM_VIDE = {
   commentConnuAutre: "",
   projetProfessionnel: "",
   formationAcces: "",
-  parcours: "numerikup-pro",
+  parcours: "prfe-tech",
   territoire: "91",
   session: "",
   rgpd: false,
@@ -98,7 +103,7 @@ export default function FormulairePrfePage() {
   const [formData, setFormData] = useState(FORM_VIDE);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [etape, setEtape] = useState(1);
-  const TOTAL_ETAPES = 5;
+  const TOTAL_ETAPES = 6;
 
   // Parkours, territoires et sessions sont gérés depuis une page dédiée
   // (voir .../prfe/parametres, réservée à l'admin) — ce
@@ -108,12 +113,49 @@ export default function FormulairePrfePage() {
   // sessions[parcoursId][territoire] = liste de dates de session.
   const [sessions, setSessions] = useState<Record<string, Record<string, string[]>>>({});
 
+  // Détection automatique QPV à partir de l'adresse tapée (voir
+  // app/api/verifier-qpv/route.ts) : ne fait que pré-remplir/suggérer une
+  // valeur pour le champ "Réside en QPV ?", qui reste éditable — aucune
+  // garantie à 100% (géocodage approximatif possible).
+  const [verificationQpv, setVerificationQpv] = useState<"idle" | "chargement" | "fait" | "erreur">("idle");
+  const [messageQpv, setMessageQpv] = useState<string | null>(null);
+
+  const verifierQpv = async () => {
+    if (!formData.adressePostale || !formData.codePostal || !formData.ville) return;
+    setVerificationQpv("chargement");
+    setMessageQpv(null);
+    try {
+      const reponse = await fetch("/api/verifier-qpv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adresse: formData.adressePostale, codePostal: formData.codePostal, ville: formData.ville }),
+      });
+      const data = await reponse.json();
+      if (!reponse.ok || !data.trouve) {
+        setVerificationQpv("erreur");
+        setMessageQpv("Adresse non reconnue, merci de renseigner ce champ manuellement.");
+        return;
+      }
+      setFormData((prev) => ({ ...prev, qpv: data.enQPV ? "Oui" : "Non" }));
+      setVerificationQpv("fait");
+      setMessageQpv(data.enQPV ? `Adresse détectée en QPV (${data.nomQPV || "quartier prioritaire"}) — vérifiez et corrigez si besoin.` : "Adresse détectée hors QPV — vérifiez et corrigez si besoin.");
+    } catch {
+      setVerificationQpv("erreur");
+      setMessageQpv("Vérification indisponible, merci de renseigner ce champ manuellement.");
+    }
+  };
+
+  // Visuels "programme" par parcours, affichés automatiquement sous le
+  // choix de session (voir .../prfe/parametres pour la gestion).
+  const [programmes, setProgrammes] = useState<Record<string, { storagePath: string; url: string }[]>>({});
+
   useEffect(() => {
     const charger = async () => {
-      const [snapSessions, snapParcours, snapTerritoires] = await Promise.all([
+      const [snapSessions, snapParcours, snapTerritoires, snapProgrammes] = await Promise.all([
         getDoc(doc(db, "configuration_prfe", "sessions")),
         getDoc(doc(db, "configuration_prfe", "parcours")),
         getDoc(doc(db, "configuration_prfe", "territoires")),
+        getDoc(doc(db, "configuration_prfe", "programmes")),
       ]);
       if (snapSessions.exists()) {
         setSessions(snapSessions.data().parTerritoire || {});
@@ -124,11 +166,32 @@ export default function FormulairePrfePage() {
       if (snapTerritoires.exists() && Array.isArray(snapTerritoires.data().liste) && snapTerritoires.data().liste.length > 0) {
         setTerritoiresListe(snapTerritoires.data().liste);
       }
+      if (snapProgrammes.exists()) {
+        setProgrammes(snapProgrammes.data().parParcours || {});
+      }
     };
     charger();
   }, []);
 
-  const sessionsDisponibles = sessions[formData.parcours]?.[formData.territoire] || [];
+  const sessionsDisponibles = (sessions[formData.parcours]?.[formData.territoire] || []).filter(sessionEstAVenir);
+
+  // Territoire choisi en premier (étape 1) : le choix du parcours (étape 2)
+  // ne propose ensuite que ceux ayant au moins une session à venir pour ce
+  // territoire, plutôt que la liste complète peu importe la pertinence.
+  const parcoursDisponibles = parcoursListe.filter((p) =>
+    (sessions[p.id]?.[formData.territoire] || []).some(sessionEstAVenir)
+  );
+
+  // Si le territoire change et que le parcours actuellement choisi n'a plus
+  // de session à venir dessus, on retombe sur le premier parcours encore
+  // disponible (et on efface la session, forcément obsolète).
+  useEffect(() => {
+    if (parcoursDisponibles.length === 0) return;
+    if (!parcoursDisponibles.some((p) => p.id === formData.parcours)) {
+      setFormData((prev) => ({ ...prev, parcours: parcoursDisponibles[0].id, session: "" }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.territoire, sessions]);
 
   // Validation minimale avant de passer à l'étape suivante — évite d'arriver
   // au bout du formulaire avec des champs obligatoires vides sans s'en rendre
@@ -136,11 +199,14 @@ export default function FormulairePrfePage() {
   const validerEtape = (numero: number): string | null => {
     if (numero === 1) {
       if (!formData.territoire) return "Merci de sélectionner un territoire.";
-      if (!formData.session) return "Merci de sélectionner une session.";
     }
     if (numero === 2) {
+      if (!formData.parcours) return "Merci de sélectionner un parcours.";
+      if (!formData.session) return "Merci de sélectionner une session.";
+    }
+    if (numero === 3) {
       if (!formData.nom || !formData.prenom || !formData.telephone || !formData.email) return "Merci de compléter le nom, prénom, téléphone et email.";
-      if (!formData.codePostal || !formData.ville) return "Merci de compléter le code postal et la ville.";
+      if (!formData.adressePostale || !formData.codePostal || !formData.ville) return "Merci de compléter l'adresse complète.";
       if (!formData.age) return "Merci de renseigner l'âge du / de la participant.e.";
     }
     return null;
@@ -180,6 +246,7 @@ export default function FormulairePrfePage() {
         Prénom: formatPrenom(formData.prenom),
         Téléphone: formatPhoneForStorage(formData.telephone),
         Email: formData.email,
+        Adresse_Postale: formData.adressePostale,
         Code_Postal: formData.codePostal,
         Ville: formData.ville,
         QPV: formData.qpv,
@@ -296,53 +363,24 @@ export default function FormulairePrfePage() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
 
-          {/* ÉTAPE 1 — PARCOURS & SESSION */}
+          {/* ÉTAPE 1 — TERRITOIRE */}
           {etape === 1 && (
           <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-4">
-            <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Parcours souhaité</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className={labelClass}>Sur quel parcours de formation souhaitez-vous vous préinscrire ? *</label>
-                <select
-                  required
-                  value={formData.parcours}
-                  onChange={(e) => setFormData({ ...formData, parcours: e.target.value, session: "" })}
-                  className={inputClass}
-                >
-                  {parcoursListe.map((p) => (
-                    <option key={p.id} value={p.id}>{p.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>Territoire *</label>
-                <select
-                  required
-                  value={formData.territoire}
-                  onChange={(e) => setFormData({ ...formData, territoire: e.target.value, session: "" })}
-                  className={inputClass}
-                >
-                  {territoiresListe.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>Session souhaitée *</label>
-                <select
-                  required
-                  value={formData.session}
-                  onChange={(e) => setFormData({ ...formData, session: e.target.value })}
-                  className={inputClass}
-                >
-                  <option value="">-- Choisir une session --</option>
-                  {sessionsDisponibles.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
+            <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Votre territoire</h2>
+            <div>
+              <label className={labelClass}>Dans quel département résidez-vous ? *</label>
+              <select
+                required
+                value={formData.territoire}
+                onChange={(e) => setFormData({ ...formData, territoire: e.target.value, session: "" })}
+                className={inputClass}
+              >
+                {territoiresListe.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
             </div>
-            <p className="text-[10px] text-[#404040]/50 italic">Les dates de session dépendent du territoire (département) du / de la participant.e.</p>
+            <p className="text-[10px] text-[#404040]/50 italic">Les parcours et sessions proposés ensuite dépendent de votre territoire.</p>
 
             <div className="flex justify-end pt-2 border-t border-[#404040]/10">
               <button type="button" onClick={etapeSuivante} className="px-5 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm">
@@ -352,8 +390,67 @@ export default function FormulairePrfePage() {
           </div>
           )}
 
-          {/* ÉTAPE 2 — IDENTITÉ */}
+          {/* ÉTAPE 2 — PARCOURS & SESSION */}
           {etape === 2 && (
+          <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-4">
+            <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Parcours souhaité</h2>
+            {parcoursDisponibles.length === 0 ? (
+              <p className="text-xs text-[#EF736A] font-bold">Aucune session à venir n'est actuellement programmée pour le territoire {formData.territoire}.</p>
+            ) : (
+              <>
+                <div>
+                  <label className={labelClass}>Sur quel parcours de formation souhaitez-vous vous préinscrire ? *</label>
+                  <select
+                    required
+                    value={formData.parcours}
+                    onChange={(e) => setFormData({ ...formData, parcours: e.target.value, session: "" })}
+                    className={inputClass}
+                  >
+                    {parcoursDisponibles.map((p) => (
+                      <option key={p.id} value={p.id}>{p.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Session souhaitée *</label>
+                  <select
+                    required
+                    value={formData.session}
+                    onChange={(e) => setFormData({ ...formData, session: e.target.value })}
+                    className={inputClass}
+                  >
+                    <option value="">-- Choisir une session --</option>
+                    {sessionsDisponibles.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                    <option value={SESSION_AUCUNE_CONVIENT}>{SESSION_AUCUNE_CONVIENT}</option>
+                  </select>
+                </div>
+
+                {(programmes[formData.parcours] || []).length > 0 && (
+                  <div className="space-y-3">
+                    <span className={labelClass}>Programme</span>
+                    {programmes[formData.parcours].map((img) => (
+                      <img key={img.storagePath} src={img.url} alt="Programme" className="w-full h-auto rounded-xl border border-[#404040]/10" />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="flex justify-between pt-2 border-t border-[#404040]/10">
+              <button type="button" onClick={etapePrecedente} className="px-5 py-2 bg-white hover:bg-[#F3F3F2] border border-[#404040]/10 text-[#404040] rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer">
+                Précédent
+              </button>
+              <button type="button" onClick={etapeSuivante} disabled={parcoursDisponibles.length === 0} className="px-5 py-2 bg-[#EA601F] hover:bg-[#EF736A] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm">
+                Suivant
+              </button>
+            </div>
+          </div>
+          )}
+
+          {/* ÉTAPE 3 — IDENTITÉ */}
+          {etape === 3 && (
           <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-4">
             <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Identité du / de la participant.e</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -377,15 +474,16 @@ export default function FormulairePrfePage() {
                 <input required type="tel" value={formData.telephone} onChange={(e) => setFormData({ ...formData, telephone: e.target.value })} className={inputClass} placeholder="06 12 34 56 78" />
               </div>
               <div>
+                <label className={labelClass}>Âge *</label>
+                <input required type="number" min={0} max={120} value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} className={inputClass} placeholder="32" />
+              </div>
+              <div className="md:col-span-3">
                 <label className={labelClass}>Email *</label>
                 <input required type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className={inputClass} placeholder="participant@email.com" />
               </div>
-              <div>
-                <label className={labelClass}>Âge *</label>
-                <select required value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} className={inputClass}>
-                  <option value="">--</option>
-                  {TRANCHES_AGE.map((a) => <option key={a} value={a}>{a}</option>)}
-                </select>
+              <div className="md:col-span-3">
+                <label className={labelClass}>Adresse postale *</label>
+                <input required type="text" value={formData.adressePostale} onChange={(e) => setFormData({ ...formData, adressePostale: e.target.value })} className={inputClass} placeholder="12 rue de la Paix" />
               </div>
               <div>
                 <label className={labelClass}>Code postal *</label>
@@ -393,15 +491,21 @@ export default function FormulairePrfePage() {
               </div>
               <div className="md:col-span-2">
                 <label className={labelClass}>Ville de résidence *</label>
-                <input required type="text" value={formData.ville} onChange={(e) => setFormData({ ...formData, ville: e.target.value })} className={inputClass} placeholder="Évry-Courcouronnes" />
+                <input required type="text" value={formData.ville} onChange={(e) => setFormData({ ...formData, ville: e.target.value })} onBlur={verifierQpv} className={inputClass} placeholder="Évry-Courcouronnes" />
               </div>
-              <div>
+              <div className="md:col-span-3">
                 <label className={labelClass}>Réside en QPV ?</label>
-                <select value={formData.qpv} onChange={(e) => setFormData({ ...formData, qpv: e.target.value })} className={inputClass}>
-                  <option value="Oui">Oui</option>
-                  <option value="Non">Non</option>
-                  <option value="Je ne sais pas">Je ne sais pas</option>
-                </select>
+                <div className="flex items-center gap-3">
+                  <select value={formData.qpv} onChange={(e) => setFormData({ ...formData, qpv: e.target.value })} className={inputClass}>
+                    <option value="Oui">Oui</option>
+                    <option value="Non">Non</option>
+                    <option value="Je ne sais pas">Je ne sais pas</option>
+                  </select>
+                  <button type="button" onClick={verifierQpv} disabled={verificationQpv === "chargement"} className="shrink-0 px-3 py-2 bg-white hover:bg-[#F3F3F2] border border-[#404040]/15 text-[#005259] rounded-xl text-xs font-bold uppercase tracking-wide transition-colors disabled:opacity-50 cursor-pointer">
+                    {verificationQpv === "chargement" ? "Vérification..." : "Vérifier automatiquement"}
+                  </button>
+                </div>
+                {messageQpv && <p className="mt-1 text-xs text-[#404040]/70">{messageQpv}</p>}
               </div>
             </div>
 
@@ -416,8 +520,8 @@ export default function FormulairePrfePage() {
           </div>
           )}
 
-          {/* ÉTAPE 3 — SITUATION */}
-          {etape === 3 && (
+          {/* ÉTAPE 4 — SITUATION */}
+          {etape === 4 && (
           <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-4">
             <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Situation du / de la participant.e</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -513,8 +617,8 @@ export default function FormulairePrfePage() {
           </div>
           )}
 
-          {/* ÉTAPE 4 — CONSEILLER RÉFÉRENT */}
-          {etape === 4 && (
+          {/* ÉTAPE 5 — CONSEILLER RÉFÉRENT */}
+          {etape === 5 && (
           <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-4">
             <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Conseiller.e référent.e</h2>
             <PrescripteurAutocomplete
@@ -547,8 +651,8 @@ export default function FormulairePrfePage() {
           </div>
           )}
 
-          {/* ÉTAPE 5 — PROJET & CONSENTEMENT */}
-          {etape === 5 && (
+          {/* ÉTAPE 6 — PROJET & CONSENTEMENT */}
+          {etape === 6 && (
           <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-4">
             <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Projet professionnel</h2>
             <div>

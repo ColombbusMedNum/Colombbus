@@ -41,7 +41,7 @@ export function middleware(request: Request) {
   // app/mediation/actions-collectives/inscription/numerik-up pour la
   // version interne) — voir firestore.rules pour l'écriture ouverte
   // correspondante sur inscriptions_numerikup.
-  const pagesPubliques = ["/login", "/reset-password", "/planning", "/inscription/numerik-up"];
+  const pagesPubliques = ["/login", "/reset-password", "/planning", "/inscription/numerik-up", "/inscription/numerik-up-pro", "/inscription/prfe"];
 
   // 2. CAS 1 : L'utilisateur n'est pas connecté — on retient la page visée
   // (ex /agenda/mobile via /planning) pour y revenir juste après connexion.

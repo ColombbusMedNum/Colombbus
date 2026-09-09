@@ -179,12 +179,27 @@ service cloud.firestore {
       allow read, create: if isStaff();
       allow update, delete: if isCoordinateurOuPlus();
     }
+    // Formulaire public app/inscription/numerik-up-pro (même principe que
+    // Numérik'Up ci-dessus) : lecture de configuration ouverte pour charger
+    // parcours/territoires/sessions/logos sans connexion, création ouverte
+    // avec validation minimale + anti-bot (le consentement de partage des
+    // coordonnées, propre à NUMERIK PRO, est requis en plus du RGPD).
     match /configuration_numerikuppro/{docId} {
-      allow read: if isStaff();
+      allow read: if true;
       allow write: if isAdmin();
     }
     match /inscriptions_numerikuppro/{docId} {
-      allow read, create: if isStaff();
+      allow read: if isStaff();
+      allow create: if isStaff() || (
+        request.resource.data.keys().hasAll(['Nom', 'Prénom', 'Téléphone', 'Email', 'Parcours', 'Territoire', 'Session', 'RGPD', 'Consentement_Partage_Simulation']) &&
+        request.resource.data['Nom'] is string && request.resource.data['Nom'].size() > 0 &&
+        request.resource.data['Prénom'] is string && request.resource.data['Prénom'].size() > 0 &&
+        request.resource.data['Email'] is string && request.resource.data['Email'].size() > 0 &&
+        request.resource.data['RGPD'] == true &&
+        request.resource.data['Consentement_Partage_Simulation'] == true &&
+        request.resource.data.get('_piege', '') == '' &&
+        request.resource.data.get('_dureeRemplissageMs', 0) > 3000
+      );
       allow update, delete: if isCoordinateurOuPlus();
     }
 
@@ -192,11 +207,21 @@ service cloud.firestore {
     // actions-collectives/reponses/prfe et .../inscription/prfe) — mêmes
     // règles, collections distinctes de NUMERIK PRO (aucune donnée partagée).
     match /configuration_prfe/{docId} {
-      allow read: if isStaff();
+      allow read: if true;
       allow write: if isAdmin();
     }
     match /inscriptions_prfe/{docId} {
-      allow read, create: if isStaff();
+      allow read: if isStaff();
+      allow create: if isStaff() || (
+        request.resource.data.keys().hasAll(['Nom', 'Prénom', 'Téléphone', 'Email', 'Parcours', 'Territoire', 'Session', 'RGPD', 'Consentement_Partage_Simulation']) &&
+        request.resource.data['Nom'] is string && request.resource.data['Nom'].size() > 0 &&
+        request.resource.data['Prénom'] is string && request.resource.data['Prénom'].size() > 0 &&
+        request.resource.data['Email'] is string && request.resource.data['Email'].size() > 0 &&
+        request.resource.data['RGPD'] == true &&
+        request.resource.data['Consentement_Partage_Simulation'] == true &&
+        request.resource.data.get('_piege', '') == '' &&
+        request.resource.data.get('_dureeRemplissageMs', 0) > 3000
+      );
       allow update, delete: if isCoordinateurOuPlus();
     }
 

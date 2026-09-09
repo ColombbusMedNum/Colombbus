@@ -35,6 +35,15 @@ service firebase.storage {
       allow read, write: if isStaff();
     }
 
+    // Visuels "programme" par parcours (voir .../inscription/*/parametres),
+    // affichés dans un bloc dépliable du formulaire public correspondant —
+    // lecture publique nécessaire (formulaire sans connexion), écriture
+    // réservée au staff qui les téléverse depuis la page Paramètres.
+    match /programmes_inscription/{allPaths=**} {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
     // Captures d'écran collées dans le formulaire de signalement de bug
     // (voir components/BugReportButton.tsx) — la restriction réelle sur qui
     // peut consulter la liste des signalements se fait côté Firestore

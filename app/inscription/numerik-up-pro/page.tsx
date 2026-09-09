@@ -12,16 +12,16 @@ import { formatPhoneForStorage } from "@/lib/formatPhone";
 import { sessionEstAVenir } from "@/lib/sessionDates";
 
 // Version PUBLIQUE (sans connexion) du formulaire de pré-inscription
-// Numérik'Up — voir aussi la version interne, réservée au staff, à
-// app/mediation/actions-collectives/inscription/numerik-up/page.tsx.
-// Mêmes champs et même collection Firestore (inscriptions_numerikup), mais :
-// - aucun PageGuard/navigation interne (voir middleware.ts pagesPubliques
-//   et firestore.rules pour l'écriture ouverte correspondante) ;
-// - pas d'autocomplétion sur l'annuaire des prescripteurs (accès réservé au
-//   staff) — le/la candidat.e saisit directement les coordonnées de son
-//   conseiller.e référent.e le cas échéant ;
-// - en-tête avec logos, choisis par un admin depuis /mediation/actions-
-//   collectives/inscription/numerik-up/parametres (bibliothèque partagée).
+// NUMERIK PRO — voir aussi la version interne, réservée au staff, à
+// app/mediation/actions-collectives/inscription/numerik-up-pro/page.tsx.
+// Mêmes champs et même collection Firestore (inscriptions_numerikuppro),
+// mais : aucun PageGuard/navigation interne (voir middleware.ts
+// pagesPubliques et firestore.rules pour l'écriture ouverte
+// correspondante) ; pas d'autocomplétion sur l'annuaire des prescripteurs
+// (accès réservé au staff) — le/la candidat.e saisit directement les
+// coordonnées de son conseiller.e référent.e le cas échéant ; en-tête avec
+// logos, choisis par un admin depuis /mediation/actions-collectives/
+// inscription/numerik-up-pro/parametres (bibliothèque partagée).
 
 interface Parcours {
   id: string;
@@ -29,29 +29,21 @@ interface Parcours {
 }
 
 const PARCOURS_DEFAUT: Parcours[] = [
-  { id: "crea", label: "Numérik'Up Créa : Game Design + Graphisme" },
-  { id: "tech", label: "Numérik'Up Tech : Développement Web + Maintenance informatique" },
+  { id: "numerikpro-tech", label: "Numérik'Pro Tech" },
+  { id: "numerikpro-marketing", label: "Numérik'Pro Marketing" },
 ];
 
 const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
 
-
 const NIVEAUX_ETUDES = [
+  "Infra brevet",
   "Brevet, CAP, BEP",
   "Bac",
   "Bac+2 (L2, BTS, DUT, DEUST)",
   "Bac+3 (Licence, licence professionnelle)",
   "Bac+4/5 et plus",
-];
-
-const STRUCTURES = [
-  "Mission locale",
-  "E2C (Ecole de la deuxième chance)",
-  "Pôle Emploi",
-  "PLIE",
-  "Epide",
-  "PJJ",
-  "Aucune",
+  "Supérieur à Bac +3",
+  "Autre",
 ];
 
 const CANAUX_CONNAISSANCE = [
@@ -72,8 +64,8 @@ const inputClass = "w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 foc
 const labelClass = "block text-[11px] font-bold text-[#404040]/70 uppercase tracking-wide mb-1";
 
 // Pour les campagnes d'emailing (Brevo...) : un lien du type
-// .../inscription/numerik-up?parcours=crea (ou ?parcours=tech) pré-sélectionne
-// le parcours correspondant, sans accents/casse à respecter côté lien.
+// .../inscription/numerik-up-pro?parcours=numerikpro-tech pré-sélectionne le
+// parcours correspondant, sans accents/casse à respecter côté lien.
 function normaliser(texte: string): string {
   return texte.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
@@ -89,36 +81,40 @@ const FORM_VIDE = {
   ville: "",
   qpv: "Je ne sais pas",
   age: "",
+  situationHandicap: "Non",
+  rqth: "Non",
+  rsa: "Non",
   neet: "Non",
   cej: "Non",
-  situationPlus26: "",
-  rsa: "Non",
-  rqth: "Non",
-  niveauEtudes: NIVEAUX_ETUDES[0],
-  structures: [] as string[],
-  structureAutre: "",
-  ase: "Non",
+  niveauEtudes: "Bac",
+  niveauEtudesAutre: "",
+  franceTravail: "Non",
+  identifiantFranceTravail: "",
+  structureAccompagnement: "",
   conseillerNom: "",
   conseillerPrenom: "",
   conseillerEmail: "",
   conseillerTelephone: "",
   commentConnu: CANAUX_CONNAISSANCE[0],
   commentConnuAutre: "",
-  parcours: "crea",
+  projetProfessionnel: "",
+  formationAcces: "",
+  parcours: "numerikpro-tech",
   territoire: "91",
   session: "",
   rgpd: false,
+  consentementPartageSimulation: false,
 };
 
-export default function FormulairePublicNumerikUpPage() {
+export default function FormulairePublicNumerikUpProPage() {
   return (
     <Suspense fallback={null}>
-      <FormulairePublicNumerikUpContenu />
+      <FormulairePublicNumerikUpProContenu />
     </Suspense>
   );
 }
 
-function FormulairePublicNumerikUpContenu() {
+function FormulairePublicNumerikUpProContenu() {
   const searchParams = useSearchParams();
   const parcoursPreselectionneApplique = useRef(false);
   const [formData, setFormData] = useState(FORM_VIDE);
@@ -142,14 +138,14 @@ function FormulairePublicNumerikUpContenu() {
   const [sessions, setSessions] = useState<Record<string, Record<string, string[]>>>({});
   // Un même partenaire ne finance pas forcément l'action sur tous les
   // territoires : les logos affichés en en-tête dépendent donc du
-  // territoire choisi à l'étape 1 (voir .../numerik-up/parametres).
+  // territoire choisi à l'étape 1 (voir .../numerik-up-pro/parametres).
   const [logosParTerritoire, setLogosParTerritoire] = useState<Record<string, string[]>>({});
   const [logosParId, setLogosParId] = useState<Map<string, any>>(new Map());
 
-  // Lien pré-rempli pour campagnes d'emailing : .../numerik-up?parcours=crea
-  // (ou ?parcours=tech) — comparaison insensible aux accents/casse pour
-  // rester tolérant, appliquée une seule fois pour ne pas écraser un choix
-  // fait ensuite manuellement dans le formulaire.
+  // Lien pré-rempli pour campagnes d'emailing : .../numerik-up-pro?parcours=
+  // numerikpro-tech — comparaison insensible aux accents/casse pour rester
+  // tolérant, appliquée une seule fois pour ne pas écraser un choix fait
+  // ensuite manuellement dans le formulaire.
   useEffect(() => {
     if (parcoursPreselectionneApplique.current) return;
     const parametreParcours = searchParams.get("parcours");
@@ -164,8 +160,8 @@ function FormulairePublicNumerikUpContenu() {
 
   // Détection automatique QPV à partir de l'adresse tapée (voir
   // app/api/verifier-qpv/route.ts) : ne fait que pré-remplir/suggérer une
-  // valeur pour le champ "Résidez-vous en QPV ?", qui reste éditable —
-  // aucune garantie à 100% (géocodage approximatif possible).
+  // valeur pour le champ "Réside en QPV ?", qui reste éditable — aucune
+  // garantie à 100% (géocodage approximatif possible).
   const [verificationQpv, setVerificationQpv] = useState<"idle" | "chargement" | "fait" | "erreur">("idle");
   const [messageQpv, setMessageQpv] = useState<string | null>(null);
 
@@ -195,17 +191,17 @@ function FormulairePublicNumerikUpContenu() {
   };
 
   // Visuels "programme" par parcours, affichés dans un bloc dépliable sous
-  // le choix de session (voir .../numerik-up/parametres pour la gestion).
+  // le choix de session (voir .../numerik-up-pro/parametres pour la gestion).
   const [programmes, setProgrammes] = useState<Record<string, { storagePath: string; url: string }[]>>({});
 
   useEffect(() => {
     const charger = async () => {
       const [snapSessions, snapParcours, snapTerritoires, snapLogosFormulaire, snapProgrammes] = await Promise.all([
-        getDoc(doc(db, "configuration_numerikup", "sessions")),
-        getDoc(doc(db, "configuration_numerikup", "parcours")),
-        getDoc(doc(db, "configuration_numerikup", "territoires")),
-        getDoc(doc(db, "configuration_numerikup", "logosFormulaire")),
-        getDoc(doc(db, "configuration_numerikup", "programmes")),
+        getDoc(doc(db, "configuration_numerikuppro", "sessions")),
+        getDoc(doc(db, "configuration_numerikuppro", "parcours")),
+        getDoc(doc(db, "configuration_numerikuppro", "territoires")),
+        getDoc(doc(db, "configuration_numerikuppro", "logosFormulaire")),
+        getDoc(doc(db, "configuration_numerikuppro", "programmes")),
       ]);
       if (snapProgrammes.exists()) {
         setProgrammes(snapProgrammes.data().parParcours || {});
@@ -222,9 +218,6 @@ function FormulairePublicNumerikUpContenu() {
       if (snapLogosFormulaire.exists()) {
         const data = snapLogosFormulaire.data();
         let parTerritoire: Record<string, string[]> = data.parTerritoire && typeof data.parTerritoire === "object" ? data.parTerritoire : {};
-        // Ancien format global (avant la sélection par territoire) : appliqué
-        // à tous les territoires connus, tant que l'admin n'a pas encore
-        // affiné la répartition depuis la page Paramètres.
         if (Object.keys(parTerritoire).length === 0 && Array.isArray(data.logoIds) && data.logoIds.length > 0) {
           const territoiresConnus = snapTerritoires.exists() && Array.isArray(snapTerritoires.data().liste) && snapTerritoires.data().liste.length > 0
             ? snapTerritoires.data().liste
@@ -263,15 +256,6 @@ function FormulairePublicNumerikUpContenu() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.territoire, sessions]);
 
-  const toggleStructure = (structure: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      structures: prev.structures.includes(structure)
-        ? prev.structures.filter((s) => s !== structure)
-        : [...prev.structures, structure],
-    }));
-  };
-
   const validerEtape = (numero: number): string | null => {
     if (numero === 1) {
       if (!formData.territoire) return "Merci de sélectionner un territoire.";
@@ -303,6 +287,10 @@ function FormulairePublicNumerikUpContenu() {
       setErreur("Le consentement RGPD est obligatoire pour enregistrer votre inscription.");
       return;
     }
+    if (!formData.consentementPartageSimulation) {
+      setErreur("Le consentement au partage des coordonnées est obligatoire pour enregistrer votre inscription.");
+      return;
+    }
     if (!formData.session) {
       setErreur("Merci de sélectionner une session.");
       return;
@@ -321,7 +309,7 @@ function FormulairePublicNumerikUpContenu() {
 
     setEnvoiEnCours(true);
     try {
-      await addDoc(collection(db, "inscriptions_numerikup"), {
+      await addDoc(collection(db, "inscriptions_numerikuppro"), {
         _piege: piege,
         _dureeRemplissageMs: dureeRemplissageMs,
         Civilité: formData.civilite,
@@ -334,30 +322,33 @@ function FormulairePublicNumerikUpContenu() {
         Ville: formData.ville,
         QPV: formData.qpv,
         Age: formData.age,
+        Situation_Handicap: formData.situationHandicap,
+        RQTH: formData.rqth,
+        RSA: formData.rsa,
         NEET: formData.neet,
         CEJ: formData.cej,
-        Situation_Plus_26: Number(formData.age) > 26 ? formData.situationPlus26 : "",
-        RSA: formData.rsa,
-        RQTH: formData.rqth,
-        Niveau_Etudes: formData.niveauEtudes,
-        Structures_Accompagnement: formData.structures,
-        Structure_Autre: formData.structureAutre,
-        ASE: formData.ase,
+        Niveau_Etudes: formData.niveauEtudes === "Autre" ? formData.niveauEtudesAutre : formData.niveauEtudes,
+        France_Travail: formData.franceTravail,
+        Identifiant_France_Travail: formData.franceTravail === "Oui" ? formData.identifiantFranceTravail : "",
+        Structure_Accompagnement: formData.structureAccompagnement,
         Conseiller_Nom: formatNom(formData.conseillerNom),
         Conseiller_Prenom: formatPrenom(formData.conseillerPrenom),
         Conseiller_Email: formData.conseillerEmail,
         Conseiller_Telephone: formatPhoneForStorage(formData.conseillerTelephone),
         Comment_Connu: formData.commentConnu === "Autre" ? formData.commentConnuAutre : formData.commentConnu,
         Parcours: parcoursListe.find((p) => p.id === formData.parcours)?.label || formData.parcours,
+        Projet_Professionnel: formData.projetProfessionnel,
+        Formation_Acces: formData.formationAcces,
         Territoire: formData.territoire,
         Session: formData.session,
         RGPD: formData.rgpd,
+        Consentement_Partage_Simulation: formData.consentementPartageSimulation,
         createdAt: serverTimestamp(),
       });
 
       setEnvoye(true);
     } catch (error) {
-      console.error("Erreur lors de l'enregistrement de l'inscription Numérik'Up :", error);
+      console.error("Erreur lors de l'enregistrement de l'inscription NUMERIK PRO :", error);
       setErreur("Une erreur est survenue lors de l'enregistrement. Merci de réessayer dans quelques instants.");
     } finally {
       setEnvoiEnCours(false);
@@ -382,7 +373,7 @@ function FormulairePublicNumerikUpContenu() {
           </div>
           <div>
             <h1 className="text-2xl sm:text-3xl font-black uppercase text-[#005259] tracking-tight">
-              Numérik'<span className="text-[#EA601F]">Up</span>
+              NUMERIK <span className="text-[#EA601F]">PRO</span>
             </h1>
             <p className="text-sm text-[#404040]/70 mt-1">Formulaire de pré-inscription</p>
           </div>
@@ -401,7 +392,7 @@ function FormulairePublicNumerikUpContenu() {
 
             {/* RGPD */}
             <div className="bg-[#88ACEA]/10 border border-[#88ACEA]/40 rounded-xl p-3 text-[11px] text-[#404040]">
-              Les données recueillies dans ce formulaire font l'objet d'un traitement informatique destiné à l'inscription à l'action Parkour Numérik'Up organisée par l'association Colombbus, en conformité avec la loi RGPD 2018.
+              Les données recueillies dans ce formulaire font l'objet d'un traitement informatique destiné à l'inscription à l'action Numérik'Pro organisée par l'association Colombbus, en conformité avec la loi RGPD 2018.
             </div>
 
             {/* PROGRESSION */}
@@ -466,7 +457,7 @@ function FormulairePublicNumerikUpContenu() {
                 ) : (
                   <>
                     <div>
-                      <label className={labelClass}>Quel type de Parkour Numérik'Up vous intéresse ? *</label>
+                      <label className={labelClass}>Sur quel parcours de formation souhaitez-vous vous préinscrire ? *</label>
                       <select required value={formData.parcours} onChange={(e) => setFormData({ ...formData, parcours: e.target.value, session: "" })} className={inputClass}>
                         {parcoursDisponibles.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
                       </select>
@@ -562,13 +553,6 @@ function FormulairePublicNumerikUpContenu() {
                   </div>
                 </div>
 
-                {Number(formData.age) > 26 && (
-                  <div>
-                    <label className={labelClass}>Merci de préciser votre situation (+ de 26 ans)</label>
-                    <textarea value={formData.situationPlus26} onChange={(e) => setFormData({ ...formData, situationPlus26: e.target.value })} rows={2} className={inputClass} />
-                  </div>
-                )}
-
                 <div className="flex justify-between pt-2 border-t border-[#404040]/10">
                   <button type="button" onClick={etapePrecedente} className="px-5 py-2 bg-white hover:bg-[#F3F3F2] border border-[#404040]/10 text-[#404040] rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer">
                     Précédent
@@ -586,6 +570,56 @@ function FormulairePublicNumerikUpContenu() {
                 <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Votre situation</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
+                    <label className={labelClass}>En situation de handicap ?</label>
+                    <select value={formData.situationHandicap} onChange={(e) => setFormData({ ...formData, situationHandicap: e.target.value })} className={inputClass}>
+                      <option value="Oui">Oui</option>
+                      <option value="Non">Non</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Reconnu.e RQTH ?</label>
+                    <select value={formData.rqth} onChange={(e) => setFormData({ ...formData, rqth: e.target.value })} className={inputClass}>
+                      <option value="Oui">Oui</option>
+                      <option value="Non">Non</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Bénéficiaire du RSA ?</label>
+                    <select value={formData.rsa} onChange={(e) => setFormData({ ...formData, rsa: e.target.value })} className={inputClass}>
+                      <option value="Oui">Oui</option>
+                      <option value="Non">Non</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Niveau d'études</label>
+                    <select value={formData.niveauEtudes} onChange={(e) => setFormData({ ...formData, niveauEtudes: e.target.value })} className={inputClass}>
+                      {NIVEAUX_ETUDES.map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                    {formData.niveauEtudes === "Autre" && (
+                      <input
+                        type="text"
+                        value={formData.niveauEtudesAutre}
+                        onChange={(e) => setFormData({ ...formData, niveauEtudesAutre: e.target.value })}
+                        placeholder="Préciser le niveau d'études"
+                        className={`${inputClass} mt-2`}
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <label className={labelClass}>Inscrit.e à France Travail ?</label>
+                    <select value={formData.franceTravail} onChange={(e) => setFormData({ ...formData, franceTravail: e.target.value })} className={inputClass}>
+                      <option value="Oui">Oui</option>
+                      <option value="Non">Non</option>
+                      <option value="Inscription en cours">Inscription en cours</option>
+                    </select>
+                  </div>
+                  {formData.franceTravail === "Oui" && (
+                    <div>
+                      <label className={labelClass}>Identifiant France Travail</label>
+                      <input type="text" value={formData.identifiantFranceTravail} onChange={(e) => setFormData({ ...formData, identifiantFranceTravail: e.target.value })} className={inputClass} />
+                    </div>
+                  )}
+                  <div>
                     <label className={labelClass}>N.E.E.T (ni étudiant.e, ni employé.e, ni stagiaire) ?</label>
                     <select value={formData.neet} onChange={(e) => setFormData({ ...formData, neet: e.target.value })} className={inputClass}>
                       <option value="Oui">Oui</option>
@@ -599,59 +633,16 @@ function FormulairePublicNumerikUpContenu() {
                       <option value="Non">Non</option>
                     </select>
                   </div>
-                  <div>
-                    <label className={labelClass}>Bénéficiaire du RSA ?</label>
-                    <select value={formData.rsa} onChange={(e) => setFormData({ ...formData, rsa: e.target.value })} className={inputClass}>
-                      <option value="Oui">Oui</option>
-                      <option value="Non">Non</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className={labelClass}>Reconnu.e RQTH ?</label>
-                    <select value={formData.rqth} onChange={(e) => setFormData({ ...formData, rqth: e.target.value })} className={inputClass}>
-                      <option value="Oui">Oui</option>
-                      <option value="Non">Non</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className={labelClass}>Accompagné.e par l'ASE ?</label>
-                    <select value={formData.ase} onChange={(e) => setFormData({ ...formData, ase: e.target.value })} className={inputClass}>
-                      <option value="Oui">Oui</option>
-                      <option value="Non">Non</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className={labelClass}>Niveau d'études</label>
-                    <select value={formData.niveauEtudes} onChange={(e) => setFormData({ ...formData, niveauEtudes: e.target.value })} className={inputClass}>
-                      {NIVEAUX_ETUDES.map((n) => <option key={n} value={n}>{n}</option>)}
-                    </select>
-                  </div>
                 </div>
 
                 <div>
-                  <label className={labelClass}>Structure(s) d'accompagnement</label>
-                  <div className="flex flex-wrap gap-2">
-                    {STRUCTURES.map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => toggleStructure(s)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                          formData.structures.includes(s)
-                            ? "bg-[#005259] text-white border-[#005259]"
-                            : "bg-[#F3F3F2] text-[#404040] border-[#404040]/10 hover:border-[#005259]"
-                        }`}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
+                  <label className={labelClass}>Quelle est votre structure d'accompagnement ?</label>
                   <input
                     type="text"
-                    value={formData.structureAutre}
-                    onChange={(e) => setFormData({ ...formData, structureAutre: e.target.value })}
-                    placeholder="Autre structure (préciser)"
-                    className={`${inputClass} mt-2`}
+                    value={formData.structureAccompagnement}
+                    onChange={(e) => setFormData({ ...formData, structureAccompagnement: e.target.value })}
+                    placeholder="Ex : Mission locale de Paris, France Travail, PLIE, E2C..."
+                    className={inputClass}
                   />
                 </div>
 
@@ -701,11 +692,11 @@ function FormulairePublicNumerikUpContenu() {
               </div>
               )}
 
-              {/* ÉTAPE 6 — ORIGINE & CONSENTEMENT */}
+              {/* ÉTAPE 6 — PROJET & CONSENTEMENT */}
               {etape === 6 && (
               <div className="space-y-4">
                 <div>
-                  <label className={labelClass}>Comment avez-vous connu l'action Numérik'Up ?</label>
+                  <label className={labelClass}>Comment avez-vous connu l'action Numérik'Pro ?</label>
                   <select value={formData.commentConnu} onChange={(e) => setFormData({ ...formData, commentConnu: e.target.value })} className={inputClass}>
                     {CANAUX_CONNAISSANCE.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
@@ -720,6 +711,16 @@ function FormulairePublicNumerikUpContenu() {
                   )}
                 </div>
 
+                <div>
+                  <label className={labelClass}>Quel est votre projet professionnel ?</label>
+                  <textarea value={formData.projetProfessionnel} onChange={(e) => setFormData({ ...formData, projetProfessionnel: e.target.value })} rows={3} className={inputClass} />
+                </div>
+
+                <div>
+                  <label className={labelClass}>De quelle manière la formation Numérik'Pro peut vous permettre d'y accéder ?</label>
+                  <textarea value={formData.formationAcces} onChange={(e) => setFormData({ ...formData, formationAcces: e.target.value })} rows={3} className={inputClass} />
+                </div>
+
                 <label className="flex items-start gap-2.5 text-xs text-[#404040] cursor-pointer">
                   <input
                     type="checkbox"
@@ -727,7 +728,17 @@ function FormulairePublicNumerikUpContenu() {
                     onChange={(e) => setFormData({ ...formData, rgpd: e.target.checked })}
                     className="mt-0.5 w-4 h-4 accent-[#005259] cursor-pointer"
                   />
-                  <span>J'autorise le traitement des données collectées en conformité avec la loi RGPD 2018. *</span>
+                  <span>J'ai compris les informations ci-dessus et j'accepte que mes données personnelles soient collectées et utilisées aux fins décrites, en conformité avec la loi RGPD 2018. *</span>
+                </label>
+
+                <label className="flex items-start gap-2.5 text-xs text-[#404040] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.consentementPartageSimulation}
+                    onChange={(e) => setFormData({ ...formData, consentementPartageSimulation: e.target.checked })}
+                    className="mt-0.5 w-4 h-4 accent-[#005259] cursor-pointer"
+                  />
+                  <span>J'accepte que mes coordonnées soient partagées avec l'équipe Numérik'Pro dans le cadre de ma pré-inscription. *</span>
                 </label>
 
                 <div className="flex justify-between pt-2 border-t border-[#404040]/10">

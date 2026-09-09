@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { db } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
 import { HomeIcon, ArrowLeftIcon, PlusIcon, XMarkIcon, TrashIcon, TagIcon, WrenchScrewdriverIcon, PhotoIcon } from "@heroicons/react/24/outline";
@@ -107,21 +108,47 @@ export default function ParametresNumerikUpPage() {
   // Logos affichés dans l'en-tête du formulaire public (app/inscription/
   // numerik-up), choisis parmi la bibliothèque partagée (voir
   // /mediation/bibliotheque-logos) — pas de nouveau système d'upload dédié.
+  // Un même partenaire ne finance pas forcément l'action sur tous les
+  // territoires : la sélection se fait donc par territoire, pas globalement.
   const [logosDisponibles, setLogosDisponibles] = useState<any[]>([]);
-  const [logosSelectionnes, setLogosSelectionnes] = useState<string[]>([]);
+  const [logosParTerritoire, setLogosParTerritoire] = useState<Record<string, string[]>>({});
+  const [territoireLogosActif, setTerritoireLogosActif] = useState("91");
+
+  // Visuels "programme" par parcours (ex. affiche/déroulé de session),
+  // affichés dans un bloc dépliable sous l'étape Parcours/Session du
+  // formulaire public — plusieurs images possibles par parcours (ex. une
+  // page infos pratiques + une page programme détaillé).
+  const [programmes, setProgrammes] = useState<Record<string, { storagePath: string; url: string }[]>>({});
+  const [televersementProgrammeEnCours, setTeleversementProgrammeEnCours] = useState<string | null>(null);
 
   useEffect(() => {
     const charger = async () => {
-      const [snapSessions, snapParcours, snapTerritoires, snapLogosFormulaire, snapLogos] = await Promise.all([
+      const [snapSessions, snapParcours, snapTerritoires, snapLogosFormulaire, snapProgrammes, snapLogos] = await Promise.all([
         getDoc(doc(db, "configuration_numerikup", "sessions")),
         getDoc(doc(db, "configuration_numerikup", "parcours")),
         getDoc(doc(db, "configuration_numerikup", "territoires")),
         getDoc(doc(db, "configuration_numerikup", "logosFormulaire")),
+        getDoc(doc(db, "configuration_numerikup", "programmes")),
         getDocs(collection(db, "logos_emargement")),
       ]);
       setLogosDisponibles(snapLogos.docs.map((d) => ({ id: d.id, ...d.data() })));
-      if (snapLogosFormulaire.exists() && Array.isArray(snapLogosFormulaire.data().logoIds)) {
-        setLogosSelectionnes(snapLogosFormulaire.data().logoIds);
+      if (snapLogosFormulaire.exists()) {
+        const data = snapLogosFormulaire.data();
+        if (data.parTerritoire && typeof data.parTerritoire === "object") {
+          setLogosParTerritoire(data.parTerritoire);
+        } else if (Array.isArray(data.logoIds)) {
+          // Ancien format global (avant la sélection par territoire) :
+          // repris tel quel comme point de départ pour chaque territoire,
+          // à affiner ensuite — pas de perte silencieuse des logos déjà
+          // choisis avant cette évolution.
+          const territoiresConnus = snapTerritoires.exists() && Array.isArray(snapTerritoires.data().liste) && snapTerritoires.data().liste.length > 0
+            ? snapTerritoires.data().liste
+            : TERRITOIRES_DEFAUT;
+          setLogosParTerritoire(Object.fromEntries(territoiresConnus.map((t: string) => [t, data.logoIds])));
+        }
+      }
+      if (snapProgrammes.exists()) {
+        setProgrammes(snapProgrammes.data().parParcours || {});
       }
       const parcoursCharges = snapParcours.exists() && Array.isArray(snapParcours.data().liste) && snapParcours.data().liste.length > 0
         ? snapParcours.data().liste
@@ -156,6 +183,7 @@ export default function ParametresNumerikUpPage() {
         const liste = snapTerritoires.data().liste;
         setTerritoiresListe(liste);
         setNouvelleSessionTerritoire(liste[0]);
+        setTerritoireLogosActif(liste[0]);
       }
       setLoading(false);
     };
@@ -170,12 +198,46 @@ export default function ParametresNumerikUpPage() {
     await setDoc(doc(db, "configuration_numerikup", "sessions"), { parTerritoire, codes: codesActuels });
   };
 
-  const basculerLogo = async (logoId: string) => {
-    const misesAJour = logosSelectionnes.includes(logoId)
-      ? logosSelectionnes.filter((id) => id !== logoId)
-      : [...logosSelectionnes, logoId];
-    setLogosSelectionnes(misesAJour);
-    await setDoc(doc(db, "configuration_numerikup", "logosFormulaire"), { logoIds: misesAJour });
+  const basculerLogo = async (territoire: string, logoId: string) => {
+    const pourTerritoire = logosParTerritoire[territoire] || [];
+    const misesAJour = {
+      ...logosParTerritoire,
+      [territoire]: pourTerritoire.includes(logoId) ? pourTerritoire.filter((id) => id !== logoId) : [...pourTerritoire, logoId],
+    };
+    setLogosParTerritoire(misesAJour);
+    await setDoc(doc(db, "configuration_numerikup", "logosFormulaire"), { parTerritoire: misesAJour });
+  };
+
+  const sauvegarderProgrammes = async (parParcours: Record<string, { storagePath: string; url: string }[]>) => {
+    setProgrammes(parParcours);
+    await setDoc(doc(db, "configuration_numerikup", "programmes"), { parParcours });
+  };
+
+  const televerserProgramme = async (parcoursId: string, fichier: File) => {
+    if (fichier.size > 3 * 1024 * 1024) {
+      alert("Cette image est trop lourde. Merci de choisir un fichier de moins de 3 Mo.");
+      return;
+    }
+    setTeleversementProgrammeEnCours(parcoursId);
+    try {
+      const storagePath = `programmes_inscription/numerik-up/${parcoursId}/${Date.now()}_${fichier.name}`;
+      const ref = storageRef(storage, storagePath);
+      await uploadBytes(ref, fichier);
+      const url = await getDownloadURL(ref);
+      const pourParcours = programmes[parcoursId] || [];
+      await sauvegarderProgrammes({ ...programmes, [parcoursId]: [...pourParcours, { storagePath, url }] });
+    } catch (e) {
+      console.error(e);
+      alert("Erreur lors du téléversement de l'image.");
+    } finally {
+      setTeleversementProgrammeEnCours(null);
+    }
+  };
+
+  const supprimerProgramme = async (parcoursId: string, image: { storagePath: string; url: string }) => {
+    const pourParcours = (programmes[parcoursId] || []).filter((img) => img.storagePath !== image.storagePath);
+    await sauvegarderProgrammes({ ...programmes, [parcoursId]: pourParcours });
+    await deleteObject(storageRef(storage, image.storagePath)).catch(() => {});
   };
 
   const ajouterParcours = async () => {
@@ -437,19 +499,33 @@ export default function ParametresNumerikUpPage() {
           </div>
           <p className="text-[10px] text-[#404040]/50">
             Choisis parmi la <Link href="/mediation/bibliotheque-logos" className="underline hover:text-[#005259]">bibliothèque de logos</Link> — affichés dans l'en-tête de{" "}
-            <a href="/inscription/numerik-up" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#005259]">la version publique du formulaire</a>.
+            <a href="/inscription/numerik-up" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#005259]">la version publique du formulaire</a>. Un partenaire ne finance pas forcément l'action sur tous les territoires : la sélection se fait territoire par territoire.
           </p>
+          <div className="flex flex-wrap gap-1.5">
+            {territoiresListe.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTerritoireLogosActif(t)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                  territoireLogosActif === t ? "bg-[#005259] text-white border-[#005259]" : "bg-[#F3F3F2] text-[#404040] border-[#404040]/10 hover:border-[#005259]/40"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
           {logosDisponibles.length === 0 ? (
             <p className="text-xs text-[#404040]/50 italic">Aucun logo dans la bibliothèque pour le moment.</p>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-3">
               {logosDisponibles.map((logo) => {
-                const selectionne = logosSelectionnes.includes(logo.id);
+                const selectionne = (logosParTerritoire[territoireLogosActif] || []).includes(logo.id);
                 return (
                   <button
                     key={logo.id}
                     type="button"
-                    onClick={() => basculerLogo(logo.id)}
+                    onClick={() => basculerLogo(territoireLogosActif, logo.id)}
                     title={logo.nom}
                     className={`p-2 rounded-xl border-2 transition-all cursor-pointer flex flex-col items-center gap-1 ${
                       selectionne ? "border-[#005259] bg-[#005259]/5" : "border-[#404040]/10 hover:border-[#404040]/25"
@@ -464,6 +540,56 @@ export default function ParametresNumerikUpPage() {
               })}
             </div>
           )}
+        </div>
+
+        {/* PROGRAMME PAR PARCOURS */}
+        <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center gap-2">
+            <PhotoIcon className="w-4 h-4 text-[#EA601F]" />
+            <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Programme par parcours</h2>
+          </div>
+          <p className="text-[10px] text-[#404040]/50">
+            Une ou plusieurs images (affiche, déroulé de session...) affichées dans un bloc dépliable sous le choix de session du formulaire public, une fois le parcours correspondant sélectionné.
+          </p>
+          <div className="space-y-4">
+            {parcoursListe.map((p) => (
+              <div key={p.id} className="border border-[#404040]/10 rounded-xl p-3 space-y-2">
+                <span className="text-xs font-bold text-[#005259]">{p.label}</span>
+                <div className="flex flex-wrap gap-3">
+                  {(programmes[p.id] || []).map((img) => (
+                    <div key={img.storagePath} className="relative w-20 h-20 rounded-lg border border-[#404040]/10 overflow-hidden group bg-[#F3F3F2]">
+                      <img src={img.url} alt="" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => supprimerProgramme(p.id, img)}
+                        className="absolute top-1 right-1 p-1 bg-white/90 text-[#EF736A] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        <TrashIcon className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  <label className={`w-20 h-20 rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer transition-colors ${televersementProgrammeEnCours === p.id ? "border-[#404040]/20 text-[#404040]/30" : "border-[#404040]/20 hover:border-[#005259]/40 text-[#404040]/40 hover:text-[#005259]"}`}>
+                    {televersementProgrammeEnCours === p.id ? (
+                      <span className="text-[9px] font-bold uppercase">...</span>
+                    ) : (
+                      <PlusIcon className="w-5 h-5" />
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={televersementProgrammeEnCours === p.id}
+                      onChange={(e) => {
+                        const fichier = e.target.files?.[0];
+                        if (fichier) televerserProgramme(p.id, fichier);
+                        e.target.value = "";
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* PARKOURS */}
