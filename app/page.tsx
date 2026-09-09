@@ -129,7 +129,7 @@ const NAV_TREE: NavNode[] = [
   },
   {
     id: "insertion-pro", kind: "folder", accent: "teal", icon: BriefcaseIcon,
-    title: "Insertion Professionnelle", subtitle: "Programme NUMERIK PRO",
+    title: "Insertion Professionnelle", subtitle: "Programmes NUMERIK PRO et PRFE",
     actionId: "home_folder_insertion_pro",
     children: [
       {
@@ -142,6 +142,18 @@ const NAV_TREE: NavNode[] = [
           { id: "nkpro-suivi", kind: "leaf", accent: "teal", icon: UsersIcon, title: "Suivi de recrutement", subtitle: "Apprenant·e·s retenu·e·s, session par session", actionId: "home_nav_nkpro_suivi", href: "/mediation/actions-collectives/reponses/numerik-up-pro/suivi-recrutement" },
           { id: "nkpro-stats", kind: "leaf", accent: "orange", icon: ChartPieIcon, title: "Statistiques NUMERIK PRO", subtitle: "Sexe, âge, diplôme et taux de présence par session", actionId: "home_nav_nkpro_stats", href: "/mediation/actions-collectives/reponses/numerik-up-pro/statistiques" },
           { id: "nkpro-parametres", kind: "leaf", accent: "orange", icon: Cog6ToothIcon, title: "Paramètres NUMERIK PRO", subtitle: "Gérer les parcours, territoires et sessions", actionId: "home_nav_nkpro_parametres", href: "/mediation/actions-collectives/inscription/numerik-up-pro/parametres" },
+        ],
+      },
+      {
+        id: "prfe-tech", kind: "folder", accent: "teal", icon: BriefcaseIcon,
+        title: "PRFE", subtitle: "Préinscriptions, apprenant·e·s et suivi PRFE",
+        actionId: "home_nav_prfe_tech",
+        children: [
+          { id: "prfe-inscription", kind: "leaf", accent: "teal", icon: DocumentPlusIcon, title: "Formulaire d'inscription PRFE", subtitle: "Inscription au programme PRFE", actionId: "home_nav_prfe_inscription", href: "/mediation/actions-collectives/inscription/prfe" },
+          { id: "prfe-reponses", kind: "leaf", accent: "orange", icon: ClipboardDocumentCheckIcon, title: "Réponses au formulaire PRFE", subtitle: "Préinscriptions reçues au programme PRFE", actionId: "home_nav_prfe_reponses", href: "/mediation/actions-collectives/reponses/prfe" },
+          { id: "prfe-suivi", kind: "leaf", accent: "orange", icon: UsersIcon, title: "Suivi de recrutement", subtitle: "Apprenant·e·s retenu·e·s, session par session", actionId: "home_nav_prfe_suivi", href: "/mediation/actions-collectives/reponses/prfe/suivi-recrutement" },
+          { id: "prfe-stats", kind: "leaf", accent: "teal", icon: ChartPieIcon, title: "Statistiques PRFE", subtitle: "Sexe, âge, diplôme et taux de présence par session", actionId: "home_nav_prfe_stats", href: "/mediation/actions-collectives/reponses/prfe/statistiques" },
+          { id: "prfe-parametres", kind: "leaf", accent: "teal", icon: Cog6ToothIcon, title: "Paramètres PRFE", subtitle: "Gérer les parcours, territoires et sessions", actionId: "home_nav_prfe_parametres", href: "/mediation/actions-collectives/inscription/prfe/parametres" },
         ],
       },
     ],

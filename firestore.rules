@@ -188,7 +188,19 @@ service cloud.firestore {
       allow update, delete: if isCoordinateurOuPlus();
     }
 
-    // Annuaire des prescripteurs (organisme + référent·e), partagé par les 3
+    // Même architecture, dupliquée pour PRFE (voir
+    // actions-collectives/reponses/prfe et .../inscription/prfe) — mêmes
+    // règles, collections distinctes de NUMERIK PRO (aucune donnée partagée).
+    match /configuration_prfe/{docId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+    match /inscriptions_prfe/{docId} {
+      allow read, create: if isStaff();
+      allow update, delete: if isCoordinateurOuPlus();
+    }
+
+    // Annuaire des prescripteurs (organisme + référent·e), partagé par les 4
     // formulaires d'inscription ci-dessus (voir lib/prescripteurs.ts) — même
     // politique d'écriture que les inscriptions elles-mêmes : un membre du
     // staff peut créer/compléter une fiche prescripteur, seul le

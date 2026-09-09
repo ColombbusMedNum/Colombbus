@@ -11,7 +11,7 @@ import { chargerPrescripteurs, Prescripteur } from "@/lib/prescripteurs";
 import { formatPhoneNumber, formatPhoneForStorage } from "@/lib/formatPhone";
 import { formatNom, formatPrenom } from "@/lib/formatName";
 
-// Champs communs aux 3 collections d'inscriptions — suffisants pour
+// Champs communs aux 4 collections d'inscriptions — suffisants pour
 // regrouper les participant·e·s et les prescripteurs sans avoir besoin du
 // détail propre à chaque programme.
 interface InscriptionBase {
@@ -44,6 +44,7 @@ const PROGRAMMES: Programme[] = [
   { id: "numerikup", label: "Numérik'UP", collection: "inscriptions_numerikup", configCollection: "configuration_numerikup", accent: "#005259" },
   { id: "digitalup", label: "Digital'UP", collection: "inscriptions_digitalup", configCollection: "configuration_digitalup", accent: "#EA601F" },
   { id: "numerikuppro", label: "NUMERIK PRO", collection: "inscriptions_numerikuppro", configCollection: "configuration_numerikuppro", accent: "#7C1FD1" },
+  { id: "prfe", label: "PRFE", collection: "inscriptions_prfe", configCollection: "configuration_prfe", accent: "#2E7D5B" },
 ];
 
 // sessions[parcoursId][territoire] = dates de session ; codes["parcoursId|territoire|date"]
@@ -73,9 +74,9 @@ const DOMAINES_GENERIQUES = new Set([
   "protonmail.com", "numericable.fr", "bbox.fr", "neuf.fr",
 ]);
 
-// Identité d'une personne à travers les 3 collections — l'email prime (le
+// Identité d'une personne à travers les 4 collections — l'email prime (le
 // plus fiable), sinon nom + prénom + téléphone. Il n'existe aucun identifiant
-// partagé entre les 3 programmes aujourd'hui : c'est ce rapprochement qui en
+// partagé entre les 4 programmes aujourd'hui : c'est ce rapprochement qui en
 // tient lieu pour cette page.
 const cleDePersonne = (i: InscriptionBase) => {
   const email = normalise(i.Email);
@@ -92,9 +93,9 @@ const cleMatchPrescripteur = (p: Prescripteur) => `nom:${normalise(p.referentNom
 const clePrescripteurDeInscription = (i: InscriptionBase) => `nom:${normalise(i.Conseiller_Nom)}|${normalise(i.Conseiller_Prenom)}`;
 
 // L'organisme provient de champs différents selon le programme : texte libre
-// pour NUMERIK PRO, cases à cocher (+ "Autre") pour Numérik'UP/Digital'UP.
+// pour NUMERIK PRO/PRFE, cases à cocher (+ "Autre") pour Numérik'UP/Digital'UP.
 const organismeDeInscription = (programmeId: string, i: InscriptionBase): string => {
-  if (programmeId === "numerikuppro") return i.Structure_Accompagnement || i.Structure_Autre || "";
+  if (programmeId === "numerikuppro" || programmeId === "prfe") return i.Structure_Accompagnement || i.Structure_Autre || "";
   return [...(i.Structures_Accompagnement || []), i.Structure_Autre].filter(Boolean).join(", ");
 };
 
@@ -512,7 +513,7 @@ export default function ParticipantsPage() {
                 Participants <span className="text-[#EA601F] font-semibold">& Prescripteurs</span>
               </h1>
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
-                Vue transversale Numérik'UP / Digital'UP / NUMERIK PRO —{" "}
+                Vue transversale Numérik'UP / Digital'UP / NUMERIK PRO / PRFE —{" "}
                 {vue === "participants"
                   ? `${participants.length} personne${participants.length > 1 ? "s" : ""} positionnée${participants.length > 1 ? "s" : ""}`
                   : vue === "prescripteurs"

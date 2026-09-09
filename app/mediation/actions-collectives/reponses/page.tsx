@@ -29,6 +29,12 @@ export default function ReponsesPage() {
           titre: "NUMERIK PRO",
           sousTitre: "Inscriptions reçues au programme NUMERIK PRO",
         },
+        {
+          href: "/mediation/actions-collectives/reponses/prfe",
+          icone: BriefcaseIcon,
+          titre: "PRFE",
+          sousTitre: "Inscriptions reçues au programme PRFE",
+        },
       ]}
     />
   );

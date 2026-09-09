@@ -623,13 +623,88 @@ export default function PlanningSuresnes() {
     setFilterTodayOnly(!filterTodayOnly);
   };
 
-  const supprimerCreneauLibre = async (id: string, usager: string) => {
+  // Suppression manuelle d'un créneau — qu'il soit libre ou affecté à un
+  // médiateur (bouton "Supprimer" à côté de "Réaffecter médiateur"), jamais
+  // si un usager est inscrit dessus (perte de son rendez-vous sinon).
+  const supprimerCreneau = async (id: string, usager: string) => {
     if (usager && usager.trim() !== "") {
       showToast("Impossible de supprimer : un usager est inscrit sur ce créneau.", "error");
       return;
     }
     if (!confirm("Supprimer ce créneau ?")) return;
     await deleteDoc(doc(db, "planning_suresnes", id));
+  };
+
+  // Bascule RND (visite à domicile) / RN (sur place) d'un créneau déjà
+  // affecté, sans passer par "Réaffecter médiateur" — ne change que le
+  // suffixe du nom, jamais la personne elle-même. Réservé au site Suresnes,
+  // seul concerné par la distinction RN/RND (voir estDomicile plus haut).
+  const toggleRND = async (id: string, mediateurNomActuel: string, estRNDActuellement: boolean) => {
+    const nomNettoye = (mediateurNomActuel || "").replace(" (RND)", "").replace(" (RN91)", "").replace(" (RN)", "").trim();
+    const nouveauNom = estRNDActuellement ? `${nomNettoye} (RN)` : `${nomNettoye} (RND)`;
+    try {
+      await updateDoc(doc(db, "planning_suresnes", id), { mediateurNom: nouveauNom });
+    } catch (e) {
+      console.error(e);
+      showToast("Erreur lors du changement RND.", "error");
+    }
+  };
+
+  // Ajout manuel d'un créneau (ex. oubli lors de la génération depuis
+  // l'agenda, créneau supplémentaire ponctuel) — écrit directement dans
+  // planning_suresnes avec le même format que la génération automatique
+  // (voir app/agenda/page.tsx, processActionCreation), et les mêmes 4
+  // horaires fixes que la grille Suresnes/RN habituelle — la demi-journée
+  // (Matin/Après-midi) en découle directement, pas besoin de la redemander.
+  const HORAIRES_SURESNES = [
+    { horaire: "10h00 - 11h30", moment: "Matin" },
+    { horaire: "11h30 - 13h00", moment: "Matin" },
+    { horaire: "14h00 - 15h30", moment: "Après-midi" },
+    { horaire: "15h30 - 17h00", moment: "Après-midi" },
+  ];
+  const [ajoutCreneauOuvert, setAjoutCreneauOuvert] = useState(false);
+  const [nouveauCreneau, setNouveauCreneau] = useState({ date: "", horaire: "", mediateurNom: "", rnd: false });
+
+  const ouvrirAjoutCreneau = () => {
+    setNouveauCreneau({ date: viewDate.toLocaleDateString('en-CA'), horaire: "", mediateurNom: "", rnd: false });
+    setAjoutCreneauOuvert(true);
+  };
+
+  const ajouterCreneauManuel = async () => {
+    // Horaire d'une RND = juste "Matin"/"Après-midi" (heure exacte inconnue
+    // à l'avance) ; sinon un des 4 créneaux fixes de HORAIRES_SURESNES.
+    const momentChoisi = nouveauCreneau.rnd
+      ? (nouveauCreneau.horaire === "Matin" || nouveauCreneau.horaire === "Après-midi" ? nouveauCreneau.horaire : null)
+      : HORAIRES_SURESNES.find(h => h.horaire === nouveauCreneau.horaire)?.moment || null;
+    if (!nouveauCreneau.date || !momentChoisi) {
+      showToast("Merci de renseigner la date et l'horaire.", "error");
+      return;
+    }
+    const nomBrut = nouveauCreneau.mediateurNom.trim();
+    const nomAvecType = !nomBrut
+      ? ""
+      : nouveauCreneau.rnd
+        ? `${nomBrut} (RND)`
+        : siteActif === "rn91"
+          ? `${nomBrut} (RN91)`
+          : siteActif === "suresnes"
+            ? `${nomBrut} (RN)`
+            : nomBrut;
+    try {
+      await addDoc(collection(db, "planning_suresnes"), {
+        mediateurNom: nomAvecType,
+        date: nouveauCreneau.date,
+        moment: momentChoisi,
+        horaire: nouveauCreneau.rnd ? momentChoisi : nouveauCreneau.horaire,
+        usager: "",
+        site: siteActif,
+      });
+      setAjoutCreneauOuvert(false);
+      showToast("Créneau ajouté.", "success");
+    } catch (e) {
+      console.error(e);
+      showToast("Erreur lors de l'ajout du créneau.", "error");
+    }
   };
 
   return (
@@ -663,6 +738,16 @@ export default function PlanningSuresnes() {
               <HomeIcon className="w-4 h-4 text-[#EA601F]" />
               <span>Accueil</span>
             </Link>
+
+            <PermissionGuard actionId="suresnes_reassign">
+              <button
+                onClick={ouvrirAjoutCreneau}
+                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm cursor-pointer"
+              >
+                <PlusIcon className="w-4 h-4 text-[#EA601F]" />
+                <span>Ajouter un créneau</span>
+              </button>
+            </PermissionGuard>
 
             <PermissionGuard actionId="suresnes_filter_today">
               <button
@@ -1099,7 +1184,7 @@ export default function PlanningSuresnes() {
                                     </div>
                                     {creneauLibre && (
                                       <button
-                                        onClick={() => supprimerCreneauLibre(c.id, c.usager)}
+                                        onClick={() => supprimerCreneau(c.id, c.usager)}
                                         title="Supprimer ce créneau"
                                         className="mt-1 px-2 py-0.5 bg-[#404040]/5 hover:bg-[#EF736A] text-[#404040]/60 hover:text-white border border-[#404040]/15 hover:border-[#EF736A] rounded-lg text-[9px] font-bold uppercase tracking-wide transition-colors cursor-pointer flex items-center gap-1"
                                       >
@@ -1108,18 +1193,40 @@ export default function PlanningSuresnes() {
                                       </button>
                                     )}
                                     {!creneauLibre && (
-                                      <PermissionGuard actionId="suresnes_reassign">
-                                        <button onClick={() => {
-                                          setReassignSearch("");
-                                          setReassignCreneau({ id: c.id, currentName: nomAffiche || c.mediateurNom || "", site: normaliserSiteId(c.site), isRND });
-                                        }} className={`mt-1 px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wide transition-colors cursor-pointer ${
-                                          isOrphan
-                                            ? "bg-[#EF736A]/20 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/40"
-                                            : "bg-[#005259]/10 hover:bg-[#005259] text-[#005259] hover:text-white border border-[#005259]/30"
-                                        }`}>
-                                          Réaffecter médiateur
-                                        </button>
-                                      </PermissionGuard>
+                                      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                                        <PermissionGuard actionId="suresnes_reassign">
+                                          <button onClick={() => {
+                                            setReassignSearch("");
+                                            setReassignCreneau({ id: c.id, currentName: nomAffiche || c.mediateurNom || "", site: normaliserSiteId(c.site), isRND });
+                                          }} className={`px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wide transition-colors cursor-pointer ${
+                                            isOrphan
+                                              ? "bg-[#EF736A]/20 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/40"
+                                              : "bg-[#005259]/10 hover:bg-[#005259] text-[#005259] hover:text-white border border-[#005259]/30"
+                                          }`}>
+                                            Réaffecter médiateur
+                                          </button>
+                                        </PermissionGuard>
+                                        {siteActif === "suresnes" && isRND && (
+                                          <PermissionGuard actionId="suresnes_reassign">
+                                            <button
+                                              onClick={() => toggleRND(c.id, c.mediateurNom || "", isRND)}
+                                              title="Retirer la visite à domicile (repasse en RN)"
+                                              className="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wide transition-colors cursor-pointer bg-[#F9945D]/10 hover:bg-[#F9945D] text-[#F9945D] hover:text-white border border-[#F9945D]/30"
+                                            >
+                                              Retirer RND
+                                            </button>
+                                          </PermissionGuard>
+                                        )}
+                                        <PermissionGuard actionId="suresnes_reassign">
+                                          <button
+                                            onClick={() => supprimerCreneau(c.id, c.usager)}
+                                            title="Supprimer ce créneau"
+                                            className="p-1 bg-[#404040]/5 hover:bg-[#EF736A] text-[#404040]/60 hover:text-white border border-[#404040]/15 hover:border-[#EF736A] rounded-lg transition-colors cursor-pointer"
+                                          >
+                                            <TrashIcon className="w-3 h-3" />
+                                          </button>
+                                        </PermissionGuard>
+                                      </div>
                                     )}
                                   </div>
                                 </div>
@@ -1347,6 +1454,103 @@ export default function PlanningSuresnes() {
           </div>
         );
       })()}
+
+      {ajoutCreneauOuvert && (
+        <div className="fixed inset-0 bg-[#404040]/50 backdrop-blur-sm flex items-center justify-center z-[150] p-4">
+          <div className="bg-white border border-[#404040]/10 p-6 rounded-2xl w-full max-w-sm space-y-4 shadow-2xl">
+            <h3 className="font-bold text-sm text-[#005259] uppercase tracking-wide">Ajouter un créneau — {SITES.find(s => s.id === siteActif)?.label}</h3>
+
+            <div>
+              <label className="text-[10px] text-[#404040]/70 font-bold uppercase tracking-wider block mb-1">Date</label>
+              <input
+                autoFocus
+                type="date"
+                value={nouveauCreneau.date}
+                onChange={(e) => setNouveauCreneau({ ...nouveauCreneau, date: e.target.value })}
+                className="w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-xs text-[#404040] outline-none font-medium"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] text-[#404040]/70 font-bold uppercase tracking-wider block mb-1">Médiateur (facultatif — laisser vide pour un créneau libre)</label>
+              <input
+                type="text"
+                value={nouveauCreneau.mediateurNom}
+                onChange={(e) => setNouveauCreneau({ ...nouveauCreneau, mediateurNom: e.target.value })}
+                placeholder="Prénom Nom"
+                className="w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-xs text-[#404040] placeholder-[#404040]/40 outline-none font-medium"
+              />
+            </div>
+
+            {siteActif === "suresnes" && nouveauCreneau.mediateurNom.trim() !== "" && (
+              <label className="flex items-center gap-2 text-xs font-bold text-[#404040] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={nouveauCreneau.rnd}
+                  onChange={(e) => setNouveauCreneau({ ...nouveauCreneau, rnd: e.target.checked, horaire: "" })}
+                  className="w-4 h-4 accent-[#EA601F] cursor-pointer"
+                />
+                Visite à domicile (RND)
+              </label>
+            )}
+
+            <div>
+              <label className="text-[10px] text-[#404040]/70 font-bold uppercase tracking-wider block mb-1">Horaire</label>
+              {nouveauCreneau.rnd ? (
+                // Horaire d'une visite à domicile rarement connu à l'avance
+                // (arrangé directement avec le/la bénéficiaire) — on ne
+                // propose que la demi-journée, pas un créneau de 90 min précis.
+                <div className="grid grid-cols-2 gap-2">
+                  {["Matin", "Après-midi"].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setNouveauCreneau({ ...nouveauCreneau, horaire: m })}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer border ${
+                        nouveauCreneau.horaire === m ? "bg-[#005259] text-white border-[#005259]" : "bg-[#F3F3F2] text-[#404040] border-[#404040]/15 hover:border-[#005259]/40"
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {HORAIRES_SURESNES.map((h) => (
+                    <button
+                      key={h.horaire}
+                      type="button"
+                      onClick={() => setNouveauCreneau({ ...nouveauCreneau, horaire: h.horaire })}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer border ${
+                        nouveauCreneau.horaire === h.horaire ? "bg-[#005259] text-white border-[#005259]" : "bg-[#F3F3F2] text-[#404040] border-[#404040]/15 hover:border-[#005259]/40"
+                      }`}
+                    >
+                      {h.horaire}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setAjoutCreneauOuvert(false)}
+                className="text-[#404040]/60 hover:text-[#404040] text-xs px-3 cursor-pointer transition-colors font-bold"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={ajouterCreneauManuel}
+                className="px-4 py-2 bg-[#005259] hover:bg-[#EA601F] text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+              >
+                Ajouter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {demandeModal && (
         <div className="fixed inset-0 bg-[#404040]/50 backdrop-blur-sm flex items-center justify-center z-[150] p-4">

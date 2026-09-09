@@ -81,6 +81,12 @@ const DETAILED_PAGES: PageEntry[] = [
       { id: "home_nav_nkpro_suivi", nom: "Lien Suivi de recrutement NUMERIK PRO", type: "Link", description: "Redirige vers la première session de suivi de recrutement NUMERIK PRO" },
       { id: "home_nav_nkpro_stats", nom: "Lien Statistiques NUMERIK PRO", type: "Link", description: "Accède aux statistiques NUMERIK PRO depuis Insertion Professionnelle" },
       { id: "home_nav_nkpro_parametres", nom: "Lien Paramètres NUMERIK PRO", type: "Link", description: "Accède à la gestion des parcours/territoires/sessions NUMERIK PRO — réservé à l'admin, comme le bouton \"Gérer\" du formulaire" },
+      { id: "home_nav_prfe_tech", nom: "Badge PRFE", type: "button", description: "Déploie le dossier PRFE (inscription, réponses, suivi) depuis Insertion Professionnelle" },
+      { id: "home_nav_prfe_inscription", nom: "Lien Formulaire d'inscription PRFE", type: "Link", description: "Accède au formulaire d'inscription PRFE depuis Insertion Professionnelle" },
+      { id: "home_nav_prfe_reponses", nom: "Lien Réponses au formulaire PRFE", type: "Link", description: "Accède aux préinscriptions PRFE depuis Insertion Professionnelle" },
+      { id: "home_nav_prfe_suivi", nom: "Lien Suivi de recrutement PRFE", type: "Link", description: "Redirige vers la première session de suivi de recrutement PRFE" },
+      { id: "home_nav_prfe_stats", nom: "Lien Statistiques PRFE", type: "Link", description: "Accède aux statistiques PRFE depuis Insertion Professionnelle" },
+      { id: "home_nav_prfe_parametres", nom: "Lien Paramètres PRFE", type: "Link", description: "Accède à la gestion des parcours/territoires/sessions PRFE — réservé à l'admin, comme le bouton \"Gérer\" du formulaire" },
       { id: "home_folder_gestion_colombbus", nom: "Badge Gestion Colombbus", type: "button", description: "Déploie le dossier Gestion Colombbus (Bilans, Lieux, Équipe, Statistiques) — réservé aux permanents" },
     ],
   },
@@ -227,7 +233,7 @@ const DETAILED_PAGES: PageEntry[] = [
     actions: [
       { id: "suresnes_filter_today", nom: "Bouton Aujourd'hui uniquement", type: "button", description: "Isole les rendez-vous du jour" },
       { id: "suresnes_month_nav", nom: "Boutons Mois (Précédent / Suivant)", type: "button", description: "Navigation calendaire mensuelle" },
-      { id: "suresnes_reassign", nom: "Bouton Réaffecter médiateur", type: "button", description: "Attribue un créneau (orphelin ou non, avec ou sans bénéficiaire déjà inscrit) à un autre membre du staff" },
+      { id: "suresnes_reassign", nom: "Bouton Réaffecter médiateur", type: "button", description: "Attribue un créneau (orphelin ou non, avec ou sans bénéficiaire déjà inscrit) à un autre membre du staff, ajoute un créneau manuellement, ou supprime un créneau déjà affecté (jamais si un usager y est inscrit)" },
       { id: "suresnes_slot_assign", nom: "Autocomplétion Assigner un bénéficiaire", type: "select", description: "Affecte un bénéficiaire existant à un créneau vide" },
       { id: "suresnes_slot_clear", nom: "Bouton Vider le créneau (✕)", type: "button", description: "Retire le bénéficiaire/thématique/demande d'un créneau" },
       { id: "suresnes_slot_thematique_edit", nom: "Sélecteur Thématique (créneau)", type: "select", description: "Modifie la thématique associée à un rendez-vous" },
@@ -295,8 +301,8 @@ const PAGE_ONLY_ROUTES: Omit<PageEntry, "actions">[] = [
   { pageId: "page_access_notifications", pageName: "Notifications", route: "/mediation/notifications", filePath: "app/mediation/notifications/page.tsx" },
   { pageId: "page_access_bibliotheque_logos", pageName: "Bibliothèque de logos", route: "/mediation/bibliotheque-logos", filePath: "app/mediation/bibliotheque-logos/page.tsx" },
   { pageId: "page_access_guide", pageName: "Mode d'emploi", route: "/mediation/guide", filePath: "app/mediation/guide/page.tsx" },
-  // Ne correspond pas à une page unique : réutilisé tel quel par ~34 routes
-  // Digital'UP/Numérik'UP/NUMERIK PRO (inscription, réponses, suivi,
+  // Ne correspond pas à une page unique : réutilisé tel quel par ~46 routes
+  // Digital'UP/Numérik'UP/NUMERIK PRO/PRFE (inscription, réponses, suivi,
   // statistiques, participants) via les composants partagés ci-dessous —
   // route/filePath pointent donc sur un exemple représentatif, pas une
   // page réelle "/accueil" (qui n'existe pas).
@@ -363,7 +369,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     home_nav_collectes: true, home_nav_agenda_suresnes: true, home_nav_emargement_docs: true,
     home_nav_emargement_gen: true, home_nav_actions_coll: true, home_nav_stats_glob: true, home_nav_guide: true,
     home_folder_inclusion_numerique: true, home_folder_rencontres_numeriques: true, home_nav_digital_up: true, home_nav_digitalup_inscription: true, home_nav_digitalup_reponses: true, home_nav_digitalup_suivi: true, home_nav_digitalup_stats: true,
-    home_folder_decouvertes_metiers: true, home_nav_nkup: true, home_nav_nkup_inscription: true, home_nav_nkup_reponses: true, home_nav_nkup_suivi: true, home_nav_nkup_stats: true, home_folder_insertion_pro: true, home_nav_nkpro_tech: true, home_nav_nkpro_inscription: true, home_nav_nkpro_reponses: true, home_nav_nkpro_suivi: true, home_nav_nkpro_stats: true,
+    home_folder_decouvertes_metiers: true, home_nav_nkup: true, home_nav_nkup_inscription: true, home_nav_nkup_reponses: true, home_nav_nkup_suivi: true, home_nav_nkup_stats: true, home_folder_insertion_pro: true, home_nav_nkpro_tech: true, home_nav_nkpro_inscription: true, home_nav_nkpro_reponses: true, home_nav_nkpro_suivi: true, home_nav_nkpro_stats: true, home_nav_prfe_tech: true, home_nav_prfe_inscription: true, home_nav_prfe_reponses: true, home_nav_prfe_suivi: true, home_nav_prfe_stats: true,
     home_folder_gestion_colombbus: true,
     benef_search: true, benef_nav_agenda_suresnes: true, benef_create_new: true, benef_filter_alphabet: true,
     benef_filter_today: true, benef_filter_suresnes: true, benef_filter_de: true, benef_action_open: true,
@@ -402,7 +408,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     home_nav_bilan_suresnes: true, home_nav_volume_horaire: true, home_nav_journal_connexions: true, home_nav_agenda_med: true,
     page_access_parametres: true, home_nav_parametres: true, home_folder_parametres: true,
     home_folder_inclusion_numerique: true, home_folder_rencontres_numeriques: true, home_nav_digital_up: true, home_nav_digitalup_inscription: true, home_nav_digitalup_reponses: true, home_nav_digitalup_suivi: true, home_nav_digitalup_stats: true,
-    home_folder_decouvertes_metiers: true, home_nav_nkup: true, home_nav_nkup_inscription: true, home_nav_nkup_reponses: true, home_nav_nkup_suivi: true, home_nav_nkup_stats: true, home_folder_insertion_pro: true, home_nav_nkpro_tech: true, home_nav_nkpro_inscription: true, home_nav_nkpro_reponses: true, home_nav_nkpro_suivi: true, home_nav_nkpro_stats: true,
+    home_folder_decouvertes_metiers: true, home_nav_nkup: true, home_nav_nkup_inscription: true, home_nav_nkup_reponses: true, home_nav_nkup_suivi: true, home_nav_nkup_stats: true, home_folder_insertion_pro: true, home_nav_nkpro_tech: true, home_nav_nkpro_inscription: true, home_nav_nkpro_reponses: true, home_nav_nkpro_suivi: true, home_nav_nkpro_stats: true, home_nav_prfe_tech: true, home_nav_prfe_inscription: true, home_nav_prfe_reponses: true, home_nav_prfe_suivi: true, home_nav_prfe_stats: true,
     home_folder_gestion_colombbus: true,
     benef_search: true, benef_nav_agenda_suresnes: true, benef_create_new: true, benef_filter_alphabet: true,
     benef_filter_today: true, benef_filter_suresnes: true, benef_filter_de: true, benef_filter_blacklist: true,
@@ -450,7 +456,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     home_nav_guide: true,
     home_folder_inclusion_numerique: true, home_folder_rencontres_numeriques: true,
     // Digital'UP, Découvertes Métiers (Numérik'UP) et Insertion
-    // Professionnelle (NUMERIK PRO) restent hors du périmètre ACI, dossier ET
+    // Professionnelle (NUMERIK PRO, PRFE) restent hors du périmètre ACI, dossier ET
     // pages internes (sinon la recherche d'accueil, qui vérifie l'actionId de
     // chaque page indépendamment du dossier parent, les retrouverait quand
     // même). Le reste du dossier Inclusion Numérique/Rencontres Numériques
