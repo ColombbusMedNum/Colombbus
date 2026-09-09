@@ -1169,16 +1169,17 @@ export default function PlanningSuresnes() {
                             const trendBesoinDiagnostic = bTrouve && thématiqueMatériel && !aDejaFaitCetteThematique;
 
                             return (
-                              <div key={c.id} className={`grid grid-cols-1 xl:grid-cols-12 items-center gap-4 p-3 rounded-xl border transition-all ${isOrphan ? 'bg-[#EF736A]/10 border-[#EF736A]/30' : estDomicile ? 'bg-[#F9C44E]/[0.12] border-[#F9C44E]/40 hover:border-[#F9C44E]' : isRND ? 'bg-[#EA601F]/5 border-[#EA601F]/20 hover:border-[#EA601F]/40' : 'bg-[#F3F3F2]/50 border-[#404040]/10 hover:border-[#005259]/30 hover:bg-[#F3F3F2]'}`}>
+                              <div key={c.id} className={`rounded-xl border p-3 transition-all ${isOrphan ? 'bg-[#EF736A]/10 border-[#EF736A]/30' : estDomicile ? 'bg-[#F9C44E]/[0.12] border-[#F9C44E]/40 hover:border-[#F9C44E]' : isRND ? 'bg-[#EA601F]/5 border-[#EA601F]/20 hover:border-[#EA601F]/40' : 'bg-[#F3F3F2]/50 border-[#404040]/10 hover:border-[#005259]/30 hover:bg-[#F3F3F2]'}`}>
+                              <div className="grid grid-cols-1 xl:grid-cols-12 items-center gap-4">
 
-                                <div className="xl:col-span-2 flex items-center gap-3 min-w-0">
+                                <div className="xl:col-span-3 flex items-center gap-3 min-w-0">
                                   <div className="p-2 rounded-lg bg-white border border-[#404040]/10 text-[#005259] shrink-0 shadow-sm">
                                     <UserIcon className="w-4 h-4" />
                                   </div>
                                   <div className="min-w-0 flex-1">
                                     <div className="font-bold text-sm flex items-center gap-2 min-w-0">
                                       {isOrphan && <ExclamationTriangleIcon className="w-4 h-4 text-[#EF736A] shrink-0" />}
-                                      <span className={`truncate min-w-0 ${isOrphan ? "text-[#EF736A]" : "text-[#005259]"}`}>{nomAffiche}</span>
+                                      <span className={`whitespace-nowrap ${isOrphan ? "text-[#EF736A]" : "text-[#005259]"}`}>{nomAffiche}</span>
                                       {isRND && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#EA601F]/10 border border-[#EA601F]/30 text-[#EA601F] shrink-0">RND</span>}
                                       {estDomicile && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#F9C44E]/20 border border-[#F9C44E] text-[#005259] shrink-0">Domicile</span>}
                                     </div>
@@ -1310,7 +1311,10 @@ export default function PlanningSuresnes() {
                                   )}
                                 </div>
 
-                                <div className="xl:col-span-2 w-full">
+                              </div>
+
+                              <div className="mt-2 flex items-center gap-3">
+                                <div className="flex-1">
                                   <PermissionGuard actionId="suresnes_slot_demande_edit">
                                   <div className="flex items-center gap-1.5 bg-[#FFFFFF] border border-[#404040]/15 focus-within:border-[#005259] rounded-xl px-3 py-1.5 transition-all shadow-sm">
                                     <ChatBubbleBottomCenterTextIcon className="w-3.5 h-3.5 text-[#404040]/40 shrink-0" />
@@ -1332,14 +1336,14 @@ export default function PlanningSuresnes() {
                                   </div>
                                   </PermissionGuard>
                                 </div>
-                                
-                                <div className="xl:col-span-1 text-left xl:text-right shrink-0">
+
+                                <div className="w-36 shrink-0 text-right">
                                   {!bTrouve ? (
                                     <span className="inline-block text-center w-full text-[#404040]/50 bg-white border border-[#404040]/10 px-2 py-1 rounded-lg text-[9px] font-bold tracking-wider uppercase shadow-sm">
                                       À attribuer
                                     </span>
                                   ) : currentStatutFiche === "Présent" ? (
-                                    <Link 
+                                    <Link
                                       href={`/mediation/rencontres-numeriques/liste-beneficiaires/${bTrouve.id}`}
                                       className="inline-flex items-center justify-center gap-1 w-full text-[#005259] bg-[#A9E0C9]/30 border border-[#A9E0C9] hover:bg-[#A9E0C9]/50 px-2 py-1 rounded-lg text-[9px] font-bold tracking-wider uppercase transition-all shadow-sm"
                                     >
@@ -1347,7 +1351,7 @@ export default function PlanningSuresnes() {
                                       Présent
                                     </Link>
                                   ) : currentStatutFiche === "Absent" ? (
-                                    <Link 
+                                    <Link
                                       href={`/mediation/rencontres-numeriques/liste-beneficiaires/${bTrouve.id}`}
                                       className="inline-flex items-center justify-center gap-1 w-full text-[#EF736A] bg-[#EF736A]/15 border border-[#EF736A]/30 hover:bg-[#EF736A]/25 px-2 py-1 rounded-lg text-[9px] font-bold tracking-wider uppercase transition-all shadow-sm"
                                     >
@@ -1355,7 +1359,7 @@ export default function PlanningSuresnes() {
                                       Absent
                                     </Link>
                                   ) : (
-                                    <Link 
+                                    <Link
                                       href={`/mediation/rencontres-numeriques/liste-beneficiaires/${bTrouve.id}`}
                                       className="inline-flex items-center justify-center gap-1 w-full text-[#EA601F] bg-[#F9945D]/15 border border-[#F9945D]/30 hover:bg-[#F9945D]/25 px-2 py-1 rounded-lg text-[9px] font-bold tracking-wider uppercase transition-all shadow-sm"
                                     >
@@ -1364,6 +1368,7 @@ export default function PlanningSuresnes() {
                                     </Link>
                                   )}
                                 </div>
+                              </div>
 
                               </div>
                             );
