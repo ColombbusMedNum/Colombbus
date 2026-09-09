@@ -307,7 +307,12 @@ export default function ListeBeneficiaires() {
   function GridFilter(liste: any[]) {
     return liste.filter((b) => {
       const nomComplet = `${b.prenomAffiche} ${b.nomAffiche}`.toLowerCase().trim();
-      const matchesSearch = nomComplet.includes(searchTerm.toLowerCase());
+      // Recherche aussi par numéro de téléphone : comparaison chiffre à
+      // chiffre (espaces/points/tirets ignorés des deux côtés), pour
+      // retrouver un bénéficiaire tapé "0612345678" ou "06 12 34 56 78".
+      const chiffresSaisis = searchTerm.replace(/\D/g, "");
+      const matchesTelephone = chiffresSaisis.length > 0 && lireTelephone(b).replace(/\D/g, "").includes(chiffresSaisis);
+      const matchesSearch = nomComplet.includes(searchTerm.toLowerCase()) || matchesTelephone;
 
       let matchesBadge = true;
       const situation = (b.Situation_Socio_Pro || b.Situation || "").toLowerCase();
@@ -520,7 +525,7 @@ export default function ListeBeneficiaires() {
             </div>
             <input
               type="text"
-              placeholder="Rechercher un bénéficiaire par son nom ou son prénom..."
+              placeholder="Rechercher un bénéficiaire par son nom, prénom ou numéro de téléphone..."
               className="w-full bg-white border border-[#404040]/15 rounded-2xl pl-12 pr-4 py-3.5 text-sm text-[#404040] placeholder-[#404040]/40 focus:border-[#005259] focus:ring-1 focus:ring-[#005259] outline-none transition-all shadow-sm font-medium"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
