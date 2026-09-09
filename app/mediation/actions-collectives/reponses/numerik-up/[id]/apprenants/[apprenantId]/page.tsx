@@ -147,18 +147,35 @@ interface EntreeAppreciation {
   appreciation: string;
 }
 
-const CODES_LABELS: Record<string, { label: string; bg: string }> = {
-  G: { label: "Game Design", bg: "#7C1FD1" },
-  D: { label: "Développement", bg: "#4A86E8" },
-  GR: { label: "Graphisme", bg: "#22D3EE" },
-  SK: { label: "Soft Skills", bg: "#FF00FF" },
-  M: { label: "Maintenance", bg: "#34A853" },
+// Catégorie "activité" de la grille Évolution — modifiable par action depuis
+// la page paramètres (Firestore, configuration_numerikup/evolutionCategories),
+// contrairement aux 4 codes structurels fixes ci-dessous.
+interface CategorieEvolution {
+  code: string;
+  label: string;
+  bg: string;
+  text: string;
+}
+
+// Palette d'activité par défaut : sert de valeur de repli tant que personne
+// n'a encore modifié les catégories depuis la page paramètres (aucune
+// régression visuelle avant une première modification volontaire).
+const ACTIVITE_DEFAUT: CategorieEvolution[] = [
+  { code: "G", label: "Game Design", bg: "#7C1FD1", text: "#FFFFFF" },
+  { code: "D", label: "Développement", bg: "#4A86E8", text: "#FFFFFF" },
+  { code: "GR", label: "Graphisme", bg: "#22D3EE", text: "#003044" },
+  { code: "SK", label: "Soft Skills", bg: "#FF00FF", text: "#FFFFFF" },
+  { code: "M", label: "Maintenance", bg: "#34A853", text: "#FFFFFF" },
+];
+
+// Les 4 codes structurels restent fixes, gérés par le moteur — pas de
+// personnalisation possible depuis la page paramètres.
+const CODES_STRUCTURELS: Record<string, { label: string; bg: string }> = {
   A: { label: "Absence justifiée", bg: "#CACA00" },
   ANJ: { label: "Absence non justifiée", bg: "#FF9900" },
   F: { label: "Férié / Off", bg: "#6B7280" },
   AB: { label: "Abandon", bg: "#FF0000" },
 };
-const CODES_PRESENCE = ["G", "D", "GR", "SK", "M"];
 const HEURES_PAR_JOUR = 3;
 
 const NIVEAUX_ETUDES = ["Brevet, CAP, BEP", "Bac", "Bac+2 (L2, BTS, DUT, DEUST)", "Bac+3 (Licence, licence professionnelle)", "Bac+4/5 et plus"];
@@ -474,6 +491,7 @@ export default function FicheApprenantNumerikUpPage() {
   const apprenantId = (params?.apprenantId as string) || "";
 
   const [inscription, setInscription] = useState<Inscription | null>(null);
+  const [categoriesActivite, setCategoriesActivite] = useState<CategorieEvolution[]>(ACTIVITE_DEFAUT);
   const [loading, setLoading] = useState(true);
   const [introuvable, setIntrouvable] = useState(false);
   const { mediateurs } = useMediateurs();
@@ -519,11 +537,17 @@ export default function FicheApprenantNumerikUpPage() {
   useEffect(() => {
     const charger = async () => {
       try {
-        const snap = await getDoc(doc(db, "inscriptions_numerikup", apprenantId));
+        const [snap, snapCategories] = await Promise.all([
+          getDoc(doc(db, "inscriptions_numerikup", apprenantId)),
+          getDoc(doc(db, "configuration_numerikup", "evolutionCategories")),
+        ]);
         if (snap.exists()) {
           setInscription({ id: snap.id, ...snap.data() } as Inscription);
         } else {
           setIntrouvable(true);
+        }
+        if (snapCategories.exists() && Array.isArray(snapCategories.data().liste) && snapCategories.data().liste.length > 0) {
+          setCategoriesActivite(snapCategories.data().liste);
         }
       } catch (error) {
         console.error("Erreur lors du chargement de la fiche apprenant·e :", error);
@@ -534,6 +558,15 @@ export default function FicheApprenantNumerikUpPage() {
     };
     if (apprenantId) charger();
   }, [apprenantId]);
+
+  // Catégories ACTIVITÉ de l'action (modifiables depuis la page paramètres),
+  // complétées par les 4 codes structurels fixes (voir CODES_STRUCTURELS).
+  const CODES_LABELS = useMemo<Record<string, { label: string; bg: string }>>(() => {
+    const activite: Record<string, { label: string; bg: string }> = {};
+    categoriesActivite.forEach((c) => { activite[c.code] = { label: c.label, bg: c.bg }; });
+    return { ...activite, ...CODES_STRUCTURELS };
+  }, [categoriesActivite]);
+  const CODES_PRESENCE = useMemo(() => categoriesActivite.map((c) => c.code), [categoriesActivite]);
 
   // Suggestions PARTAGÉES entre toutes les fiches des 3 programmes (module,
   // intervenant, formateur·rice, évaluation, personne extérieure) — un seul

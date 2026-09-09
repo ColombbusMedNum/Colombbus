@@ -5,8 +5,8 @@ import PlaceholderActionsCollectives from "../_components/PlaceholderActionsColl
 export default function PrfePage() {
   return (
     <PlaceholderActionsCollectives
-      titre="PRFE"
-      sousTitre="Programme PRFE"
+      titre="Préparation Parcours Métiers"
+      sousTitre="Programme Préparation Parcours Métiers"
     />
   );
 }

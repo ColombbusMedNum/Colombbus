@@ -20,29 +20,28 @@ interface LigneImportee {
   Code_Postal: string;
   Ville: string;
   QPV: string;
+  Date_Naissance: string;
   Age: string;
   Situation_Handicap: string;
-  NEET: string;
-  CEJ: string;
   RSA: string;
   RQTH: string;
   Niveau_Etudes: string;
   France_Travail: string;
   Identifiant_France_Travail: string;
+  Formation_Certifiante_Recente: string;
+  Informe_Formation_TIP: string;
+  Disponible_Dates_Session: string;
   Structure_Accompagnement: string;
   Structure_Autre: string;
   Conseiller_Nom: string;
   Conseiller_Prenom: string;
   Conseiller_Email: string;
   Conseiller_Telephone: string;
-  Comment_Connu: string;
   Parcours: string;
-  Projet_Professionnel: string;
-  Formation_Acces: string;
+  Metier_Souhaite: string;
   Territoire: string;
   Session: string;
   RGPD: boolean;
-  Consentement_Partage_Simulation: boolean;
   _horodateur: Date | null;
 }
 
@@ -151,29 +150,28 @@ function mapperLigne(ligne: string[], colonnes: Record<string, number[]>): Ligne
     Code_Postal: valeur(ligne, colonnes.codePostal),
     Ville: valeur(ligne, colonnes.ville),
     QPV: valeur(ligne, colonnes.qpv) || "Je ne sais pas",
+    Date_Naissance: valeur(ligne, colonnes.dateNaissance),
     Age: normaliserAge(valeur(ligne, colonnes.age)),
     Situation_Handicap: normaliserOuiNon(valeur(ligne, colonnes.situationHandicap)),
-    NEET: normaliserOuiNon(valeur(ligne, colonnes.neet)),
-    CEJ: normaliserOuiNon(valeur(ligne, colonnes.cej)),
     RSA: normaliserOuiNon(valeur(ligne, colonnes.rsa)),
     RQTH: normaliserOuiNon(valeur(ligne, colonnes.rqth)),
     Niveau_Etudes: valeur(ligne, colonnes.niveauEtudes),
     France_Travail: franceTravail,
     Identifiant_France_Travail: franceTravail === "Oui" ? valeur(ligne, colonnes.identifiantFranceTravail) : "",
+    Formation_Certifiante_Recente: normaliserOuiNon(valeur(ligne, colonnes.formationCertifianteRecente)),
+    Informe_Formation_TIP: normaliserOuiNon(valeur(ligne, colonnes.informeFormationTIP)),
+    Disponible_Dates_Session: normaliserOuiNon(valeur(ligne, colonnes.disponibleDatesSession)),
     Structure_Accompagnement: structureAccompagnement,
     Structure_Autre: structureAutre,
     Conseiller_Nom: valeur(ligne, colonnes.conseillerNom),
     Conseiller_Prenom: valeur(ligne, colonnes.conseillerPrenom),
     Conseiller_Email: valeur(ligne, colonnes.conseillerEmail),
     Conseiller_Telephone: valeur(ligne, colonnes.conseillerTelephone),
-    Comment_Connu: valeur(ligne, colonnes.commentConnu),
     Parcours: valeur(ligne, colonnes.parcours),
-    Projet_Professionnel: valeur(ligne, colonnes.projetProfessionnel),
-    Formation_Acces: valeur(ligne, colonnes.formationAcces),
+    Metier_Souhaite: valeur(ligne, colonnes.metierSouhaite),
     Territoire: valeur(ligne, colonnes.territoire),
     Session: valeur(ligne, colonnes.session),
     RGPD: normaliser(valeur(ligne, colonnes.rgpd)).startsWith("oui") || !colonnes.rgpd.length,
-    Consentement_Partage_Simulation: normaliser(valeur(ligne, colonnes.consentementPartage)).startsWith("oui") || !colonnes.consentementPartage.length,
     _horodateur: parseHorodateur(valeur(ligne, colonnes.horodateur)),
   };
 }
@@ -188,6 +186,7 @@ function detecterColonnes(entetes: string[]): Record<string, number[]> {
     codePostal: trouverColonnes(entetes, /code postal/),
     ville: trouverColonnes(entetes, /ville de residence/),
     qpv: trouverColonnes(entetes, /qpv/),
+    dateNaissance: trouverColonnes(entetes, /date de naissance/),
     age: trouverColonnes(entetes, /age du participant/),
     situationHandicap: trouverColonnes(entetes, /situation de handicap/),
     rqth: trouverColonnes(entetes, /rqth/),
@@ -195,19 +194,17 @@ function detecterColonnes(entetes: string[]): Record<string, number[]> {
     niveauEtudes: trouverColonnes(entetes, /niveau d.?etude/),
     franceTravail: trouverColonnes(entetes, /inscrit a france travail/),
     identifiantFranceTravail: trouverColonnes(entetes, /identifiant france travail/),
-    neet: trouverColonnes(entetes, /n\.?e\.?e\.?t/),
-    cej: trouverColonnes(entetes, /engagement jeune/),
+    formationCertifianteRecente: trouverColonnes(entetes, /formation certifiante/),
+    informeFormationTIP: trouverColonnes(entetes, /titre professionnel tip|technicien informatique de proximite/),
+    disponibleDatesSession: trouverColonnes(entetes, /disponible.*(session|formation)/),
     structure: trouverColonnes(entetes, /structure d.?accompagnement/),
     conseillerNom: trouverColonnes(entetes, /nom du conseiller/),
     conseillerPrenom: trouverColonnes(entetes, /prenom du conseiller/),
     conseillerEmail: trouverColonnes(entetes, /mail du conseiller/),
     conseillerTelephone: trouverColonnes(entetes, /telephone conseiller/),
-    commentConnu: trouverColonnes(entetes, /comment avez-vous connu/),
     parcours: trouverColonnes(entetes, /parcours de formation/),
-    projetProfessionnel: trouverColonnes(entetes, /projet professionnel/),
-    formationAcces: trouverColonnes(entetes, /formation.*permettre|permettre.*acceder/),
+    metierSouhaite: trouverColonnes(entetes, /projet professionnel|metier ou domaine|quel metier/),
     rgpd: trouverColonnes(entetes, /rgpd/),
-    consentementPartage: trouverColonnes(entetes, /coordonnees.*partagees|partagees.*simulation/),
     territoire: trouverColonnes(entetes, /territoire|departement de residence/),
     session: trouverColonnes(entetes, /session souhait/),
     horodateur: trouverColonnes(entetes, /horodateur/),
@@ -298,7 +295,7 @@ export default function ImporterPrfePage() {
       setLignesParsees([]);
       setNomFichier("");
     } catch (error) {
-      console.error("Erreur lors de l'import des préinscriptions PRFE :", error);
+      console.error("Erreur lors de l'import des préinscriptions Préparation Parcours Métiers :", error);
       setResultat("Une erreur est survenue pendant l'import — voir la console.");
     } finally {
       setEnCours(false);

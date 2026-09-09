@@ -334,7 +334,7 @@ function FormulairePublicPrfeContenu() {
 
       setEnvoye(true);
     } catch (error) {
-      console.error("Erreur lors de l'enregistrement de l'inscription PRFE :", error);
+      console.error("Erreur lors de l'enregistrement de l'inscription Préparation Parcours Métiers :", error);
       setErreur("Une erreur est survenue lors de l'enregistrement. Merci de réessayer dans quelques instants.");
     } finally {
       setEnvoiEnCours(false);
@@ -359,7 +359,7 @@ function FormulairePublicPrfeContenu() {
           </div>
           <div>
             <h1 className="text-2xl sm:text-3xl font-black uppercase text-[#005259] tracking-tight">
-              <span className="text-[#EA601F]">PRFE</span>
+              Préparation Parcours <span className="text-[#EA601F]">Métiers</span>
             </h1>
             <p className="text-sm text-[#404040]/70 mt-1">Formulaire de pré-inscription</p>
           </div>
@@ -378,7 +378,7 @@ function FormulairePublicPrfeContenu() {
 
             {/* RGPD */}
             <div className="bg-[#88ACEA]/10 border border-[#88ACEA]/40 rounded-xl p-3 text-[11px] text-[#404040] space-y-1">
-              <p>Les données recueillies dans ce formulaire font l'objet d'un traitement informatique destiné à l'inscription à l'action PRFE organisée par l'association Colombbus, en conformité avec la loi RGPD 2018.</p>
+              <p>Les données recueillies dans ce formulaire font l'objet d'un traitement informatique destiné à l'inscription à l'action Préparation Parcours Métiers organisée par l'association Colombbus, en conformité avec la loi RGPD 2018.</p>
               <p>Responsable du traitement : Colombbus, 10 rue du Terrage, 75010 Paris. Données conservées 2 ans puis supprimées ou anonymisées. Vous pouvez à tout moment retirer votre consentement, accéder à vos données, demander leur rectification/suppression ou exercer votre droit à la limitation/opposition en écrivant à contact@colombbus.org.</p>
             </div>
 

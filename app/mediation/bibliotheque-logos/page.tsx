@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { db, storage } from "@/lib/firebase";
 import { collection, addDoc, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { TrashIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
+import { TrashIcon, CloudArrowUpIcon, HomeIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
 import PageGuard from "@/components/PageGuard";
@@ -118,9 +118,15 @@ export default function BibliothequeLogosGratuite() {
           <h1 className="text-xl md:text-2xl font-bold uppercase tracking-tight text-[#005259]">
             Bibliothèque <span className="text-[#EA601F]">Logos</span> 
           </h1>
-          <Link href="/mediation/rencontres-numeriques/emargement" className="text-xs bg-white border border-[#404040]/10 px-4 py-2 rounded-xl text-[#005259] font-bold uppercase tracking-wider hover:bg-[#005259] hover:text-white transition-all shadow-sm">
-            ← Vers le Générateur
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/" className="flex items-center gap-2 text-xs bg-white border border-[#404040]/10 px-4 py-2 rounded-xl text-[#005259] font-bold uppercase tracking-wider hover:bg-[#005259] hover:text-white transition-all shadow-sm">
+              <HomeIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Accueil</span>
+            </Link>
+            <Link href="/mediation/rencontres-numeriques/emargement" className="text-xs bg-white border border-[#404040]/10 px-4 py-2 rounded-xl text-[#005259] font-bold uppercase tracking-wider hover:bg-[#005259] hover:text-white transition-all shadow-sm">
+              ← Vers le Générateur
+            </Link>
+          </div>
         </div>
 
         {/* FORMULAIRE D'AJOUT (encodage base64, stocké dans Firestore) */}

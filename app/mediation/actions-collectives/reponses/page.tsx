@@ -32,8 +32,8 @@ export default function ReponsesPage() {
         {
           href: "/mediation/actions-collectives/reponses/prfe",
           icone: BriefcaseIcon,
-          titre: "PRFE",
-          sousTitre: "Inscriptions reçues au programme PRFE",
+          titre: "Préparation Parcours Métiers",
+          sousTitre: "Inscriptions reçues au programme Préparation Parcours Métiers",
         },
       ]}
     />

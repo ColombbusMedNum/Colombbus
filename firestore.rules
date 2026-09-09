@@ -227,6 +227,46 @@ service cloud.firestore {
       allow update, delete: if isCoordinateurOuPlus();
     }
 
+    // Moteur "actions personnalisées" (voir lib/dynamicActions/) : une seule
+    // règle générique, valable pour TOUTE action créée depuis /mediation/
+    // actions-collectives/creer-action, sans jamais redéployer ces règles à
+    // chaque nouvelle action — c'est tout l'intérêt d'avoir nesté les
+    // sous-collections sous dynamic_actions/{slug}/... plutôt que d'utiliser
+    // un nom de collection par action comme inscriptions_prfe ci-dessus.
+    match /dynamic_actions/{slug} {
+      // Le schéma (label, questions du questionnaire...) est lu par le
+      // formulaire public non connecté, donc lecture ouverte à tous ;
+      // écriture réservée à l'admin (création/édition depuis creer-action et
+      // la page paramètres, gatées côté UI par page_access_action_dynamique).
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /configuration/{docId} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+
+      // Même anti-bot (honeypot + délai minimum) et même socle minimal
+      // obligatoire que les 4 programmes historiques ci-dessus — les
+      // questions CUSTOM du questionnaire ne sont volontairement pas
+      // validées ici (nécessiterait un get() sur dynamic_actions/{slug} à
+      // chaque écriture publique) : validation uniquement côté client,
+      // même risque résiduel qu'aujourd'hui sur Numérik'UP/NUMERIK PRO/PRFE.
+      match /inscriptions/{docId} {
+        allow read: if isStaff();
+        allow create: if isStaff() || (
+          request.resource.data.keys().hasAll(['Nom', 'Prénom', 'Téléphone', 'Email', 'Parcours', 'Territoire', 'Session', 'RGPD']) &&
+          request.resource.data['Nom'] is string && request.resource.data['Nom'].size() > 0 &&
+          request.resource.data['Prénom'] is string && request.resource.data['Prénom'].size() > 0 &&
+          request.resource.data['Email'] is string && request.resource.data['Email'].size() > 0 &&
+          request.resource.data['RGPD'] == true &&
+          request.resource.data.get('_piege', '') == '' &&
+          request.resource.data.get('_dureeRemplissageMs', 0) > 3000
+        );
+        allow update, delete: if isCoordinateurOuPlus();
+      }
+    }
+
     // Annuaire des prescripteurs (organisme + référent·e), partagé par les 4
     // formulaires d'inscription ci-dessus (voir lib/prescripteurs.ts) — même
     // politique d'écriture que les inscriptions elles-mêmes : un membre du

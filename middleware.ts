@@ -40,13 +40,18 @@ export function middleware(request: Request) {
   // destiné aux candidat·e·s eux/elles-mêmes (pas seulement au staff, voir
   // app/mediation/actions-collectives/inscription/numerik-up pour la
   // version interne) — voir firestore.rules pour l'écriture ouverte
-  // correspondante sur inscriptions_numerikup.
-  const pagesPubliques = ["/login", "/reset-password", "/planning", "/inscription/numerik-up", "/inscription/numerik-up-pro", "/inscription/prfe"];
+  // correspondante sur inscriptions_numerikup. Tout /inscription/<slug> est
+  // public, y compris une action dynamique créée depuis /mediation/
+  // actions-collectives/creer-action (voir app/inscription/[slug]/page.tsx)
+  // — aucune route protégée ne vit sous ce préfixe, donc l'ouvrir en entier
+  // évite d'avoir à modifier ce fichier à chaque nouvelle action.
+  const pagesPubliques = ["/login", "/reset-password", "/planning"];
+  const estFormulairePublicInscription = pathname.startsWith("/inscription/");
 
   // 2. CAS 1 : L'utilisateur n'est pas connecté — on retient la page visée
   // (ex /agenda/mobile via /planning) pour y revenir juste après connexion.
   if (!token) {
-    if (!pagesPubliques.includes(pathname)) {
+    if (!pagesPubliques.includes(pathname) && !estFormulairePublicInscription) {
       const loginUrl = new URL("/login", req.url);
       loginUrl.searchParams.set("next", pathname + req.nextUrl.search);
       return NextResponse.redirect(loginUrl);

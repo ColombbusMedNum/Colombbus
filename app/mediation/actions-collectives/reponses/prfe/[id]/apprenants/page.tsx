@@ -140,7 +140,7 @@ export default function ApprenantsPrfeSessionPage() {
     const noms = apprenantsSession
       .map((a) => `${encodeURIComponent(a.Prénom || "")}|${encodeURIComponent(a.Nom || "")}`)
       .join(";");
-    const params = new URLSearchParams({ intitule: "PRFE" });
+    const params = new URLSearchParams({ intitule: "Préparation Parcours Métiers" });
     if (noms) params.set("noms", noms);
     return `/mediation/rencontres-numeriques/emargement?${params.toString()}`;
   }, [apprenantsSession]);

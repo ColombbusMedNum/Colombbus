@@ -44,7 +44,7 @@ const PROGRAMMES: Programme[] = [
   { id: "numerikup", label: "Numérik'UP", collection: "inscriptions_numerikup", configCollection: "configuration_numerikup", accent: "#005259" },
   { id: "digitalup", label: "Digital'UP", collection: "inscriptions_digitalup", configCollection: "configuration_digitalup", accent: "#EA601F" },
   { id: "numerikuppro", label: "NUMERIK PRO", collection: "inscriptions_numerikuppro", configCollection: "configuration_numerikuppro", accent: "#7C1FD1" },
-  { id: "prfe", label: "PRFE", collection: "inscriptions_prfe", configCollection: "configuration_prfe", accent: "#2E7D5B" },
+  { id: "prfe", label: "Préparation Parcours Métiers", collection: "inscriptions_prfe", configCollection: "configuration_prfe", accent: "#2E7D5B" },
 ];
 
 // sessions[parcoursId][territoire] = dates de session ; codes["parcoursId|territoire|date"]
@@ -513,7 +513,7 @@ export default function ParticipantsPage() {
                 Participants <span className="text-[#EA601F] font-semibold">& Prescripteurs</span>
               </h1>
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
-                Vue transversale Numérik'UP / Digital'UP / NUMERIK PRO / PRFE —{" "}
+                Vue transversale Numérik'UP / Digital'UP / NUMERIK PRO / Préparation Parcours Métiers —{" "}
                 {vue === "participants"
                   ? `${participants.length} personne${participants.length > 1 ? "s" : ""} positionnée${participants.length > 1 ? "s" : ""}`
                   : vue === "prescripteurs"

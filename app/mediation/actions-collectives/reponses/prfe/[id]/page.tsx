@@ -31,7 +31,10 @@ interface Inscription {
   RSA?: string;
   France_Travail?: string;
   Identifiant_France_Travail?: string;
-  Projet_Professionnel?: string;
+  Formation_Certifiante_Recente?: string;
+  Informe_Formation_TIP?: string;
+  Disponible_Dates_Session?: string;
+  Metier_Souhaite?: string;
   Structure_Accompagnement?: string;
   Structure_Autre?: string;
   Conseiller_Prenom?: string;
@@ -204,7 +207,7 @@ export default function ReponsesPrfeSessionPage() {
           setTerritoiresListe(snapTerritoires.data().liste);
         }
       } catch (error) {
-        console.error("Erreur lors du chargement des inscriptions PRFE :", error);
+        console.error("Erreur lors du chargement des inscriptions Préparation Parcours Métiers :", error);
       } finally {
         setLoading(false);
       }
@@ -321,7 +324,7 @@ export default function ReponsesPrfeSessionPage() {
             <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
             <div>
               <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
-                Préinscriptions <span className="text-[#EA601F] font-semibold">PRFE</span>
+                Préinscriptions <span className="text-[#EA601F] font-semibold">Préparation Parcours Métiers</span>
               </h1>
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
                 Session : {sessionId || "—"}{territoireDeSession && ` — Territoire : ${territoireDeSession}`} — {inscriptionsSession.length} inscription{inscriptionsSession.length > 1 ? "s" : ""} affectée{inscriptionsSession.length > 1 ? "s" : ""} au suivi
@@ -450,7 +453,10 @@ export default function ReponsesPrfeSessionPage() {
                   <th className="px-3 py-3">Niveau de diplôme</th>
                   <th className="px-3 py-3">Inscrit·e France Travail</th>
                   <th className="px-3 py-3">Identifiant France Travail</th>
-                  <th className="px-3 py-3">Intérêt pour la formation</th>
+                  <th className="px-3 py-3">Formation certifiante récente</th>
+                  <th className="px-3 py-3">Informé·e formation TIP</th>
+                  <th className="px-3 py-3">Dispo. dates session</th>
+                  <th className="px-3 py-3">Métier souhaité</th>
                   <th className="px-3 py-3">Prescripteur</th>
                   <th className="px-3 py-3">Prénom Référent</th>
                   <th className="px-3 py-3">Nom Référent</th>
@@ -513,7 +519,10 @@ export default function ReponsesPrfeSessionPage() {
                         <td className="px-3 py-2 whitespace-nowrap">{i.Niveau_Etudes || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.France_Travail || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Identifiant_France_Travail || "—"}</td>
-                        <td className="px-3 py-2 max-w-[220px] truncate" title={i.Projet_Professionnel}>{i.Projet_Professionnel || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.Formation_Certifiante_Recente || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.Informe_Formation_TIP || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.Disponible_Dates_Session || "—"}</td>
+                        <td className="px-3 py-2 max-w-[220px] truncate" title={i.Metier_Souhaite}>{i.Metier_Souhaite || "—"}</td>
                         <td className="px-3 py-2 max-w-[160px] truncate" title={prescripteur}>{prescripteur || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Prenom || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Nom || "—"}</td>
@@ -634,7 +643,7 @@ export default function ReponsesPrfeSessionPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={43} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
+                    <td colSpan={46} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
                       🔍 Aucune inscription trouvée.
                     </td>
                   </tr>

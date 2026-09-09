@@ -12,6 +12,7 @@ import SessionSelect from "@/components/SessionSelect";
 import { usePermissions } from "@/lib/PermissionsProvider";
 import { formatNom, formatPrenom } from "@/lib/formatName";
 import { formatPhoneForStorage } from "@/lib/formatPhone";
+import { calculerAge } from "@/lib/dateNaissance";
 
 // Champs personnels copiés lors d'une duplication vers une autre session (un
 // même bénéficiaire peut légitimement participer à deux sessions — le champ
@@ -21,11 +22,12 @@ import { formatPhoneForStorage } from "@/lib/formatPhone";
 // Session, Suivi_Recrutement et tout champ de suivi propre à une session
 // précise, qui ne doivent jamais être copiés d'une session à l'autre.
 const CHAMPS_PERSONNELS_A_DUPLIQUER = [
-  "Civilité", "Nom", "Prénom", "Téléphone", "Age", "Email", "Code_Postal", "Niveau_Etudes", "Ville",
-  "Territoire", "QPV", "Situation_Handicap", "NEET", "CEJ", "RSA", "RQTH", "France_Travail",
-  "Identifiant_France_Travail", "Comment_Connu", "Structure_Accompagnement", "Structure_Autre",
-  "Projet_Professionnel", "Formation_Acces", "Conseiller_Prenom", "Conseiller_Nom",
-  "Conseiller_Telephone", "Conseiller_Email", "RGPD", "Consentement_Partage_Simulation", "Parcours",
+  "Civilité", "Nom", "Prénom", "Téléphone", "Date_Naissance", "Age", "Email", "Code_Postal", "Niveau_Etudes", "Ville",
+  "Territoire", "QPV", "Situation_Handicap", "RSA", "RQTH", "France_Travail",
+  "Identifiant_France_Travail", "Formation_Certifiante_Recente", "Informe_Formation_TIP",
+  "Disponible_Dates_Session", "Structure_Accompagnement", "Structure_Autre",
+  "Metier_Souhaite", "Conseiller_Prenom", "Conseiller_Nom",
+  "Conseiller_Telephone", "Conseiller_Email", "RGPD", "Parcours",
 ] as const;
 
 // Champs issus du formulaire de pré-inscription — modifiables ici par
@@ -36,6 +38,7 @@ interface Inscription {
   Nom?: string;
   Prénom?: string;
   Téléphone?: string;
+  Date_Naissance?: string;
   Age?: string;
   Email?: string;
   Code_Postal?: string;
@@ -44,23 +47,21 @@ interface Inscription {
   Territoire?: string;
   QPV?: string;
   Situation_Handicap?: string;
-  NEET?: string;
-  CEJ?: string;
   RSA?: string;
   RQTH?: string;
   France_Travail?: string;
   Identifiant_France_Travail?: string;
-  Comment_Connu?: string;
+  Formation_Certifiante_Recente?: string;
+  Informe_Formation_TIP?: string;
+  Disponible_Dates_Session?: string;
   Structure_Accompagnement?: string;
   Structure_Autre?: string;
-  Projet_Professionnel?: string;
-  Formation_Acces?: string;
+  Metier_Souhaite?: string;
   Conseiller_Prenom?: string;
   Conseiller_Nom?: string;
   Conseiller_Telephone?: string;
   Conseiller_Email?: string;
   RGPD?: boolean;
-  Consentement_Partage_Simulation?: boolean;
   // Parcours et session choisis à l'inscription — la session est parfois
   // générique (ancienne réponse, ou aucune session ne convenait) : dans ce
   // cas elle doit être affectée manuellement par l'équipe.
@@ -77,8 +78,7 @@ interface Parcours {
 }
 
 const PARCOURS_DEFAUT: Parcours[] = [
-  { id: "prfe-tech", label: "PRFE Tech" },
-  { id: "prfe-marketing", label: "PRFE Marketing" },
+  { id: "preparation-parcours-metiers", label: "Préparation Parcours Métiers" },
 ];
 
 const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
@@ -216,7 +216,7 @@ export default function ReponsesPrfePage() {
           setCodes(snapSessions.data().codes || {});
         }
       } catch (error) {
-        console.error("Erreur lors du chargement des inscriptions PRFE :", error);
+        console.error("Erreur lors du chargement des inscriptions Préparation Parcours Métiers :", error);
       } finally {
         setLoading(false);
       }
@@ -318,16 +318,14 @@ export default function ReponsesPrfePage() {
       case "prescripteur": return i.Structure_Accompagnement === "Autre" ? (i.Structure_Autre || "Autre") : (i.Structure_Accompagnement || "");
       case "situationHandicap": return i.Situation_Handicap || "";
       case "rqth": return i.RQTH || "";
-      case "neet": return i.NEET || "";
-      case "cej": return i.CEJ || "";
       case "rsa": return i.RSA || "";
       case "franceTravail": return i.France_Travail || "";
       case "identifiantFranceTravail": return i.Identifiant_France_Travail || "";
-      case "commentConnu": return i.Comment_Connu || "";
-      case "projetProfessionnel": return i.Projet_Professionnel || "";
-      case "formationAcces": return i.Formation_Acces || "";
+      case "formationCertifianteRecente": return i.Formation_Certifiante_Recente || "";
+      case "informeFormationTIP": return i.Informe_Formation_TIP || "";
+      case "disponibleDatesSession": return i.Disponible_Dates_Session || "";
+      case "metierSouhaite": return i.Metier_Souhaite || "";
       case "rgpd": return i.RGPD ? "Oui" : "Non";
-      case "consentementPartage": return i.Consentement_Partage_Simulation ? "Oui" : "Non";
       case "conseillerPrenom": return i.Conseiller_Prenom || "";
       case "conseillerNom": return i.Conseiller_Nom || "";
       case "conseillerTelephone": return i.Conseiller_Telephone || "";
@@ -506,7 +504,7 @@ export default function ReponsesPrfePage() {
             <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
             <div>
               <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
-                Préinscriptions <span className="text-[#EA601F] font-semibold">PRFE</span>
+                Préinscriptions <span className="text-[#EA601F] font-semibold">Préparation Parcours Métiers</span>
               </h1>
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
                 {inscriptions.length} inscription{inscriptions.length > 1 ? "s" : ""} reçue{inscriptions.length > 1 ? "s" : ""} — suivi de recrutement
@@ -659,15 +657,13 @@ export default function ReponsesPrfePage() {
                     ["situationHandicap", "Situation handicap"],
                     ["rqth", "RQTH ?"],
                     ["rsa", "RSA ?"],
-                    ["neet", "NEET ?"],
-                    ["cej", "CEJ ?"],
                     ["franceTravail", "France Travail"],
                     ["identifiantFranceTravail", "Identifiant France Travail"],
-                    ["commentConnu", "Comment connu"],
-                    ["projetProfessionnel", "Projet professionnel"],
-                    ["formationAcces", "Formation — accès"],
+                    ["formationCertifianteRecente", "Formation certifiante récente ?"],
+                    ["informeFormationTIP", "Informé·e formation TIP ?"],
+                    ["disponibleDatesSession", "Dispo. dates session ?"],
+                    ["metierSouhaite", "Métier souhaité"],
                     ["rgpd", "RGPD"],
-                    ["consentementPartage", "Partage simulation"],
                     ["conseillerPrenom", "Prénom Référent"],
                     ["conseillerNom", "Nom Référent"],
                     ["conseillerTelephone", "Tél Référent"],
@@ -796,15 +792,13 @@ export default function ReponsesPrfePage() {
                         <td className="px-3 py-2 whitespace-nowrap">{i.Situation_Handicap || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.RQTH || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.RSA || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{i.NEET || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{i.CEJ || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.France_Travail || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Identifiant_France_Travail || "—"}</td>
-                        <td className="px-3 py-2 max-w-[160px] truncate" title={i.Comment_Connu}>{i.Comment_Connu || "—"}</td>
-                        <td className="px-3 py-2 max-w-[180px] truncate" title={i.Projet_Professionnel}>{i.Projet_Professionnel || "—"}</td>
-                        <td className="px-3 py-2 max-w-[180px] truncate" title={i.Formation_Acces}>{i.Formation_Acces || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.Formation_Certifiante_Recente || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.Informe_Formation_TIP || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{i.Disponible_Dates_Session || "—"}</td>
+                        <td className="px-3 py-2 max-w-[180px] truncate" title={i.Metier_Souhaite}>{i.Metier_Souhaite || "—"}</td>
                         <td className="px-3 py-2 text-center">{i.RGPD ? "Oui" : "Non"}</td>
-                        <td className="px-3 py-2 text-center">{i.Consentement_Partage_Simulation ? "Oui" : "Non"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Prenom || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Nom || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Telephone || "—"}</td>
@@ -814,7 +808,7 @@ export default function ReponsesPrfePage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={onglet === "doublons" ? 35 : 34} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
+                    <td colSpan={onglet === "doublons" ? 33 : 32} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
                       🔍 Aucune inscription trouvée.
                     </td>
                   </tr>
@@ -862,6 +856,18 @@ export default function ReponsesPrfePage() {
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Téléphone</label>
                 <input type="text" value={edition.Téléphone || ""} onChange={(e) => majEdition("Téléphone", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Date de naissance</label>
+                <input
+                  type="date"
+                  value={edition.Date_Naissance || ""}
+                  onChange={(e) => {
+                    const age = calculerAge(e.target.value);
+                    setEdition((prev) => (prev ? { ...prev, Date_Naissance: e.target.value, Age: age !== null ? String(age) : prev.Age } : prev));
+                  }}
+                  className={inputEditClass}
+                />
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Âge</label>
@@ -938,22 +944,6 @@ export default function ReponsesPrfePage() {
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">NEET ?</label>
-                <select value={edition.NEET || ""} onChange={(e) => majEdition("NEET", e.target.value)} className={inputEditClass}>
-                  <option value="">—</option>
-                  <option value="Oui">Oui</option>
-                  <option value="Non">Non</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">CEJ ?</label>
-                <select value={edition.CEJ || ""} onChange={(e) => majEdition("CEJ", e.target.value)} className={inputEditClass}>
-                  <option value="">—</option>
-                  <option value="Oui">Oui</option>
-                  <option value="Non">Non</option>
-                </select>
-              </div>
-              <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">RSA ?</label>
                 <select value={edition.RSA || ""} onChange={(e) => majEdition("RSA", e.target.value)} className={inputEditClass}>
                   <option value="">—</option>
@@ -975,39 +965,46 @@ export default function ReponsesPrfePage() {
                   <input type="text" value={edition.Identifiant_France_Travail || ""} onChange={(e) => majEdition("Identifiant_France_Travail", e.target.value)} className={inputEditClass} />
                 </div>
               )}
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Formation certifiante récente ?</label>
+                <select value={edition.Formation_Certifiante_Recente || ""} onChange={(e) => majEdition("Formation_Certifiante_Recente", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Informé·e formation TIP ?</label>
+                <select value={edition.Informe_Formation_TIP || ""} onChange={(e) => majEdition("Informe_Formation_TIP", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Disponible dates session ?</label>
+                <select value={edition.Disponible_Dates_Session || ""} onChange={(e) => majEdition("Disponible_Dates_Session", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                </select>
+              </div>
               <div className="flex items-end pb-1.5">
                 <label className="flex items-center gap-2 text-[11px] font-medium text-[#404040]">
                   <input type="checkbox" checked={edition.RGPD || false} onChange={(e) => majEdition("RGPD", e.target.checked)} className="w-4 h-4 accent-[#005259] cursor-pointer" />
                   Consentement RGPD
                 </label>
               </div>
-              <div className="flex items-end pb-1.5">
-                <label className="flex items-center gap-2 text-[11px] font-medium text-[#404040]">
-                  <input type="checkbox" checked={edition.Consentement_Partage_Simulation || false} onChange={(e) => majEdition("Consentement_Partage_Simulation", e.target.checked)} className="w-4 h-4 accent-[#005259] cursor-pointer" />
-                  Consentement partage simulation
-                </label>
-              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Comment connu·e</label>
-                <input type="text" value={edition.Comment_Connu || ""} onChange={(e) => majEdition("Comment_Connu", e.target.value)} className={inputEditClass} />
-              </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Structure d'accompagnement</label>
                 <input type="text" value={edition.Structure_Accompagnement || ""} onChange={(e) => majEdition("Structure_Accompagnement", e.target.value)} className={inputEditClass} />
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Projet professionnel</label>
-                <textarea value={edition.Projet_Professionnel || ""} onChange={(e) => majEdition("Projet_Professionnel", e.target.value)} rows={3} className={inputEditClass} />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Formation — accès au projet</label>
-                <textarea value={edition.Formation_Acces || ""} onChange={(e) => majEdition("Formation_Acces", e.target.value)} rows={3} className={inputEditClass} />
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Métier souhaité</label>
+                <textarea value={edition.Metier_Souhaite || ""} onChange={(e) => majEdition("Metier_Souhaite", e.target.value)} rows={3} className={inputEditClass} />
               </div>
             </div>
 

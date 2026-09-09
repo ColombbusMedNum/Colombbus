@@ -2,106 +2,62 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { db } from "@/lib/firebase";
-import { collection, doc, getDoc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
+import { getDocs, orderBy, query, updateDoc } from "firebase/firestore";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
 import { HomeIcon, ArrowLeftIcon, ChevronDownIcon, ClipboardDocumentListIcon, ExclamationTriangleIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
+import { ActionSchema, CATEGORIE_EVOLUTION_DEFAUT, CategorieEvolution, InscriptionActionDynamique } from "@/lib/dynamicActions/types";
+import { chargerSchema, chargerConfiguration, inscriptionsCollection, inscriptionDoc } from "@/lib/dynamicActions/store";
 
-interface Apprenant {
-  id: string;
-  Prénom?: string;
-  Nom?: string;
-  Session?: string;
-  Suivi_Recrutement?: boolean;
-  OK_NOK?: string;
-  // Un code par jour (la session entière se déroule le matin OU l'après-midi,
-  // jamais les deux), clé "AAAA-MM-JJ".
+// Apprenant·e retenu·e (décision de recrutement "OK", voir [slug]/[id]/page.tsx)
+// — Evolution est un champ de suivi générique, dans le même esprit
+// qu'Evolution_Actif/Evolution_Retards déjà présents dans le socle CORE
+// (lib/dynamicActions/types.ts), mais stocké librement (pas de forme fixe côté
+// TypeScript) puisque Firestore n'impose pas de schéma.
+interface Apprenant extends InscriptionActionDynamique {
+  Decision_Recrutement?: string;
   Evolution?: Record<string, string>;
-  // Nombre d'heures manquées un jour donné en cas de grand retard, même clé
-  // "AAAA-MM-JJ" — n'a de sens qu'à côté d'un code de présence (G/D/GR/SK),
-  // et vient réduire les heures/le taux de présence comptabilisés ce jour-là.
-  Evolution_Retards?: Record<string, string>;
-  // Coché = apprenant·e suivi·e dans le calcul du taux de présence.
-  Evolution_Actif?: boolean;
-  // Journal des absences justifiées (une entrée par évènement signalé) —
-  // voir la page Absences, alimentée automatiquement depuis cette grille.
-  Absences?: AbsenceRecord[];
 }
 
-interface AbsenceRecord {
-  date: string;
-  justifiee: boolean;
-  type: string;
-  raison: string;
-  reference: string;
-  lien: string;
-}
+// Forme du journal des absences CORE (voir lib/dynamicActions/types.ts) :
+// juste une date et un motif libre — justifiée/non justifiée se lit sur le
+// code posé ce jour-là ("A"/"ANJ"), pas sur l'entrée du journal elle-même.
+type AbsenceRecord = NonNullable<InscriptionActionDynamique["Absences"]>[number];
+const MOTIF_JUSTIFIEE = "Absence justifiée";
+const MOTIF_NON_JUSTIFIEE = "Absence non justifiée";
 
 const MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 const JOURS_FR = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 
-// Catégorie "activité" de la grille Évolution — modifiable par action depuis
-// la page paramètres (Firestore, configuration_numerikup/evolutionCategories),
-// contrairement aux 4 codes structurels fixes ci-dessous.
-interface CategorieEvolution {
-  code: string;
-  label: string;
-  bg: string;
-  text: string;
-}
-
-// Palette d'activité par défaut : reprend le code couleur fourni par l'équipe
-// pour la feuille "Évolution" — sert de valeur de repli tant que personne n'a
-// encore modifié les catégories depuis la page paramètres (aucune régression
-// visuelle avant une première modification volontaire).
-const ACTIVITE_DEFAUT: CategorieEvolution[] = [
-  { code: "G", label: "Game Design", bg: "#7C1FD1", text: "#FFFFFF" },
-  { code: "D", label: "Développement", bg: "#4A86E8", text: "#FFFFFF" },
-  { code: "GR", label: "Graphisme", bg: "#22D3EE", text: "#003044" },
-  { code: "SK", label: "Soft Skills", bg: "#FF00FF", text: "#FFFFFF" },
-  { code: "M", label: "Maintenance", bg: "#34A853", text: "#FFFFFF" },
-];
-
-// Les 4 codes structurels restent fixes, gérés par le moteur (d'autres
-// logiques en dépendent : bascule Actif/abandon en cascade, alimentation du
-// journal des absences, alerte sur absences répétées) — pas de personnalisation
-// possible depuis la page paramètres.
-const CODES_STRUCTURELS: CategorieEvolution[] = [
-  { code: "A", label: "Absence justifiée", bg: "#FFFF00", text: "#3A3300" },
-  { code: "ANJ", label: "Absence non justifiée", bg: "#FF9900", text: "#FFFFFF" },
+// Les 4 codes structurels sont fixes, gérés par le moteur (d'autres
+// logiques en dépendent : bascule "Suivi_Recrutement"/abandon en cascade,
+// alimentation du journal des absences, alerte sur absences répétées) — les
+// catégories ACTIVITÉ, elles, viennent du schéma de l'action (voir
+// schema.categoriesEvolution, modifiable depuis la page paramètres).
+const CODES_STRUCTURELS = [
+  { code: "A", label: "Absence justifiée", bg: "#EF4444", text: "#FFFFFF" },
+  { code: "ANJ", label: "Absence non justifiée", bg: "#111827", text: "#FFFFFF" },
   { code: "F", label: "Férié / Off", bg: "#9CA3AF", text: "#111111" },
-  { code: "AB", label: "Abandon", bg: "#FF0000", text: "#FFFFFF" },
+  { code: "AB", label: "Abandon", bg: "#22C55E", text: "#FFFFFF" },
 ];
 const HEURES_PAR_JOUR = 3;
 
-// Reporte automatiquement un code "A"/"ANJ" posé dans la grille dans le
-// journal des absences (page Absences), pour ne pas avoir à ressaisir le
-// même évènement à la main. Une entrée déjà existante pour cette date est
-// mise à jour (justifiée/non justifiée) plutôt que dupliquée ; retourne null
-// si rien à changer (autre code, ou déjà à jour). Changer vers un autre code
-// ensuite ne supprime pas l'entrée — à retirer à la main depuis la page
-// Absences en cas d'erreur de saisie.
 function ajouterOuMajAbsence(absences: AbsenceRecord[] | undefined, cle: string, valeur: string): AbsenceRecord[] | null {
   if (valeur !== "A" && valeur !== "ANJ") return null;
-  const justifiee = valeur === "A";
+  const motif = valeur === "A" ? MOTIF_JUSTIFIEE : MOTIF_NON_JUSTIFIEE;
   const liste = absences || [];
   const indexExistant = liste.findIndex((r) => r.date === cle);
-  if (indexExistant === -1) {
-    return [...liste, { date: cle, justifiee, type: "", raison: "", reference: "", lien: "" }];
-  }
-  if (liste[indexExistant].justifiee === justifiee) return null;
-  return liste.map((r, i) => (i === indexExistant ? { ...r, justifiee } : r));
+  if (indexExistant === -1) return [...liste, { date: cle, motif }];
+  if (liste[indexExistant].motif === motif) return null;
+  return liste.map((r, i) => (i === indexExistant ? { ...r, motif } : r));
 }
 
 function versISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-// Extrait la date de début d'une session à partir de son libellé texte libre
-// (ex. "Du lundi 7 septembre au vendredi 2 octobre 2026").
 function extraireDateDebut(texte: string): Date | null {
   const regex = new RegExp(`(\\d{1,2})\\s+(${MOIS_FR.join("|")})(?:\\s+(\\d{4}))?`, "gi");
   const trouvees: { jour: number; mois: number; annee?: number }[] = [];
@@ -116,10 +72,6 @@ function extraireDateDebut(texte: string): Date | null {
   return new Date(Math.min(...dates.map((d) => d.getTime())));
 }
 
-// Extrait la date de fin d'une session à partir de son libellé texte libre
-// (ex. "Du lundi 7 septembre au vendredi 2 octobre 2026") — symétrique de
-// extraireDateDebut, mais garde la date la PLUS TARDIVE plutôt que la plus
-// ancienne.
 function extraireDateFin(texte: string): Date | null {
   const regex = new RegExp(`(\\d{1,2})\\s+(${MOIS_FR.join("|")})(?:\\s+(\\d{4}))?`, "gi");
   const trouvees: { jour: number; mois: number; annee?: number }[] = [];
@@ -134,17 +86,12 @@ function extraireDateFin(texte: string): Date | null {
   return new Date(Math.max(...dates.map((d) => d.getTime())));
 }
 
-// Génère tous les jours ouvrés (lun-ven) entre deux dates incluses — le
-// nombre de semaines de la grille doit refléter la durée réelle de la
-// session (parfois bien plus que 4 semaines), pas un nombre fixe.
 function genererJoursOuvresEntre(debut: Date, fin: Date): Date[] {
   const jours: Date[] = [];
   const curseur = new Date(debut);
   while (curseur <= fin) {
     const jourSemaine = curseur.getDay();
-    if (jourSemaine !== 0 && jourSemaine !== 6) {
-      jours.push(new Date(curseur));
-    }
+    if (jourSemaine !== 0 && jourSemaine !== 6) jours.push(new Date(curseur));
     curseur.setDate(curseur.getDate() + 1);
   }
   return jours;
@@ -152,51 +99,45 @@ function genererJoursOuvresEntre(debut: Date, fin: Date): Date[] {
 
 function decouperEnSemaines<T>(elements: T[], taille: number): T[][] {
   const semaines: T[][] = [];
-  for (let i = 0; i < elements.length; i += taille) {
-    semaines.push(elements.slice(i, i + taille));
-  }
+  for (let i = 0; i < elements.length; i += taille) semaines.push(elements.slice(i, i + taille));
   return semaines;
 }
 
-// Grille de suivi pédagogique de la session : 4 blocs (4 semaines), une case
-// par jour ouvré colorée selon le code d'activité ou d'absence du jour.
+// Duplicata générique de reponses/prfe/[id]/evolution — grille de suivi de
+// présence, paramétrée par slug. Les codes d'activité détaillés (Game
+// Design/Développement/...) propres au parcours Tech de PRFE sont
+// remplacés par un simple code "Présent·e" générique (P), toute action
+// n'ayant pas forcément de modules distincts à suivre jour par jour.
 export default function EvolutionSessionPage() {
-  const params = useParams();
-  const sessionId = decodeURIComponent((params?.id as string) || "");
+  const { slug, id } = useParams<{ slug: string; id: string }>();
+  const sessionId = decodeURIComponent(id || "");
   const permissions = usePermissions();
 
+  const [schema, setSchema] = useState<ActionSchema | null>(null);
   const [apprenants, setApprenants] = useState<Apprenant[]>([]);
-  const [categoriesActivite, setCategoriesActivite] = useState<CategorieEvolution[]>(ACTIVITE_DEFAUT);
   const [loading, setLoading] = useState(true);
   const [semainesFermees, setSemainesFermees] = useState<Set<number>>(new Set());
   const [globalFermee, setGlobalFermee] = useState(false);
   const [alerteANJ, setAlerteANJ] = useState<{ prenom: string; nom: string; nombre: number } | null>(null);
-  // Code interne de la session (ex. "MN26_NKUP-91_01"), généré depuis la
-  // page paramètres — utile ici pour identifier rapidement la session sans
-  // relire ses dates en toutes lettres.
+  // Code interne de la session (ex. "MN26_PRFE-91_01"), généré depuis la
+  // page paramètres — jamais affiché sur le formulaire public, mais utile
+  // ici pour identifier rapidement la session sans relire ses dates.
   const [codeSession, setCodeSession] = useState<string | null>(null);
 
   useEffect(() => {
     const charger = async () => {
       try {
-        const [snap, snapCategories, snapSessions] = await Promise.all([
-          getDocs(query(collection(db, "inscriptions_numerikup"), orderBy("createdAt", "desc"))),
-          getDoc(doc(db, "configuration_numerikup", "evolutionCategories")),
-          getDoc(doc(db, "configuration_numerikup", "sessions")),
-        ]);
-        setApprenants(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Apprenant)));
-        if (snapCategories.exists() && Array.isArray(snapCategories.data().liste) && snapCategories.data().liste.length > 0) {
-          setCategoriesActivite(snapCategories.data().liste);
+        const [s, config] = await Promise.all([chargerSchema(slug), chargerConfiguration(slug)]);
+        setSchema(s);
+        if (s) {
+          const snap = await getDocs(query(inscriptionsCollection(slug), orderBy("createdAt", "desc")));
+          setApprenants(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Apprenant)));
         }
-        if (snapSessions.exists()) {
-          const parTerritoire: Record<string, Record<string, string[]>> = snapSessions.data().parTerritoire || {};
-          const codesInternes: Record<string, string> = snapSessions.data().codes || {};
-          for (const [parcoursId, parTerr] of Object.entries(parTerritoire)) {
-            for (const [territoire, dates] of Object.entries(parTerr)) {
-              if (dates.includes(sessionId)) {
-                const code = codesInternes[`${parcoursId}|${territoire}|${sessionId}`];
-                if (code) setCodeSession(code);
-              }
+        for (const [parcoursId, parTerritoire] of Object.entries(config.sessions)) {
+          for (const [territoire, dates] of Object.entries(parTerritoire)) {
+            if (dates.includes(sessionId)) {
+              const code = config.codes[`${parcoursId}|${territoire}|${sessionId}`];
+              if (code) setCodeSession(code);
             }
           }
         }
@@ -207,27 +148,23 @@ export default function EvolutionSessionPage() {
       }
     };
     charger();
-  }, [sessionId]);
+  }, [slug, sessionId]);
 
-  // Catégories ACTIVITÉ de l'action (modifiables depuis la page paramètres),
-  // complétées par les 4 codes structurels fixes (voir CODES_STRUCTURELS).
+  const apprenantsSession = useMemo(
+    () => apprenants.filter((a) => a.Session === sessionId && a.Suivi_Recrutement && a.Decision_Recrutement === "OK").sort((a, b) => (a.Nom || "").localeCompare(b.Nom || "", "fr")),
+    [apprenants, sessionId]
+  );
+
+  // Catégories ACTIVITÉ propres à l'action (modifiables depuis la page
+  // paramètres, voir schema.categoriesEvolution), complétées par les 4 codes
+  // structurels fixes du moteur (voir CODES_STRUCTURELS ci-dessus).
+  const categoriesActivite: CategorieEvolution[] = schema?.categoriesEvolution && schema.categoriesEvolution.length > 0 ? schema.categoriesEvolution : CATEGORIE_EVOLUTION_DEFAUT;
   const CODES = useMemo(
     () => [{ code: "", label: "—", bg: "#FFFFFF", text: "#404040" }, ...categoriesActivite, ...CODES_STRUCTURELS],
     [categoriesActivite]
   );
   const CODES_PRESENCE = useMemo(() => categoriesActivite.map((c) => c.code), [categoriesActivite]);
 
-  const apprenantsSession = useMemo(
-    () =>
-      apprenants
-        .filter((a) => a.Session === sessionId && a.Suivi_Recrutement && a.OK_NOK === "OK")
-        .sort((a, b) => (a.Nom || "").localeCompare(b.Nom || "", "fr")),
-    [apprenants, sessionId]
-  );
-
-  // Semaines de 5 jours ouvrés, calculées depuis les dates de début ET de fin
-  // de la session (extraites de son libellé texte) — le nombre de semaines
-  // varie donc selon la durée réelle de chaque session.
   const semaines = useMemo(() => {
     const debut = extraireDateDebut(sessionId);
     const fin = extraireDateFin(sessionId);
@@ -235,13 +172,11 @@ export default function EvolutionSessionPage() {
     return decouperEnSemaines(genererJoursOuvresEntre(debut, fin), 5);
   }, [sessionId]);
 
+  const tousLesJours = useMemo(() => semaines.flat(), [semaines]);
+
   const mettreAJourCase = async (id: string, cle: string, valeur: string) => {
     const apprenant = apprenants.find((a) => a.id === id);
 
-    // Abandon : une fois parti·e, la personne ne revient pas — toutes les
-    // cases à partir de ce jour (inclus) jusqu'à la fin du parcours basculent
-    // aussi en abandon, et elle sort automatiquement du calcul de présence
-    // (case "Actif" décochée), pour ne plus avoir à la noter jour après jour.
     if (valeur === "AB") {
       const joursSuivants = tousLesJours.map(versISO).filter((iso) => iso >= cle);
       const evolutionMaj = { ...(apprenant?.Evolution || {}) };
@@ -250,7 +185,7 @@ export default function EvolutionSessionPage() {
       try {
         const champs: Record<string, string | boolean> = { Evolution_Actif: false };
         joursSuivants.forEach((iso) => { champs[`Evolution.${iso}`] = "AB"; });
-        await updateDoc(doc(db, "inscriptions_numerikup", id), champs);
+        await updateDoc(inscriptionDoc(slug, id), champs);
       } catch (error) {
         console.error("Erreur lors de la mise à jour de l'évolution :", error);
       }
@@ -262,24 +197,16 @@ export default function EvolutionSessionPage() {
     try {
       const champs: Record<string, string | AbsenceRecord[]> = { [`Evolution.${cle}`]: valeur };
       if (absencesMaj) champs.Absences = absencesMaj;
-      await updateDoc(doc(db, "inscriptions_numerikup", id), champs);
+      await updateDoc(inscriptionDoc(slug, id), champs);
     } catch (error) {
       console.error("Erreur lors de la mise à jour de l'évolution :", error);
     }
-    // Signale au médiateur les absences non justifiées répétées, pour
-    // remontée au coordinateur.
     if (apprenant && valeur === "ANJ") {
       const nombre = Object.values({ ...apprenant.Evolution, [cle]: valeur }).filter((v) => v === "ANJ").length;
-      if (nombre >= 2) {
-        setAlerteANJ({ prenom: apprenant.Prénom || "", nom: apprenant.Nom || "", nombre });
-      }
+      if (nombre >= 2) setAlerteANJ({ prenom: apprenant.Prénom || "", nom: apprenant.Nom || "", nombre });
     }
   };
 
-  // Sélecteur "Tout le groupe" en en-tête de colonne : applique le même code
-  // à tout le monde pour ce jour-là — sauf qui est déjà en abandon ce
-  // jour-là, pour ne pas ressusciter quelqu'un qui est parti. Les cas
-  // particuliers restent modifiables ensuite un par un, cellule par cellule.
   const mettreAJourCaseGroupe = async (cle: string, valeur: string) => {
     const concernes = apprenantsSession.filter((a) => a.Evolution?.[cle] !== "AB");
     const idsConcernes = new Set(concernes.map((a) => a.id));
@@ -294,20 +221,17 @@ export default function EvolutionSessionPage() {
         const champs: Record<string, string | AbsenceRecord[]> = { [`Evolution.${cle}`]: valeur };
         const absencesMaj = absencesParId.get(a.id);
         if (absencesMaj) champs.Absences = absencesMaj;
-        return updateDoc(doc(db, "inscriptions_numerikup", a.id), champs);
+        return updateDoc(inscriptionDoc(slug, a.id!), champs);
       }));
     } catch (error) {
       console.error("Erreur lors de la mise à jour groupée de l'évolution :", error);
     }
   };
 
-  // Note le nombre d'heures manquées un jour donné (grand retard) —
-  // indépendant du code de présence, qui reste sélectionné normalement à
-  // côté, mais vient réduire les heures/le taux comptabilisés ce jour-là.
   const mettreAJourRetard = async (id: string, cle: string, valeur: string) => {
     setApprenants((prev) => prev.map((a) => (a.id === id ? { ...a, Evolution_Retards: { ...a.Evolution_Retards, [cle]: valeur } } : a)));
     try {
-      await updateDoc(doc(db, "inscriptions_numerikup", id), { [`Evolution_Retards.${cle}`]: valeur });
+      await updateDoc(inscriptionDoc(slug, id), { [`Evolution_Retards.${cle}`]: valeur });
     } catch (error) {
       console.error("Erreur lors de la mise à jour du retard :", error);
     }
@@ -316,17 +240,12 @@ export default function EvolutionSessionPage() {
   const basculerActif = async (id: string, valeur: boolean) => {
     setApprenants((prev) => prev.map((a) => (a.id === id ? { ...a, Evolution_Actif: valeur } : a)));
     try {
-      await updateDoc(doc(db, "inscriptions_numerikup", id), { Evolution_Actif: valeur });
+      await updateDoc(inscriptionDoc(slug, id), { Evolution_Actif: valeur });
     } catch (error) {
       console.error("Erreur lors de la mise à jour de l'évolution :", error);
     }
   };
 
-  // Présence sur un ensemble de jours donné, en heures : les cases Férié (et
-  // les cases pas encore renseignées) sont exclues ; un jour codé comme
-  // activité (G/D/GR/SK) compte pour sa durée normale (HEURES_PAR_JOUR),
-  // réduite des heures manquées si un grand retard a été noté ce jour-là.
-  // Sert au calcul par semaine comme au calcul global.
   const calculerPresence = (apprenant: Apprenant, jours: Date[]): { heuresPresence: number; heuresPrevues: number } => {
     let heuresPresence = 0;
     let heuresPrevues = 0;
@@ -348,17 +267,6 @@ export default function EvolutionSessionPage() {
     return heuresPrevues > 0 ? Math.round((heuresPresence / heuresPrevues) * 100) : null;
   };
 
-  // Badge permanent (indépendant de la pop-up ponctuelle déclenchée à la
-  // saisie) : signale d'un coup d'œil, en consultant la grille plus tard,
-  // qu'une personne a déjà 2 absences non justifiées ou plus sur la session.
-  const aDeuxANJOuPlus = (apprenant: Apprenant): boolean =>
-    Object.values(apprenant.Evolution || {}).filter((v) => v === "ANJ").length >= 2;
-
-  // Tous les jours des 4 semaines, pour le tableau récapitulatif GLOBAL.
-  const tousLesJours = useMemo(() => semaines.flat(), [semaines]);
-
-  // Moyenne du groupe : total des jours de présence sur total des jours
-  // comptabilisés, pour les apprenant·e·s coché·e·s "Actif" uniquement.
   const moyenneGroupe = useMemo(() => {
     let heuresPresence = 0;
     let heuresPrevues = 0;
@@ -379,10 +287,6 @@ export default function EvolutionSessionPage() {
     });
   };
 
-  // En cas de grand retard sur un code de présence, la case garde sa couleur
-  // sur toute sa largeur, mais la portion manquante (à droite) se couvre de
-  // hachures — visualise le retard d'un coup d'œil sans perdre la couleur du
-  // code, contrairement à un simple dégradé vers du gris neutre.
   const styleCode = (valeur?: string, retard?: string) => {
     const info = CODES.find((c) => c.code === (valeur || "")) || CODES[0];
     const heuresManquees = Math.max(0, Math.min(HEURES_PAR_JOUR, parseFloat((retard || "0").replace(",", ".")) || 0));
@@ -401,31 +305,32 @@ export default function EvolutionSessionPage() {
   };
 
   if (loading) {
+    return <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex items-center justify-center text-[#005259] font-bold animate-pulse tracking-widest text-xs uppercase antialiased`}>Chargement...</div>;
+  }
+  if (!schema) {
     return (
-      <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex items-center justify-center text-[#005259] font-bold animate-pulse tracking-widest text-xs uppercase antialiased`}>
-        Chargement...
+      <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex flex-col items-center justify-center gap-4 text-center p-8 antialiased`}>
+        <p className="text-xs font-bold uppercase tracking-widest text-[#EF736A]">Action introuvable</p>
+        <Link href="/mediation/actions-collectives/creer-action" className="text-xs font-bold text-[#005259] underline">Retour à la liste des actions</Link>
       </div>
     );
   }
 
   return (
-    <PageGuard pageId="page_access_actions_collectives_accueil">
+    <PageGuard pageId="page_access_action_dynamique">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
 
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
 
       <div className="max-w-[100rem] mx-auto relative z-10 space-y-6">
 
-        {/* EN-TÊTE & NAVIGATION */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center pb-4 border-b border-[#404040]/10 gap-4">
           <div className="flex items-center gap-4">
-            <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
+            <div className="h-10 w-1 rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]" style={{ backgroundColor: schema.accentColor }}></div>
             <div>
-              <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
-                Évolution
-              </h1>
+              <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">Évolution</h1>
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
-                Session : {sessionId || "—"}
+                {schema.label} — Session : {sessionId || "—"}
                 {codeSession && <span className="ml-1.5 font-mono font-bold text-[#005259] bg-[#005259]/10 px-1.5 py-0.5 rounded">{codeSession}</span>}
                 {" "}— {apprenantsSession.length} apprenant{apprenantsSession.length > 1 ? "s" : ""}
               </p>
@@ -433,41 +338,23 @@ export default function EvolutionSessionPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
-            <Link
-              href={`/mediation/actions-collectives/reponses/numerik-up/${encodeURIComponent(sessionId)}/apprenants`}
-              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
-            >
-              <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Apprenant·e·s</span>
+            <Link href={`/mediation/actions-collectives/reponses/${slug}/${encodeURIComponent(sessionId)}/apprenants`} className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm">
+              <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" /><span>Apprenant·e·s</span>
             </Link>
-            <Link
-              href={`/mediation/actions-collectives/reponses/numerik-up/${encodeURIComponent(sessionId)}/absences`}
-              className="flex items-center gap-2 bg-[#EA601F] hover:bg-[#EF736A] text-white px-3.5 py-2 rounded-xl transition-colors text-xs font-bold uppercase tracking-wider shadow-sm"
-            >
-              <ClipboardDocumentListIcon className="w-4 h-4" />
-              <span>Suivi des absences</span>
+            <Link href={`/mediation/actions-collectives/reponses/${slug}/${encodeURIComponent(sessionId)}/absences`} className="flex items-center gap-2 bg-[#EA601F] hover:bg-[#EF736A] text-white px-3.5 py-2 rounded-xl transition-colors text-xs font-bold uppercase tracking-wider shadow-sm">
+              <ClipboardDocumentListIcon className="w-4 h-4" /><span>Suivi des absences</span>
             </Link>
             {permissions?.role === "admin" && (
-              <Link
-                href="/mediation/actions-collectives/inscription/numerik-up/parametres"
-                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
-                title="Modifier les catégories d'évolution et autres réglages"
-              >
-                <Cog6ToothIcon className="w-4 h-4 text-[#EA601F]" />
-                <span>Paramètres</span>
+              <Link href={`/mediation/actions-collectives/inscription/${slug}/parametres`} className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm" title="Modifier les catégories d'évolution et autres réglages">
+                <Cog6ToothIcon className="w-4 h-4 text-[#EA601F]" /><span>Paramètres</span>
               </Link>
             )}
-            <Link
-              href="/"
-              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
-            >
-              <HomeIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Accueil</span>
+            <Link href="/" className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm">
+              <HomeIcon className="w-4 h-4 text-[#EA601F]" /><span>Accueil</span>
             </Link>
           </div>
         </div>
 
-        {/* LÉGENDE */}
         <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm p-4 flex flex-wrap gap-x-6 gap-y-2">
           {CODES.filter((c) => c.code).map((c) => (
             <div key={c.code} className="flex items-center gap-2 text-xs font-medium">
@@ -488,13 +375,8 @@ export default function EvolutionSessionPage() {
           </div>
         ) : (
           <>
-          {/* RÉCAPITULATIF GLOBAL — cumul de toutes les semaines */}
           <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setGlobalFermee((v) => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 hover:bg-[#F3F3F2]/60 transition-colors cursor-pointer"
-            >
+            <button type="button" onClick={() => setGlobalFermee((v) => !v)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-[#F3F3F2]/60 transition-colors cursor-pointer">
               <span className="text-xs font-bold uppercase tracking-widest text-[#005259]">Global</span>
               <ChevronDownIcon className={`w-4 h-4 text-[#EA601F] transition-transform duration-200 ${globalFermee ? "" : "rotate-180"}`} />
             </button>
@@ -518,28 +400,15 @@ export default function EvolutionSessionPage() {
                     const taux = heuresPrevues > 0 ? (heuresPresence / heuresPrevues) * 100 : null;
                     return (
                       <tr key={a.id} className="hover:bg-[#F3F3F2]/60 transition-colors">
-                        <td className="px-3 py-2 text-center font-bold text-[#005259]">
-                          {index === 0 && moyenneGroupe !== null ? `${moyenneGroupe.toFixed(2)}%` : ""}
-                        </td>
-                        <td className="px-3 py-2 text-center font-bold">
-                          {a.Evolution_Actif && heuresPrevues > 0 ? heuresPresence.toFixed(2) : ""}
-                        </td>
-                        <td className="px-3 py-2 text-center font-bold text-[#005259]">
-                          {a.Evolution_Actif && taux !== null ? `${taux.toFixed(2)}%` : ""}
-                        </td>
+                        <td className="px-3 py-2 text-center font-bold text-[#005259]">{index === 0 && moyenneGroupe !== null ? `${moyenneGroupe.toFixed(2)}%` : ""}</td>
+                        <td className="px-3 py-2 text-center font-bold">{a.Evolution_Actif && heuresPrevues > 0 ? heuresPresence.toFixed(2) : ""}</td>
+                        <td className="px-3 py-2 text-center font-bold text-[#005259]">{a.Evolution_Actif && taux !== null ? `${taux.toFixed(2)}%` : ""}</td>
                         <td className="px-3 py-2 text-center">
-                          <input type="checkbox" checked={a.Evolution_Actif || false} onChange={(e) => basculerActif(a.id, e.target.checked)} className="w-4 h-4 accent-[#005259] cursor-pointer" />
+                          <input type="checkbox" checked={a.Evolution_Actif || false} onChange={(e) => basculerActif(a.id!, e.target.checked)} className="w-4 h-4 accent-[#005259] cursor-pointer" />
                         </td>
                         <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{index + 1}</td>
                         <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{a.Prénom || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">
-                          <Link href={`/mediation/actions-collectives/reponses/numerik-up/${encodeURIComponent(sessionId)}/apprenants/${a.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
-                            {a.Nom || "—"}
-                          </Link>
-                          {aDeuxANJOuPlus(a) && (
-                            <span title="2 absences non justifiées ou plus sur cette session" className="inline-block ml-1 align-middle">⚠️</span>
-                          )}
-                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">{a.Nom || "—"}</td>
                       </tr>
                     );
                   })}
@@ -553,11 +422,7 @@ export default function EvolutionSessionPage() {
             const fermee = semainesFermees.has(indexSemaine);
             return (
             <div key={indexSemaine} className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm overflow-hidden">
-              <button
-                type="button"
-                onClick={() => basculerSemaine(indexSemaine)}
-                className="w-full flex items-center justify-between px-4 py-3 hover:bg-[#F3F3F2]/60 transition-colors cursor-pointer"
-              >
+              <button type="button" onClick={() => basculerSemaine(indexSemaine)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-[#F3F3F2]/60 transition-colors cursor-pointer">
                 <span className="text-xs font-bold uppercase tracking-widest text-[#005259]">Semaine {indexSemaine + 1}</span>
                 <ChevronDownIcon className={`w-4 h-4 text-[#EA601F] transition-transform duration-200 ${fermee ? "" : "rotate-180"}`} />
               </button>
@@ -583,9 +448,7 @@ export default function EvolutionSessionPage() {
                               className="w-full px-1 py-1 text-[9px] font-bold text-center outline-none cursor-pointer border border-[#404040]/15 rounded bg-white normal-case tracking-normal"
                             >
                               <option value="">Tout le groupe...</option>
-                              {CODES.filter((c) => c.code).map((c) => (
-                                <option key={c.code} value={c.code}>{c.code}</option>
-                              ))}
+                              {CODES.filter((c) => c.code).map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
                             </select>
                           </th>
                         );
@@ -597,41 +460,25 @@ export default function EvolutionSessionPage() {
                       const taux = tauxSemaine(a, jours);
                       return (
                         <tr key={a.id} className="hover:bg-[#F3F3F2]/60 transition-colors">
-                          <td className="px-3 py-2 text-center font-bold text-[#005259]">
-                            {a.Evolution_Actif && taux !== null ? `${taux.toFixed(2)}%` : ""}
-                          </td>
+                          <td className="px-3 py-2 text-center font-bold text-[#005259]">{a.Evolution_Actif && taux !== null ? `${taux.toFixed(2)}%` : ""}</td>
                           <td className="px-3 py-2 text-center">
-                            <input type="checkbox" checked={a.Evolution_Actif || false} onChange={(e) => basculerActif(a.id, e.target.checked)} className="w-4 h-4 accent-[#005259] cursor-pointer" />
+                            <input type="checkbox" checked={a.Evolution_Actif || false} onChange={(e) => basculerActif(a.id!, e.target.checked)} className="w-4 h-4 accent-[#005259] cursor-pointer" />
                           </td>
                           <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{index + 1}</td>
                           <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{a.Prénom || "—"}</td>
-                          <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">
-                          <Link href={`/mediation/actions-collectives/reponses/numerik-up/${encodeURIComponent(sessionId)}/apprenants/${a.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
-                            {a.Nom || "—"}
-                          </Link>
-                          {aDeuxANJOuPlus(a) && (
-                            <span title="2 absences non justifiées ou plus sur cette session" className="inline-block ml-1 align-middle">⚠️</span>
-                          )}
-                        </td>
+                          <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">{a.Nom || "—"}</td>
                           {jours.map((jour) => {
                             const iso = versISO(jour);
                             return (
                               <td key={iso} className="p-0 border-l border-[#404040]/10">
-                                <select
-                                  value={a.Evolution?.[iso] || ""}
-                                  onChange={(e) => mettreAJourCase(a.id, iso, e.target.value)}
-                                  className="w-full px-1 py-2 text-[10px] font-bold text-center outline-none cursor-pointer border-0"
-                                  style={styleCode(a.Evolution?.[iso], a.Evolution_Retards?.[iso])}
-                                >
-                                  {CODES.map((c) => (
-                                    <option key={c.code} value={c.code}>{c.code || "—"}</option>
-                                  ))}
+                                <select value={a.Evolution?.[iso] || ""} onChange={(e) => mettreAJourCase(a.id!, iso, e.target.value)} className="w-full px-1 py-2 text-[10px] font-bold text-center outline-none cursor-pointer border-0" style={styleCode(a.Evolution?.[iso], a.Evolution_Retards?.[iso])}>
+                                  {CODES.map((c) => <option key={c.code} value={c.code}>{c.code || "—"}</option>)}
                                 </select>
                                 <input
                                   key={a.Evolution_Retards?.[iso] || ""}
                                   type="text"
                                   defaultValue={a.Evolution_Retards?.[iso] || ""}
-                                  onBlur={(e) => mettreAJourRetard(a.id, iso, e.target.value)}
+                                  onBlur={(e) => mettreAJourRetard(a.id!, iso, e.target.value)}
                                   placeholder="0h"
                                   title="Heures manquées en cas de grand retard (ex : 1 ou 0.5) — réduit le taux de présence du jour"
                                   className="w-full px-1 py-0.5 text-[9px] text-center outline-none border-0 border-t border-[#404040]/10 bg-[#F3F3F2] text-[#404040] placeholder-[#404040]/30 focus:bg-white"
@@ -654,20 +501,14 @@ export default function EvolutionSessionPage() {
 
       </div>
 
-      {/* ALERTE ABSENCES NON JUSTIFIÉES RÉPÉTÉES */}
       {alerteANJ && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 text-center space-y-4">
             <ExclamationTriangleIcon className="w-10 h-10 text-[#EA601F] mx-auto" />
-            <h3 className="text-sm font-bold uppercase tracking-wider text-[#005259]">Alerte au médiateur</h3>
             <p className="text-sm font-medium text-[#404040]">
-              Merci d'appeler le bénéficiaire et/ou son référent. {alerteANJ.prenom} {alerteANJ.nom} totalise désormais {alerteANJ.nombre} absences non justifiées sur cette session. Ce point mérite d'être signalé à votre coordinateur.
+              {alerteANJ.prenom} {alerteANJ.nom} totalise désormais {alerteANJ.nombre} absences non justifiées sur cette session. Ce point mérite d'être signalé à votre coordinateur.
             </p>
-            <button
-              type="button"
-              onClick={() => setAlerteANJ(null)}
-              className="bg-[#005259] hover:bg-[#00363a] text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
-            >
+            <button type="button" onClick={() => setAlerteANJ(null)} className="bg-[#005259] hover:bg-[#00363a] text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer">
               J'ai compris
             </button>
           </div>

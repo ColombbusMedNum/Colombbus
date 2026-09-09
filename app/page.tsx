@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { quicksand } from "@/lib/fonts";
@@ -8,6 +8,8 @@ import type { ComponentType, SVGProps } from "react";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
 import PageGuard from "@/components/PageGuard";
+import { ActionSchema } from "@/lib/dynamicActions/types";
+import { ecouterActionsDynamiques } from "@/lib/dynamicActions/store";
 import {
   UsersIcon,
   ChartBarIcon,
@@ -38,6 +40,8 @@ import {
   IdentificationIcon,
   FingerPrintIcon,
   ExclamationTriangleIcon,
+  PhotoIcon,
+  SparklesIcon,
 } from "@heroicons/react/24/outline";
 
 type Accent = "teal" | "orange";
@@ -129,7 +133,7 @@ const NAV_TREE: NavNode[] = [
   },
   {
     id: "insertion-pro", kind: "folder", accent: "teal", icon: BriefcaseIcon,
-    title: "Insertion Professionnelle", subtitle: "Programmes NUMERIK PRO et PRFE",
+    title: "Insertion Professionnelle", subtitle: "Programmes NUMERIK PRO et Préparation Parcours Métiers",
     actionId: "home_folder_insertion_pro",
     children: [
       {
@@ -146,14 +150,14 @@ const NAV_TREE: NavNode[] = [
       },
       {
         id: "prfe-tech", kind: "folder", accent: "teal", icon: BriefcaseIcon,
-        title: "PRFE", subtitle: "Préinscriptions, apprenant·e·s et suivi PRFE",
+        title: "Préparation Parcours Métiers", subtitle: "Préinscriptions, apprenant·e·s et suivi",
         actionId: "home_nav_prfe_tech",
         children: [
-          { id: "prfe-inscription", kind: "leaf", accent: "teal", icon: DocumentPlusIcon, title: "Formulaire d'inscription PRFE", subtitle: "Inscription au programme PRFE", actionId: "home_nav_prfe_inscription", href: "/mediation/actions-collectives/inscription/prfe" },
-          { id: "prfe-reponses", kind: "leaf", accent: "orange", icon: ClipboardDocumentCheckIcon, title: "Réponses au formulaire PRFE", subtitle: "Préinscriptions reçues au programme PRFE", actionId: "home_nav_prfe_reponses", href: "/mediation/actions-collectives/reponses/prfe" },
+          { id: "prfe-inscription", kind: "leaf", accent: "teal", icon: DocumentPlusIcon, title: "Formulaire d'inscription", subtitle: "Inscription au parcours Préparation Parcours Métiers", actionId: "home_nav_prfe_inscription", href: "/mediation/actions-collectives/inscription/prfe" },
+          { id: "prfe-reponses", kind: "leaf", accent: "orange", icon: ClipboardDocumentCheckIcon, title: "Réponses au formulaire", subtitle: "Préinscriptions reçues", actionId: "home_nav_prfe_reponses", href: "/mediation/actions-collectives/reponses/prfe" },
           { id: "prfe-suivi", kind: "leaf", accent: "orange", icon: UsersIcon, title: "Suivi de recrutement", subtitle: "Apprenant·e·s retenu·e·s, session par session", actionId: "home_nav_prfe_suivi", href: "/mediation/actions-collectives/reponses/prfe/suivi-recrutement" },
-          { id: "prfe-stats", kind: "leaf", accent: "teal", icon: ChartPieIcon, title: "Statistiques PRFE", subtitle: "Sexe, âge, diplôme et taux de présence par session", actionId: "home_nav_prfe_stats", href: "/mediation/actions-collectives/reponses/prfe/statistiques" },
-          { id: "prfe-parametres", kind: "leaf", accent: "teal", icon: Cog6ToothIcon, title: "Paramètres PRFE", subtitle: "Gérer les parcours, territoires et sessions", actionId: "home_nav_prfe_parametres", href: "/mediation/actions-collectives/inscription/prfe/parametres" },
+          { id: "prfe-stats", kind: "leaf", accent: "teal", icon: ChartPieIcon, title: "Statistiques", subtitle: "Sexe, âge, diplôme et taux de présence par session", actionId: "home_nav_prfe_stats", href: "/mediation/actions-collectives/reponses/prfe/statistiques" },
+          { id: "prfe-parametres", kind: "leaf", accent: "teal", icon: Cog6ToothIcon, title: "Paramètres", subtitle: "Gérer les parcours, territoires et sessions", actionId: "home_nav_prfe_parametres", href: "/mediation/actions-collectives/inscription/prfe/parametres" },
         ],
       },
     ],
@@ -186,6 +190,21 @@ const NAV_TREE: NavNode[] = [
       },
       { id: "equipe", kind: "leaf", accent: "teal", icon: UserGroupIcon, title: "Équipe", subtitle: "Gérer et créer les fiches du staff", actionId: "home_nav_equipe", fallbackLocked: true, href: "/mediation/equipe" },
       { id: "participants", kind: "leaf", accent: "orange", icon: IdentificationIcon, title: "Participants & Prescripteurs", subtitle: "Vue transversale des 3 programmes d'actions collectives", actionId: "home_nav_participants", href: "/mediation/actions-collectives/participants" },
+      { id: "bibliotheque-logos", kind: "leaf", accent: "teal", icon: PhotoIcon, title: "Bibliothèque Logos", subtitle: "Logos partenaires utilisés dans les émargements et formulaires publics", actionId: "home_nav_bibliotheque_logos", href: "/mediation/bibliotheque-logos" },
+      {
+        // Point d'entrée unique du moteur "actions personnalisées" (voir
+        // lib/dynamicActions/) : la page elle-même liste les actions déjà
+        // créées et permet d'en créer de nouvelles — aucune tuile
+        // individuelle n'est ajoutée ici pour chaque action créée,
+        // contrairement aux programmes historiques ci-dessus, pour ne
+        // jamais avoir à retoucher ce fichier. La création elle-même reste
+        // réservée aux administrateurs (contrôle applicatif dans
+        // creer-action/page.tsx), même si ce lien est visible par tout le
+        // staff détenant page_access_action_dynamique.
+        id: "actions-personnalisees", kind: "leaf", accent: "orange", icon: SparklesIcon,
+        title: "Actions personnalisées", subtitle: "Créer et gérer de nouvelles actions collectives",
+        actionId: "home_folder_actions_personnalisees", href: "/mediation/actions-collectives/creer-action",
+      },
       {
         id: "stats", kind: "folder", accent: "teal", icon: ChartBarIcon,
         title: "Statistiques & Bilans", subtitle: "Rapports globaux et impact Suresnes",
@@ -212,6 +231,47 @@ const NAV_TREE: NavNode[] = [
   { id: "faq", kind: "leaf", accent: "teal", icon: QuestionMarkCircleIcon, title: "F.A.Q", subtitle: "Le guide de toutes les pages, page par page", actionId: "home_nav_guide", href: "/mediation/guide" },
 ];
 
+// Construit la tuile-dossier d'une action personnalisée (lib/dynamicActions/)
+// à injecter dans NAV_TREE, sur le même gabarit que les dossiers NUMERIK
+// PRO/Numérik'UP/Digital'UP/Préparation Parcours Métiers ci-dessus — mêmes 5
+// sous-tuiles (formulaire, réponses, suivi, statistiques, paramètres), mais
+// générées à partir du slug plutôt que codées en dur.
+function tuileActionDynamique(action: ActionSchema): FolderNode {
+  return {
+    id: `dyn-${action.slug}`, kind: "folder", accent: "orange", icon: SparklesIcon,
+    title: action.label, subtitle: "Préinscriptions, apprenant·e·s et suivi",
+    actionId: "home_folder_actions_personnalisees",
+    children: [
+      { id: `dyn-${action.slug}-inscription`, kind: "leaf", accent: "orange", icon: DocumentPlusIcon, title: "Formulaire d'inscription", subtitle: `Inscription à ${action.label}`, actionId: "home_folder_actions_personnalisees", href: `/mediation/actions-collectives/inscription/${action.slug}` },
+      { id: `dyn-${action.slug}-reponses`, kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Réponses au formulaire", subtitle: "Préinscriptions reçues", actionId: "home_folder_actions_personnalisees", href: `/mediation/actions-collectives/reponses/${action.slug}` },
+      { id: `dyn-${action.slug}-suivi`, kind: "leaf", accent: "orange", icon: UsersIcon, title: "Suivi de recrutement", subtitle: "Apprenant·e·s retenu·e·s, session par session", actionId: "home_folder_actions_personnalisees", href: `/mediation/actions-collectives/reponses/${action.slug}/suivi-recrutement` },
+      { id: `dyn-${action.slug}-stats`, kind: "leaf", accent: "teal", icon: ChartPieIcon, title: "Statistiques", subtitle: "Sexe, âge, diplôme et taux de présence par session", actionId: "home_folder_actions_personnalisees", href: `/mediation/actions-collectives/reponses/${action.slug}/statistiques` },
+      { id: `dyn-${action.slug}-parametres`, kind: "leaf", accent: "teal", icon: Cog6ToothIcon, title: "Paramètres", subtitle: "Questionnaire, parkours, territoires et sessions", actionId: "home_folder_actions_personnalisees", href: `/mediation/actions-collectives/inscription/${action.slug}/parametres` },
+    ],
+  };
+}
+
+// Fusionne les actions personnalisées actives (et affectées à un dossier
+// d'accueil, voir ActionSchema.categorieAccueil) dans une copie de NAV_TREE —
+// jamais de mutation de la constante, qui reste la même pour toute la durée
+// de vie de l'app. Une action sans catégorie choisie reste accessible
+// uniquement via "Gestion Colombbus > Actions personnalisées" (creer-action).
+function fusionnerActionsDynamiques(tree: NavNode[], actions: ActionSchema[]): NavNode[] {
+  const actives = actions.filter((a) => a.actif && a.categorieAccueil);
+  if (actives.length === 0) return tree;
+  return tree.map((node) => {
+    if (node.kind !== "folder") return node;
+    const pourCeDossier = actives.filter((a) => a.categorieAccueil === node.id);
+    if (pourCeDossier.length === 0) return node;
+    // Complète le sous-titre du dossier parent avec le nom de chaque action
+    // ajoutée, pour que le changement soit visible sans avoir à ouvrir le
+    // dossier — les pastilles de couleur (TileDots, dérivées de node.children)
+    // se mettent déjà à jour toutes seules, mais restent discrètes.
+    const subtitle = `${node.subtitle}, ${pourCeDossier.map((a) => a.label).join(", ")}`;
+    return { ...node, subtitle, children: [...node.children, ...pourCeDossier.map(tuileActionDynamique)] };
+  });
+}
+
 // Liste à plat de toutes les pages atteignables (feuilles), avec le fil
 // d'Ariane des dossiers parents — sert à la barre de recherche : peu importe
 // la profondeur où se trouve une page dans NAV_TREE, elle est trouvable
@@ -229,8 +289,6 @@ function aplatirNavTree(nodes: NavNode[], chemin: string[] = [], actionIdsParent
       : aplatirNavTree(node.children, [...chemin, node.title], [...actionIdsParents, node.actionId])
   );
 }
-const PAGES_INDEXEES = aplatirNavTree(NAV_TREE);
-
 function normaliserRecherche(s: string): string {
   return s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 }
@@ -239,8 +297,8 @@ function findChild(nodes: NavNode[], id: string): NavNode | undefined {
   return nodes.find((n) => n.id === id);
 }
 
-function resolvePath(path: string[]): { ancestors: FolderNode[]; current: NavNode[] } {
-  let nodes: NavNode[] = NAV_TREE;
+function resolvePath(tree: NavNode[], path: string[]): { ancestors: FolderNode[]; current: NavNode[] } {
+  let nodes: NavNode[] = tree;
   const ancestors: FolderNode[] = [];
   for (const id of path) {
     const found = findChild(nodes, id);
@@ -355,15 +413,27 @@ export default function HomePage() {
   const { can, terminerSession } = usePermissions();
   const [recherche, setRecherche] = useState("");
   const [rechercheOuverte, setRechercheOuverte] = useState(false);
+  const [actionsDynamiques, setActionsDynamiques] = useState<ActionSchema[]>([]);
+
+  // Tuiles des actions personnalisées (lib/dynamicActions/) injectées dans
+  // leur dossier d'accueil choisi — jamais de modification de ce fichier
+  // pour une nouvelle action, voir fusionnerActionsDynamiques ci-dessus.
+  useEffect(() => {
+    const unsub = ecouterActionsDynamiques(setActionsDynamiques);
+    return () => unsub();
+  }, []);
+
+  const navTree = useMemo(() => fusionnerActionsDynamiques(NAV_TREE, actionsDynamiques), [actionsDynamiques]);
+  const pagesIndexees = useMemo(() => aplatirNavTree(navTree), [navTree]);
 
   const resultatsRecherche = useMemo(() => {
     const q = normaliserRecherche(recherche.trim());
     if (!q) return [];
-    return PAGES_INDEXEES
+    return pagesIndexees
       .filter(({ node, actionIdsParents }) => can(node.actionId) && actionIdsParents.every((id) => can(id)))
       .filter(({ node, chemin }) => normaliserRecherche(`${node.title} ${node.subtitle} ${chemin.join(" ")}`).includes(q))
       .slice(0, 8);
-  }, [recherche, can]);
+  }, [recherche, can, pagesIndexees]);
 
   const handleLogout = async () => {
     document.cookie = "session_token=; path=/; max-age=0; SameSite=Lax; Secure";
@@ -374,7 +444,7 @@ export default function HomePage() {
     window.location.href = "/login";
   };
 
-  const { ancestors, current } = resolvePath(path);
+  const { ancestors, current } = resolvePath(navTree, path);
   const activeFolder = ancestors[ancestors.length - 1] || null;
 
   function renderNode(node: NavNode, size: "lg" | "md") {
@@ -443,7 +513,7 @@ export default function HomePage() {
             {resultatsRecherche.length > 0 ? resultatsRecherche.map(({ node, chemin }) => {
               const Icon = node.icon;
               return (
-                // deepcode ignore DOMXSS: node.href vient de NAV_TREE, un tableau statique codé en dur (aucune valeur dynamique) — le texte de recherche (state) ne fait que filtrer quelles entrées s'affichent, il ne construit jamais l'URL.
+                // deepcode ignore DOMXSS: node.href vient de navTree — NAV_TREE (statique) fusionné avec les tuiles d'actions personnalisées, dont le slug est admin-only (slugifier(), voir lib/dynamicActions/types.ts) et jamais dérivé d'une entrée utilisateur non contrôlée. Le texte de recherche (state) ne fait que filtrer quelles entrées s'affichent, il ne construit jamais l'URL.
                 <Link
                   key={node.id}
                   href={node.href}
@@ -546,7 +616,7 @@ export default function HomePage() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {current.map((node) => renderNode(node, "md"))}
               </div>
             </div>

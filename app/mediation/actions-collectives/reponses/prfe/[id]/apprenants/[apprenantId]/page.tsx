@@ -51,6 +51,7 @@ export interface Inscription {
   Nom?: string;
   Prénom?: string;
   Téléphone?: string;
+  Date_Naissance?: string;
   Age?: string;
   Email?: string;
   Code_Postal?: string;
@@ -59,17 +60,16 @@ export interface Inscription {
   Territoire?: string;
   QPV?: string;
   Situation_Handicap?: string;
-  NEET?: string;
-  CEJ?: string;
   RSA?: string;
   RQTH?: string;
   France_Travail?: string;
   Identifiant_France_Travail?: string;
-  Comment_Connu?: string;
+  Formation_Certifiante_Recente?: string;
+  Informe_Formation_TIP?: string;
+  Disponible_Dates_Session?: string;
   Structure_Accompagnement?: string;
   Structure_Autre?: string;
-  Projet_Professionnel?: string;
-  Formation_Acces?: string;
+  Metier_Souhaite?: string;
   Conseiller_Prenom?: string;
   Conseiller_Nom?: string;
   Conseiller_Telephone?: string;
@@ -172,7 +172,7 @@ export interface Inscription {
   // Firebase Storage) — pas besoin d'un vrai fichier hébergé pour ça.
   Entretien_SignatureApprenantUrl?: string;
   Entretien_SignatureColombbusUrl?: string;
-  // Fiche entretien diagnostic (formulaire papier PRFE Tech saisi
+  // Fiche entretien diagnostic (formulaire papier PRFE saisi
   // directement ici) — voir FicheEntretienDiagnostic.tsx. Les champs
   // d'identité/contact déjà présents plus haut (Civilité, Nom, Prénom,
   // Téléphone, Email, Code_Postal, Ville, RQTH, France_Travail,
@@ -240,18 +240,40 @@ interface EntreeAppreciation {
   appreciation: string;
 }
 
-const CODES_LABELS: Record<string, { label: string; bg: string }> = {
-  G: { label: "Game Design", bg: "#7C1FD1" },
-  D: { label: "Développement", bg: "#F5820D" },
-  GR: { label: "Graphisme", bg: "#22D3EE" },
-  SK: { label: "Soft Skills", bg: "#CA9A00" },
-  M: { label: "Maintenance", bg: "#3B82F6" },
+// Catégorie "activité" de la grille Évolution — modifiable par action depuis
+// la page paramètres (Firestore, configuration_prfe/evolutionCategories),
+// contrairement aux 4 codes structurels fixes ci-dessous.
+interface CategorieEvolution {
+  code: string;
+  label: string;
+  bg: string;
+  text: string;
+}
+
+// Palette d'activité par défaut : sert de valeur de repli tant que personne
+// n'a encore modifié les catégories depuis la page paramètres (aucune
+// régression visuelle avant une première modification volontaire).
+// Note : le "SK" ci-dessous reprend la couleur historiquement affichée SUR
+// CETTE fiche précisément (#CA9A00), légèrement différente de celle utilisée
+// sur la grille Évolution elle-même (#FDE047) — un écart déjà présent avant
+// ce chantier, conservé tel quel pour ne rien changer visuellement tant
+// qu'aucune catégorie n'a encore été modifiée depuis la page paramètres.
+const ACTIVITE_DEFAUT: CategorieEvolution[] = [
+  { code: "G", label: "Game Design", bg: "#7C1FD1", text: "#FFFFFF" },
+  { code: "D", label: "Développement", bg: "#F5820D", text: "#FFFFFF" },
+  { code: "GR", label: "Graphisme", bg: "#22D3EE", text: "#003044" },
+  { code: "SK", label: "Soft Skills", bg: "#CA9A00", text: "#FFFFFF" },
+  { code: "M", label: "Maintenance", bg: "#3B82F6", text: "#FFFFFF" },
+];
+
+// Les 4 codes structurels restent fixes, gérés par le moteur — pas de
+// personnalisation possible depuis la page paramètres.
+const CODES_STRUCTURELS: Record<string, { label: string; bg: string }> = {
   A: { label: "Absence justifiée", bg: "#EF4444" },
   ANJ: { label: "Absence non justifiée", bg: "#111827" },
   F: { label: "Férié / Off", bg: "#6B7280" },
   AB: { label: "Abandon", bg: "#22C55E" },
 };
-const CODES_PRESENCE = ["G", "D", "GR", "SK", "M"];
 const HEURES_PAR_JOUR = 3;
 
 const sexeDeCivilite = (civilite?: string) => (civilite === "Mme" ? "Femme" : civilite === "M." ? "Homme" : "—");
@@ -574,6 +596,7 @@ export default function FicheApprenantPrfePage() {
   const apprenantId = (params?.apprenantId as string) || "";
 
   const [inscription, setInscription] = useState<Inscription | null>(null);
+  const [categoriesActivite, setCategoriesActivite] = useState<CategorieEvolution[]>(ACTIVITE_DEFAUT);
   const [loading, setLoading] = useState(true);
   const [introuvable, setIntrouvable] = useState(false);
   const [ongletActif, setOngletActif] = useState<"fiche" | "diagnostic">("fiche");
@@ -582,11 +605,17 @@ export default function FicheApprenantPrfePage() {
   useEffect(() => {
     const charger = async () => {
       try {
-        const snap = await getDoc(doc(db, "inscriptions_prfe", apprenantId));
+        const [snap, snapCategories] = await Promise.all([
+          getDoc(doc(db, "inscriptions_prfe", apprenantId)),
+          getDoc(doc(db, "configuration_prfe", "evolutionCategories")),
+        ]);
         if (snap.exists()) {
           setInscription({ id: snap.id, ...snap.data() } as Inscription);
         } else {
           setIntrouvable(true);
+        }
+        if (snapCategories.exists() && Array.isArray(snapCategories.data().liste) && snapCategories.data().liste.length > 0) {
+          setCategoriesActivite(snapCategories.data().liste);
         }
       } catch (error) {
         console.error("Erreur lors du chargement de la fiche apprenant·e :", error);
@@ -597,6 +626,15 @@ export default function FicheApprenantPrfePage() {
     };
     if (apprenantId) charger();
   }, [apprenantId]);
+
+  // Catégories ACTIVITÉ de l'action (modifiables depuis la page paramètres),
+  // complétées par les 4 codes structurels fixes (voir CODES_STRUCTURELS).
+  const CODES_LABELS = useMemo<Record<string, { label: string; bg: string }>>(() => {
+    const activite: Record<string, { label: string; bg: string }> = {};
+    categoriesActivite.forEach((c) => { activite[c.code] = { label: c.label, bg: c.bg }; });
+    return { ...activite, ...CODES_STRUCTURELS };
+  }, [categoriesActivite]);
+  const CODES_PRESENCE = useMemo(() => categoriesActivite.map((c) => c.code), [categoriesActivite]);
 
   // Suggestions PARTAGÉES entre toutes les fiches des 3 programmes (module,
   // intervenant, formateur·rice, évaluation, personne extérieure) — un seul
@@ -879,24 +917,23 @@ export default function FicheApprenantPrfePage() {
           <Section icon={IdentificationIcon} titre="Situation">
             <div className="flex flex-wrap gap-2">
               <Puce actif={i.QPV === "Oui"} label="QPV" />
-              <Puce actif={i.NEET === "Oui"} label="NEET" />
-              <Puce actif={i.CEJ === "Oui"} label="CEJ" />
               <Puce actif={i.RSA === "Oui"} label="RSA" />
               <Puce actif={i.RQTH === "Oui"} label="RQTH" />
               <Puce actif={i.Situation_Handicap === "Oui"} label="Situation handicap" />
+              <Puce actif={i.Formation_Certifiante_Recente === "Oui"} label="Formation certifiante récente" />
+              <Puce actif={i.Informe_Formation_TIP === "Oui"} label="Informé·e formation TIP" />
+              <Puce actif={i.Disponible_Dates_Session === "Oui"} label="Dispo. dates session" />
             </div>
             <div className="grid grid-cols-2 gap-4 pt-1">
               <Champ label="Inscrit·e France Travail" valeur={i.France_Travail} />
               <Champ label="Identifiant France Travail" valeur={i.Identifiant_France_Travail} />
-              <Champ label="Comment connu ?" valeur={i.Comment_Connu} />
             </div>
           </Section>
 
           <Section icon={UserGroupIcon} titre="Accompagnement & projet">
             <div className="grid grid-cols-2 gap-4">
               <Champ label="Prescripteur / structure d'accompagnement" valeur={i.Structure_Accompagnement || i.Structure_Autre} />
-              <Champ label="Intérêt pour la formation" valeur={i.Projet_Professionnel} />
-              <Champ label="Comment a-t-il·elle accédé à la formation ?" valeur={i.Formation_Acces} />
+              <Champ label="Métier souhaité" valeur={i.Metier_Souhaite} />
               <Champ label="Référent·e" valeur={referent} />
               <Champ label="Tél. référent·e" valeur={formatPhoneNumber(i.Conseiller_Telephone)} />
               <Champ label="Mail référent·e" valeur={i.Conseiller_Email} />

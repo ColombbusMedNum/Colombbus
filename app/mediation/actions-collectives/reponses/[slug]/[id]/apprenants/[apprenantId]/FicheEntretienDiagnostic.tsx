@@ -4,15 +4,13 @@ import { useState } from "react";
 import { PrinterIcon, ExclamationTriangleIcon, PhotoIcon, TrashIcon } from "@heroicons/react/24/outline";
 import type { Inscription } from "./page";
 
-// Reproduction éditable + imprimable de la "FICHE ENTRETIEN DIAGNOSTIC —
-// PRFE" (formulaire papier fourni). Les champs déjà présents sur
-// le profil (identité/contact) sont réutilisés via mettreAJourChamp — voir
-// l'interface Inscription exportée par page.tsx pour la liste complète des
-// nouveaux champs Diagnostic_*.
+// Duplicata générique de reponses/prfe/[id]/apprenants/[apprenantId]/
+// FicheEntretienDiagnostic — reproduction éditable + imprimable de la fiche
+// "Entretien diagnostic" papier. Les champs Diagnostic_* sont déjà génériques
+// (aucun n'est propre à PRFE) : seul le libellé de l'action ("Préparation
+// Parcours Métiers" chez PRFE) devient un paramètre, tiré du schéma de
+// l'action (schema.label), passé en prop plutôt que codé en dur.
 
-// Style "trait souligné" (pas de case encadrée) — fidèle à la densité du PDF
-// papier, où chaque ligne tient sur une seule hauteur de texte. La valeur
-// saisie ressort en orange Colombbus, comme sur la maquette validée.
 const champLigneInputClass =
   "flex-1 min-w-0 bg-transparent border-0 border-b border-[#404040]/30 focus:border-[#005259] rounded-none px-1 py-0.5 text-xs text-[#EA601F] font-semibold outline-none print:border-black";
 const champLigneLabelClass = "text-[11px] font-bold text-[#404040] whitespace-nowrap shrink-0 print:text-black";
@@ -42,9 +40,6 @@ function ZoneTexte({ label, sousLabel, valeur, onValide, rows = 3 }: { label?: s
   );
 }
 
-// Case ☐/☒ — visuellement fidèle au formulaire papier fourni (des "X" dans
-// des cases, pas des coches). Le glyphe (couleur de texte) reste visible à
-// l'impression même si le navigateur retire les couleurs de fond.
 function Case({ coche }: { coche?: boolean }) {
   return (
     <span
@@ -109,12 +104,6 @@ function CocherChoixMultiple({ label, options, valeurs, onChange }: { label?: st
   );
 }
 
-// Bandeau de section teal, fidèle au PDF fourni. Pas de break-inside-avoid :
-// une grande section (ex. "Situation administrative") qui ne tient pas dans
-// l'espace restant de la page serait alors renvoyée intégralement à la page
-// suivante, laissant un grand vide — le PDF original laisse justement ses
-// sections se couper naturellement entre deux pages (ex. "Situation
-// sociale"), c'est ce comportement qu'on reproduit ici.
 function SectionPDF({ titre, children }: { titre: string; children: React.ReactNode }) {
   return (
     <div className="border border-[#404040]/15 rounded-xl overflow-hidden">
@@ -126,9 +115,6 @@ function SectionPDF({ titre, children }: { titre: string; children: React.ReactN
   );
 }
 
-// Un des 3 blocs "Que visez-vous à la sortie ?" — case à cocher + question +
-// réponse libre, repris tel quel du PDF (y compris la question "Quel métier…"
-// qui y apparaît deux fois).
 function BlocObjectif({
   coche, onToggle, question, exemple, reponse, onReponse,
 }: {
@@ -151,9 +137,6 @@ function BlocObjectif({
   );
 }
 
-// Signature de l'attestation finale — jamais persistée en base (voir mention
-// jaune ci-dessous), même principe que les 3 fiches apprenant·e·s (Digital'UP,
-// Numérik'UP, PRFE) : état local uniquement, perdue en quittant la page.
 function BoiteSignatureLocale({ url, uploading, onUpload, onSupprimer }: { url?: string; uploading: boolean; onUpload: (file: File) => void; onSupprimer: () => void }) {
   return (
     <div className="relative h-32 rounded-xl border-2 border-dashed border-[#404040]/20 bg-[#F3F3F2] flex items-center justify-center overflow-hidden print:border-black print:bg-transparent">
@@ -187,10 +170,11 @@ function BoiteSignatureLocale({ url, uploading, onUpload, onSupprimer }: { url?:
 }
 
 export default function FicheEntretienDiagnostic({
-  inscription, mettreAJourChamp,
+  inscription, mettreAJourChamp, intituleAction,
 }: {
   inscription: Inscription;
   mettreAJourChamp: (champ: keyof Inscription, valeur: any) => void;
+  intituleAction: string;
 }) {
   const i = inscription;
   const maj = (champ: keyof Inscription, valeur: any) => mettreAJourChamp(champ, valeur);
@@ -229,7 +213,7 @@ export default function FicheEntretienDiagnostic({
 
         <div className="bg-[#005259] text-white text-center py-4 rounded-xl print:rounded-none">
           <h1 className="text-lg font-bold uppercase tracking-wide">Fiche entretien diagnostic</h1>
-          <p className="text-sm font-medium">Préparation Parcours Métiers</p>
+          <p className="text-sm font-medium">{intituleAction}</p>
         </div>
 
         <SectionPDF titre="Ne pas remplir cette zone grise réservée à Colombbus">
@@ -271,13 +255,13 @@ export default function FicheEntretienDiagnostic({
           <div className="flex flex-wrap gap-x-8 gap-y-2">
             <ChampLigne label="Prénom(s)" valeur={i.Prénom} onValide={(v) => maj("Prénom", v)} className="flex-1 min-w-[160px]" />
             <ChampLigne label="Date de naissance" type="date" valeur={i.Diagnostic_DateNaissance} onValide={(v) => maj("Diagnostic_DateNaissance", v)} className="flex-1 min-w-[180px]" />
-            <ChampLigne label="Âge" valeur={i.Age} onValide={(v) => maj("Age", v)} className="min-w-[120px]" />
+            <ChampLigne label="Âge" valeur={i.Age !== undefined && i.Age !== "" ? String(i.Age) : ""} onValide={(v) => maj("Age", v === "" ? "" : Number(v))} className="min-w-[120px]" />
           </div>
           <div className="flex flex-wrap gap-x-8 gap-y-2">
             <ChampLigne label="Tél. fixe" valeur={i.Diagnostic_TelFixe} onValide={(v) => maj("Diagnostic_TelFixe", v)} className="flex-1 min-w-[180px]" />
             <ChampLigne label="Tél. portable" valeur={i.Téléphone} onValide={(v) => maj("Téléphone", v)} className="flex-1 min-w-[180px]" />
           </div>
-          <ChampLigne label="Adresse" valeur={i.Diagnostic_Adresse} onValide={(v) => maj("Diagnostic_Adresse", v)} />
+          <ChampLigne label="Adresse" valeur={i.Diagnostic_Adresse || i.Adresse_Postale} onValide={(v) => maj("Diagnostic_Adresse", v)} />
           <div className="flex flex-wrap gap-x-8 gap-y-2">
             <ChampLigne label="CP" valeur={i.Code_Postal} onValide={(v) => maj("Code_Postal", v)} className="min-w-[140px]" />
             <ChampLigne label="Ville" valeur={i.Ville} onValide={(v) => maj("Ville", v)} className="flex-1 min-w-[180px]" />
@@ -312,10 +296,10 @@ export default function FicheEntretienDiagnostic({
             <CocherBool label="Êtes-vous au chômage ?" valeur={i.Diagnostic_Chomage} onChange={(v) => maj("Diagnostic_Chomage", v)} />
             <ChampLigne label="Durée de chômage (en année et mois)" valeur={i.Diagnostic_DureeChomage} onValide={(v) => maj("Diagnostic_DureeChomage", v)} />
           </div>
-          <CocherBool label="Avez-vous une RQTH (Reconnaissance en Qualité de Travailleur Handicapé) ?" valeur={i.RQTH === "Oui"} onChange={(v) => maj("RQTH", v ? "Oui" : "Non")} />
+          <CocherBool label="Avez-vous une RQTH (Reconnaissance en Qualité de Travailleur Handicapé) ?" valeur={i.Diagnostic_RQTH} onChange={(v) => maj("Diagnostic_RQTH", v)} />
           <CocherBool label="Êtes-vous en congé parental ?" valeur={i.Diagnostic_CongeParental} onChange={(v) => maj("Diagnostic_CongeParental", v)} />
           <div className="flex flex-wrap gap-x-8 gap-y-2 items-baseline">
-            <CocherBool label="Êtes-vous inscrit(e) à France Travail ?" valeur={i.France_Travail === "Oui"} onChange={(v) => maj("France_Travail", v ? "Oui" : "Non")} />
+            <CocherBool label="Êtes-vous inscrit(e) à France Travail ?" valeur={i.Diagnostic_FranceTravail} onChange={(v) => maj("Diagnostic_FranceTravail", v)} />
             <ChampLigne label="Si OUI, depuis quand ?" type="date" valeur={i.Diagnostic_FranceTravailDepuis} onValide={(v) => maj("Diagnostic_FranceTravailDepuis", v)} />
           </div>
         </SectionPDF>
@@ -407,7 +391,7 @@ export default function FicheEntretienDiagnostic({
           {i.Diagnostic_ExperienceDepannage && <ChampLigne label="Précisez" valeur={i.Diagnostic_ExperienceDepannagePrecisions} onValide={(v) => maj("Diagnostic_ExperienceDepannagePrecisions", v)} />}
           <div>
             <CocherChoixMultiple
-              label="Quelles compétences souhaitez-vous renforcer ou acquérir dans le cadre de Préparation Parcours Métiers ?"
+              label={`Quelles compétences souhaitez-vous renforcer ou acquérir dans le cadre de ${intituleAction} ?`}
               options={[
                 "Renforcer mon socle de compétences numériques de base",
                 "Découvrir et comprendre les fondamentaux de la cybersécurité",
@@ -427,7 +411,7 @@ export default function FicheEntretienDiagnostic({
           </div>
         </SectionPDF>
 
-        <SectionPDF titre="Que visez-vous à la sortie de la formation Préparation Parcours Métiers ?">
+        <SectionPDF titre={`Que visez-vous à la sortie de ${intituleAction} ?`}>
           <BlocObjectif
             coche={i.Diagnostic_ObjSortie1_Coche}
             onToggle={(v) => maj("Diagnostic_ObjSortie1_Coche", v)}
@@ -446,7 +430,7 @@ export default function FicheEntretienDiagnostic({
           <BlocObjectif
             coche={i.Diagnostic_ObjSortie3_Coche}
             onToggle={(v) => maj("Diagnostic_ObjSortie3_Coche", v)}
-            question="Pouvez-vous décrire brièvement votre projet professionnel et comment Préparation Parcours Métiers pourrait vous y aider ?"
+            question={`Pouvez-vous décrire brièvement votre projet professionnel et comment ${intituleAction} pourrait vous y aider ?`}
             reponse={i.Diagnostic_ObjSortie3_Reponse}
             onReponse={(v) => maj("Diagnostic_ObjSortie3_Reponse", v)}
           />
@@ -499,7 +483,7 @@ export default function FicheEntretienDiagnostic({
               limites fixées par la loi.
             </span>
           </p>
-          <p className="text-center text-[10px] font-bold uppercase tracking-widest text-[#EA601F] print:text-black pt-2">Préparation Parcours Métiers</p>
+          <p className="text-center text-[10px] font-bold uppercase tracking-widest text-[#EA601F] print:text-black pt-2">{intituleAction}</p>
         </div>
       </div>
 
@@ -509,10 +493,6 @@ export default function FicheEntretienDiagnostic({
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
-          /* L'icône native du sélecteur de date et la poignée de
-             redimensionnement des zones de texte n'ont aucune utilité à
-             l'impression — sans ça, elles s'impriment quand même comme des
-             artefacts visuels parasites. */
           input[type="date"]::-webkit-calendar-picker-indicator {
             display: none;
           }

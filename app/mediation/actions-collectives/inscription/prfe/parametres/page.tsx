@@ -24,6 +24,29 @@ const PARCOURS_DEFAUT: Parcours[] = [
 
 const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
 
+// Catégorie "activité" de la grille Évolution (page suivi de session) —
+// modifiable depuis cette page, contrairement aux 4 codes structurels fixes
+// (Absence justifiée "A" / non justifiée "ANJ" / Férié "F" / Abandon "AB"),
+// gérés par le moteur car d'autres logiques en dépendent.
+interface CategorieEvolution {
+  code: string;
+  label: string;
+  bg: string;
+  text: string;
+}
+
+// Palette actuelle, codée en dur sur la grille Évolution — reprise ici telle
+// quelle comme valeur de départ tant que personne n'a encore sauvegardé de
+// catégories personnalisées (aucun changement visuel tant que cette page n'a
+// pas été utilisée pour de vrai).
+const CATEGORIES_EVOLUTION_DEFAUT: CategorieEvolution[] = [
+  { code: "G", label: "Game Design", bg: "#7C1FD1", text: "#FFFFFF" },
+  { code: "D", label: "Développement", bg: "#F5820D", text: "#FFFFFF" },
+  { code: "GR", label: "Graphisme", bg: "#22D3EE", text: "#003044" },
+  { code: "SK", label: "Soft Skills", bg: "#FDE047", text: "#3A3300" },
+  { code: "M", label: "Maintenance", bg: "#3B82F6", text: "#FFFFFF" },
+];
+
 function slugifier(texte: string, dejaUtilises: string[]): string {
   const base = texte
     .trim().toLowerCase()
@@ -99,6 +122,7 @@ export default function ParametresPrfePage() {
   // codes["parcoursId|territoire|date"] = code interne, jamais affiché sur le
   // formulaire public — sert uniquement en usage interne (Drive, suivi...).
   const [codes, setCodes] = useState<Record<string, string>>({});
+  const [categoriesEvolution, setCategoriesEvolution] = useState<CategorieEvolution[]>(CATEGORIES_EVOLUTION_DEFAUT);
   const [loading, setLoading] = useState(true);
 
   const [nouvelleSessionParcours, setNouvelleSessionParcours] = useState("");
@@ -125,15 +149,19 @@ export default function ParametresPrfePage() {
 
   useEffect(() => {
     const charger = async () => {
-      const [snapSessions, snapParcours, snapTerritoires, snapLogosFormulaire, snapProgrammes, snapLogos] = await Promise.all([
+      const [snapSessions, snapParcours, snapTerritoires, snapLogosFormulaire, snapProgrammes, snapLogos, snapCategoriesEvolution] = await Promise.all([
         getDoc(doc(db, "configuration_prfe", "sessions")),
         getDoc(doc(db, "configuration_prfe", "parcours")),
         getDoc(doc(db, "configuration_prfe", "territoires")),
         getDoc(doc(db, "configuration_prfe", "logosFormulaire")),
         getDoc(doc(db, "configuration_prfe", "programmes")),
         getDocs(collection(db, "logos_emargement")),
+        getDoc(doc(db, "configuration_prfe", "evolutionCategories")),
       ]);
       setLogosDisponibles(snapLogos.docs.map((d) => ({ id: d.id, ...d.data() })));
+      if (snapCategoriesEvolution.exists() && Array.isArray(snapCategoriesEvolution.data().liste) && snapCategoriesEvolution.data().liste.length > 0) {
+        setCategoriesEvolution(snapCategoriesEvolution.data().liste);
+      }
       if (snapLogosFormulaire.exists()) {
         const data = snapLogosFormulaire.data();
         if (data.parTerritoire && typeof data.parTerritoire === "object") {
@@ -191,6 +219,34 @@ export default function ParametresPrfePage() {
     };
     charger();
   }, []);
+
+  // --- CATÉGORIES D'ÉVOLUTION (catégories ACTIVITÉ de la grille de suivi de
+  // présence, voir reponses/prfe/[id]/evolution) — modifiables depuis cette
+  // page, contrairement aux 4 codes structurels fixes (Absence justifiée/non
+  // justifiée, Férié, Abandon), gérés par le moteur.
+  const luminanceTexte = (bg: string): string => {
+    const hex = bg.replace("#", "");
+    if (hex.length !== 6) return "#FFFFFF";
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.6 ? "#111111" : "#FFFFFF";
+  };
+  const sauvegarderCategoriesEvolution = async (liste: CategorieEvolution[]) => {
+    setCategoriesEvolution(liste);
+    await setDoc(doc(db, "configuration_prfe", "evolutionCategories"), { liste });
+  };
+  const ajouterCategorieEvolution = () => {
+    const nouvelle: CategorieEvolution = { code: `C${categoriesEvolution.length + 1}`, label: "Nouvelle catégorie", bg: "#3B82F6", text: "#FFFFFF" };
+    sauvegarderCategoriesEvolution([...categoriesEvolution, nouvelle]);
+  };
+  const modifierCategorieEvolution = (index: number, patch: Partial<CategorieEvolution>) => {
+    sauvegarderCategoriesEvolution(categoriesEvolution.map((c, i) => (i === index ? { ...c, ...patch } : c)));
+  };
+  const supprimerCategorieEvolution = (index: number) => {
+    sauvegarderCategoriesEvolution(categoriesEvolution.filter((_, i) => i !== index));
+  };
 
   // Écrit tout le document "sessions" en une fois (jamais de merge partiel) :
   // { merge: true } fusionne les maps en profondeur au lieu de les remplacer,
@@ -400,7 +456,7 @@ export default function ParametresPrfePage() {
             <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
             <div>
               <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
-                Gérer <span className="text-[#EA601F] font-semibold">PRFE</span>
+                Gérer <span className="text-[#EA601F] font-semibold">Préparation Parcours Métiers</span>
               </h1>
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
                 Parkours, territoires et sessions du formulaire d'inscription
@@ -414,7 +470,7 @@ export default function ParametresPrfePage() {
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >
               <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
-              <span>Formulaire PRFE</span>
+              <span>Formulaire</span>
             </Link>
             <Link
               href="/"
@@ -693,6 +749,57 @@ export default function ParametresPrfePage() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        {/* CATÉGORIES D'ÉVOLUTION */}
+        <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <TagIcon className="w-4 h-4 text-[#EA601F]" />
+              <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Catégories d'évolution ({categoriesEvolution.length})</h2>
+            </div>
+            <button type="button" onClick={ajouterCategorieEvolution} className="flex items-center gap-1.5 px-3 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-xl text-xs font-bold uppercase tracking-wide transition-colors cursor-pointer">
+              <PlusIcon className="w-4 h-4" /> Catégorie
+            </button>
+          </div>
+          <p className="text-[10px] text-[#404040]/50">
+            Les catégories "activité" affichées sur la grille de suivi de présence (page Évolution d'une session) — par ex. les modules ou ateliers couverts au jour le jour. Les 4 codes de statut (Absence justifiée/non justifiée, Férié, Abandon) restent fixes et ne sont pas modifiables ici.
+          </p>
+          <div className="space-y-2">
+            {categoriesEvolution.map((c, index) => (
+              <div key={index} className="flex items-center gap-2 border border-[#404040]/10 rounded-xl p-2.5">
+                <input
+                  type="text"
+                  defaultValue={c.code}
+                  onBlur={(e) => modifierCategorieEvolution(index, { code: e.target.value.trim() })}
+                  placeholder="Code"
+                  maxLength={6}
+                  className="w-20 px-2 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-lg text-xs font-bold text-center text-[#005259] outline-none transition-colors uppercase"
+                />
+                <input
+                  type="text"
+                  defaultValue={c.label}
+                  onBlur={(e) => modifierCategorieEvolution(index, { label: e.target.value })}
+                  placeholder="Intitulé"
+                  className="flex-1 px-2 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-lg text-xs text-[#404040] outline-none transition-colors"
+                />
+                <input
+                  type="color"
+                  value={c.bg}
+                  onChange={(e) => modifierCategorieEvolution(index, { bg: e.target.value, text: luminanceTexte(e.target.value) })}
+                  title="Couleur de la catégorie"
+                  className="w-9 h-9 rounded-lg border border-[#404040]/15 cursor-pointer shrink-0"
+                />
+                <span className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider shrink-0" style={{ backgroundColor: c.bg, color: c.text }}>
+                  {c.code || "—"}
+                </span>
+                <button type="button" onClick={() => supprimerCategorieEvolution(index)} className="p-1.5 bg-[#EF736A]/10 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/30 rounded-lg transition-colors cursor-pointer shrink-0">
+                  <TrashIcon className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+            {categoriesEvolution.length === 0 && <p className="text-xs text-[#404040]/50 italic text-center py-4">Aucune catégorie d'évolution pour le moment.</p>}
           </div>
         </div>
 

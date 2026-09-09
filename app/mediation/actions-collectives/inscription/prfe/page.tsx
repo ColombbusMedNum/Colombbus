@@ -277,7 +277,7 @@ export default function FormulairePrfePage() {
       setFormData(FORM_VIDE);
       setEtape(1);
     } catch (error) {
-      console.error("Erreur lors de l'enregistrement de l'inscription PRFE :", error);
+      console.error("Erreur lors de l'enregistrement de l'inscription Préparation Parcours Métiers :", error);
       showToast("Une erreur est survenue lors de l'enregistrement.", "error");
     } finally {
       setEnvoiEnCours(false);
@@ -298,10 +298,10 @@ export default function FormulairePrfePage() {
             <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
             <div>
               <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
-                Formulaire <span className="text-[#EA601F] font-semibold">PRFE</span>
+                Formulaire <span className="text-[#EA601F] font-semibold">Préparation Parcours Métiers</span>
               </h1>
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
-                Pré-inscription au parcours PRFE
+                Pré-inscription au parcours Préparation Parcours Métiers
               </p>
             </div>
           </div>
@@ -335,7 +335,7 @@ export default function FormulairePrfePage() {
 
         {/* RGPD */}
         <div className="bg-[#88ACEA]/10 border border-[#88ACEA]/40 rounded-xl p-3 text-[11px] text-[#404040] space-y-1">
-          <p>Les données recueillies dans ce formulaire font l'objet d'un traitement informatique destiné à l'inscription à l'action PRFE organisée par l'association Colombbus, en conformité avec la loi RGPD 2018.</p>
+          <p>Les données recueillies dans ce formulaire font l'objet d'un traitement informatique destiné à l'inscription à l'action Préparation Parcours Métiers organisée par l'association Colombbus, en conformité avec la loi RGPD 2018.</p>
           <p>Responsable du traitement : Colombbus, 10 rue du Terrage, 75010 Paris. Données conservées 2 ans puis supprimées ou anonymisées. Vous pouvez à tout moment retirer votre consentement, accéder à vos données, demander leur rectification/suppression ou exercer votre droit à la limitation/opposition en écrivant à contact@colombbus.org.</p>
         </div>
 

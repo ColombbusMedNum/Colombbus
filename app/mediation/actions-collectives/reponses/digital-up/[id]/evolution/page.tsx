@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { collection, doc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
-import { HomeIcon, ArrowLeftIcon, ChevronDownIcon, TrashIcon, PlusIcon, PencilSquareIcon, CheckIcon, XMarkIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ArrowLeftIcon, ChevronDownIcon, TrashIcon, PlusIcon, PencilSquareIcon, CheckIcon, XMarkIcon, ExclamationTriangleIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
+import { usePermissions } from "@/lib/PermissionsProvider";
 
 interface Apprenant {
   id: string;
@@ -43,21 +44,38 @@ const TYPES_JUSTIFICATIF = ["Email", "SMS", "Téléphone", "Autre"];
 const MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 const JOURS_FR = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 
-// Codes de suivi et leur couleur — reprend le code couleur fourni par
-// l'équipe pour la feuille "Évolution".
-const CODES = [
-  { code: "", label: "—", bg: "#FFFFFF", text: "#404040" },
+// Catégorie "activité" de la grille Évolution — modifiable par action depuis
+// la page paramètres (Firestore, configuration_digitalup/evolutionCategories),
+// contrairement aux 4 codes structurels fixes ci-dessous.
+interface CategorieEvolution {
+  code: string;
+  label: string;
+  bg: string;
+  text: string;
+}
+
+// Palette d'activité par défaut : reprend le code couleur fourni par l'équipe
+// pour la feuille "Évolution" — sert de valeur de repli tant que personne n'a
+// encore modifié les catégories depuis la page paramètres (aucune régression
+// visuelle avant une première modification volontaire).
+const ACTIVITE_DEFAUT: CategorieEvolution[] = [
   { code: "G", label: "Game Design", bg: "#7C1FD1", text: "#FFFFFF" },
   { code: "D", label: "Développement", bg: "#F5820D", text: "#FFFFFF" },
   { code: "GR", label: "Graphisme", bg: "#22D3EE", text: "#003044" },
   { code: "SK", label: "Soft Skills", bg: "#FDE047", text: "#3A3300" },
   { code: "M", label: "Maintenance", bg: "#3B82F6", text: "#FFFFFF" },
+];
+
+// Les 4 codes structurels restent fixes, gérés par le moteur (d'autres
+// logiques en dépendent : bascule Actif/abandon en cascade, alimentation du
+// journal des absences, alerte sur absences répétées) — pas de personnalisation
+// possible depuis la page paramètres.
+const CODES_STRUCTURELS: CategorieEvolution[] = [
   { code: "A", label: "Absence justifiée", bg: "#EF4444", text: "#FFFFFF" },
   { code: "ANJ", label: "Absence non justifiée", bg: "#111827", text: "#FFFFFF" },
   { code: "F", label: "Férié / Off", bg: "#9CA3AF", text: "#111111" },
   { code: "AB", label: "Abandon", bg: "#22C55E", text: "#FFFFFF" },
 ];
-const CODES_PRESENCE = ["G", "D", "GR", "SK", "M"];
 const HEURES_PAR_JOUR = 3;
 
 // Reporte automatiquement un code "A"/"ANJ" posé dans la grille dans le
@@ -139,20 +157,45 @@ function decouperEnSemaines<T>(elements: T[], taille: number): T[][] {
 export default function EvolutionDigitalUpSessionPage() {
   const params = useParams();
   const sessionId = decodeURIComponent((params?.id as string) || "");
+  const permissions = usePermissions();
 
   const [apprenants, setApprenants] = useState<Apprenant[]>([]);
+  const [categoriesActivite, setCategoriesActivite] = useState<CategorieEvolution[]>(ACTIVITE_DEFAUT);
   const [loading, setLoading] = useState(true);
   const [semainesFermees, setSemainesFermees] = useState<Set<number>>(new Set());
   const [globalFermee, setGlobalFermee] = useState(false);
   const [nouvelleAbsence, setNouvelleAbsence] = useState({ apprenantId: "", date: "", justifiee: true, type: "", raison: "", reference: "", lien: "" });
   const [brouillonAbsence, setBrouillonAbsence] = useState<{ apprenantId: string; indexRecord: number; valeurs: AbsenceRecord } | null>(null);
   const [alerteANJ, setAlerteANJ] = useState<{ prenom: string; nom: string; nombre: number } | null>(null);
+  // Code interne de la session (ex. "MN26_DIGUP-91_01"), généré depuis la
+  // page paramètres — utile ici pour identifier rapidement la session sans
+  // relire ses dates en toutes lettres.
+  const [codeSession, setCodeSession] = useState<string | null>(null);
 
   useEffect(() => {
     const charger = async () => {
       try {
-        const snap = await getDocs(query(collection(db, "inscriptions_digitalup"), orderBy("createdAt", "desc")));
+        const [snap, snapCategories, snapSessions] = await Promise.all([
+          getDocs(query(collection(db, "inscriptions_digitalup"), orderBy("createdAt", "desc"))),
+          getDoc(doc(db, "configuration_digitalup", "evolutionCategories")),
+          getDoc(doc(db, "configuration_digitalup", "sessions")),
+        ]);
         setApprenants(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Apprenant)));
+        if (snapCategories.exists() && Array.isArray(snapCategories.data().liste) && snapCategories.data().liste.length > 0) {
+          setCategoriesActivite(snapCategories.data().liste);
+        }
+        if (snapSessions.exists()) {
+          const parTerritoire: Record<string, Record<string, string[]>> = snapSessions.data().parTerritoire || {};
+          const codesInternes: Record<string, string> = snapSessions.data().codes || {};
+          for (const [parcoursId, parTerr] of Object.entries(parTerritoire)) {
+            for (const [territoire, dates] of Object.entries(parTerr)) {
+              if (dates.includes(sessionId)) {
+                const code = codesInternes[`${parcoursId}|${territoire}|${sessionId}`];
+                if (code) setCodeSession(code);
+              }
+            }
+          }
+        }
       } catch (error) {
         console.error("Erreur lors du chargement des apprenant·e·s :", error);
       } finally {
@@ -160,7 +203,15 @@ export default function EvolutionDigitalUpSessionPage() {
       }
     };
     charger();
-  }, []);
+  }, [sessionId]);
+
+  // Catégories ACTIVITÉ de l'action (modifiables depuis la page paramètres),
+  // complétées par les 4 codes structurels fixes (voir CODES_STRUCTURELS).
+  const CODES = useMemo(
+    () => [{ code: "", label: "—", bg: "#FFFFFF", text: "#404040" }, ...categoriesActivite, ...CODES_STRUCTURELS],
+    [categoriesActivite]
+  );
+  const CODES_PRESENCE = useMemo(() => categoriesActivite.map((c) => c.code), [categoriesActivite]);
 
   const apprenantsSession = useMemo(
     () =>
@@ -430,7 +481,9 @@ export default function EvolutionDigitalUpSessionPage() {
                 Évolution
               </h1>
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
-                Session : {sessionId || "—"} — {apprenantsSession.length} apprenant{apprenantsSession.length > 1 ? "s" : ""}
+                Session : {sessionId || "—"}
+                {codeSession && <span className="ml-1.5 font-mono font-bold text-[#005259] bg-[#005259]/10 px-1.5 py-0.5 rounded">{codeSession}</span>}
+                {" "}— {apprenantsSession.length} apprenant{apprenantsSession.length > 1 ? "s" : ""}
               </p>
             </div>
           </div>
@@ -443,6 +496,16 @@ export default function EvolutionDigitalUpSessionPage() {
               <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
               <span>Apprenant·e·s</span>
             </Link>
+            {permissions?.role === "admin" && (
+              <Link
+                href="/mediation/actions-collectives/inscription/digital-up/parametres"
+                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+                title="Modifier les catégories d'évolution et autres réglages"
+              >
+                <Cog6ToothIcon className="w-4 h-4 text-[#EA601F]" />
+                <span>Paramètres</span>
+              </Link>
+            )}
             <Link
               href="/"
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"

@@ -34,7 +34,8 @@ import {
   ClipboardDocumentCheckIcon,
   ChatBubbleBottomCenterTextIcon,
   XCircleIcon,
-  Cog6ToothIcon
+  Cog6ToothIcon,
+  DocumentTextIcon
 } from "@heroicons/react/24/outline";
 
 // Vocabulaire fixe du <select> Thématique ci-dessous — une valeur importée
@@ -783,6 +784,16 @@ export default function PlanningSuresnes() {
               </Link>
             </PermissionGuard>
 
+            {estSiteResidenceAutonomie && (
+              <Link
+                href={`/mediation/rencontres-numeriques/fiches-bilans?lieu=${encodeURIComponent(siteActifLabel)}`}
+                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+              >
+                <DocumentTextIcon className="w-4 h-4 text-[#EA601F]" />
+                <span>Bilan</span>
+              </Link>
+            )}
+
             {peutConfigurerParametres && (
               <Link
                 href="/mediation/parametres"
@@ -1353,9 +1364,9 @@ export default function PlanningSuresnes() {
                                   ) : currentStatutFiche === "Absent" ? (
                                     <Link
                                       href={`/mediation/rencontres-numeriques/liste-beneficiaires/${bTrouve.id}`}
-                                      className="inline-flex items-center justify-center gap-1 w-full text-[#EF736A] bg-[#EF736A]/15 border border-[#EF736A]/30 hover:bg-[#EF736A]/25 px-2 py-1 rounded-lg text-[9px] font-bold tracking-wider uppercase transition-all shadow-sm"
+                                      className="inline-flex items-center justify-center gap-1 w-full text-[#C0392B] bg-[#EF736A]/20 border border-[#EF736A] hover:bg-[#EF736A]/30 px-2 py-1 rounded-lg text-[9px] font-bold tracking-wider uppercase transition-all shadow-sm"
                                     >
-                                      <XCircleIcon className="w-3 h-3" />
+                                      <XCircleIcon className="w-3 h-3 text-[#C0392B]" />
                                       Absent
                                     </Link>
                                   ) : (
