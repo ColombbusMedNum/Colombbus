@@ -14,25 +14,25 @@ import { chargerPrescripteurs, upsertPrescripteur } from "@/lib/prescripteurs";
 import { formatNom, formatPrenom } from "@/lib/formatName";
 import { formatPhoneForStorage } from "@/lib/formatPhone";
 import { sessionEstAVenir } from "@/lib/sessionDates";
+import { calculerAge } from "@/lib/dateNaissance";
 
 interface Parcours {
   id: string;
   label: string;
 }
 
+// PRFE ne propose aujourd'hui qu'un seul parcours (préparation au titre
+// professionnel TIP — technicien informatique de proximité), à la
+// différence de NUMERIK PRO. Reste modifiable/complétable depuis Paramètres
+// si un second parcours voit le jour.
 const PARCOURS_DEFAUT: Parcours[] = [
-  { id: "prfe-tech", label: "PRFE Tech" },
-  { id: "prfe-marketing", label: "PRFE Marketing" },
+  { id: "preparation-parcours-metiers", label: "Préparation Parcours Métiers" },
 ];
 
 // Les dates de session varient selon le territoire (département) : chaque
 // parkours a donc ses propres sessions par territoire, pas une liste unique.
 const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
 
-// Reprend les intitulés réels observés dans les réponses PRFE —
-// plus détaillés que la liste Numérik'UP d'origine ("Infra brevet" et
-// "Supérieur à Bac +3" existent bien comme réponses réelles), plus une
-// option "Autre" en texte libre pour les cas non standard.
 const NIVEAUX_ETUDES = [
   "Infra brevet",
   "Brevet, CAP, BEP",
@@ -41,15 +41,6 @@ const NIVEAUX_ETUDES = [
   "Bac+3 (Licence, licence professionnelle)",
   "Bac+4/5 et plus",
   "Supérieur à Bac +3",
-  "Autre",
-];
-
-const CANAUX_CONNAISSANCE = [
-  "Mission locale / conseiller.e",
-  "Bouche à oreille",
-  "Email",
-  "Site (www.colombbus.org)",
-  "Réseaux sociaux (Facebook, Twitter, LinkedIn)",
   "Autre",
 ];
 
@@ -71,30 +62,27 @@ const FORM_VIDE = {
   codePostal: "",
   ville: "",
   qpv: "Je ne sais pas",
-  age: "",
+  dateNaissance: "",
   situationHandicap: "Non",
   rqth: "Non",
   rsa: "Non",
-  neet: "Non",
-  cej: "Non",
   niveauEtudes: "Bac",
   niveauEtudesAutre: "",
   franceTravail: "Non",
   identifiantFranceTravail: "",
+  formationCertifianteRecente: "Non",
+  informeFormationTIP: "Non",
+  disponibleDatesSession: "Oui",
   structureAccompagnement: "",
   conseillerNom: "",
   conseillerPrenom: "",
   conseillerEmail: "",
   conseillerTelephone: "",
-  commentConnu: CANAUX_CONNAISSANCE[0],
-  commentConnuAutre: "",
-  projetProfessionnel: "",
-  formationAcces: "",
-  parcours: "prfe-tech",
+  metierSouhaite: "",
+  parcours: "preparation-parcours-metiers",
   territoire: "91",
   session: "",
   rgpd: false,
-  consentementPartageSimulation: false,
 };
 
 export default function FormulairePrfePage() {
@@ -193,6 +181,8 @@ export default function FormulairePrfePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.territoire, sessions]);
 
+  const ageCalcule = calculerAge(formData.dateNaissance);
+
   // Validation minimale avant de passer à l'étape suivante — évite d'arriver
   // au bout du formulaire avec des champs obligatoires vides sans s'en rendre
   // compte, tout en restant tolérant sur les champs facultatifs.
@@ -207,7 +197,7 @@ export default function FormulairePrfePage() {
     if (numero === 3) {
       if (!formData.nom || !formData.prenom || !formData.telephone || !formData.email) return "Merci de compléter le nom, prénom, téléphone et email.";
       if (!formData.adressePostale || !formData.codePostal || !formData.ville) return "Merci de compléter l'adresse complète.";
-      if (!formData.age) return "Merci de renseigner l'âge du / de la participant.e.";
+      if (!formData.dateNaissance) return "Merci de renseigner la date de naissance du / de la participant.e.";
     }
     return null;
   };
@@ -229,10 +219,6 @@ export default function FormulairePrfePage() {
       showToast("Le consentement RGPD est obligatoire pour enregistrer l'inscription.", "error");
       return;
     }
-    if (!formData.consentementPartageSimulation) {
-      showToast("Le consentement au partage des coordonnées est obligatoire pour enregistrer l'inscription.", "error");
-      return;
-    }
     if (!formData.session) {
       showToast("Merci de sélectionner une session.", "error");
       return;
@@ -250,28 +236,27 @@ export default function FormulairePrfePage() {
         Code_Postal: formData.codePostal,
         Ville: formData.ville,
         QPV: formData.qpv,
-        Age: formData.age,
+        Date_Naissance: formData.dateNaissance,
+        Age: ageCalcule ?? "",
         Situation_Handicap: formData.situationHandicap,
         RQTH: formData.rqth,
         RSA: formData.rsa,
-        NEET: formData.neet,
-        CEJ: formData.cej,
         Niveau_Etudes: formData.niveauEtudes === "Autre" ? formData.niveauEtudesAutre : formData.niveauEtudes,
         France_Travail: formData.franceTravail,
         Identifiant_France_Travail: formData.franceTravail === "Oui" ? formData.identifiantFranceTravail : "",
+        Formation_Certifiante_Recente: formData.formationCertifianteRecente,
+        Informe_Formation_TIP: formData.informeFormationTIP,
+        Disponible_Dates_Session: formData.disponibleDatesSession,
         Structure_Accompagnement: formData.structureAccompagnement,
         Conseiller_Nom: formatNom(formData.conseillerNom),
         Conseiller_Prenom: formatPrenom(formData.conseillerPrenom),
         Conseiller_Email: formData.conseillerEmail,
         Conseiller_Telephone: formatPhoneForStorage(formData.conseillerTelephone),
-        Comment_Connu: formData.commentConnu === "Autre" ? formData.commentConnuAutre : formData.commentConnu,
         Parcours: parcoursListe.find((p) => p.id === formData.parcours)?.label || formData.parcours,
-        Projet_Professionnel: formData.projetProfessionnel,
-        Formation_Acces: formData.formationAcces,
+        Metier_Souhaite: formData.metierSouhaite,
         Territoire: formData.territoire,
         Session: formData.session,
         RGPD: formData.rgpd,
-        Consentement_Partage_Simulation: formData.consentementPartageSimulation,
         createdAt: serverTimestamp(),
       });
 
@@ -349,8 +334,9 @@ export default function FormulairePrfePage() {
         </div>
 
         {/* RGPD */}
-        <div className="bg-[#88ACEA]/10 border border-[#88ACEA]/40 rounded-xl p-3 text-[11px] text-[#404040]">
-          Les données recueillies dans ce formulaire font l'objet d'un traitement informatique destiné à l'inscription à l'action PRFE organisée par l'association Colombbus, en conformité avec la loi RGPD 2018.
+        <div className="bg-[#88ACEA]/10 border border-[#88ACEA]/40 rounded-xl p-3 text-[11px] text-[#404040] space-y-1">
+          <p>Les données recueillies dans ce formulaire font l'objet d'un traitement informatique destiné à l'inscription à l'action PRFE organisée par l'association Colombbus, en conformité avec la loi RGPD 2018.</p>
+          <p>Responsable du traitement : Colombbus, 10 rue du Terrage, 75010 Paris. Données conservées 2 ans puis supprimées ou anonymisées. Vous pouvez à tout moment retirer votre consentement, accéder à vos données, demander leur rectification/suppression ou exercer votre droit à la limitation/opposition en écrivant à contact@colombbus.org.</p>
         </div>
 
         {/* PROGRESSION */}
@@ -474,8 +460,9 @@ export default function FormulairePrfePage() {
                 <input required type="tel" value={formData.telephone} onChange={(e) => setFormData({ ...formData, telephone: e.target.value })} className={inputClass} placeholder="06 12 34 56 78" />
               </div>
               <div>
-                <label className={labelClass}>Âge *</label>
-                <input required type="number" min={0} max={120} value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} className={inputClass} placeholder="32" />
+                <label className={labelClass}>Date de naissance *</label>
+                <input required type="date" value={formData.dateNaissance} onChange={(e) => setFormData({ ...formData, dateNaissance: e.target.value })} className={inputClass} />
+                {ageCalcule !== null && <p className="mt-1 text-[10px] text-[#404040]/50">→ {ageCalcule} ans</p>}
               </div>
               <div className="md:col-span-3">
                 <label className={labelClass}>Email *</label>
@@ -576,15 +563,22 @@ export default function FormulairePrfePage() {
                 </div>
               )}
               <div>
-                <label className={labelClass}>N.E.E.T (ni étudiant.e, ni employé.e, ni stagiaire) ?</label>
-                <select value={formData.neet} onChange={(e) => setFormData({ ...formData, neet: e.target.value })} className={inputClass}>
+                <label className={labelClass}>Formation certifiante suivie ces 12 derniers mois ?</label>
+                <select value={formData.formationCertifianteRecente} onChange={(e) => setFormData({ ...formData, formationCertifianteRecente: e.target.value })} className={inputClass}>
                   <option value="Oui">Oui</option>
                   <option value="Non">Non</option>
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Accompagné.e par le CEJ ?</label>
-                <select value={formData.cej} onChange={(e) => setFormData({ ...formData, cej: e.target.value })} className={inputClass}>
+                <label className={labelClass}>Informé·e que cette formation mène vers le titre professionnel TIP (technicien informatique de proximité) ?</label>
+                <select value={formData.informeFormationTIP} onChange={(e) => setFormData({ ...formData, informeFormationTIP: e.target.value })} className={inputClass}>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Disponible pour intégrer la formation aux dates de la session choisie ?</label>
+                <select value={formData.disponibleDatesSession} onChange={(e) => setFormData({ ...formData, disponibleDatesSession: e.target.value })} className={inputClass}>
                   <option value="Oui">Oui</option>
                   <option value="Non">Non</option>
                 </select>
@@ -656,29 +650,8 @@ export default function FormulairePrfePage() {
           <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-4">
             <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Projet professionnel</h2>
             <div>
-              <label className={labelClass}>Comment avez-vous connu l'action PRFE ?</label>
-              <select value={formData.commentConnu} onChange={(e) => setFormData({ ...formData, commentConnu: e.target.value })} className={inputClass}>
-                {CANAUX_CONNAISSANCE.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-              {formData.commentConnu === "Autre" && (
-                <input
-                  type="text"
-                  value={formData.commentConnuAutre}
-                  onChange={(e) => setFormData({ ...formData, commentConnuAutre: e.target.value })}
-                  placeholder="Préciser"
-                  className={`${inputClass} mt-2`}
-                />
-              )}
-            </div>
-
-            <div>
-              <label className={labelClass}>Quel est votre projet professionnel ?</label>
-              <textarea value={formData.projetProfessionnel} onChange={(e) => setFormData({ ...formData, projetProfessionnel: e.target.value })} rows={3} className={inputClass} />
-            </div>
-
-            <div>
-              <label className={labelClass}>De quelle manière la formation PRFE peut vous permettre d'y accéder ?</label>
-              <textarea value={formData.formationAcces} onChange={(e) => setFormData({ ...formData, formationAcces: e.target.value })} rows={3} className={inputClass} />
+              <label className={labelClass}>Quel métier ou domaine professionnel le / la participant.e souhaite-t-il / elle exercer ?</label>
+              <textarea value={formData.metierSouhaite} onChange={(e) => setFormData({ ...formData, metierSouhaite: e.target.value })} rows={3} className={inputClass} />
             </div>
 
             <label className="flex items-start gap-2.5 text-xs text-[#404040] cursor-pointer">
@@ -688,17 +661,7 @@ export default function FormulairePrfePage() {
                 onChange={(e) => setFormData({ ...formData, rgpd: e.target.checked })}
                 className="mt-0.5 w-4 h-4 accent-[#005259] cursor-pointer"
               />
-              <span>J'ai compris les informations ci-dessus et j'accepte que mes données personnelles soient collectées et utilisées aux fins décrites, en conformité avec la loi RGPD 2018. *</span>
-            </label>
-
-            <label className="flex items-start gap-2.5 text-xs text-[#404040] cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formData.consentementPartageSimulation}
-                onChange={(e) => setFormData({ ...formData, consentementPartageSimulation: e.target.checked })}
-                className="mt-0.5 w-4 h-4 accent-[#005259] cursor-pointer"
-              />
-              <span>J'accepte que mes coordonnées soient partagées avec l'équipe PRFE et le bénéficiaire dans le cadre de la simulation. *</span>
+              <span>J'autorise le traitement des données collectées en conformité avec la loi RGPD 2018. *</span>
             </label>
 
             <div className="flex justify-between pt-2 border-t border-[#404040]/10">

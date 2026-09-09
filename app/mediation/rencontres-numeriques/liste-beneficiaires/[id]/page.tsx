@@ -353,21 +353,28 @@ export default function FicheBeneficiaire() {
         .sort((a, b) => a.nomCourt.localeCompare(b.nomCourt, "fr"));
 
       setLieuxGlobaux(lieuxEnregistres);
-
-      if (lieuxEnregistres.length > 0) {
-        setFormData(prev => ({
-          ...prev,
-          lieu: prev.lieu || lieuxEnregistres[0].nomCourt
-        }));
-      }
     });
 
-    return () => { 
-      unsubUser(); 
-      unsubVisites(); 
-      unsubLieux(); 
+    return () => {
+      unsubUser();
+      unsubVisites();
+      unsubLieux();
     };
   }, [userId]);
+
+  // Préremplit "Lieu de la rencontre" (modale Nouvelle action) avec le
+  // rattachement événementiel principal du bénéficiaire (Lieu_RDV) dès que
+  // les deux sont connus, plutôt que le premier lieu de la liste par ordre
+  // alphabétique — uniquement si rien n'a encore été choisi, pour ne pas
+  // écraser un choix manuel déjà fait dans la modale ouverte.
+  useEffect(() => {
+    if (lieuxGlobaux.length === 0) return;
+    setFormData(prev => {
+      if (prev.lieu) return prev;
+      const lieuPrincipal = user?.Lieu_RDV && lieuxGlobaux.some(l => l.nomCourt === user.Lieu_RDV) ? user.Lieu_RDV : lieuxGlobaux[0].nomCourt;
+      return { ...prev, lieu: lieuPrincipal };
+    });
+  }, [user, lieuxGlobaux]);
 
   // Calcul stats et alertes
   useEffect(() => {

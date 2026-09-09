@@ -210,15 +210,17 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+    // PRFE n'a qu'un seul consentement (RGPD), contrairement à NUMERIK PRO
+    // qui demande aussi un consentement de partage des coordonnées — voir
+    // app/mediation/actions-collectives/inscription/prfe/page.tsx.
     match /inscriptions_prfe/{docId} {
       allow read: if isStaff();
       allow create: if isStaff() || (
-        request.resource.data.keys().hasAll(['Nom', 'Prénom', 'Téléphone', 'Email', 'Parcours', 'Territoire', 'Session', 'RGPD', 'Consentement_Partage_Simulation']) &&
+        request.resource.data.keys().hasAll(['Nom', 'Prénom', 'Téléphone', 'Email', 'Parcours', 'Territoire', 'Session', 'RGPD']) &&
         request.resource.data['Nom'] is string && request.resource.data['Nom'].size() > 0 &&
         request.resource.data['Prénom'] is string && request.resource.data['Prénom'].size() > 0 &&
         request.resource.data['Email'] is string && request.resource.data['Email'].size() > 0 &&
         request.resource.data['RGPD'] == true &&
-        request.resource.data['Consentement_Partage_Simulation'] == true &&
         request.resource.data.get('_piege', '') == '' &&
         request.resource.data.get('_dureeRemplissageMs', 0) > 3000
       );

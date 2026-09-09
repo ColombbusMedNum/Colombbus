@@ -15,11 +15,11 @@ interface Parcours {
   label: string;
 }
 
-// Reprend les deux parcours réels observés dans les réponses au formulaire
-// PRFE — librement renommables/complétables ensuite depuis cette page.
+// PRFE ne propose aujourd'hui qu'un seul parcours (préparation au titre
+// professionnel TIP — technicien informatique de proximité) — librement
+// renommable/complétable ensuite depuis cette page si un second voit le jour.
 const PARCOURS_DEFAUT: Parcours[] = [
-  { id: "prfe-tech", label: "PRFE Tech" },
-  { id: "prfe-marketing", label: "PRFE Marketing" },
+  { id: "preparation-parcours-metiers", label: "Préparation Parcours Métiers" },
 ];
 
 const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
