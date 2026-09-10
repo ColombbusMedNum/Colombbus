@@ -174,10 +174,16 @@ export default function AllNotificationsPage() {
                     )}
                     <p className="text-sm font-medium leading-relaxed">{n.message}</p>
                   </div>
-                  
+
+                  {n.imageUrl && (
+                    <a href={n.imageUrl} target="_blank" rel="noopener noreferrer" className="block w-fit">
+                      <img src={n.imageUrl} alt="Capture jointe" className="max-h-32 rounded-lg border border-[#404040]/15 hover:border-[#005259]/40 transition-colors" />
+                    </a>
+                  )}
+
                   <p className="text-[10px] text-[#404040]/60 uppercase tracking-wider font-bold">
-                    {n.createdAt 
-                      ? new Date(n.createdAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) 
+                    {n.createdAt
+                      ? new Date(n.createdAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
                       : "Date inconnue"}
                   </p>
                 </div>
