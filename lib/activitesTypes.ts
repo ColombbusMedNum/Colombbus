@@ -53,6 +53,16 @@ export interface ActiviteType {
   // créneau généré depuis ce modèle pour permettre un filtrage ultérieur
   // (ex volume horaire de production) sans avoir à ré-identifier le modèle.
   estProduction?: boolean;
+  // Coché quand ce modèle, bien qu'en production pour les permanents, est
+  // pour un·e ACI de l'observation (accompagnement aux horaires habituels) :
+  // copié sur chaque créneau généré, il fait que
+  // calculerHeuresComplementairesACI (lib/planningHours.ts) ne compte jamais
+  // d'heures complémentaires pour un ACI dessus, quels que soient les
+  // horaires réels du créneau. observationACIDateFin borne cette exonération
+  // dans le temps (ex: l'ACI reprend progressivement la main sur l'action) —
+  // sans date, elle s'applique indéfiniment.
+  observationACI?: boolean;
+  observationACIDateFin?: string;
 }
 
 // Un modèle est-il visible dans la sidebar de l'agenda pour la semaine
@@ -126,7 +136,7 @@ export function getJoursFeries(year: number): Set<string> {
   ]);
 }
 
-function formatDateFr(dateStr: string): string {
+export function formatDateFr(dateStr: string): string {
   const [y, m, d] = dateStr.split("-");
   return `${d}/${m}/${y}`;
 }
@@ -313,6 +323,10 @@ export async function genererCreneauxPourModele(
           ...(horaireCreneau ? { debut: horaireCreneau.debut, fin: horaireCreneau.fin } : {}),
           ...(modele.territoire ? { territoire: modele.territoire } : {}),
           ...(modele.codeAnalytique ? { codeAnalytique: modele.codeAnalytique } : {}),
+          ...(modele.observationACI ? { observationACI: true } : {}),
+          ...(modele.observationACI && modele.observationACIDateFin
+            ? { observationACIDateFin: modele.observationACIDateFin }
+            : {}),
         });
         crees++;
         creesPourCeMed++;

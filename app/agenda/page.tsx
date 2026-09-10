@@ -111,7 +111,7 @@ const ACTIVITE_VIDE: ActiviteType = {
   lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "",
   couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "",
   blocs: [], mediateursIds: [], generationMoment: "Les deux", datesActives: [],
-  estProduction: false,
+  estProduction: false, observationACI: false, observationACIDateFin: "",
 };
 
 // Replie par défaut les sections avancées de la modale de modèle, sauf
@@ -447,7 +447,9 @@ export default function PlanningExpertMix() {
         mediateursIds: newActivite.mediateursIds || [],
         generationMoment: newActivite.generationMoment || "Les deux",
         datesActives: newActivite.datesActives || [],
-        estProduction: newActivite.estProduction || false
+        estProduction: newActivite.estProduction || false,
+        observationACI: newActivite.observationACI || false,
+        observationACIDateFin: newActivite.observationACI ? (newActivite.observationACIDateFin || "") : ""
       };
 
       let idModele = editingActivite?.id;
@@ -466,7 +468,9 @@ export default function PlanningExpertMix() {
             fin: newActivite.fin,
             adresse: newActivite.adresse.trim(),
             territoire: newActivite.territoire,
-            estProduction: newActivite.estProduction || false
+            estProduction: newActivite.estProduction || false,
+            observationACI: newActivite.observationACI || false,
+            observationACIDateFin: newActivite.observationACI ? (newActivite.observationACIDateFin || "") : ""
           })
         );
         await Promise.all(updates);
@@ -510,7 +514,9 @@ export default function PlanningExpertMix() {
       mediateursIds: type.mediateursIds || [],
       generationMoment: type.generationMoment || "Les deux",
       datesActives: type.datesActives || [],
-      estProduction: type.estProduction || false
+      estProduction: type.estProduction || false,
+      observationACI: type.observationACI || false,
+      observationACIDateFin: type.observationACIDateFin || ""
     });
     // Retrouve, si possible, l'adresse prédéfinie correspondante pour que le
     // menu déroulant affiche la bonne sélection au lieu de retomber sur
@@ -707,6 +713,8 @@ export default function PlanningExpertMix() {
     const territoireFinal = actionSource?.territoire || selectedModel?.territoire;
     const codeAnalytiqueFinal = actionSource?.codeAnalytique || selectedModel?.codeAnalytique;
     const estProductionFinal = actionSource?.estProduction ?? selectedModel?.estProduction ?? false;
+    const observationACIFinal = actionSource?.observationACI ?? selectedModel?.observationACI ?? false;
+    const observationACIDateFinFinal = actionSource?.observationACIDateFin ?? selectedModel?.observationACIDateFin;
 
     await addDoc(collection(db, "planning_mediateurs"), {
       mediatId: mediatId,
@@ -722,7 +730,9 @@ export default function PlanningExpertMix() {
       ...(adresseFinale ? { adresse: adresseFinale } : {}),
       ...(horaireFinal ? { debut: horaireFinal.debut, fin: horaireFinal.fin } : {}),
       ...(territoireFinal ? { territoire: territoireFinal } : {}),
-      ...(codeAnalytiqueFinal ? { codeAnalytique: codeAnalytiqueFinal } : {})
+      ...(codeAnalytiqueFinal ? { codeAnalytique: codeAnalytiqueFinal } : {}),
+      ...(observationACIFinal ? { observationACI: true } : {}),
+      ...(observationACIFinal && observationACIDateFinFinal ? { observationACIDateFin: observationACIDateFinFinal } : {})
     });
 
     // Historique de l'agenda ("qui a positionné quoi") — voir /agenda/historique.
@@ -2212,6 +2222,29 @@ export default function PlanningExpertMix() {
               />
               Production Médiation Numérique
             </label>
+
+            <div className="flex flex-col gap-1.5 p-2 rounded-md border border-[#404040]/10 bg-[#F3F3F2]">
+              <label className="flex items-center gap-2 text-xs text-[#404040] font-semibold cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!newActivite.observationACI}
+                  onChange={e => setNewActivite({...newActivite, observationACI: e.target.checked})}
+                  className="w-4 h-4 accent-[#005259] cursor-pointer"
+                />
+                Observation ACI (pas d'heures complémentaires)
+              </label>
+              {newActivite.observationACI && (
+                <div className="flex flex-col gap-0.5 pl-6">
+                  <label className="text-[9px] text-[#404040]/70 font-bold uppercase">Jusqu'au (optionnel — vide = indéfiniment)</label>
+                  <input
+                    type="date"
+                    className="w-full px-2 py-1 bg-white border border-[#404040]/20 rounded text-xs text-[#404040]"
+                    value={newActivite.observationACIDateFin || ""}
+                    onChange={e => setNewActivite({...newActivite, observationACIDateFin: e.target.value})}
+                  />
+                </div>
+              )}
+            </div>
 
             <Accordion title="Apparence (bloc thématique, couleur)" open={!!openSections.apparence} onToggle={() => toggleSection("apparence")}>
               <div className="flex flex-col gap-1">

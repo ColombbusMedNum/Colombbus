@@ -10,7 +10,7 @@ import { quicksand } from "@/lib/fonts";
 import {
   PlusIcon, PencilSquareIcon, TrashIcon, HomeIcon,
   CalendarDaysIcon, ClockIcon, UsersIcon, LockClosedIcon,
-  DocumentDuplicateIcon,
+  DocumentDuplicateIcon, CheckCircleIcon, EyeIcon,
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import PageGuard from "@/components/PageGuard";
@@ -21,7 +21,7 @@ import Accordion from "@/components/Accordion";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import {
   type ActiviteType, BLOCS_THEMATIQUES,
-  genererCreneauxPourModele, estimerNombreCreneaux, formatDateFrCourt, estModeleProtege,
+  genererCreneauxPourModele, estimerNombreCreneaux, formatDateFrCourt, formatDateFr, estModeleProtege,
 } from "@/lib/activitesTypes";
 
 const ACTIVITE_VIDE: ActiviteType = {
@@ -79,6 +79,125 @@ export default function ModelesPage() {
     return activitesTypes.filter(a => (a.lieu || "").toLowerCase().includes(q));
   }, [activitesTypes, search]);
 
+  // Séparation visuelle production / hors production (voir le badge sur
+  // chaque carte) — sert notamment à repérer d'un coup d'œil les modèles
+  // qui alimentent le filtre "Production" du Volume Horaire.
+  // À l'intérieur de chaque groupe, tri par territoire puis par nom (l'ordre
+  // Firestore, orderBy("lieu"), ne sert alors plus que de repli pour les
+  // modèles sans territoire renseigné).
+  const parTerritoirePuisNom = (a: ActiviteType, b: ActiviteType) => {
+    const territoireDiff = (a.territoire || "").localeCompare(b.territoire || "", "fr", { numeric: true });
+    if (territoireDiff !== 0) return territoireDiff;
+    return (a.lieu || "").localeCompare(b.lieu || "", "fr");
+  };
+  const modelesProduction = React.useMemo(() => modelesFiltres.filter(m => m.estProduction).sort(parTerritoirePuisNom), [modelesFiltres]);
+  const modelesHorsProduction = React.useMemo(() => modelesFiltres.filter(m => !m.estProduction).sort(parTerritoirePuisNom), [modelesFiltres]);
+
+  const renderCarteModele = (type: ActiviteType) => {
+    const isProtege = estModeleProtege(type.lieu);
+    const mediateursConcernes = mediateurs.filter((m: any) => (type.mediateursIds || []).includes(m.id));
+    const aPeriode = !!(type.dateDebut || type.dateFin);
+
+    return (
+      <div key={type.id} className="bg-white border border-[#404040]/10 rounded-2xl p-4 shadow-sm flex flex-col gap-3" style={{ borderTopColor: type.couleur || "#005259", borderTopWidth: 3 }}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h3 className="font-extrabold text-sm text-[#005259] uppercase tracking-wide truncate flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10" style={{ backgroundColor: type.couleur || "#005259" }}></span>
+              {type.lieu}
+            </h3>
+            {type.territoire && (
+              <span className="inline-block mt-1 text-[9px] font-bold bg-[#F3F3F2] border border-[#404040]/10 px-1.5 py-0.5 rounded text-[#404040]/70">
+                dept {type.territoire}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <PermissionGuard actionId="modeles_create">
+              <button onClick={() => handleDuplicate(type)} className="p-1.5 text-[#404040]/60 hover:text-[#EA601F] cursor-pointer" title="Dupliquer pour une nouvelle période (activité récurrente)">
+                <DocumentDuplicateIcon className="w-4 h-4" />
+              </button>
+            </PermissionGuard>
+            <PermissionGuard actionId="modeles_edit">
+              <button onClick={() => openEdit(type)} className="p-1.5 text-[#404040]/60 hover:text-[#005259] cursor-pointer">
+                <PencilSquareIcon className="w-4 h-4" />
+              </button>
+            </PermissionGuard>
+            <PermissionGuard actionId="modeles_delete">
+              {isProtege ? (
+                <span className="p-1.5 text-[#404040]/30" title="Modèle protégé : lié à Suresnes, non supprimable">
+                  <LockClosedIcon className="w-4 h-4" />
+                </span>
+              ) : (
+                <button onClick={() => handleDelete(type)} className="p-1.5 text-[#404040]/60 hover:text-[#EF736A] cursor-pointer">
+                  <TrashIcon className="w-4 h-4" />
+                </button>
+              )}
+            </PermissionGuard>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5 text-[10px] text-[#404040]/70">
+          {type.debut && (
+            <span className="inline-flex items-center gap-1 bg-[#F3F3F2] border border-[#404040]/10 px-2 py-0.5 rounded-lg font-mono font-bold">
+              <ClockIcon className="w-3 h-3 text-[#EA601F]" /> {type.debut}–{type.fin}
+            </span>
+          )}
+          {aPeriode && (
+            <span className="inline-flex items-center gap-1 bg-[#F3F3F2] border border-[#404040]/10 px-2 py-0.5 rounded-lg font-bold">
+              <CalendarDaysIcon className="w-3 h-3 text-[#EA601F]" />
+              {type.dateDebut || "…"} → {type.dateFin || "…"}
+            </span>
+          )}
+          {type.estProduction && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg font-bold border bg-[#A9E0C9]/30 border-[#A9E0C9] text-[#005259]"
+              title="Coché sur les créneaux générés depuis ce modèle — sert au filtre « Production » du Volume Horaire"
+            >
+              <CheckCircleIcon className="w-3 h-3 text-[#005259]" />
+              Production Médiation Numérique
+            </span>
+          )}
+          {type.observationACI && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg font-bold border bg-[#F9C44E]/30 border-[#F9C44E] text-[#8A6200]"
+              title={`Pour un·e ACI, ne compte jamais en heures complémentaires${type.observationACIDateFin ? ` jusqu'au ${formatDateFr(type.observationACIDateFin)}` : ""} — seuls les permanents sont en production dessus`}
+            >
+              <EyeIcon className="w-3 h-3 text-[#8A6200]" />
+              Observation ACI{type.observationACIDateFin ? ` jusqu'au ${formatDateFr(type.observationACIDateFin)}` : ""}
+            </span>
+          )}
+        </div>
+
+        {(type.blocs || []).length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {(type.blocs || []).map(blocId => {
+              const bloc = BLOCS_THEMATIQUES.find(b => b.id === blocId);
+              if (!bloc) return null;
+              return (
+                <span key={blocId} className="text-[9px] font-bold px-1.5 py-0.5 rounded border" style={{ borderColor: bloc.couleur, color: bloc.couleur }}>
+                  {bloc.nom}
+                </span>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="flex items-center gap-1.5 text-[10px] text-[#404040]/70 pt-1 border-t border-[#F3F3F2]">
+          <UsersIcon className="w-3.5 h-3.5 text-[#EA601F] shrink-0" />
+          {mediateursConcernes.length === 0 ? (
+            <span className="font-bold">Générique — visible par tous</span>
+          ) : (
+            <span className="truncate font-bold" title={mediateursConcernes.map((m: any) => `${m.prenom} ${m.nom}`).join(", ")}>
+              {mediateursConcernes.map((m: any) => m.prenom).join(", ")}
+              {mediateursConcernes.length > 0 && aPeriode && " · génération auto"}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const openCreate = () => {
     setEditingActivite(null);
     setNewActivite(ACTIVITE_VIDE);
@@ -103,6 +222,9 @@ export default function ModelesPage() {
       mediateursIds: type.mediateursIds || [],
       generationMoment: type.generationMoment || "Les deux",
       datesActives: type.datesActives || [],
+      estProduction: type.estProduction || false,
+      observationACI: type.observationACI || false,
+      observationACIDateFin: type.observationACIDateFin || "",
     });
     const locMatch = localisations?.find(
       (l) => `${l.adresse || ""}, ${l.codePostal || ""} ${l.ville || ""}`.trim() === (type.adresse || "").trim()
@@ -139,6 +261,9 @@ export default function ModelesPage() {
         mediateursIds: newActivite.mediateursIds || [],
         generationMoment: newActivite.generationMoment || "Les deux",
         datesActives: newActivite.datesActives || [],
+        estProduction: newActivite.estProduction || false,
+        observationACI: newActivite.observationACI || false,
+        observationACIDateFin: newActivite.observationACI ? (newActivite.observationACIDateFin || "") : "",
       };
 
       let idModele = editingActivite?.id;
@@ -156,6 +281,9 @@ export default function ModelesPage() {
             fin: newActivite.fin,
             adresse: newActivite.adresse.trim(),
             territoire: newActivite.territoire,
+            estProduction: newActivite.estProduction || false,
+            observationACI: newActivite.observationACI || false,
+            observationACIDateFin: newActivite.observationACI ? (newActivite.observationACIDateFin || "") : "",
           })
         );
         await Promise.all(updates);
@@ -265,101 +393,39 @@ export default function ModelesPage() {
           <div className="text-center py-16 text-[#EA601F] font-bold text-xs animate-pulse uppercase tracking-widest">
             Chargement des modèles...
           </div>
+        ) : modelesFiltres.length === 0 ? (
+          <div className="text-center py-16 border border-dashed border-[#404040]/15 rounded-2xl text-xs font-bold uppercase tracking-wider text-[#404040]/60 bg-white shadow-sm">
+            <DocumentDuplicateIcon className="w-6 h-6 mx-auto mb-2 text-[#404040]/30" />
+            Aucun modèle {search ? "ne correspond à cette recherche" : "pour l'instant"}.
+          </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {modelesFiltres.map((type) => {
-              const isProtege = estModeleProtege(type.lieu);
-              const mediateursConcernes = mediateurs.filter((m: any) => (type.mediateursIds || []).includes(m.id));
-              const aPeriode = !!(type.dateDebut || type.dateFin);
-
-              return (
-                <div key={type.id} className="bg-white border border-[#404040]/10 rounded-2xl p-4 shadow-sm flex flex-col gap-3" style={{ borderTopColor: type.couleur || "#005259", borderTopWidth: 3 }}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h3 className="font-extrabold text-sm text-[#005259] uppercase tracking-wide truncate flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10" style={{ backgroundColor: type.couleur || "#005259" }}></span>
-                        {type.lieu}
-                      </h3>
-                      {type.territoire && (
-                        <span className="inline-block mt-1 text-[9px] font-bold bg-[#F3F3F2] border border-[#404040]/10 px-1.5 py-0.5 rounded text-[#404040]/70">
-                          dept {type.territoire}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <PermissionGuard actionId="modeles_create">
-                        <button onClick={() => handleDuplicate(type)} className="p-1.5 text-[#404040]/60 hover:text-[#EA601F] cursor-pointer" title="Dupliquer pour une nouvelle période (activité récurrente)">
-                          <DocumentDuplicateIcon className="w-4 h-4" />
-                        </button>
-                      </PermissionGuard>
-                      <PermissionGuard actionId="modeles_edit">
-                        <button onClick={() => openEdit(type)} className="p-1.5 text-[#404040]/60 hover:text-[#005259] cursor-pointer">
-                          <PencilSquareIcon className="w-4 h-4" />
-                        </button>
-                      </PermissionGuard>
-                      <PermissionGuard actionId="modeles_delete">
-                        {isProtege ? (
-                          <span className="p-1.5 text-[#404040]/30" title="Modèle protégé : lié à Suresnes, non supprimable">
-                            <LockClosedIcon className="w-4 h-4" />
-                          </span>
-                        ) : (
-                          <button onClick={() => handleDelete(type)} className="p-1.5 text-[#404040]/60 hover:text-[#EF736A] cursor-pointer">
-                            <TrashIcon className="w-4 h-4" />
-                          </button>
-                        )}
-                      </PermissionGuard>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-1.5 text-[10px] text-[#404040]/70">
-                    {type.debut && (
-                      <span className="inline-flex items-center gap-1 bg-[#F3F3F2] border border-[#404040]/10 px-2 py-0.5 rounded-lg font-mono font-bold">
-                        <ClockIcon className="w-3 h-3 text-[#EA601F]" /> {type.debut}–{type.fin}
-                      </span>
-                    )}
-                    {aPeriode && (
-                      <span className="inline-flex items-center gap-1 bg-[#F3F3F2] border border-[#404040]/10 px-2 py-0.5 rounded-lg font-bold">
-                        <CalendarDaysIcon className="w-3 h-3 text-[#EA601F]" />
-                        {type.dateDebut || "…"} → {type.dateFin || "…"}
-                      </span>
-                    )}
-                  </div>
-
-                  {(type.blocs || []).length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {(type.blocs || []).map(blocId => {
-                        const bloc = BLOCS_THEMATIQUES.find(b => b.id === blocId);
-                        if (!bloc) return null;
-                        return (
-                          <span key={blocId} className="text-[9px] font-bold px-1.5 py-0.5 rounded border" style={{ borderColor: bloc.couleur, color: bloc.couleur }}>
-                            {bloc.nom}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-1.5 text-[10px] text-[#404040]/70 pt-1 border-t border-[#F3F3F2]">
-                    <UsersIcon className="w-3.5 h-3.5 text-[#EA601F] shrink-0" />
-                    {mediateursConcernes.length === 0 ? (
-                      <span className="font-bold">Générique — visible par tous</span>
-                    ) : (
-                      <span className="truncate font-bold" title={mediateursConcernes.map((m: any) => `${m.prenom} ${m.nom}`).join(", ")}>
-                        {mediateursConcernes.map((m: any) => m.prenom).join(", ")}
-                        {mediateursConcernes.length > 0 && aPeriode && " · génération auto"}
-                      </span>
-                    )}
-                  </div>
+          <div className="space-y-8">
+            <div className="space-y-3">
+              <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-[#005259]">
+                <CheckCircleIcon className="w-4 h-4 text-[#005259]" />
+                Production Médiation Numérique ({modelesProduction.length})
+              </h2>
+              {modelesProduction.length === 0 ? (
+                <p className="text-[11px] text-[#404040]/50 italic">Aucun modèle marqué production pour l'instant.</p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {modelesProduction.map(renderCarteModele)}
                 </div>
-              );
-            })}
+              )}
+            </div>
 
-            {modelesFiltres.length === 0 && (
-              <div className="col-span-full text-center py-16 border border-dashed border-[#404040]/15 rounded-2xl text-xs font-bold uppercase tracking-wider text-[#404040]/60 bg-white shadow-sm">
-                <DocumentDuplicateIcon className="w-6 h-6 mx-auto mb-2 text-[#404040]/30" />
-                Aucun modèle {search ? "ne correspond à cette recherche" : "pour l'instant"}.
-              </div>
-            )}
+            <div className="space-y-3">
+              <h2 className="text-xs font-extrabold uppercase tracking-widest text-[#404040]/60">
+                Hors production ({modelesHorsProduction.length})
+              </h2>
+              {modelesHorsProduction.length === 0 ? (
+                <p className="text-[11px] text-[#404040]/50 italic">Aucun modèle hors production.</p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {modelesHorsProduction.map(renderCarteModele)}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -430,6 +496,39 @@ export default function ModelesPage() {
                 className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none"
                 onChange={e => setNewActivite({...newActivite, codeAnalytique: e.target.value})}
               />
+            </div>
+
+            <label className="flex items-center gap-2 text-xs text-[#404040] font-semibold cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!newActivite.estProduction}
+                onChange={e => setNewActivite({...newActivite, estProduction: e.target.checked})}
+                className="w-4 h-4 accent-[#005259] cursor-pointer"
+              />
+              Production Médiation Numérique
+            </label>
+
+            <div className="flex flex-col gap-1.5 p-2 rounded-md border border-[#404040]/10 bg-[#F3F3F2]">
+              <label className="flex items-center gap-2 text-xs text-[#404040] font-semibold cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!newActivite.observationACI}
+                  onChange={e => setNewActivite({...newActivite, observationACI: e.target.checked})}
+                  className="w-4 h-4 accent-[#005259] cursor-pointer"
+                />
+                Observation ACI (pas d'heures complémentaires)
+              </label>
+              {newActivite.observationACI && (
+                <div className="flex flex-col gap-0.5 pl-6">
+                  <label className="text-[9px] text-[#404040]/70 font-bold uppercase">Jusqu'au (optionnel — vide = indéfiniment)</label>
+                  <input
+                    type="date"
+                    className="w-full px-2 py-1 bg-white border border-[#404040]/20 rounded text-xs text-[#404040]"
+                    value={newActivite.observationACIDateFin || ""}
+                    onChange={e => setNewActivite({...newActivite, observationACIDateFin: e.target.value})}
+                  />
+                </div>
+              )}
             </div>
 
             <Accordion title="Apparence (bloc thématique, couleur)" open={!!openSections.apparence} onToggle={() => toggleSection("apparence")}>

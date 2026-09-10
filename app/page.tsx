@@ -70,7 +70,7 @@ const NAV_TREE: NavNode[] = [
     actionId: "home_folder_rencontres",
     children: [
       { id: "agenda-med", kind: "leaf", accent: "teal", icon: CalendarDaysIcon, title: "Agenda des Médiateurs", subtitle: "Gérer l'équipe et le planning des actions", actionId: "home_nav_agenda_med", fallbackLocked: true, href: "/agenda" },
-      { id: "agenda-suresnes", kind: "leaf", accent: "orange", icon: CalendarIcon, title: "Agenda Suresnes & Essonne", subtitle: "Consulter l'agenda du Relais Numérique", actionId: "home_nav_agenda_suresnes", fallbackLocked: true, href: "/mediation/rencontres-numeriques/suresnes" },
+      { id: "agenda-suresnes", kind: "leaf", accent: "orange", icon: CalendarIcon, title: "Agenda des Rencontres Numériques", subtitle: "Consulter l'agenda du Relais Numérique", actionId: "home_nav_agenda_suresnes", fallbackLocked: true, href: "/mediation/rencontres-numeriques/suresnes" },
       { id: "modeles", kind: "leaf", accent: "teal", icon: DocumentDuplicateIcon, title: "Modèles d'Activités", subtitle: "Gérer les modèles utilisés dans l'agenda", actionId: "home_nav_modeles", fallbackLocked: true, href: "/mediation/modeles" },
     ],
   },

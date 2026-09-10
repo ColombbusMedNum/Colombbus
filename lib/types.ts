@@ -73,4 +73,10 @@ export interface ActionPlanning {
   // lib/activitesTypes.ts) — coché si ce créneau correspond à de la
   // production Médiation Numérique.
   estProduction?: boolean;
+  // Idem, pour "Observation ACI" (voir ActiviteType) — copié depuis le
+  // modèle : ce créneau ne génère jamais d'heures complémentaires pour un
+  // ACI, quels que soient ses horaires réels (calculerHeuresComplementairesACI
+  // dans lib/planningHours.ts), jusqu'à observationACIDateFin si renseignée.
+  observationACI?: boolean;
+  observationACIDateFin?: string;
 }

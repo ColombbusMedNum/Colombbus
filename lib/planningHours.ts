@@ -145,6 +145,15 @@ interface ActionPlanningDate {
   debut?: string;
   fin?: string;
   date?: string;
+  // Créneau marqué "Observation ACI" sur son modèle (voir ActiviteType dans
+  // lib/activitesTypes.ts) : ne génère jamais d'heures complémentaires pour
+  // un ACI, quels que soient ses horaires réels, car il part à ses horaires
+  // habituels — seuls les permanents sont réellement en production dessus.
+  // observationACIDateFin, si renseignée, borne cette exonération : passé
+  // cette date le créneau redevient une production normale pour l'ACI aussi
+  // (ex: un ACI qui prend progressivement la main sur l'action).
+  observationACI?: boolean;
+  observationACIDateFin?: string;
 }
 
 // Grille horaire ACI d'un site (Paris ou Massy) — un {debut, fin} par jour
@@ -184,6 +193,12 @@ export function calculerHeuresComplementairesACI(
 ): number {
   if (!action.debut || !action.fin) return 0;
   if (medInfo.statut !== "ACI") return 0;
+  if (
+    action.observationACI &&
+    (!action.observationACIDateFin || !action.date || action.date <= action.observationACIDateFin)
+  ) {
+    return 0;
+  }
 
   const cleJour = action.date ? CLE_JOUR_PAR_INDEX[new Date(action.date).getDay()] : undefined;
 

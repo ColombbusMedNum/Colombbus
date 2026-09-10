@@ -113,6 +113,13 @@ export default function VolumeHoraireComplet() {
   // action par action (un seul à la fois, pour ne pas surcharger le tableau).
   const [ligneDetailOuverte, setLigneDetailOuverte] = useState<string | null>(null);
 
+  // Deux accordéons séparent les collaborateurs qui génèrent réellement des
+  // heures complémentaires ACI (ce qui demande une action de suivi) de tous
+  // les autres cas (permanents, ou ACI sans dépassement) — le premier ouvert
+  // par défaut puisque c'est l'information qui compte au quotidien.
+  const [accordeonCompOuvert, setAccordeonCompOuvert] = useState(true);
+  const [accordeonAutresOuvert, setAccordeonAutresOuvert] = useState(false);
+
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "configuration_equipe", "parametres_configuration"), (snap) => {
       const data = snap.data();
@@ -287,6 +294,9 @@ export default function VolumeHoraireComplet() {
     return false;
   };
 
+  const collaborateursAvecComp = useMemo(() => statsMediateurs.filter((m: any) => m.comp > 0), [statsMediateurs]);
+  const collaborateursSansComp = useMemo(() => statsMediateurs.filter((m: any) => !(m.comp > 0)), [statsMediateurs]);
+
   const exporterCSV = () => {
     if (statsMediateurs.length === 0) return;
     const headers = "Collaborateur;Poste;Statut;Volume Total (h);Heures Complémentaires ACI (h);Coût Estimé (€)\n";
@@ -302,6 +312,111 @@ export default function VolumeHoraireComplet() {
     link.click();
     URL.revokeObjectURL(url);
   };
+
+  const renderLigneCollaborateur = (m: any, i: number) => {
+    const enAlerte = estEnAlerte(m);
+    const detailOuvert = ligneDetailOuverte === m.nom;
+    return (
+      <Fragment key={i}>
+      <tr
+        onClick={() => setLigneDetailOuverte(detailOuvert ? null : m.nom)}
+        className={`hover:bg-[#F3F3F2]/50 transition-colors cursor-pointer ${enAlerte ? "bg-[#EF736A]/5" : ""} ${detailOuvert ? "bg-[#F3F3F2]/60" : ""}`}
+      >
+        <td className={`py-3.5 px-6 ${enAlerte ? "border-l-2 border-[#EF736A]" : ""}`}>
+          <div className="font-bold text-xs text-[#005259] uppercase flex items-center gap-1.5">
+            {detailOuvert ? <ChevronUpIcon className="w-3.5 h-3.5 text-[#404040]/40 shrink-0" /> : <ChevronDownIcon className="w-3.5 h-3.5 text-[#404040]/40 shrink-0" />}
+            {m.nom}
+            {m.site && (
+              <span className="normal-case text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#005259]/10 border border-[#005259]/20 text-[#005259] shrink-0" title="Site de rattachement (grille horaire ACI)">
+                {m.site}
+              </span>
+            )}
+            {enAlerte && (
+              <ExclamationTriangleIcon className="w-3.5 h-3.5 text-[#EF736A] shrink-0" title="Dépasse le seuil d'heures complémentaires configuré" />
+            )}
+          </div>
+          <div className="text-[11px] text-[#404040]/70 mt-0.5 flex items-center gap-1.5 font-medium">
+            <span className={`w-1.5 h-1.5 rounded-full ${m.statut === 'ACI' ? 'bg-[#EA601F]' : 'bg-[#005259]'}`}></span>
+            {m.poste}
+          </div>
+        </td>
+        <td className="py-3.5 px-4 font-bold text-[#005259] font-mono text-xs">{m.h.toFixed(1)}h</td>
+        <td className="py-3.5 px-4">
+          <span className={`inline-flex px-2.5 py-1 rounded-md text-[10px] font-mono font-bold border ${
+            enAlerte
+              ? 'bg-[#EF736A]/15 border-[#EF736A]/40 text-[#EF736A]'
+              : m.comp > 0
+              ? 'bg-[#EA601F]/15 border-[#EA601F]/40 text-[#EA601F]'
+              : 'bg-[#F3F3F2] border-[#404040]/10 text-[#404040]/50'
+          }`}>
+            +{m.comp.toFixed(1)}h{m.statut === "ACI" && ` (${pourcentageDepassement(m).toFixed(0)}%)`}
+          </span>
+        </td>
+        <td className="py-3.5 px-6 text-right font-bold text-[#EA601F] font-mono text-xs">{m.cout.toFixed(2)}€</td>
+      </tr>
+      {detailOuvert && (
+        <tr className="bg-[#F3F3F2]/40">
+          <td colSpan={4} className="p-0">
+            <div className="max-h-80 overflow-y-auto px-6 py-3">
+              <table className="w-full text-left text-[11px]">
+                <thead>
+                  <tr className="text-[9px] uppercase tracking-widest font-bold text-[#404040]/50">
+                    <th className="py-1.5 pr-3">Date</th>
+                    <th className="py-1.5 pr-3">Horaire</th>
+                    <th className="py-1.5 pr-3">Activité / Lieu</th>
+                    <th className="py-1.5 pr-3">Territoire</th>
+                    {m.statut === "ACI" && <th className="py-1.5 pr-3">Horaires prévus (ACI)</th>}
+                    <th className="py-1.5 pr-3 text-right">Heures</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#404040]/5">
+                  {m.details.map((d: any, di: number) => (
+                    <tr key={di} className={d.comp > 0 ? "bg-[#F9C44E]/25" : ""} title={d.comp > 0 ? `Génère ${d.comp.toFixed(1)}h complémentaire(s)` : undefined}>
+                      <td className="py-1.5 pr-3 font-mono text-[#404040]/80 whitespace-nowrap">{formaterDateAvecJour(d.date)}</td>
+                      <td className="py-1.5 pr-3 font-mono text-[#404040]/60">{d.debut && d.fin ? `${d.debut}–${d.fin}` : "—"}</td>
+                      <td className="py-1.5 pr-3 font-medium text-[#005259]">{d.lieu}</td>
+                      <td className="py-1.5 pr-3 text-[#404040]/60">{d.territoire || "—"}</td>
+                      {m.statut === "ACI" && <td className="py-1.5 pr-3 font-mono text-[#404040]/60">{d.horairesPrevus || "—"}</td>}
+                      <td className="py-1.5 pr-3 text-right font-mono font-bold text-[#EA601F]">{d.heures.toFixed(1)}h</td>
+                    </tr>
+                  ))}
+                  {m.details.length === 0 && (
+                    <tr><td colSpan={m.statut === "ACI" ? 6 : 5} className="py-3 text-center text-[#404040]/40 italic">Aucune action détaillée sur cette période.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </td>
+        </tr>
+      )}
+      </Fragment>
+    );
+  };
+
+  const renderTableCollaborateurs = (liste: any[], messageVide: string) => (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left border-collapse min-w-[600px]">
+        <thead>
+          <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
+            <th className="py-3 px-6">Collaborateur</th>
+            <th className="py-3 px-4">Volume Total</th>
+            <th className="py-3 px-4">Heures Complémentaires (ACI)</th>
+            <th className="py-3 px-6 text-right">Coût Estimé</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[#404040]/10">
+          {liste.map((m, i) => renderLigneCollaborateur(m, i))}
+          {liste.length === 0 && (
+            <tr>
+              <td colSpan={4} className="p-12 text-center text-[#404040]/60 font-bold uppercase text-xs italic tracking-widest">
+                {messageVide}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
 
   if (loading) {
     return (
@@ -464,118 +579,55 @@ export default function VolumeHoraireComplet() {
           </div>
         </div>
 
-        {/* TABLEAU DE REPARTITION COLLABORATEURS */}
-        <div className="bg-white border border-[#404040]/10 rounded-2xl overflow-hidden shadow-sm">
-          <div className="p-4 border-b border-[#404040]/10 flex items-center gap-3 bg-[#F3F3F2]/60">
-            <div className="p-2.5 rounded-xl border border-[#005259]/20 bg-white text-[#EA601F]">
-              <UserGroupIcon className="w-5 h-5" />
-            </div>
-            <h2 className="text-sm font-bold uppercase text-[#005259] tracking-tight">
-              Suivi Individuel du Temps de Travail par Collaborateur
-            </h2>
+        {/* SUIVI INDIVIDUEL — DEUX ACCORDÉONS : qui déclenche des heures
+            complémentaires vs tous les autres cas */}
+        <div className="space-y-4">
+          <div className="bg-white border border-[#404040]/10 rounded-2xl overflow-hidden shadow-sm">
+            <button
+              type="button"
+              onClick={() => setAccordeonCompOuvert(o => !o)}
+              className="w-full p-4 flex items-center gap-3 bg-[#EA601F]/5 hover:bg-[#EA601F]/10 transition-colors cursor-pointer text-left"
+            >
+              <div className="p-2.5 rounded-xl border border-[#EA601F]/30 bg-white text-[#EA601F] shrink-0">
+                <ExclamationTriangleIcon className="w-5 h-5" />
+              </div>
+              <h2 className="text-sm font-bold uppercase text-[#005259] tracking-tight flex-1">
+                Collaborateurs générant des heures complémentaires
+                <span className="ml-2 text-[10px] font-mono font-bold text-[#EA601F] bg-white border border-[#EA601F]/30 px-2 py-0.5 rounded-full align-middle">
+                  {collaborateursAvecComp.length}
+                </span>
+              </h2>
+              {accordeonCompOuvert ? <ChevronUpIcon className="w-4 h-4 text-[#404040]/50 shrink-0" /> : <ChevronDownIcon className="w-4 h-4 text-[#404040]/50 shrink-0" />}
+            </button>
+            {accordeonCompOuvert && renderTableCollaborateurs(
+              collaborateursAvecComp,
+              "Aucun collaborateur ne génère d'heures complémentaires sur cette période."
+            )}
           </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[600px]">
-              <thead>
-                <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
-                  <th className="py-3 px-6">Collaborateur</th>
-                  <th className="py-3 px-4">Volume Total</th>
-                  <th className="py-3 px-4">Heures Complémentaires (ACI)</th>
-                  <th className="py-3 px-6 text-right">Coût Estimé</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#404040]/10">
-                {statsMediateurs.map((m, i) => {
-                  const enAlerte = estEnAlerte(m);
-                  const detailOuvert = ligneDetailOuverte === m.nom;
-                  return (
-                  <Fragment key={i}>
-                  <tr
-                    onClick={() => setLigneDetailOuverte(detailOuvert ? null : m.nom)}
-                    className={`hover:bg-[#F3F3F2]/50 transition-colors cursor-pointer ${enAlerte ? "bg-[#EF736A]/5" : ""} ${detailOuvert ? "bg-[#F3F3F2]/60" : ""}`}
-                  >
-                    <td className={`py-3.5 px-6 ${enAlerte ? "border-l-2 border-[#EF736A]" : ""}`}>
-                      <div className="font-bold text-xs text-[#005259] uppercase flex items-center gap-1.5">
-                        {detailOuvert ? <ChevronUpIcon className="w-3.5 h-3.5 text-[#404040]/40 shrink-0" /> : <ChevronDownIcon className="w-3.5 h-3.5 text-[#404040]/40 shrink-0" />}
-                        {m.nom}
-                        {m.site && (
-                          <span className="normal-case text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#005259]/10 border border-[#005259]/20 text-[#005259] shrink-0" title="Site de rattachement (grille horaire ACI)">
-                            {m.site}
-                          </span>
-                        )}
-                        {enAlerte && (
-                          <ExclamationTriangleIcon className="w-3.5 h-3.5 text-[#EF736A] shrink-0" title="Dépasse le seuil d'heures complémentaires configuré" />
-                        )}
-                      </div>
-                      <div className="text-[11px] text-[#404040]/70 mt-0.5 flex items-center gap-1.5 font-medium">
-                        <span className={`w-1.5 h-1.5 rounded-full ${m.statut === 'ACI' ? 'bg-[#EA601F]' : 'bg-[#005259]'}`}></span>
-                        {m.poste}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 font-bold text-[#005259] font-mono text-xs">{m.h.toFixed(1)}h</td>
-                    <td className="py-3.5 px-4">
-                      <span className={`inline-flex px-2.5 py-1 rounded-md text-[10px] font-mono font-bold border ${
-                        enAlerte
-                          ? 'bg-[#EF736A]/15 border-[#EF736A]/40 text-[#EF736A]'
-                          : m.comp > 0
-                          ? 'bg-[#EA601F]/15 border-[#EA601F]/40 text-[#EA601F]'
-                          : 'bg-[#F3F3F2] border-[#404040]/10 text-[#404040]/50'
-                      }`}>
-                        +{m.comp.toFixed(1)}h{m.statut === "ACI" && ` (${pourcentageDepassement(m).toFixed(0)}%)`}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-6 text-right font-bold text-[#EA601F] font-mono text-xs">{m.cout.toFixed(2)}€</td>
-                  </tr>
-                  {detailOuvert && (
-                    <tr className="bg-[#F3F3F2]/40">
-                      <td colSpan={4} className="p-0">
-                        <div className="max-h-80 overflow-y-auto px-6 py-3">
-                          <table className="w-full text-left text-[11px]">
-                            <thead>
-                              <tr className="text-[9px] uppercase tracking-widest font-bold text-[#404040]/50">
-                                <th className="py-1.5 pr-3">Date</th>
-                                <th className="py-1.5 pr-3">Horaire</th>
-                                <th className="py-1.5 pr-3">Activité / Lieu</th>
-                                <th className="py-1.5 pr-3">Territoire</th>
-                                {m.statut === "ACI" && <th className="py-1.5 pr-3">Horaires prévus (ACI)</th>}
-                                <th className="py-1.5 pr-3 text-right">Heures</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-[#404040]/5">
-                              {m.details.map((d: any, di: number) => (
-                                <tr key={di} className={d.comp > 0 ? "bg-[#F9C44E]/25" : ""} title={d.comp > 0 ? `Génère ${d.comp.toFixed(1)}h complémentaire(s)` : undefined}>
-                                  <td className="py-1.5 pr-3 font-mono text-[#404040]/80 whitespace-nowrap">{formaterDateAvecJour(d.date)}</td>
-                                  <td className="py-1.5 pr-3 font-mono text-[#404040]/60">{d.debut && d.fin ? `${d.debut}–${d.fin}` : "—"}</td>
-                                  <td className="py-1.5 pr-3 font-medium text-[#005259]">{d.lieu}</td>
-                                  <td className="py-1.5 pr-3 text-[#404040]/60">{d.territoire || "—"}</td>
-                                  {m.statut === "ACI" && <td className="py-1.5 pr-3 font-mono text-[#404040]/60">{d.horairesPrevus || "—"}</td>}
-                                  <td className="py-1.5 pr-3 text-right font-mono font-bold text-[#EA601F]">{d.heures.toFixed(1)}h</td>
-                                </tr>
-                              ))}
-                              {m.details.length === 0 && (
-                                <tr><td colSpan={m.statut === "ACI" ? 6 : 5} className="py-3 text-center text-[#404040]/40 italic">Aucune action détaillée sur cette période.</td></tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                  </Fragment>
-                  );
-                })}
-                {statsMediateurs.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="p-12 text-center text-[#404040]/60 font-bold uppercase text-xs italic tracking-widest">
-                      {anneeFiltre !== "toutes" || moisFiltre !== "tous"
-                        ? "Aucune action enregistrée sur cette période."
-                        : "Aucune action enregistrée pour le moment dans l'agenda."}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+
+          <div className="bg-white border border-[#404040]/10 rounded-2xl overflow-hidden shadow-sm">
+            <button
+              type="button"
+              onClick={() => setAccordeonAutresOuvert(o => !o)}
+              className="w-full p-4 flex items-center gap-3 bg-[#F3F3F2]/60 hover:bg-[#F3F3F2] transition-colors cursor-pointer text-left"
+            >
+              <div className="p-2.5 rounded-xl border border-[#005259]/20 bg-white text-[#005259] shrink-0">
+                <UserGroupIcon className="w-5 h-5" />
+              </div>
+              <h2 className="text-sm font-bold uppercase text-[#005259] tracking-tight flex-1">
+                Autres cas (sans heures complémentaires)
+                <span className="ml-2 text-[10px] font-mono font-bold text-[#005259] bg-white border border-[#005259]/20 px-2 py-0.5 rounded-full align-middle">
+                  {collaborateursSansComp.length}
+                </span>
+              </h2>
+              {accordeonAutresOuvert ? <ChevronUpIcon className="w-4 h-4 text-[#404040]/50 shrink-0" /> : <ChevronDownIcon className="w-4 h-4 text-[#404040]/50 shrink-0" />}
+            </button>
+            {accordeonAutresOuvert && renderTableCollaborateurs(
+              collaborateursSansComp,
+              anneeFiltre !== "toutes" || moisFiltre !== "tous"
+                ? "Aucune action enregistrée sur cette période."
+                : "Aucune action enregistrée pour le moment dans l'agenda."
+            )}
           </div>
         </div>
 
