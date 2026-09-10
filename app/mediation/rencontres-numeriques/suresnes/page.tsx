@@ -1226,14 +1226,28 @@ export default function PlanningSuresnes() {
                                       {estDomicile && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#F9C44E]/20 border border-[#F9C44E] text-[#005259] shrink-0">Domicile</span>}
                                     </div>
                                     {creneauLibre && (
-                                      <button
-                                        onClick={() => supprimerCreneau(c.id, c.usager)}
-                                        title="Supprimer ce créneau"
-                                        className="mt-1 px-2 py-0.5 bg-[#404040]/5 hover:bg-[#EF736A] text-[#404040]/60 hover:text-white border border-[#404040]/15 hover:border-[#EF736A] rounded-lg text-[9px] font-bold uppercase tracking-wide transition-colors cursor-pointer flex items-center gap-1"
-                                      >
-                                        <TrashIcon className="w-3 h-3" />
-                                        Supprimer
-                                      </button>
+                                      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                                        <PermissionGuard actionId="suresnes_reassign">
+                                          <button
+                                            onClick={() => {
+                                              setReassignSearch("");
+                                              setReassignCreneau({ id: c.id, currentName: "", site: normaliserSiteId(c.site), isRND: false });
+                                            }}
+                                            title="Affecter un médiateur à ce créneau (en cas d'oubli)"
+                                            className="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wide transition-colors cursor-pointer bg-[#005259]/10 hover:bg-[#005259] text-[#005259] hover:text-white border border-[#005259]/30"
+                                          >
+                                            Réaffecter médiateur
+                                          </button>
+                                        </PermissionGuard>
+                                        <button
+                                          onClick={() => supprimerCreneau(c.id, c.usager)}
+                                          title="Supprimer ce créneau"
+                                          className="px-2 py-0.5 bg-[#404040]/5 hover:bg-[#EF736A] text-[#404040]/60 hover:text-white border border-[#404040]/15 hover:border-[#EF736A] rounded-lg text-[9px] font-bold uppercase tracking-wide transition-colors cursor-pointer flex items-center gap-1"
+                                        >
+                                          <TrashIcon className="w-3 h-3" />
+                                          Supprimer
+                                        </button>
+                                      </div>
                                     )}
                                     {!creneauLibre && (
                                       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
