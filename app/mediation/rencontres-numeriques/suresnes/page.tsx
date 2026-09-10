@@ -35,8 +35,7 @@ import {
   ChatBubbleBottomCenterTextIcon,
   XCircleIcon,
   Cog6ToothIcon,
-  DocumentTextIcon,
-  PhoneIcon
+  DocumentTextIcon
 } from "@heroicons/react/24/outline";
 
 // Vocabulaire fixe du <select> Thématique ci-dessous — une valeur importée
@@ -1280,7 +1279,7 @@ export default function PlanningSuresnes() {
                                   <span className="text-xs font-bold">{c.horaire}</span>
                                 </div>
                                 
-                                <div className="xl:col-span-3 w-full">
+                                <div className="xl:col-span-6 w-full">
                                   <UsagerInput
                                     docId={c.id}
                                     initialValue={c.usager}
@@ -1291,28 +1290,6 @@ export default function PlanningSuresnes() {
                                     visitesDomicileParBeneficiaire={visitesDomicileAnneeParBeneficiaire}
                                     quotaDomicile={quotaDomicileRND}
                                   />
-                                </div>
-
-                                <div className="xl:col-span-2 flex items-center justify-start xl:justify-center gap-1.5 text-[#404040]">
-                                  {bTrouve ? (
-                                    <div className="flex items-center gap-1.5 bg-white border border-[#404040]/10 px-2 py-1 rounded-xl text-xs w-full justify-center shadow-sm" title="Téléphone">
-                                      <PhoneIcon className="w-3.5 h-3.5 text-[#005259] shrink-0" />
-                                      <span className="font-bold text-[#005259] whitespace-nowrap">{bTrouve.telephone}</span>
-                                    </div>
-                                  ) : (
-                                    <span className="text-[11px] text-[#404040]/30 hidden xl:block">—</span>
-                                  )}
-                                </div>
-
-                                <div className="xl:col-span-1 flex items-center justify-start xl:justify-center gap-1.5 text-[#404040]">
-                                  {bTrouve ? (
-                                    <div className="flex items-center gap-1 bg-white border border-[#404040]/10 px-2 py-1 rounded-xl text-xs w-full justify-center shadow-sm" title="Total des visites">
-                                      <ChartBarIcon className="w-3.5 h-3.5 text-[#005259]" />
-                                      <span className="font-bold text-[#005259]">{totalPresentsUsager}</span>
-                                    </div>
-                                  ) : (
-                                    <span className="text-[11px] text-[#404040]/30 hidden xl:block">—</span>
-                                  )}
                                 </div>
 
                               </div>
@@ -1391,7 +1368,13 @@ export default function PlanningSuresnes() {
                                   )}
                                 </div>
 
-                                <div className="w-36 shrink-0 text-right">
+                                <div className="w-36 shrink-0 space-y-1">
+                                  {bTrouve && (
+                                    <div className="flex items-center justify-center gap-1 bg-white border border-[#404040]/10 px-2 py-1 rounded-lg text-xs w-full shadow-sm" title="Total des visites">
+                                      <ChartBarIcon className="w-3.5 h-3.5 text-[#005259]" />
+                                      <span className="font-bold text-[#005259]">{totalPresentsUsager}</span>
+                                    </div>
+                                  )}
                                   {!bTrouve ? (
                                     <span className="inline-block text-center w-full text-[#404040]/50 bg-white border border-[#404040]/10 px-2 py-1 rounded-lg text-[9px] font-bold tracking-wider uppercase shadow-sm">
                                       À attribuer
@@ -1765,6 +1748,7 @@ function UsagerInput({ docId, initialValue, beneficiairesListe, afficherAlerteSu
               <span className={`font-normal normal-case mr-1 ${quotaAtteint ? "text-[#EA601F]/80" : "text-[#404040]/70"}`}>{matchingBeneficiaire.prenom}</span>
               {matchingBeneficiaire.nom}
               {quotaAtteint && <ExclamationTriangleIcon className="w-3 h-3 inline-block ml-1 -mt-0.5" />}
+              <span className="font-bold normal-case text-[#EA601F]"> — {matchingBeneficiaire.telephone}</span>
             </span>
           </div>
           <PermissionGuard actionId="suresnes_slot_clear">
