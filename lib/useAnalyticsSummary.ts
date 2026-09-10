@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { calculerHeuresComplementairesACI, repartirHeuresSansChevauchement } from "./planningHours";
+import { calculerHeuresComplementairesACI, repartirHeuresSansChevauchement, GrillesHorairesACI } from "./planningHours";
 import { identifiantMediateur } from "./matchMediateur";
 
 export interface AnalyticsSummaryItem {
@@ -24,7 +24,7 @@ export interface AnalyticsSummaryItem {
 // concerné (statut, horaires ACI) — indispensable pour la vue "Tous les
 // médiateurs" de statistiques où chaque action peut appartenir à une
 // personne différente de celle actuellement affichée.
-export function useAnalyticsSummary(currentMedActions: any[], mediateurs: any[] = []) {
+export function useAnalyticsSummary(currentMedActions: any[], mediateurs: any[] = [], grillesHorairesACI: GrillesHorairesACI = {}) {
   // Object.create(null) : clés indexées par du texte libre (nom complet,
   // code analytique) — sans prototype pour qu'une clé "__proto__" reste une
   // clé normale au lieu de polluer Object.prototype.
@@ -67,8 +67,9 @@ export function useAnalyticsSummary(currentMedActions: any[], mediateurs: any[] 
         if (fragments.length > 0) {
           const identifiant = identifiantMediateur(action);
           const medInfo = mediateursParId[identifiant] || {};
+          const grille = grillesHorairesACI[medInfo.rattachementHoraireACI || "Paris"];
           fragments.forEach((f) => {
-            summary[code].heuresComplementaires += calculerHeuresComplementairesACI({ ...action, debut: f.debut, fin: f.fin }, medInfo, f.heures);
+            summary[code].heuresComplementaires += calculerHeuresComplementairesACI({ ...action, debut: f.debut, fin: f.fin }, medInfo, f.heures, grille);
           });
         }
       });
@@ -82,7 +83,7 @@ export function useAnalyticsSummary(currentMedActions: any[], mediateurs: any[] 
         heuresComplementaires: Math.round(item.heuresComplementaires * 10) / 10,
       }))
       .sort((a, b) => b.totalHeures - a.totalHeures);
-  }, [currentMedActions, mediateursParId]);
+  }, [currentMedActions, mediateursParId, grillesHorairesACI]);
 
   const totalHeuresGlobal = analyticsSummary.reduce((acc, curr) => acc + curr.totalHeures, 0);
   const totalHeuresComplementaires = analyticsSummary.reduce((acc, curr) => acc + curr.heuresComplementaires, 0);

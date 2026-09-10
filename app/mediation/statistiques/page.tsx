@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, doc, onSnapshot } from "firebase/firestore";
 import { UserIcon, HomeIcon, CalendarDaysIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
@@ -13,6 +13,7 @@ import { useAnalyticsSummary } from "@/lib/useAnalyticsSummary";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import { usePermissions } from "@/lib/PermissionsProvider";
 import { estActionDuMediateur } from "@/lib/matchMediateur";
+import { GrillesHorairesACI } from "@/lib/planningHours";
 
 function normaliser(texte: string): string {
   return texte.trim().toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
@@ -31,6 +32,16 @@ export default function StatsMediateursAnalytique() {
   const { role, user } = usePermissions();
   const userRole = role || "mediateur";
   const userEmail = user?.email || "";
+
+  // Grilles horaires ACI (Paris/Massy) — voir lib/planningHours.ts pour le
+  // détail de leur usage dans le calcul des heures complémentaires.
+  const [grillesHorairesACI, setGrillesHorairesACI] = useState<GrillesHorairesACI>({});
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "configuration_equipe", "parametres_horaires"), (snap) => {
+      if (snap.exists()) setGrillesHorairesACI(snap.data() as GrillesHorairesACI);
+    });
+    return () => unsub();
+  }, []);
 
   // Sécurité : on ne garde QUE les fiches valides qui ont un nom et prénom
   const mediateurs = React.useMemo(() => {
@@ -103,7 +114,7 @@ export default function StatsMediateursAnalytique() {
   });
 
   // 4. Synthèse analytique
-  const { analyticsSummary, totalHeuresGlobal, totalHeuresComplementaires } = useAnalyticsSummary(currentMedActions, mediateurs);
+  const { analyticsSummary, totalHeuresGlobal, totalHeuresComplementaires } = useAnalyticsSummary(currentMedActions, mediateurs, grillesHorairesACI);
 
   return (
     <PageGuard pageId="page_access_statistiques">

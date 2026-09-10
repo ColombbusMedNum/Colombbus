@@ -1149,7 +1149,7 @@ export default function FicheBeneficiaire() {
                             checked={estCochee}
                             onChange={() => basculerThematique(value)}
                           />
-                          <span className="truncate">{label}</span>
+                          <span className="truncate" title={label}>{label}</span>
                         </label>
                       );
                     })}

@@ -138,6 +138,7 @@ interface MediateurInfoACI {
   debutACI?: string;
   finACI?: string;
   dureeHebdoACI?: "26h" | "35h";
+  rattachementHoraireACI?: string;
 }
 
 interface ActionPlanningDate {
@@ -146,29 +147,66 @@ interface ActionPlanningDate {
   date?: string;
 }
 
+// Grille horaire ACI d'un site (Paris ou Massy) — un {debut, fin} par jour
+// ouvré, éditable depuis /mediation/parametres ("Grilles horaires ACI") et
+// stockée dans configuration_equipe/parametres_horaires sous
+// { Paris: GrilleHoraireACI, Massy: GrilleHoraireACI }. Ces grilles servent
+// aussi à générer automatiquement les créneaux "RN Observation" (voir
+// app/agenda/page.tsx) : même source, pour ne jamais avoir deux définitions
+// divergentes des horaires de contrat d'un ACI.
+export type GrilleHoraireACI = Record<string, { debut: string; fin: string }>;
+export type GrillesHorairesACI = Record<string, GrilleHoraireACI>;
+
+// getDay() -> clé du jour dans GrilleHoraireACI ; dimanche/samedi n'ont pas
+// d'entrée dans la grille (jours non couverts, voir résolution ci-dessous).
+const CLE_JOUR_PAR_INDEX = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+
 // Heures complémentaires pour le personnel ACI : au-delà de ses horaires de
-// contrat personnalisés, la pause déjeuner étant exclue du temps de contrat.
-// Le mercredi compte intégralement en heures complémentaires. Prend en entrée
-// la durée totale déjà calculée par calculerDureeHeures (donc déjà nette de
-// la pause) pour rester cohérent avec elle.
+// contrat pour ce jour précis, la pause déjeuner étant exclue du temps de
+// contrat. Prend en entrée la durée totale déjà calculée par
+// calculerDureeHeures (donc déjà nette de la pause) pour rester cohérent
+// avec elle.
+//
+// `grille` doit être la grille DÉJÀ résolue pour le site de la personne
+// (grillesHorairesACI[medInfo.rattachementHoraireACI || "Paris"]) — cette
+// fonction ne fait que le lookup jour par jour, pas la résolution
+// Paris/Massy. Sans grille (non chargée, ou jour absent — samedi/dimanche),
+// on retombe sur l'ancien comportement : une fenêtre fixe debutACI/finACI
+// tous les jours, et le mercredi compté intégralement en complémentaire pour
+// un ACI 26h — gardé uniquement en repli, la grille elle-même encode déjà ce
+// cas (mercredi à 00:00-00:00 chez Colombbus, donc 0h de contrat ce jour-là,
+// sans avoir besoin de connaître le jour de la semaine ici).
 export function calculerHeuresComplementairesACI(
   action: ActionPlanningDate,
   medInfo: MediateurInfoACI,
-  dureeTotale: number
+  dureeTotale: number,
+  grille?: GrilleHoraireACI
 ): number {
   if (!action.debut || !action.fin) return 0;
   if (medInfo.statut !== "ACI") return 0;
 
-  if (action.date && medInfo.dureeHebdoACI !== "35h") {
-    const dateObj = new Date(action.date);
-    if (dateObj.getDay() === 3) return dureeTotale; // Mercredi : tout compte en complémentaire (ACI 26h uniquement)
+  const cleJour = action.date ? CLE_JOUR_PAR_INDEX[new Date(action.date).getDay()] : undefined;
+
+  let debutContrat: number;
+  let finContrat: number;
+
+  if (grille) {
+    // Grille chargée : jour non couvert (samedi/dimanche, ou date absente)
+    // = hors contrat, tout compte en complémentaire.
+    const horaireJour = cleJour ? grille[cleJour] : undefined;
+    if (!horaireJour) return dureeTotale;
+    debutContrat = timeToMinutes(horaireJour.debut);
+    finContrat = timeToMinutes(horaireJour.fin);
+  } else {
+    // Repli sans grille (caller pas encore mis à jour, ou grille pas
+    // chargée) : ancien comportement, fenêtre fixe + règle du mercredi.
+    if (cleJour === "mercredi" && medInfo.dureeHebdoACI !== "35h") return dureeTotale;
+    debutContrat = timeToMinutes(medInfo.debutACI || "09:00");
+    finContrat = timeToMinutes(medInfo.finACI || "17:00");
   }
 
   const start = timeToMinutes(action.debut);
   const end = timeToMinutes(action.fin);
-
-  const debutContrat = timeToMinutes(medInfo.debutACI || "09:00");
-  const finContrat = timeToMinutes(medInfo.finACI || "17:00");
 
   let minsContrat = 0;
   for (let t = start; t < end; t++) {

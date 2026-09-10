@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, doc, onSnapshot } from "firebase/firestore";
 import { UserIcon, ArrowLeftIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
@@ -12,11 +12,21 @@ import MediateurActionsParMois from "@/components/MediateurActionsParMois";
 import { useAnalyticsSummary } from "@/lib/useAnalyticsSummary";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import { estActionDuMediateur } from "@/lib/matchMediateur";
+import { GrillesHorairesACI } from "@/lib/planningHours";
 
 export default function StatsMediateursAnalytique() {
   const [actions, setActions] = useState<any[]>([]);
   const { mediateurs: mediateursBruts } = useMediateurs();
   const [selectedMedId, setSelectedMedId] = useState<string>("");
+  // Grilles horaires ACI (Paris/Massy) — voir lib/planningHours.ts pour le
+  // détail de leur usage dans le calcul des heures complémentaires.
+  const [grillesHorairesACI, setGrillesHorairesACI] = useState<GrillesHorairesACI>({});
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "configuration_equipe", "parametres_horaires"), (snap) => {
+      if (snap.exists()) setGrillesHorairesACI(snap.data() as GrillesHorairesACI);
+    });
+    return () => unsub();
+  }, []);
 
   const mediateurs = React.useMemo(() => {
     return [...mediateursBruts].sort((a, b) => (a.nom || "").localeCompare(b.nom || ""));
@@ -45,7 +55,7 @@ export default function StatsMediateursAnalytique() {
   });
 
   // 2. Grouper et cumuler intelligemment par code analytique
-  const { analyticsSummary, totalHeuresGlobal, totalHeuresComplementaires } = useAnalyticsSummary(currentMedActions, mediateurs);
+  const { analyticsSummary, totalHeuresGlobal, totalHeuresComplementaires } = useAnalyticsSummary(currentMedActions, mediateurs, grillesHorairesACI);
 
   return (
     <PageGuard pageId="page_access_mediateurs">

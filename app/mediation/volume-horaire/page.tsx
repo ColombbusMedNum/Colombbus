@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, doc, onSnapshot } from "firebase/firestore";
 import { useMediateurs } from "@/lib/MediateursProvider";
@@ -16,13 +16,50 @@ import {
   ArrowDownTrayIcon,
   ExclamationTriangleIcon,
   MapPinIcon,
-  Cog6ToothIcon
+  Cog6ToothIcon,
+  ChevronDownIcon,
+  ChevronUpIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
-import { calculerHeuresComplementairesACI, repartirHeuresSansChevauchement } from "@/lib/planningHours";
+import { calculerHeuresComplementairesACI, repartirHeuresSansChevauchement, GrillesHorairesACI, GrilleHoraireACI } from "@/lib/planningHours";
 import { identifiantMediateur } from "@/lib/matchMediateur";
 import { getTerritoryColor } from "@/lib/territoryColor";
+
+const CLE_JOUR_PAR_INDEX = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+
+// Horaires de contrat ACI pour un jour donné, résolus depuis la grille
+// Paris/Massy (configuration_equipe/parametres_horaires, éditable depuis
+// /mediation/parametres) selon le site auquel la personne est rattachée —
+// sert à afficher, dans le détail action par action, ce qui était "prévu" à
+// côté de ce qui a été réellement travaillé, pour rendre visible pourquoi
+// une ligne génère des heures complémentaires (même résolution que
+// calculerHeuresComplementairesACI dans lib/planningHours.ts).
+function horairesPrevusACI(
+  medInfo: { statut?: string; rattachementHoraireACI?: string },
+  date: string,
+  grilles: GrillesHorairesACI
+): string {
+  if (medInfo.statut !== "ACI") return "";
+  const grille: GrilleHoraireACI | undefined = grilles[medInfo.rattachementHoraireACI || "Paris"];
+  const cleJour = date ? CLE_JOUR_PAR_INDEX[new Date(date).getDay()] : undefined;
+  const horaireJour = grille && cleJour ? grille[cleJour] : undefined;
+  if (!horaireJour) return "Hors contrat — tout en complémentaire";
+  if (horaireJour.debut === horaireJour.fin) return `${cleJour ? cleJour[0].toUpperCase() + cleJour.slice(1) : "Ce jour"} — hors contrat`;
+  return `${horaireJour.debut}–${horaireJour.fin}`;
+}
+
+const JOURS_SEMAINE = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+
+// "AAAA-MM-JJ" -> "Lundi 09/09/2026", pour repérer le mercredi (jour
+// particulier pour le calcul ACI 26h, voir horairesPrevusACI) sans avoir à
+// déduire soi-même le jour de la semaine à partir de la date.
+function formaterDateAvecJour(date: string): string {
+  if (!date) return "";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return date;
+  return `${JOURS_SEMAINE[d.getDay()]} ${date.split("-").reverse().join("/")}`;
+}
 
 const MOIS = [
   { value: "01", label: "Janvier" }, { value: "02", label: "Février" }, { value: "03", label: "Mars" },
@@ -58,6 +95,23 @@ export default function VolumeHoraireComplet() {
   // réglages globaux de l'équipe (voir app/mediation/equipe/page.tsx).
   const [seuilHeures, setSeuilHeures] = useState(0);
   const [seuilPourcentage, setSeuilPourcentage] = useState(0);
+
+  // Grilles horaires ACI (Paris/Massy), gérées depuis /mediation/parametres —
+  // seule source fiable des horaires de contrat ACI, jour par jour (voir
+  // calculerHeuresComplementairesACI dans lib/planningHours.ts). Les champs
+  // debutACI/finACI, individuels et fixes toute la semaine, ne servent plus
+  // que de repli si la grille n'est pas encore chargée.
+  const [grillesHorairesACI, setGrillesHorairesACI] = useState<GrillesHorairesACI>({});
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "configuration_equipe", "parametres_horaires"), (snap) => {
+      if (snap.exists()) setGrillesHorairesACI(snap.data() as GrillesHorairesACI);
+    });
+    return () => unsub();
+  }, []);
+
+  // Nom du collaborateur dont la ligne est dépliée pour afficher le détail
+  // action par action (un seul à la fois, pour ne pas surcharger le tableau).
+  const [ligneDetailOuverte, setLigneDetailOuverte] = useState<string | null>(null);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "configuration_equipe", "parametres_configuration"), (snap) => {
@@ -146,7 +200,8 @@ export default function VolumeHoraireComplet() {
         const nomAffichage = action.mediateurNom || identifiantMed;
 
         const total = heuresContribuees;
-        const comp = fragments.reduce((acc, f) => acc + calculerHeuresComplementairesACI({ ...action, debut: f.debut, fin: f.fin }, medInfo, f.heures), 0);
+        const grilleMedInfo = grillesHorairesACI[medInfo.rattachementHoraireACI || "Paris"];
+        const comp = fragments.reduce((acc, f) => acc + calculerHeuresComplementairesACI({ ...action, debut: f.debut, fin: f.fin }, medInfo, f.heures, grilleMedInfo), 0);
         const tauxHoraire = Number(medInfo.taux) || (medInfo.statut === "ACI" ? 13.5 : 22.0);
         const cout = total * tauxHoraire;
 
@@ -158,14 +213,31 @@ export default function VolumeHoraireComplet() {
             nom: nomAffichage,
             poste: medInfo.poste || "Médiateur",
             statut: medInfo.statut || "Permanent",
+            site: medInfo.statut === "ACI" ? (medInfo.rattachementHoraireACI || "Paris") : "",
             h: 0,
             comp: 0,
-            cout: 0
+            cout: 0,
+            details: [] as { date: string; lieu: string; debut: string; fin: string; territoire: string; heures: number; comp: number; horairesPrevus: string }[],
           };
         }
         mStats[nomAffichage].h += total;
         mStats[nomAffichage].comp += comp;
         mStats[nomAffichage].cout += cout;
+        // Détail action par action — affiché en dépliant la ligne du
+        // collaborateur (voir ligneDetailOuverte ci-dessous). heuresContribuees
+        // est déjà net de tout chevauchement retiré par
+        // repartirHeuresSansChevauchement, donc la somme des lignes de détail
+        // correspond exactement au volume total affiché.
+        mStats[nomAffichage].details.push({
+          date: action.date || "",
+          lieu: action.lieu || "Activité non spécifiée",
+          debut: action.debut || "",
+          fin: action.fin || "",
+          territoire: action.territoire || "",
+          heures: total,
+          comp,
+          horairesPrevus: horairesPrevusACI(medInfo, action.date || "", grillesHorairesACI),
+        });
 
         // Aggregations par type de Lieu / Activité
         const titre = action.lieu || "Activité non spécifiée";
@@ -188,11 +260,15 @@ export default function VolumeHoraireComplet() {
       });
     });
 
+    Object.values(mStats).forEach((m: any) => {
+      m.details.sort((a: any, b: any) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    });
+
     setTotalGeneral(grandTotal);
     setStatsMediateurs(Object.values(mStats).sort((a: any, b: any) => b.h - a.h));
     setStatsActions(Object.values(aStats).sort((a: any, b: any) => b.h - a.h));
     setStatsTerritoires(Object.values(tStats).sort((a: any, b: any) => b.h - a.h));
-  }, [planningFiltre, mediateursRaw, statutFiltre]);
+  }, [planningFiltre, mediateursRaw, statutFiltre, grillesHorairesACI]);
 
   // % de dépassement = heures complémentaires rapportées aux heures
   // effectivement travaillées dans le cadre du contrat sur la période
@@ -412,11 +488,22 @@ export default function VolumeHoraireComplet() {
               <tbody className="divide-y divide-[#404040]/10">
                 {statsMediateurs.map((m, i) => {
                   const enAlerte = estEnAlerte(m);
+                  const detailOuvert = ligneDetailOuverte === m.nom;
                   return (
-                  <tr key={i} className={`hover:bg-[#F3F3F2]/50 transition-colors ${enAlerte ? "bg-[#EF736A]/5" : ""}`}>
+                  <Fragment key={i}>
+                  <tr
+                    onClick={() => setLigneDetailOuverte(detailOuvert ? null : m.nom)}
+                    className={`hover:bg-[#F3F3F2]/50 transition-colors cursor-pointer ${enAlerte ? "bg-[#EF736A]/5" : ""} ${detailOuvert ? "bg-[#F3F3F2]/60" : ""}`}
+                  >
                     <td className={`py-3.5 px-6 ${enAlerte ? "border-l-2 border-[#EF736A]" : ""}`}>
                       <div className="font-bold text-xs text-[#005259] uppercase flex items-center gap-1.5">
+                        {detailOuvert ? <ChevronUpIcon className="w-3.5 h-3.5 text-[#404040]/40 shrink-0" /> : <ChevronDownIcon className="w-3.5 h-3.5 text-[#404040]/40 shrink-0" />}
                         {m.nom}
+                        {m.site && (
+                          <span className="normal-case text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#005259]/10 border border-[#005259]/20 text-[#005259] shrink-0" title="Site de rattachement (grille horaire ACI)">
+                            {m.site}
+                          </span>
+                        )}
                         {enAlerte && (
                           <ExclamationTriangleIcon className="w-3.5 h-3.5 text-[#EF736A] shrink-0" title="Dépasse le seuil d'heures complémentaires configuré" />
                         )}
@@ -440,6 +527,42 @@ export default function VolumeHoraireComplet() {
                     </td>
                     <td className="py-3.5 px-6 text-right font-bold text-[#EA601F] font-mono text-xs">{m.cout.toFixed(2)}€</td>
                   </tr>
+                  {detailOuvert && (
+                    <tr className="bg-[#F3F3F2]/40">
+                      <td colSpan={4} className="p-0">
+                        <div className="max-h-80 overflow-y-auto px-6 py-3">
+                          <table className="w-full text-left text-[11px]">
+                            <thead>
+                              <tr className="text-[9px] uppercase tracking-widest font-bold text-[#404040]/50">
+                                <th className="py-1.5 pr-3">Date</th>
+                                <th className="py-1.5 pr-3">Horaire</th>
+                                <th className="py-1.5 pr-3">Activité / Lieu</th>
+                                <th className="py-1.5 pr-3">Territoire</th>
+                                {m.statut === "ACI" && <th className="py-1.5 pr-3">Horaires prévus (ACI)</th>}
+                                <th className="py-1.5 pr-3 text-right">Heures</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[#404040]/5">
+                              {m.details.map((d: any, di: number) => (
+                                <tr key={di} className={d.comp > 0 ? "bg-[#F9C44E]/25" : ""} title={d.comp > 0 ? `Génère ${d.comp.toFixed(1)}h complémentaire(s)` : undefined}>
+                                  <td className="py-1.5 pr-3 font-mono text-[#404040]/80 whitespace-nowrap">{formaterDateAvecJour(d.date)}</td>
+                                  <td className="py-1.5 pr-3 font-mono text-[#404040]/60">{d.debut && d.fin ? `${d.debut}–${d.fin}` : "—"}</td>
+                                  <td className="py-1.5 pr-3 font-medium text-[#005259]">{d.lieu}</td>
+                                  <td className="py-1.5 pr-3 text-[#404040]/60">{d.territoire || "—"}</td>
+                                  {m.statut === "ACI" && <td className="py-1.5 pr-3 font-mono text-[#404040]/60">{d.horairesPrevus || "—"}</td>}
+                                  <td className="py-1.5 pr-3 text-right font-mono font-bold text-[#EA601F]">{d.heures.toFixed(1)}h</td>
+                                </tr>
+                              ))}
+                              {m.details.length === 0 && (
+                                <tr><td colSpan={m.statut === "ACI" ? 6 : 5} className="py-3 text-center text-[#404040]/40 italic">Aucune action détaillée sur cette période.</td></tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                   );
                 })}
                 {statsMediateurs.length === 0 && (
