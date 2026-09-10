@@ -96,40 +96,46 @@ function FichesBilansContent() {
   // hommes/femmes uniques à côté du total d'interventions (une même
   // personne peut avoir plusieurs RDV dans le mois).
   const [sexeParBeneficiaire, setSexeParBeneficiaire] = useState<Record<string, string>>({});
+  // Lieu de rattachement principal de chaque bénéficiaire (utilisateurs.
+  // Lieu_RDV) — pour les résidences autonomie, c'est la seule source fiable
+  // du lieu d'une visite : ces bénéficiaires n'ont pas de créneau/site choisi
+  // au moment du rendez-vous (voir agenda Suresnes, onglet Résidence
+  // Autonomie), et le champ "lieu" de la visite elle-même est donc souvent
+  // vide ou incohérent avec le nom exact du lieu configuré. Pour les autres
+  // sites, le lieu réellement saisi sur la visite reste la référence (une
+  // personne rattachée à RN91 peut très bien être vue un jour à Suresnes).
+  const [lieuRdvParBeneficiaire, setLieuRdvParBeneficiaire] = useState<Record<string, string>>({});
+  const estResidenceAutonomie = (lieu: string) =>
+    lieu.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().includes("residence autonomie");
 
   useEffect(() => {
     const unsubBenef = onSnapshot(collection(db, "utilisateurs"), (snapshot) => {
       const map: Record<string, string> = {};
+      const lieuxMap: Record<string, string> = {};
       // Certaines fiches (résidences autonomie notamment) n'ont pas de champ
       // Sexe rempli, seulement Civilité ("M."/"Mme") — on s'en sert alors en
       // repli plutôt que de compter la personne comme genre inconnu.
       snapshot.docs.forEach((d) => {
         const data = d.data();
         map[d.id] = data.Sexe || data.sexe || data.Civilité || data.civilite || "";
+        lieuxMap[d.id] = (data.Lieu_RDV || "").trim();
       });
       setSexeParBeneficiaire(map);
+      setLieuRdvParBeneficiaire(lieuxMap);
     });
     return () => unsubBenef();
   }, []);
 
+  // Documents de visite bruts, non transformés — le lieu effectif (voir
+  // tousLesRdvs ci-dessous) dépend aussi de lieuRdvParBeneficiaire, chargé
+  // séparément et pas forcément disponible dès le premier instantané.
+  const [rawVisitesData, setRawVisitesData] = useState<{ id: string; userId: string; data: any }[]>([]);
+
   useEffect(() => {
     const unsubVisites = onSnapshot(collectionGroup(db, "visites"), (snapshot) => {
-      const items: { lieu: string; rdv: RDVItem }[] = snapshot.docs.map((docSnap) => {
-        const data = docSnap.data();
-        return {
-          lieu: (data.lieu || "Non spécifié").trim(),
-          rdv: {
-            id: docSnap.id,
-            date: data.date || "",
-            details: data.details || "",
-            statut: data.statut || "Présent",
-            mediateur: data.mediateur || "—",
-            userId: docSnap.ref.parent.parent?.id || ""
-          }
-        };
-      });
-
-      setTousLesRdvs(items);
+      setRawVisitesData(
+        snapshot.docs.map((docSnap) => ({ id: docSnap.id, userId: docSnap.ref.parent.parent?.id || "", data: docSnap.data() }))
+      );
       setLoading(false);
     }, (error) => {
       console.error("Erreur de chargement des fiches bilan :", error);
@@ -139,6 +145,26 @@ function FichesBilansContent() {
 
     return () => unsubVisites();
   }, []);
+
+  useEffect(() => {
+    const items: { lieu: string; rdv: RDVItem }[] = rawVisitesData.map(({ id, userId, data }) => {
+      const lieuRdv = lieuRdvParBeneficiaire[userId] || "";
+      const lieuVisite = (data.lieu || "").trim();
+      const lieu = estResidenceAutonomie(lieuRdv) ? lieuRdv : (lieuVisite || lieuRdv || "Non spécifié");
+      return {
+        lieu,
+        rdv: {
+          id,
+          date: data.date || "",
+          details: data.details || "",
+          statut: data.statut || "Présent",
+          mediateur: data.mediateur || "—",
+          userId
+        }
+      };
+    });
+    setTousLesRdvs(items);
+  }, [rawVisitesData, lieuRdvParBeneficiaire]);
 
   const rdvsDuMois = tousLesRdvs.filter((item) => {
     if (!item.rdv.date) return false;

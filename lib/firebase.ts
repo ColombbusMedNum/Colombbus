@@ -3,6 +3,7 @@ import { getFirestore } from "firebase/firestore";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import { getAuth } from "firebase/auth"; // <-- Bien présent
 import { getStorage } from "firebase/storage";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 
 export const firebaseConfig = {
   apiKey: "AIzaSyBps0rKBEiJV0owdmDL0b6QsTqB0kGvDoE",
@@ -16,6 +17,20 @@ export const firebaseConfig = {
 
 // Initialisation unique de l'instance Firebase
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
+// App Check (reCAPTCHA Enterprise, clé "cosmos-colombbus") : protège les
+// formulaires publics sans connexion (voir firestore.rules, isStaff() n'y
+// change rien) contre les scripts automatisés — l'anti-bot honeypot+délai
+// déjà en place reste une première ligne de défense, App Check en ajoute une
+// seconde, bien plus difficile à contourner sans navigateur réel. Ne
+// s'initialise que côté navigateur : l'API App Check n'a pas de sens côté
+// serveur (build Next.js, SSR) et lèverait une erreur si `window` est absent.
+if (typeof window !== "undefined") {
+  initializeAppCheck(app, {
+    provider: new ReCaptchaEnterpriseProvider("6LfAtrMtAAAAAOJMS_PMdNZMHAQ3SR_4GMIHSUnp"),
+    isTokenAutoRefreshEnabled: true,
+  });
+}
 
 // Exportations stables des instances de services
 export const db = getFirestore(app);

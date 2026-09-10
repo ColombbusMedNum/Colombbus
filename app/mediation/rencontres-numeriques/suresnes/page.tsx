@@ -159,11 +159,42 @@ export default function PlanningSuresnes() {
     return { sitesPrincipaux: principaux, sitesGroupePRA: groupePRA };
   }, [SITES]);
 
+  // Liste globale des lieux (page "Ajouter un lieu"), seule source vraiment
+  // canonique des noms de lieux — c'est elle qui alimente Lieu_RDV sur les
+  // fiches bénéficiaires et, par défaut, le champ "lieu" de chaque visite
+  // enregistrée (voir liste-beneficiaires/[id]/page.tsx). Le nom d'un site
+  // dans SITES ci-dessus vient lui d'un champ libre saisi sur un créneau
+  // (parfois ancien/mal orthographié, ex. "Ave Maria" vs "Vae Maria") : pour
+  // le lien "Bilan", on retrouve le nom canonique le plus proche plutôt que
+  // de comparer des chaînes qui peuvent diverger site par site.
+  const [lieuxGlobaux, setLieuxGlobaux] = useState<{ nomCourt: string }[]>([]);
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "liste_lieux"), (snap) => {
+      setLieuxGlobaux(
+        snap.docs
+          .map((d) => {
+            const data = d.data();
+            return { nomCourt: (data.nomRaccourci || data.nomCourt || data.nom || d.id) as string, actif: data.actif !== false };
+          })
+          .filter((l) => l.actif)
+      );
+    });
+    return () => unsub();
+  }, []);
+
   // Un onglet Résidence Autonomie n'affiche plus de créneaux : la liste des
   // bénéficiaires qui lui sont rattachés vient directement de leur fiche
   // (Lieu_RDV), pas d'un planning saisi à la main.
   const estSiteResidenceAutonomie = sitesGroupePRA.some(s => s.id === siteActif);
   const siteActifLabel = SITES.find(s => s.id === siteActif)?.label || siteActif;
+  // Le nom du site tel que dérivé des créneaux (siteActifLabel) peut diverger
+  // du nom canonique utilisé sur les fiches bénéficiaires et les visites
+  // (Lieu_RDV / visites[].lieu, tous deux alimentés depuis "liste_lieux") —
+  // ex. coquille de saisie sur un ancien créneau. Le lien vers les fiches
+  // bilans, qui compare des chaînes exactes, doit utiliser ce nom canonique ;
+  // la correspondance bénéficiaire↔site plus haut reste tolérante
+  // (estMemeLieu) et n'a donc pas ce problème.
+  const lienFichesBilans = lieuxGlobaux.find((l) => estMemeLieu(l.nomCourt, siteActifLabel))?.nomCourt || siteActifLabel;
   const beneficiairesDeLaResidence = React.useMemo(() => {
     if (!estSiteResidenceAutonomie) return [];
     return beneficiaires
@@ -182,7 +213,7 @@ export default function PlanningSuresnes() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-  
+
   // États synchronisés en temps réel depuis les fiches de visites
   const [rawVisites, setRawVisites] = useState<any[]>([]);
   // Quota de visites à domicile RND, configurable depuis /mediation/parametres
@@ -786,7 +817,7 @@ export default function PlanningSuresnes() {
 
             {estSiteResidenceAutonomie && (
               <Link
-                href={`/mediation/rencontres-numeriques/fiches-bilans?lieu=${encodeURIComponent(siteActifLabel)}`}
+                href={`/mediation/rencontres-numeriques/fiches-bilans?lieu=${encodeURIComponent(lienFichesBilans)}`}
                 className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
               >
                 <DocumentTextIcon className="w-4 h-4 text-[#EA601F]" />

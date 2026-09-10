@@ -384,6 +384,12 @@ export default function BilanSuresnesPage() {
         return { b, nbVisites };
       })
       .filter(({ nbVisites }) => nbVisites > 0)
+      // Une résidence autonomie n'a jamais de créneau dans l'agenda (voir
+      // suresnes/page.tsx : ces bénéficiaires sont rattachés via leur fiche,
+      // pas via un planning saisi à la main) — les y faire apparaître ici
+      // signalerait une "absence de l'agenda" sur 100% d'entre eux/elles,
+      // ce qui n'est pas l'anomalie que ce rapport cherche à repérer.
+      .filter(({ b }) => !(b.Lieu_RDV || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().includes("residence autonomie"))
       .filter(({ b }) => {
         const nom = lireNom(b).trim().toLowerCase().replace(/\s+/g, " ");
         const prenom = lirePrenom(b).trim().toLowerCase().replace(/\s+/g, " ");
