@@ -367,6 +367,7 @@ export default function VolumeHoraireComplet() {
                     <th className="py-1.5 pr-3">Territoire</th>
                     {m.statut === "ACI" && <th className="py-1.5 pr-3">Horaires prévus (ACI)</th>}
                     <th className="py-1.5 pr-3 text-right">Heures</th>
+                    {m.statut === "ACI" && <th className="py-1.5 pr-3 text-right">Dont compl.</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#404040]/5">
@@ -377,11 +378,16 @@ export default function VolumeHoraireComplet() {
                       <td className="py-1.5 pr-3 font-medium text-[#005259]">{d.lieu}</td>
                       <td className="py-1.5 pr-3 text-[#404040]/60">{d.territoire || "—"}</td>
                       {m.statut === "ACI" && <td className="py-1.5 pr-3 font-mono text-[#404040]/60">{d.horairesPrevus || "—"}</td>}
-                      <td className="py-1.5 pr-3 text-right font-mono font-bold text-[#EA601F]">{d.heures.toFixed(1)}h</td>
+                      <td className="py-1.5 pr-3 text-right font-mono font-bold text-[#005259]">{d.heures.toFixed(1)}h</td>
+                      {m.statut === "ACI" && (
+                        <td className="py-1.5 pr-3 text-right font-mono font-bold text-[#EA601F]">
+                          {d.comp > 0 ? `+${d.comp.toFixed(1)}h` : "—"}
+                        </td>
+                      )}
                     </tr>
                   ))}
                   {m.details.length === 0 && (
-                    <tr><td colSpan={m.statut === "ACI" ? 6 : 5} className="py-3 text-center text-[#404040]/40 italic">Aucune action détaillée sur cette période.</td></tr>
+                    <tr><td colSpan={m.statut === "ACI" ? 7 : 5} className="py-3 text-center text-[#404040]/40 italic">Aucune action détaillée sur cette période.</td></tr>
                   )}
                 </tbody>
               </table>

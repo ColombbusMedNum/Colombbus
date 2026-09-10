@@ -145,6 +145,7 @@ interface ActionPlanningDate {
   debut?: string;
   fin?: string;
   date?: string;
+  lieu?: string;
   // Créneau marqué "Observation ACI" sur son modèle (voir ActiviteType dans
   // lib/activitesTypes.ts) : ne génère jamais d'heures complémentaires pour
   // un ACI, quels que soient ses horaires réels, car il part à ses horaires
@@ -170,6 +171,17 @@ export type GrillesHorairesACI = Record<string, GrilleHoraireACI>;
 // d'entrée dans la grille (jours non couverts, voir résolution ci-dessous).
 const CLE_JOUR_PAR_INDEX = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
+// Un créneau "Congés" (ou variante orthographique) n'est pas du temps de
+// travail réel : la personne est absente, donc ses horaires (souvent posés
+// en journée complète, ex 09:00-17:30) ne doivent jamais être comparés à sa
+// grille de contrat pour en déduire des heures complémentaires. Détection
+// par nom de lieu, comme les autres cas particuliers de ce fichier
+// (estModeleProtege dans lib/activitesTypes.ts).
+function estActiviteDeConge(lieu?: string): boolean {
+  const normalise = (lieu || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toUpperCase();
+  return normalise.includes("CONGE");
+}
+
 // Heures complémentaires pour le personnel ACI : au-delà de ses horaires de
 // contrat pour ce jour précis, la pause déjeuner étant exclue du temps de
 // contrat. Prend en entrée la durée totale déjà calculée par
@@ -184,7 +196,12 @@ const CLE_JOUR_PAR_INDEX = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "
 // tous les jours, et le mercredi compté intégralement en complémentaire pour
 // un ACI 26h — gardé uniquement en repli, la grille elle-même encode déjà ce
 // cas (mercredi à 00:00-00:00 chez Colombbus, donc 0h de contrat ce jour-là,
-// sans avoir besoin de connaître le jour de la semaine ici).
+// sans avoir besoin de connaître le jour de la semaine ici). Cette
+// convention "mercredi non travaillé" ne vaut que pour les ACI 26h : un ACI
+// 35h travaille bien le mercredi, sur ses horaires personnels
+// (debutACI/finACI, fiche médiateur) plutôt que sur la grille Paris/Massy
+// partagée — sans ce repli, la grille le ferait compter à tort comme
+// "hors contrat" toute la journée, donc 100% en heures complémentaires.
 export function calculerHeuresComplementairesACI(
   action: ActionPlanningDate,
   medInfo: MediateurInfoACI,
@@ -193,6 +210,7 @@ export function calculerHeuresComplementairesACI(
 ): number {
   if (!action.debut || !action.fin) return 0;
   if (medInfo.statut !== "ACI") return 0;
+  if (estActiviteDeConge(action.lieu)) return 0;
   if (
     action.observationACI &&
     (!action.observationACIDateFin || !action.date || action.date <= action.observationACIDateFin)
@@ -210,8 +228,19 @@ export function calculerHeuresComplementairesACI(
     // = hors contrat, tout compte en complémentaire.
     const horaireJour = cleJour ? grille[cleJour] : undefined;
     if (!horaireJour) return dureeTotale;
-    debutContrat = timeToMinutes(horaireJour.debut);
-    finContrat = timeToMinutes(horaireJour.fin);
+    const jourNonTravailleSelonGrille = horaireJour.debut === horaireJour.fin;
+    if (jourNonTravailleSelonGrille && medInfo.dureeHebdoACI === "35h") {
+      // La grille marque ce jour "non travaillé" (cas du mercredi pour les
+      // 26h) mais cet ACI est à 35h : on retombe sur ses horaires
+      // personnels plutôt que de compter toute sa journée en complémentaire.
+      debutContrat = timeToMinutes(medInfo.debutACI || "09:00");
+      finContrat = timeToMinutes(medInfo.finACI || "17:00");
+    } else if (jourNonTravailleSelonGrille) {
+      return dureeTotale;
+    } else {
+      debutContrat = timeToMinutes(horaireJour.debut);
+      finContrat = timeToMinutes(horaireJour.fin);
+    }
   } else {
     // Repli sans grille (caller pas encore mis à jour, ou grille pas
     // chargée) : ancien comportement, fenêtre fixe + règle du mercredi.
