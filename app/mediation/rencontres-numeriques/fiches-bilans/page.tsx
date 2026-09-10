@@ -181,9 +181,23 @@ function FichesBilansContent() {
 
   useEffect(() => {
     const items: { lieu: string; rdv: RDVItem }[] = rawVisitesData.map(({ id, userId, data }) => {
+      // Deux sources possibles pour le lieu d'une visite de résidence
+      // autonomie, toutes deux potentiellement abrégées ou incomplètes :
+      // Lieu_RDV de la fiche bénéficiaire, ET le champ "lieu" propre à la
+      // visite (une même résidence a pu être saisie "MOUFFETARD" sur une
+      // visite et via Lieu_RDV correctement résolu sur une autre — sans
+      // essayer de canoniser les deux, ces visites se retrouvent scindées
+      // en deux lieux distincts dans la liste malgré la même résidence).
+      // On canonise les deux et on privilégie la première qui résout
+      // effectivement vers une résidence connue.
       const lieuRdv = resoudreLieuCanonique(lieuRdvParBeneficiaire[userId] || "");
       const lieuVisite = (data.lieu || "").trim();
-      const lieu = estResidenceAutonomie(lieuRdv) ? lieuRdv : (lieuVisite || lieuRdv || "Non spécifié");
+      const lieuVisiteCanon = resoudreLieuCanonique(lieuVisite);
+      const lieu = estResidenceAutonomie(lieuRdv)
+        ? lieuRdv
+        : estResidenceAutonomie(lieuVisiteCanon)
+        ? lieuVisiteCanon
+        : (lieuVisite || lieuRdv || "Non spécifié");
       return {
         lieu,
         rdv: {
@@ -206,10 +220,18 @@ function FichesBilansContent() {
 
   const lieuxPresents = Array.from(new Set(rdvsDuMois.map((i) => i.lieu))).sort();
 
-  useEffect(() => {
-    if (lieuxPresents.length === 0) return;
+  // Toutes les résidences autonomie connues (voir sitesResidenceAutonomie)
+  // doivent rester sélectionnables et affichables même sans aucun
+  // rendez-vous ce mois-ci — sinon impossible d'y écrire un commentaire pour
+  // signaler "aucun bénéficiaire ce mois-ci" par exemple. Les autres lieux
+  // (Suresnes, RN91...) restent listés seulement s'ils ont eu une visite,
+  // comme avant.
+  const lieuxTousConnus = Array.from(new Set([...lieuxPresents, ...sitesResidenceAutonomie])).sort();
 
-    lieuxPresents.forEach(async (lieu) => {
+  useEffect(() => {
+    if (lieuxTousConnus.length === 0) return;
+
+    lieuxTousConnus.forEach(async (lieu) => {
       const docId = `${lieu.replace(/[/\\?%*:|"<>]/g, "_")}_${moisSelectionne}`;
       try {
         const docRef = doc(db, "fiches_bilans", docId);
@@ -232,7 +254,7 @@ function FichesBilansContent() {
         console.error("Erreur chargement fiche :", err);
       }
     });
-  }, [moisSelectionne, lieuxPresents.join(",")]);
+  }, [moisSelectionne, lieuxTousConnus.join(",")]);
 
   const handleFieldChange = (lieu: string, field: keyof FicheBilanData, value: string) => {
     setFichesEditees(prev => ({
@@ -309,9 +331,9 @@ function FichesBilansContent() {
     return date.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
   };
 
-  const lieuxAffiches = lieuSelectionne === "Tous" 
-    ? lieuxPresents 
-    : lieuxPresents.filter(l => l.trim().toLowerCase() === lieuSelectionne.trim().toLowerCase());
+  const lieuxAffiches = lieuSelectionne === "Tous"
+    ? lieuxTousConnus
+    : lieuxTousConnus.filter(l => l.trim().toLowerCase() === lieuSelectionne.trim().toLowerCase());
 
   const inputStyle = "w-full bg-white border border-[#404040]/15 rounded-xl p-2.5 text-xs text-[#404040] placeholder-[#404040]/40 focus:border-[#005259] focus:ring-1 focus:ring-[#005259] outline-none transition-all font-medium shadow-sm";
 
@@ -406,9 +428,9 @@ function FichesBilansContent() {
               onChange={(e) => setLieuSelectionne(e.target.value)}
               className={inputStyle}
             >
-              <option value="Tous">📍 Tous les lieux ({lieuxPresents.length})</option>
-              {lieuxPresents.map((lieu) => (
-                <option key={lieu} value={lieu}>{lieu}</option>
+              <option value="Tous">📍 Tous les lieux ({lieuxTousConnus.length})</option>
+              {lieuxTousConnus.map((lieu) => (
+                <option key={lieu} value={lieu}>{lieu}{!lieuxPresents.includes(lieu) ? " (aucune visite ce mois-ci)" : ""}</option>
               ))}
             </select>
           </div>
