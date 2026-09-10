@@ -617,7 +617,7 @@ export default function FicheBeneficiaire() {
             <PermissionGuard actionId="fiche_nav_agenda_suresnes">
               <Link href="/mediation/rencontres-numeriques/suresnes" className="inline-flex items-center gap-2 bg-white border border-[#404040]/10 hover:border-[#005259] hover:bg-[#005259] hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-[#005259] transition-all shadow-sm">
                 <CalendarDaysIcon className="w-4 h-4 text-[#EA601F]" />
-                <span>Agenda Suresnes</span>
+                <span>Agenda RN</span>
               </Link>
             </PermissionGuard>
             <PermissionGuard actionId="fiche_nav_equipe">

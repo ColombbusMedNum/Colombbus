@@ -58,6 +58,19 @@ function classerGenre(valeurBrute: string): "H" | "F" | null {
   return null;
 }
 
+// Compare un lieu de rattachement (Lieu_RDV, parfois abrégé) au nom complet
+// d'un lieu configuré (liste_lieux) — mêmes règles que sur l'agenda Suresnes.
+function estMemeLieu(lieuBeneficiaire: string | undefined, labelSite: string): boolean {
+  const a = (lieuBeneficiaire || "").trim();
+  const b = (labelSite || "").trim();
+  if (!a || !b) return false;
+  if (a.toLowerCase() === b.toLowerCase()) return true;
+  const simplifier = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const sa = simplifier(a);
+  const sb = simplifier(b);
+  return sa.length > 3 && sb.length > 3 && (sa.includes(sb) || sb.includes(sa));
+}
+
 interface FicheBilanData {
   lieu: string;
   mois: string;
@@ -108,6 +121,26 @@ function FichesBilansContent() {
   const estResidenceAutonomie = (lieu: string) =>
     lieu.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().includes("residence autonomie");
 
+  // Tous les sites "résidence autonomie" connus de l'agenda (même source que
+  // suresnes/page.tsx : le champ "site" des créneaux, pas liste_lieux qui
+  // peut être incomplète) — sert à retrouver le nom canonique complet d'un
+  // lieu à partir de ce qui est enregistré sur une fiche : Lieu_RDV y est
+  // parfois abrégé (ex. "LE PRINCE" au lieu de "Paris - Résidence Autonomie -
+  // Le Prince"), notamment sur les fiches importées par CSV.
+  const [sitesResidenceAutonomie, setSitesResidenceAutonomie] = useState<string[]>([]);
+  const resoudreLieuCanonique = (lieuRdv: string) =>
+    sitesResidenceAutonomie.find((site) => estMemeLieu(lieuRdv, site)) || lieuRdv;
+
+  useEffect(() => {
+    const unsubCreneaux = onSnapshot(collection(db, "planning_suresnes"), (snapshot) => {
+      const sites = Array.from(new Set(snapshot.docs.map((d) => (d.data().site || "").trim()).filter(Boolean)));
+      setSitesResidenceAutonomie(
+        sites.filter((s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().includes("residence autonomie"))
+      );
+    });
+    return () => unsubCreneaux();
+  }, []);
+
   useEffect(() => {
     const unsubBenef = onSnapshot(collection(db, "utilisateurs"), (snapshot) => {
       const map: Record<string, string> = {};
@@ -148,7 +181,7 @@ function FichesBilansContent() {
 
   useEffect(() => {
     const items: { lieu: string; rdv: RDVItem }[] = rawVisitesData.map(({ id, userId, data }) => {
-      const lieuRdv = lieuRdvParBeneficiaire[userId] || "";
+      const lieuRdv = resoudreLieuCanonique(lieuRdvParBeneficiaire[userId] || "");
       const lieuVisite = (data.lieu || "").trim();
       const lieu = estResidenceAutonomie(lieuRdv) ? lieuRdv : (lieuVisite || lieuRdv || "Non spécifié");
       return {
@@ -164,7 +197,7 @@ function FichesBilansContent() {
       };
     });
     setTousLesRdvs(items);
-  }, [rawVisitesData, lieuRdvParBeneficiaire]);
+  }, [rawVisitesData, lieuRdvParBeneficiaire, sitesResidenceAutonomie]);
 
   const rdvsDuMois = tousLesRdvs.filter((item) => {
     if (!item.rdv.date) return false;

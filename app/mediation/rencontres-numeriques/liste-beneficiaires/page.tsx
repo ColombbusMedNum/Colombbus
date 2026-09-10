@@ -208,6 +208,11 @@ export default function ListeBeneficiaires() {
     const perdant = beneficiaires.find((b) => b.id === perdantId);
     if (!perdantId || !survivant || !perdant) return;
 
+    // Ferme la modale de choix AVANT d'ouvrir la confirmation générique
+    // (useConfirm) : sinon les deux se superposent et l'utilisateur doit
+    // fermer la première à la main pour pouvoir cliquer sur la seconde.
+    setFusionModalOuvert(false);
+
     const ok = await confirm(
       `Fusionner "${perdant.prenomAffiche} ${perdant.nomAffiche}" (${perdant.totalVisites} visite(s)) dans "${survivant.prenomAffiche} ${survivant.nomAffiche}" (${survivant.totalVisites} visite(s)) ? L'historique sera déplacé, mais la fiche non conservée sera définitivement supprimée. Cette action est irréversible.`
     );

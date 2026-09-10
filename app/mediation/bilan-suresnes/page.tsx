@@ -41,6 +41,20 @@ function Puce({ couleur, label }: { couleur: string; label: string }) {
   );
 }
 
+// Compare un lieu de rattachement (Lieu_RDV, parfois abrégé) au nom complet
+// d'un lieu configuré (liste_lieux) — mêmes règles que sur l'agenda Suresnes
+// (app/mediation/rencontres-numeriques/suresnes/page.tsx).
+function estMemeLieu(lieuBeneficiaire: string | undefined, labelSite: string): boolean {
+  const a = (lieuBeneficiaire || "").trim();
+  const b = (labelSite || "").trim();
+  if (!a || !b) return false;
+  if (a.toLowerCase() === b.toLowerCase()) return true;
+  const simplifier = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const sa = simplifier(a);
+  const sb = simplifier(b);
+  return sa.length > 3 && sb.length > 3 && (sa.includes(sb) || sb.includes(sa));
+}
+
 // Graphique en barres empilées (2-3 séries) — une catégorie par colonne, les
 // segments s'empilent du bas vers le haut ; seul le segment le plus éloigné
 // de la ligne de base (le dernier de la liste) porte un arrondi en haut,
@@ -377,6 +391,15 @@ export default function BilanSuresnesPage() {
         .filter(Boolean)
     );
 
+    // Tous les sites "résidence autonomie" connus de l'agenda (même source
+    // que suresnes/page.tsx : le champ "site" des créneaux, pas liste_lieux
+    // qui peut être incomplète) — sert de référence fiable pour repérer un
+    // bénéficiaire de résidence autonomie même quand Lieu_RDV est abrégé sur
+    // sa fiche (ex. "LE PRINCE" au lieu de "Paris - Résidence Autonomie - Le
+    // Prince" pour les fiches importées par CSV).
+    const sitesResidenceAutonomie = Array.from(new Set(rawCreneaux.map(c => normaliserSiteId(c.site))))
+      .filter(s => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().includes("residence autonomie"));
+
     return beneficiairesComplet
       .map((b) => {
         const docsVisites = visitesParUtilisateur.get(b.id) || [];
@@ -387,9 +410,9 @@ export default function BilanSuresnesPage() {
       // Une résidence autonomie n'a jamais de créneau dans l'agenda (voir
       // suresnes/page.tsx : ces bénéficiaires sont rattachés via leur fiche,
       // pas via un planning saisi à la main) — les y faire apparaître ici
-      // signalerait une "absence de l'agenda" sur 100% d'entre eux/elles,
-      // ce qui n'est pas l'anomalie que ce rapport cherche à repérer.
-      .filter(({ b }) => !(b.Lieu_RDV || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().includes("residence autonomie"))
+      // signalerait une "absence de l'agenda" sur 100% d'entre eux/elles, ce
+      // qui n'est pas l'anomalie que ce rapport cherche à repérer.
+      .filter(({ b }) => !sitesResidenceAutonomie.some((site) => estMemeLieu(b.Lieu_RDV, site)))
       .filter(({ b }) => {
         const nom = lireNom(b).trim().toLowerCase().replace(/\s+/g, " ");
         const prenom = lirePrenom(b).trim().toLowerCase().replace(/\s+/g, " ");

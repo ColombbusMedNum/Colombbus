@@ -35,7 +35,8 @@ import {
   ChatBubbleBottomCenterTextIcon,
   XCircleIcon,
   Cog6ToothIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  PhoneIcon
 } from "@heroicons/react/24/outline";
 
 // Vocabulaire fixe du <select> Thématique ci-dessous — une valeur importée
@@ -1292,7 +1293,32 @@ export default function PlanningSuresnes() {
                                   />
                                 </div>
 
-                                <div className="xl:col-span-2 w-full">
+                                <div className="xl:col-span-2 flex items-center justify-start xl:justify-center gap-1.5 text-[#404040]">
+                                  {bTrouve ? (
+                                    <div className="flex items-center gap-1.5 bg-white border border-[#404040]/10 px-2 py-1 rounded-xl text-xs w-full justify-center shadow-sm" title="Téléphone">
+                                      <PhoneIcon className="w-3.5 h-3.5 text-[#005259] shrink-0" />
+                                      <span className="font-bold text-[#005259] whitespace-nowrap">{bTrouve.telephone}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[11px] text-[#404040]/30 hidden xl:block">—</span>
+                                  )}
+                                </div>
+
+                                <div className="xl:col-span-1 flex items-center justify-start xl:justify-center gap-1.5 text-[#404040]">
+                                  {bTrouve ? (
+                                    <div className="flex items-center gap-1 bg-white border border-[#404040]/10 px-2 py-1 rounded-xl text-xs w-full justify-center shadow-sm" title="Total des visites">
+                                      <ChartBarIcon className="w-3.5 h-3.5 text-[#005259]" />
+                                      <span className="font-bold text-[#005259]">{totalPresentsUsager}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[11px] text-[#404040]/30 hidden xl:block">—</span>
+                                  )}
+                                </div>
+
+                              </div>
+
+                              <div className="mt-2 flex items-center gap-3 flex-wrap lg:flex-nowrap">
+                                <div className="w-full lg:w-56 shrink-0">
                                   <PermissionGuard actionId="suresnes_slot_thematique_edit">
                                   <div className="flex items-center gap-2 bg-white border border-[#404040]/15 focus-within:border-[#005259] rounded-xl px-3 py-1.5 transition-all shadow-sm">
                                     <TagIcon className="w-3.5 h-3.5 text-[#404040]/40 shrink-0" />
@@ -1327,36 +1353,7 @@ export default function PlanningSuresnes() {
                                   </PermissionGuard>
                                 </div>
 
-                                <div className="xl:col-span-1.5 flex items-center justify-start xl:justify-center">
-                                  {trendBesoinDiagnostic ? (
-                                    <Link href={`/mediation/rencontres-numeriques/liste-beneficiaires/${bTrouve.id}`} className="inline-flex items-center gap-1.5 bg-[#EA601F] hover:bg-[#EF736A] text-white px-2.5 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm group w-full justify-center">
-                                      <PlusIcon className="w-3 h-3 stroke-[3] group-hover:scale-125 transition-transform" />
-                                      <span>Diagnostic</span>
-                                    </Link>
-                                  ) : bTrouve && thématiqueMatériel && aDejaFaitCetteThematique ? (
-                                    <span className="inline-flex items-center justify-center gap-1 text-[10px] font-bold text-[#404040]/50 bg-white px-2 py-1 rounded border border-[#404040]/10 w-full text-center">
-                                      <ClipboardDocumentCheckIcon className="w-3 h-3 opacity-60" /> Déjà diag.
-                                    </span>
-                                  ) : (
-                                    <span className="text-[#404040]/30 text-xs hidden xl:block">—</span>
-                                  )}
-                                </div>
-
-                                <div className="xl:col-span-1 flex items-center justify-start xl:justify-center gap-1.5 text-[#404040]">
-                                  {bTrouve ? (
-                                    <div className="flex items-center gap-1 bg-white border border-[#404040]/10 px-2 py-1 rounded-xl text-xs w-full justify-center shadow-sm" title="Total des visites">
-                                      <ChartBarIcon className="w-3.5 h-3.5 text-[#005259]" />
-                                      <span className="font-bold text-[#005259]">{totalPresentsUsager}</span>
-                                    </div>
-                                  ) : (
-                                    <span className="text-[11px] text-[#404040]/30 hidden xl:block">—</span>
-                                  )}
-                                </div>
-
-                              </div>
-
-                              <div className="mt-2 flex items-center gap-3">
-                                <div className="flex-1">
+                                <div className="flex-1 min-w-[160px]">
                                   <PermissionGuard actionId="suresnes_slot_demande_edit">
                                   <div className="flex items-center gap-1.5 bg-[#FFFFFF] border border-[#404040]/15 focus-within:border-[#005259] rounded-xl px-3 py-1.5 transition-all shadow-sm">
                                     <ChatBubbleBottomCenterTextIcon className="w-3.5 h-3.5 text-[#404040]/40 shrink-0" />
@@ -1377,6 +1374,21 @@ export default function PlanningSuresnes() {
                                     />
                                   </div>
                                   </PermissionGuard>
+                                </div>
+
+                                <div className="w-36 shrink-0">
+                                  {trendBesoinDiagnostic ? (
+                                    <Link href={`/mediation/rencontres-numeriques/liste-beneficiaires/${bTrouve.id}`} className="inline-flex items-center gap-1.5 bg-[#EA601F] hover:bg-[#EF736A] text-white px-2.5 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer shadow-sm group w-full justify-center">
+                                      <PlusIcon className="w-3 h-3 stroke-[3] group-hover:scale-125 transition-transform" />
+                                      <span>Diagnostic</span>
+                                    </Link>
+                                  ) : bTrouve && thématiqueMatériel && aDejaFaitCetteThematique ? (
+                                    <span className="inline-flex items-center justify-center gap-1 text-[10px] font-bold text-[#404040]/50 bg-white px-2 py-1 rounded border border-[#404040]/10 w-full text-center">
+                                      <ClipboardDocumentCheckIcon className="w-3 h-3 opacity-60" /> Déjà diag.
+                                    </span>
+                                  ) : (
+                                    <span className="text-[#404040]/30 text-xs hidden xl:block">—</span>
+                                  )}
                                 </div>
 
                                 <div className="w-36 shrink-0 text-right">
