@@ -19,3 +19,13 @@ export function lirePrenom(data: any): string {
 export function lireTelephone(data: any): string {
   return data?.Téléphone || data?.telephone || data?.Telephone || "";
 }
+
+// Affichage "00 00 00 00 00" d'un numéro français à 10 chiffres — les
+// numéros sont saisis/importés sans séparateur ; ne touche pas aux formats
+// qui ne correspondent pas à ce schéma (international, incomplet...), pour
+// ne jamais afficher un numéro tronqué ou mal coupé.
+export function formaterTelephone(tel?: string): string {
+  const chiffres = (tel || "").replace(/\D/g, "");
+  if (chiffres.length !== 10) return tel || "";
+  return chiffres.match(/.{1,2}/g)!.join(" ");
+}

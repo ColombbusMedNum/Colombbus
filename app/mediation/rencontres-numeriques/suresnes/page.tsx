@@ -8,7 +8,7 @@ import { useToast } from "@/components/ToastProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import { usePermissions } from "@/lib/PermissionsProvider";
-import { lireNom, lirePrenom, lireTelephone } from "@/lib/beneficiaireFields";
+import { lireNom, lirePrenom, lireTelephone, formaterTelephone } from "@/lib/beneficiaireFields";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import Accordion from "@/components/Accordion";
 import {
@@ -918,7 +918,7 @@ export default function PlanningSuresnes() {
                     <div className="font-bold text-sm text-[#005259] uppercase truncate">{b.nom || "SANS NOM"}</div>
                     <div className="text-xs text-[#404040]">{b.prenom || "Sans prénom"}</div>
                   </div>
-                  <div className="text-xs text-[#404040]/70 shrink-0 hidden sm:block">{b.telephone}</div>
+                  <div className="text-xs text-[#404040]/70 shrink-0 hidden sm:block">{formaterTelephone(b.telephone)}</div>
                   <div className="text-xs shrink-0 text-center min-w-[110px] hidden md:block">
                     <div className="text-[9px] font-bold uppercase text-[#404040]/50">Dernière visite</div>
                     <div className={derniereVisiteParBeneficiaire[b.id] ? "text-[#005259] font-bold" : "text-[#404040]/40 italic"}>
@@ -1762,7 +1762,7 @@ function UsagerInput({ docId, initialValue, beneficiairesListe, afficherAlerteSu
               <span className={`font-normal normal-case mr-1 ${quotaAtteint ? "text-[#EA601F]/80" : "text-[#404040]/70"}`}>{matchingBeneficiaire.prenom}</span>
               {matchingBeneficiaire.nom}
               {quotaAtteint && <ExclamationTriangleIcon className="w-3 h-3 inline-block ml-1 -mt-0.5" />}
-              <span className="font-bold normal-case text-[#EA601F]"> — {matchingBeneficiaire.telephone}</span>
+              <span className="font-bold normal-case text-[#EA601F]"> — {formaterTelephone(matchingBeneficiaire.telephone)}</span>
             </span>
           </div>
           <PermissionGuard actionId="suresnes_slot_clear">
@@ -1810,7 +1810,7 @@ function UsagerInput({ docId, initialValue, beneficiairesListe, afficherAlerteSu
                     </span>
                     {isBanned && <span className="ml-2 text-[9px] font-bold uppercase bg-[#EF736A] text-white px-1.5 py-0.5 rounded tracking-wide">🚫 Blacklisté</span>}
                   </div>
-                  <div className="text-[10px] text-[#404040]/50">{b.telephone}</div>
+                  <div className="text-[10px] text-[#404040]/50">{formaterTelephone(b.telephone)}</div>
                 </button>
               </li>
             );
