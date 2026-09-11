@@ -77,6 +77,20 @@ function estMemeLieu(lieuBeneficiaire: string | undefined, labelSite: string): b
   return sa.length > 3 && sb.length > 3 && (sa.includes(sb) || sb.includes(sa));
 }
 
+// Trigramme d'affichage (ex "Cédric DIVANGAMENE" -> "CDI") à partir du nom
+// complet "Prénom Nom" enregistré sur le créneau (reserveParNom) — première
+// lettre du prénom + deux premières du nom, sans accent, pour identifier
+// d'un coup d'œil qui a positionné le rendez-vous sans reprendre toute la
+// place qu'occuperait le nom complet.
+function calculerTrigramme(nomComplet?: string): string {
+  const parties = (nomComplet || "").trim().split(/\s+/);
+  if (parties.length === 0 || !parties[0]) return "";
+  const prenom = parties[0];
+  const nom = parties.slice(1).join(" ") || prenom;
+  const simplifier = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toUpperCase();
+  return `${simplifier(prenom).slice(0, 1)}${simplifier(nom).slice(0, 2)}`;
+}
+
 // Le champ "site" d'un créneau peut avoir été saisi à la main dans Firebase
 // (ex "RN - 91" au lieu de la clé interne "rn91") : on canonicalise ici selon
 // la même règle que liste-beneficiaires → "Mettre à jour l'agenda", pour
@@ -1306,6 +1320,17 @@ export default function PlanningSuresnes() {
                                   />
                                 </div>
 
+                                <div className="xl:col-span-2 flex justify-end">
+                                  {c.reserveParNom && (
+                                    <span
+                                      className="inline-flex items-center justify-center px-2.5 py-1.5 rounded-lg text-xs font-bold tracking-wider bg-white border border-[#404040]/10 text-[#404040]/70 shadow-sm cursor-default"
+                                      title={`Rendez-vous pris par ${c.reserveParNom}`}
+                                    >
+                                      {calculerTrigramme(c.reserveParNom)}
+                                    </span>
+                                  )}
+                                </div>
+
                               </div>
 
                               <div className="mt-2 flex items-center gap-3 flex-wrap lg:flex-nowrap">
@@ -1657,10 +1682,23 @@ function UsagerInput({ docId, initialValue, beneficiairesListe, afficherAlerteSu
 }) {
   const { showToast } = useToast();
   const confirm = useConfirm();
+  const { user } = usePermissions();
+  const { mediateurs } = useMediateurs();
   const [value, setValue] = useState(initialValue);
   const [suggestions, setSuggestions] = useState<Beneficiaire[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Identité de la personne connectée qui positionne le rendez-vous
+  // (enregistrée sur le créneau, voir handleSelect/handleClear) — recherchée
+  // par uid (cas normal, doc liste_mediateurs/{uid}) avec repli par email si
+  // l'ancien compte n'a pas cet id (voir PermissionsProvider).
+  const monNomComplet = React.useMemo(() => {
+    const moi = mediateurs.find((m: any) => m.id === user?.uid)
+      || mediateurs.find((m: any) => (m.email || "").toLowerCase() === (user?.email || "").toLowerCase());
+    if (moi) return `${moi.prenom || ""} ${moi.nom || ""}`.trim();
+    return user?.displayName || user?.email || "";
+  }, [mediateurs, user]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newNom, setNewNom] = useState("");
@@ -1720,14 +1758,20 @@ function UsagerInput({ docId, initialValue, beneficiairesListe, afficherAlerteSu
     setValue(nomComplet);
     setShowDropdown(false);
     try {
-      await updateDoc(doc(db, "planning_suresnes", docId), { usager: nomComplet });
+      await updateDoc(doc(db, "planning_suresnes", docId), {
+        usager: nomComplet,
+        reserveParUid: user?.uid || null,
+        reserveParNom: monNomComplet || null,
+      });
     } catch(e) { console.error(e); }
   };
 
   const handleClear = async () => {
     setValue("");
     try {
-      await updateDoc(doc(db, "planning_suresnes", docId), { usager: "", thematique: "", demandeSpecifique: "" });
+      await updateDoc(doc(db, "planning_suresnes", docId), {
+        usager: "", thematique: "", demandeSpecifique: "", reserveParUid: null, reserveParNom: null,
+      });
     } catch(e) { console.error(e); }
   };
 
@@ -1832,7 +1876,11 @@ function UsagerInput({ docId, initialValue, beneficiairesListe, afficherAlerteSu
                 ...(afficherChampVille ? { Ville: newVille } : {}),
               });
               const label = `${newPrenom} ${newNom.toUpperCase()}`;
-              await updateDoc(doc(db, "planning_suresnes", docId), { usager: label });
+              await updateDoc(doc(db, "planning_suresnes", docId), {
+                usager: label,
+                reserveParUid: user?.uid || null,
+                reserveParNom: monNomComplet || null,
+              });
               setValue(label); setIsModalOpen(false);
             } catch(err) { console.error(err); }
           }} className="bg-white border border-[#404040]/10 p-6 rounded-2xl w-full max-w-xs space-y-4 shadow-2xl">

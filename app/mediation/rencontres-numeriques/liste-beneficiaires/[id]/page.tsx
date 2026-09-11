@@ -67,6 +67,8 @@ interface Beneficiaire {
   Lieu_RDV?: string;
   lieuRDV?: string;
   Statut_Blacklist?: string;
+  Charte_Engagement?: string;
+  Date_Charte_Engagement?: string;
 }
 
 interface Visite {
@@ -154,7 +156,8 @@ export default function FicheBeneficiaire() {
     Civilité: "M.", Nom: "", Prénom: "", Age: "", Date_Naissance: "", Date_Adhesion: "",
     Téléphone: "", email: "", Adresse_Rue: "", Ville: "", Code_Postal: "",
     Situation_Socio_Pro: "", Situation_Handicap: "Non", RQTH: "Non",
-    QPV: "Non", Lieu_RDV: "", lieuRDV: "", Statut_Blacklist: "Non"
+    QPV: "Non", Lieu_RDV: "", lieuRDV: "", Statut_Blacklist: "Non",
+    Charte_Engagement: "Non", Date_Charte_Engagement: ""
   });
 
   // Rendez-vous en cours d'édition (ré-ouvre la modale de création avec les
@@ -168,6 +171,45 @@ export default function FicheBeneficiaire() {
   // Repliée par défaut : la grille de thématiques à elle seule dépassait la
   // hauteur de l'écran sur la modale d'ajout de RDV.
   const [thematiquesOuvertes, setThematiquesOuvertes] = useState(false);
+  // Sections repliables de la modale Profil, elle aussi longue une fois tous
+  // les champs affichés — Coordonnées et Dates restent ouvertes par défaut
+  // (consultées à chaque fois), Situation & accompagnement replié (consulté
+  // plus ponctuellement).
+  const [profilSectionsOuvertes, setProfilSectionsOuvertes] = useState<Record<string, boolean>>({
+    dates: true, coordonnees: true, situation: false
+  });
+  const toggleProfilSection = (cle: string) =>
+    setProfilSectionsOuvertes(prev => ({ ...prev, [cle]: !prev[cle] }));
+
+  // Détection automatique QPV à partir de l'adresse — même service que sur
+  // les formulaires publics NUMERIK'UP (voir app/api/verifier-qpv/route.ts) :
+  // ne fait que suggérer une valeur pour le champ QPV, qui reste éditable.
+  const [verificationQpv, setVerificationQpv] = useState<"idle" | "chargement" | "fait" | "erreur">("idle");
+  const [messageQpv, setMessageQpv] = useState<string | null>(null);
+  const verifierQpv = async () => {
+    if (!profilFormData.Adresse_Rue || !profilFormData.Code_Postal || !profilFormData.Ville) return;
+    setVerificationQpv("chargement");
+    setMessageQpv(null);
+    try {
+      const reponse = await fetch("/api/verifier-qpv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adresse: profilFormData.Adresse_Rue, codePostal: profilFormData.Code_Postal, ville: profilFormData.Ville }),
+      });
+      const data = await reponse.json();
+      if (!reponse.ok || !data.trouve) {
+        setVerificationQpv("erreur");
+        setMessageQpv("Adresse non reconnue, merci de renseigner ce champ manuellement.");
+        return;
+      }
+      setProfilFormData(prev => ({ ...prev, QPV: data.enQPV ? "Oui" : "Non" }));
+      setVerificationQpv("fait");
+      setMessageQpv(data.enQPV ? `Adresse détectée en QPV (${data.nomQPV || "quartier prioritaire"}) — vérifiez et corrigez si besoin.` : "Adresse détectée hors QPV — vérifiez et corrigez si besoin.");
+    } catch {
+      setVerificationQpv("erreur");
+      setMessageQpv("Vérification indisponible, merci de renseigner ce champ manuellement.");
+    }
+  };
 
   const aujourdhuiStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
 
@@ -316,7 +358,8 @@ export default function FicheBeneficiaire() {
           Situation_Handicap: data.Situation_Handicap || "Non", RQTH: data.RQTH || "Non",
           QPV: data.QPV || "Non", 
           Lieu_RDV: data.Lieu_RDV || "", lieuRDV: data.lieuRDV || "",
-          Statut_Blacklist: data.Statut_Blacklist || "Non"
+          Statut_Blacklist: data.Statut_Blacklist || "Non",
+          Charte_Engagement: data.Charte_Engagement || "Non", Date_Charte_Engagement: data.Date_Charte_Engagement || ""
         });
         setUserExists(true);
         setLoading(false);
@@ -679,6 +722,18 @@ export default function FicheBeneficiaire() {
                   {(user?.Lieu_RDV === "92 - Collecte Tech" || user?.lieuRDV === "92 - Collecte Tech") && (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-[#F9945D]/15 border border-[#F9945D]/30 text-[#EA601F]">
                       🔧 Collecte Tech
+                    </span>
+                  )}
+                  {user?.Charte_Engagement === "Oui" ? (
+                    <span
+                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-[#A9E0C9]/30 border border-[#A9E0C9] text-[#005259]"
+                      title={user?.Date_Charte_Engagement ? `Signée le ${new Date(user.Date_Charte_Engagement).toLocaleDateString("fr-FR")}` : undefined}
+                    >
+                      📝 Charte signée
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-[#F3F3F2] border border-[#404040]/10 text-[#404040]/60">
+                      📝 Charte non signée
                     </span>
                   )}
                 </div>
@@ -1350,6 +1405,39 @@ export default function FicheBeneficiaire() {
                   </PermissionGuard>
                 </div>
 
+                {/* CHARTE D'ENGAGEMENT */}
+                <div className="bg-[#A9E0C9]/15 border border-[#A9E0C9]/50 p-4 rounded-2xl flex items-center justify-between gap-4 flex-wrap">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={profilFormData.Charte_Engagement === "Oui"}
+                      onChange={e => {
+                        const coche = e.target.checked;
+                        setProfilFormData({
+                          ...profilFormData,
+                          Charte_Engagement: coche ? "Oui" : "Non",
+                          Date_Charte_Engagement: coche
+                            ? (profilFormData.Date_Charte_Engagement || aujourdhuiStr)
+                            : ""
+                        });
+                      }}
+                      className="w-4 h-4 rounded accent-[#005259] cursor-pointer shrink-0"
+                    />
+                    <div>
+                      <span className="block text-xs font-bold text-[#005259] uppercase tracking-wide">Charte d'engagement signée</span>
+                      <span className="text-[11px] text-[#404040]/70 block mt-0.5">Enregistre la date de signature, affichée sur le bandeau du profil.</span>
+                    </div>
+                  </label>
+                  {profilFormData.Charte_Engagement === "Oui" && (
+                    <input
+                      type="date"
+                      value={profilFormData.Date_Charte_Engagement}
+                      onChange={e => setProfilFormData({...profilFormData, Date_Charte_Engagement: e.target.value})}
+                      className="bg-white border border-[#A9E0C9] rounded-xl p-2 text-xs font-bold text-[#005259] outline-none focus:ring-1 focus:ring-[#005259] transition-all"
+                    />
+                  )}
+                </div>
+
                 <div className="bg-[#F3F3F2] p-3 rounded-2xl border border-[#404040]/10">
                   <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Rattachement Événementiel principal</label>
                   <select
@@ -1386,53 +1474,65 @@ export default function FicheBeneficiaire() {
                   <input type="text" value={profilFormData.Nom} onChange={e => setProfilFormData({...profilFormData, Nom: e.target.value})} className={inputClass} placeholder="Nom..." required />
                 </div>
 
-                <div className={estResidenceAutonomie ? "grid grid-cols-1 gap-3" : "grid grid-cols-2 gap-3"}>
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Date de Naissance</label>
-                    <input type="date" value={profilFormData.Date_Naissance} onChange={e => setProfilFormData({...profilFormData, Date_Naissance: e.target.value})} className={inputClass} />
-                  </div>
-                  {!estResidenceAutonomie && (
+                <Accordion title="Dates" open={!!profilSectionsOuvertes.dates} onToggle={() => toggleProfilSection("dates")}>
+                  <div className={estResidenceAutonomie ? "grid grid-cols-1 gap-3" : "grid grid-cols-2 gap-3"}>
                     <div>
-                      <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Date d'Adhésion (Optionnel)</label>
-                      <input type="date" value={profilFormData.Date_Adhesion} onChange={e => setProfilFormData({...profilFormData, Date_Adhesion: e.target.value})} className={inputClass} />
+                      <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Date de Naissance</label>
+                      <input type="date" value={profilFormData.Date_Naissance} onChange={e => setProfilFormData({...profilFormData, Date_Naissance: e.target.value})} className={inputClass} />
                     </div>
-                  )}
-                </div>
+                    {!estResidenceAutonomie && (
+                      <div>
+                        <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Date d'Adhésion (Optionnel)</label>
+                        <input type="date" value={profilFormData.Date_Adhesion} onChange={e => setProfilFormData({...profilFormData, Date_Adhesion: e.target.value})} className={inputClass} />
+                      </div>
+                    )}
+                  </div>
+                </Accordion>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Téléphone</label>
-                    <input type="tel" value={profilFormData.Téléphone} onChange={e => setProfilFormData({...profilFormData, Téléphone: e.target.value})} className={inputClass} placeholder="06..." />
+                <Accordion title="Coordonnées" open={!!profilSectionsOuvertes.coordonnees} onToggle={() => toggleProfilSection("coordonnees")}>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Téléphone</label>
+                      <input type="tel" value={profilFormData.Téléphone} onChange={e => setProfilFormData({...profilFormData, Téléphone: e.target.value})} className={inputClass} placeholder="06..." />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Adresse Email</label>
+                      <input type="email" value={profilFormData.email} onChange={e => setProfilFormData({...profilFormData, email: e.target.value})} className={inputClass} placeholder="exemple@mail.com" />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Adresse Email</label>
-                    <input type="email" value={profilFormData.email} onChange={e => setProfilFormData({...profilFormData, email: e.target.value})} className={inputClass} placeholder="exemple@mail.com" />
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="col-span-2">
-                    <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Rue / Adresse</label>
-                    <input type="text" value={profilFormData.Adresse_Rue} onChange={e => setProfilFormData({...profilFormData, Adresse_Rue: e.target.value})} className={inputClass} placeholder="Adresse..." />
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-2">
+                      <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Rue / Adresse</label>
+                      <input type="text" value={profilFormData.Adresse_Rue} onChange={e => setProfilFormData({...profilFormData, Adresse_Rue: e.target.value})} className={inputClass} placeholder="Adresse..." />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Code Postal</label>
+                      <input type="text" value={profilFormData.Code_Postal} onChange={e => setProfilFormData({...profilFormData, Code_Postal: e.target.value})} className={inputClass} placeholder="92150" />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Code Postal</label>
-                    <input type="text" value={profilFormData.Code_Postal} onChange={e => setProfilFormData({...profilFormData, Code_Postal: e.target.value})} className={inputClass} placeholder="92150" />
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Ville</label>
-                    <input type="text" value={profilFormData.Ville} onChange={e => setProfilFormData({...profilFormData, Ville: e.target.value})} className={inputClass} placeholder="Suresnes..." />
+                    <input type="text" value={profilFormData.Ville} onChange={e => setProfilFormData({...profilFormData, Ville: e.target.value})} onBlur={verifierQpv} className={inputClass} placeholder="Suresnes..." />
                   </div>
+                </Accordion>
+
+                <Accordion title="Situation & accompagnement" open={!!profilSectionsOuvertes.situation} onToggle={() => toggleProfilSection("situation")}>
                   <div>
                     <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Quartier QPV</label>
-                    <select value={profilFormData.QPV} onChange={e => setProfilFormData({...profilFormData, QPV: e.target.value})} className={inputClass}>
-                      <option value="Non">Non</option>
-                      <option value="Oui">Oui</option>
-                    </select>
+                    <div className="flex items-center gap-2">
+                      <select value={profilFormData.QPV} onChange={e => setProfilFormData({...profilFormData, QPV: e.target.value})} className={inputClass}>
+                        <option value="Non">Non</option>
+                        <option value="Oui">Oui</option>
+                      </select>
+                      <button type="button" onClick={verifierQpv} disabled={verificationQpv === "chargement"} className="shrink-0 px-3 py-1.5 bg-white hover:bg-[#F3F3F2] border border-[#404040]/15 text-[#005259] rounded-xl text-[10px] font-bold uppercase tracking-wide transition-colors disabled:opacity-50 cursor-pointer">
+                        {verificationQpv === "chargement" ? "Vérification..." : "Vérifier automatiquement"}
+                      </button>
+                    </div>
+                    {messageQpv && <p className="mt-1 text-xs text-[#404040]/70">{messageQpv}</p>}
                   </div>
+
                   <div>
                     <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Situation Socio-Pro</label>
                     <select value={profilFormData.Situation_Socio_Pro} onChange={e => setProfilFormData({...profilFormData, Situation_Socio_Pro: e.target.value})} className={inputClass}>
@@ -1444,24 +1544,24 @@ export default function FicheBeneficiaire() {
                       <option value="Sans activite">Sans activité</option>
                     </select>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-3 bg-[#F3F3F2] p-3 rounded-2xl border border-[#404040]/10">
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Personne en Situation de Handicap</label>
-                    <select value={profilFormData.Situation_Handicap} onChange={e => setProfilFormData({...profilFormData, Situation_Handicap: e.target.value})} className="bg-white border border-[#404040]/15 text-xs text-[#404040] rounded p-1.5 w-full outline-none font-medium">
-                      <option value="Non">Non</option>
-                      <option value="Oui">Oui</option>
-                    </select>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Personne en Situation de Handicap</label>
+                      <select value={profilFormData.Situation_Handicap} onChange={e => setProfilFormData({...profilFormData, Situation_Handicap: e.target.value})} className="bg-white border border-[#404040]/15 text-xs text-[#404040] rounded p-1.5 w-full outline-none font-medium">
+                        <option value="Non">Non</option>
+                        <option value="Oui">Oui</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Reconnaissance RQTH</label>
+                      <select value={profilFormData.RQTH} onChange={e => setProfilFormData({...profilFormData, RQTH: e.target.value})} className="bg-white border border-[#404040]/15 text-xs text-[#404040] rounded p-1.5 w-full outline-none font-medium">
+                        <option value="Non">Non</option>
+                        <option value="Oui">Oui</option>
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Reconnaissance RQTH</label>
-                    <select value={profilFormData.RQTH} onChange={e => setProfilFormData({...profilFormData, RQTH: e.target.value})} className="bg-white border border-[#404040]/15 text-xs text-[#404040] rounded p-1.5 w-full outline-none font-medium">
-                      <option value="Non">Non</option>
-                      <option value="Oui">Oui</option>
-                    </select>
-                  </div>
-                </div>
+                </Accordion>
 
                 <div className="pt-4 space-y-3">
                   {modalStatus && <div className="p-3 rounded-xl text-xs font-bold text-center border bg-[#F3F3F2] text-[#005259] border-[#404040]/10">{modalStatus}</div>}
