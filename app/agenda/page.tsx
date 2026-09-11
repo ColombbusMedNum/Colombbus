@@ -1096,7 +1096,7 @@ export default function PlanningExpertMix() {
       showToast("Aucune action \"OFF\" trouvée.");
       return;
     }
-    if (!confirm(`Supprimer les ${actionsOFF.length} action(s) "OFF" trouvée(s) dans toute la base ?`)) return;
+    if (!(await confirm(`Supprimer les ${actionsOFF.length} action(s) "OFF" trouvée(s) dans toute la base ?`))) return;
 
     let supprimees = 0;
     let bloquees = 0;
@@ -1186,7 +1186,7 @@ export default function PlanningExpertMix() {
       showToast("Aucune action à supprimer cette semaine pour cette personne.");
       return;
     }
-    if (!confirm(`Supprimer les ${actionsDeLaLigne.length} action(s) de ${nomComplet} sur cette semaine ?`)) return;
+    if (!(await confirm(`Supprimer les ${actionsDeLaLigne.length} action(s) de ${nomComplet} sur cette semaine ?`))) return;
 
     let supprimees = 0;
     let bloquees = 0;
