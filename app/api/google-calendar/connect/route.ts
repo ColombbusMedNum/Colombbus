@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { resoudreUidDepuisRequete } from "@/lib/verifierAuthRequete";
-import { creerClientOAuth, SCOPES_GOOGLE_CALENDAR } from "@/lib/googleCalendarClient";
+import { creerClientOAuth, obtenirOrigineExterne, SCOPES_GOOGLE_CALENDAR } from "@/lib/googleCalendarClient";
 
 // Démarre la connexion Google Agenda depuis /mon-compte : le client envoie un
 // ID token frais (Authorization: Bearer), on génère un état éphémère qui
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       createdAt: Date.now(),
     });
 
-    const redirectUri = `${request.nextUrl.origin}/api/google-calendar/callback`;
+    const redirectUri = `${obtenirOrigineExterne(request)}/api/google-calendar/callback`;
     const client = creerClientOAuth(redirectUri);
     const url = client.generateAuthUrl({
       access_type: "offline",

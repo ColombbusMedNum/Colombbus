@@ -5,7 +5,19 @@
 // séparé : elle redéfinit sa propre version minimale plutôt que d'importer
 // ce fichier, qu'un build Cloud Functions ne peut pas résoudre hors du repo
 // Next.js.
+import type { NextRequest } from "next/server";
 import { google } from "googleapis";
+
+// Derrière le proxy/CDN de Firebase App Hosting (Cloud Run), request.nextUrl
+// reflète l'adresse interne du conteneur (ex "0.0.0.0:8080") plutôt que le
+// vrai domaine public visité — même problème déjà géré dans middleware.ts
+// pour la redirection *.hosted.app, avec le même correctif : x-forwarded-host,
+// posé par le proxy, donne le vrai hôte public. Sans repli sur request.nextUrl
+// (pas d'en-tête en local, next dev n'étant pas derrière un tel proxy).
+export function obtenirOrigineExterne(request: NextRequest): string {
+  const hote = request.headers.get("x-forwarded-host");
+  return hote ? `https://${hote}` : request.nextUrl.origin;
+}
 
 // Nom du calendrier secondaire créé dans le compte Google de chaque
 // médiateur connecté — jamais son calendrier principal (voir le plan validé :

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { resoudreUidDepuisRequete } from "@/lib/verifierAuthRequete";
-import { creerClientOAuth } from "@/lib/googleCalendarClient";
+import { creerClientOAuth, obtenirOrigineExterne } from "@/lib/googleCalendarClient";
 
 // Supprime le calendrier secondaire "COSMOS — Planning" (calendars.delete
 // efface le calendrier ET tous ses événements en un seul appel, pas besoin
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     const donnees = tokenSnap.data() as { refreshToken?: string; calendarId?: string } | undefined;
 
     if (donnees?.refreshToken && donnees?.calendarId) {
-      const redirectUri = `${request.nextUrl.origin}/api/google-calendar/callback`;
+      const redirectUri = `${obtenirOrigineExterne(request)}/api/google-calendar/callback`;
       const client = creerClientOAuth(redirectUri);
       client.setCredentials({ refresh_token: donnees.refreshToken });
       const calendar = google.calendar({ version: "v3", auth: client });

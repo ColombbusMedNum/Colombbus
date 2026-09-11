@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { adminDb } from "@/lib/firebaseAdmin";
-import { creerClientOAuth, NOM_CALENDRIER_COSMOS } from "@/lib/googleCalendarClient";
+import { creerClientOAuth, obtenirOrigineExterne, NOM_CALENDRIER_COSMOS } from "@/lib/googleCalendarClient";
 
 // Retour de Google après consentement : simple redirection navigateur (pas
 // d'en-tête d'auth disponible ici), l'identité de l'utilisateur est donc
@@ -10,7 +10,8 @@ import { creerClientOAuth, NOM_CALENDRIER_COSMOS } from "@/lib/googleCalendarCli
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const stateId = request.nextUrl.searchParams.get("state");
-  const rediriger = (params: string) => NextResponse.redirect(new URL(`/mon-compte${params}`, request.nextUrl.origin));
+  const origine = obtenirOrigineExterne(request);
+  const rediriger = (params: string) => NextResponse.redirect(new URL(`/mon-compte${params}`, origine));
 
   if (!code || !stateId) {
     return rediriger("?erreurGoogle=1");
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
     const { uid } = stateSnap.data() as { uid: string };
     await stateRef.delete();
 
-    const redirectUri = `${request.nextUrl.origin}/api/google-calendar/callback`;
+    const redirectUri = `${origine}/api/google-calendar/callback`;
     const client = creerClientOAuth(redirectUri);
     const { tokens } = await client.getToken(code);
 
