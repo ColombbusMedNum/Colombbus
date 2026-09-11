@@ -62,6 +62,22 @@ service cloud.firestore {
       allow write: if isCoordinateurOuPlus();
     }
 
+    // Jeton de connexion Google Agenda de chaque médiateur (voir
+    // app/mon-compte, app/api/google-calendar/*, functions/src/index.ts) —
+    // aucun accès client, ni même en lecture pour son propre uid : seul le
+    // SDK Admin (routes API + Cloud Function), qui contourne ces règles,
+    // doit jamais pouvoir le lire ou l'écrire.
+    match /oauth_google_tokens/{uid} {
+      allow read, write: if false;
+    }
+
+    // État éphémère (uid porté pendant la poignée de main OAuth, voir
+    // app/api/google-calendar/connect) — usage unique, supprimé par le
+    // callback juste après lecture ; même verrouillage total que ci-dessus.
+    match /oauth_state/{stateId} {
+      allow read, write: if false;
+    }
+
     // Marqueur "première connexion effectuée", posé par l'utilisateur
     // lui-même depuis app/login/page.tsx pour permettre à /mediation/equipe
     // de retirer le bouton d'envoi de l'e-mail d'activation une fois inutile.

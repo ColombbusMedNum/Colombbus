@@ -8,7 +8,7 @@ runConfig:
   # memoryMiB: 512
 
 # Environment variables and secrets.
-# env:
+env:
   # Configure environment variables.
   # See https://firebase.google.com/docs/app-hosting/configure#user-defined-environment
   # - variable: MESSAGE
@@ -22,3 +22,19 @@ runConfig:
   # See https://firebase.google.com/docs/app-hosting/configure#secret-parameters
   # - variable: MY_SECRET
   #   secret: mySecretRef
+
+  # Identifiant OAuth 2.0 Google (poignée de main app/api/google-calendar/*,
+  # voir app/mon-compte) — l'Id Client n'est pas secret en soi (visible côté
+  # navigateur sur l'écran de consentement Google), mais est tout de même
+  # stocké en secret ici pour rester à côté de GOOGLE_OAUTH_CLIENT_SECRET.
+  # `firebase apphosting:secrets:set GOOGLE_OAUTH_CLIENT_ID` puis
+  # `firebase apphosting:secrets:set GOOGLE_OAUTH_CLIENT_SECRET` avec les
+  # valeurs du client OAuth "Application Web" créé dans Google Cloud Console.
+  - variable: GOOGLE_OAUTH_CLIENT_ID
+    secret: GOOGLE_OAUTH_CLIENT_ID
+    availability:
+      - RUNTIME
+  - variable: GOOGLE_OAUTH_CLIENT_SECRET
+    secret: GOOGLE_OAUTH_CLIENT_SECRET
+    availability:
+      - RUNTIME

@@ -324,6 +324,9 @@ const PAGE_ONLY_ROUTES: Omit<PageEntry, "actions">[] = [
   // personnel) — catalogué uniquement pour apparaître dans /mediation/analyse.
   { pageId: "page_access_planning", pageName: "Mon Planning (Connexion directe)", route: "/planning", filePath: "app/planning/page.tsx" },
   { pageId: "page_access_parametres", pageName: "Paramètres Généraux", route: "/mediation/parametres", filePath: "app/mediation/parametres/page.tsx" },
+  // Comme page_access_planning : ouverte à tout le staff connecté quel que
+  // soit son rôle (connexion self-service à son propre Google Agenda).
+  { pageId: "page_access_mon_compte", pageName: "Mon Compte", route: "/mon-compte", filePath: "app/mon-compte/page.tsx" },
 ];
 
 export const PAGES_CATALOG: PageEntry[] = [
@@ -365,7 +368,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   }, {} as Record<string, boolean>),
 
   mediateur: {
-    page_access_home: true, page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_liste_beneficiaires: true,
+    page_access_home: true, page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_mon_compte: true, page_access_liste_beneficiaires: true,
     page_access_fiche_beneficiaire: true, page_access_diagnosticform: true, page_access_actions_collectives: true, page_access_actions_collectives_accueil: true,
     page_access_agenda: true, page_access_agenda_mobile: true, page_access_suivi_collecte: true, page_access_suresnes: true,
     page_access_adresses: true, page_access_equipe: true, page_access_mediateurs: true,
@@ -400,7 +403,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   },
 
   coordinateur: {
-    page_access_home: true, page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_liste_beneficiaires: true,
+    page_access_home: true, page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_mon_compte: true, page_access_liste_beneficiaires: true,
     page_access_fiche_beneficiaire: true, page_access_diagnosticform: true, page_access_actions_collectives: true, page_access_actions_collectives_accueil: true,
     page_access_agenda: true, page_access_agenda_mobile: true, page_access_suivi_collecte: true, page_access_suresnes: true, page_access_equipe: true,
     page_access_adresses: true, page_access_mediateurs: true, page_access_localisations: true,
@@ -448,7 +451,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   // médiateurs et à ses notes/commentaires — sans pouvoir créer/supprimer de
   // créneau ni modifier une note.
   aci: {
-    page_access_home: true, page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_liste_beneficiaires: true, page_access_suresnes: true,
+    page_access_home: true, page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_mon_compte: true, page_access_liste_beneficiaires: true, page_access_suresnes: true,
     page_access_agenda: true, page_access_agenda_mobile: true, page_access_adresses: true, page_access_fiche_beneficiaire: true,
     page_access_diagnosticform: true, page_access_actions_collectives: true, page_access_actions_collectives_accueil: true, page_access_mediateurs: true,
     page_access_localisations: true, page_access_notifications: true, page_access_guide: true,
@@ -484,13 +487,13 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   // aucun accès en dehors de l'agenda — pas même l'accueil, puisque
   // app/login/page.tsx les redirige directement vers /agenda après connexion.
   formateur: {
-    page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_agenda: true,
+    page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_mon_compte: true, page_access_agenda: true,
     agenda_week_nav: true, agenda_comment_view: true,
   },
 
   // Même périmètre que "formateur" ci-dessus, pour le statut "CIP".
   cip: {
-    page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_agenda: true,
+    page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_mon_compte: true, page_access_agenda: true,
     agenda_week_nav: true, agenda_comment_view: true,
   },
 };

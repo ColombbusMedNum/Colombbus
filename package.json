@@ -12,6 +12,8 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "firebase": "^12.12.1",
+    "firebase-admin": "^14.2.0",
+    "googleapis": "^144.0.0",
     "next": "^16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4"
@@ -23,7 +25,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
-    "firebase-admin": "^14.2.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
