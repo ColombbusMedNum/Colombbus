@@ -484,6 +484,10 @@ export default function HomePage() {
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#005259]/5 blur-[140px] rounded-full pointer-events-none"></div>
 
       <div className="absolute top-4 right-4 md:top-8 md:right-8 z-20 flex items-center gap-2">
+        {/* Bouton masqué temporairement (même raison que le bouton Google
+            Agenda sur /mon-compte, déploiement progressif) — ne pas
+            supprimer, juste décommenter quand la page est prête à être
+            ouverte à tout le staff.
         <Link
           href="/mon-compte"
           className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/15 rounded-xl text-[#005259] text-xs font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95 group cursor-pointer"
@@ -491,6 +495,7 @@ export default function HomePage() {
           <UserCircleIcon className="w-4 h-4 text-[#005259] group-hover:text-white transition-colors" />
           <span>Mon compte</span>
         </Link>
+        */}
         <PermissionGuard actionId="home_logout">
           <button
             onClick={handleLogout}

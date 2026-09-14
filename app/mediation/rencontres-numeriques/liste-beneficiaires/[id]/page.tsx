@@ -29,14 +29,14 @@ import {
   PencilSquareIcon,
   XMarkIcon,
   ClockIcon,
-  UserGroupIcon,
   CalendarDaysIcon,
   AcademicCapIcon,
   ClipboardDocumentCheckIcon,
   ExclamationTriangleIcon,
   TrashIcon,
   NoSymbolIcon,
-  KeyIcon
+  KeyIcon,
+  CpuChipIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
@@ -705,12 +705,22 @@ export default function FicheBeneficiaire() {
                 <span>Agenda RN</span>
               </Link>
             </PermissionGuard>
-            <PermissionGuard actionId="fiche_nav_equipe">
-              <Link href="/mediation/equipe" className="inline-flex items-center gap-2 bg-white border border-[#404040]/10 hover:border-[#005259] hover:bg-[#005259] hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-[#005259] transition-all shadow-sm">
-                <UserGroupIcon className="w-4 h-4 text-[#EA601F]" />
-                <span>Gérer l'équipe RH</span>
-              </Link>
-            </PermissionGuard>
+            {(user?.Lieu_RDV === "92 - Collecte Tech" || user?.lieuRDV === "92 - Collecte Tech") && (
+              <>
+                <PermissionGuard actionId="fiche_nav_suivi_collecte">
+                  <Link href="/mediation/rencontres-numeriques/suivi-collecte" className="inline-flex items-center gap-2 bg-white border border-[#404040]/10 hover:border-[#005259] hover:bg-[#005259] hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-[#005259] transition-all shadow-sm">
+                    <CpuChipIcon className="w-4 h-4 text-[#EA601F]" />
+                    <span>Suivi Collecte Tech</span>
+                  </Link>
+                </PermissionGuard>
+                <PermissionGuard actionId="fiche_nav_bilan_tech">
+                  <Link href={`/mediation/rencontres-numeriques/bilan_tech?id=${userId}`} className="inline-flex items-center gap-2 bg-white border border-[#404040]/10 hover:border-[#005259] hover:bg-[#005259] hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-[#005259] transition-all shadow-sm">
+                    <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#EA601F]" />
+                    <span>Bilan Tech</span>
+                  </Link>
+                </PermissionGuard>
+              </>
+            )}
           </div>
         </div>
 

@@ -25,7 +25,77 @@ interface BeneficiaireCollecte {
   facture: boolean;
   dechargeMateriel: boolean;
   scanArchivage: boolean;
+  lienDossierDrive: string;
+  lienAttestation: string;
+  lienRemiseMateriel: string;
+  // Plusieurs scans possibles pour un même bénéficiaire — un lien par ligne,
+  // même format libre que "commentaires" plutôt qu'un tableau, pour rester
+  // éditable dans un simple textarea sans UI d'ajout/suppression dédiée.
+  lienScans: string;
   commentaires: string;
+}
+
+// Un lien de "Liens Scans" peut porter un titre libre, saisi comme
+// "Titre | https://..." (séparateur "|" plutôt que ":" pour ne pas entrer en
+// conflit avec le "://" de l'URL elle-même) — sans titre, on retombe sur
+// "Scan N" à l'affichage.
+function parserLignesLiens(valeur: string): { titre: string | null; url: string }[] {
+  return valeur
+    .split("\n")
+    .map(l => l.trim())
+    .filter(Boolean)
+    .map(ligne => {
+      const index = ligne.indexOf("|");
+      if (index === -1) return { titre: null, url: ligne };
+      return { titre: ligne.slice(0, index).trim() || null, url: ligne.slice(index + 1).trim() };
+    });
+}
+
+// Cellule "lien unique" réutilisée pour Drive/Attestation/Remise matériel —
+// même principe clic-pour-éditer que les commentaires, mais un texte de
+// libellé fixe à l'affichage (pas l'URL brute, souvent longue) plutôt qu'un
+// textarea multi-lignes (réservé aux scans, qui peuvent être plusieurs).
+function LienUnique({
+  valeur, enEdition, onStartEdit, valeurEdition, onChangeEdition, onSave, label, placeholder,
+}: {
+  valeur: string;
+  enEdition: boolean;
+  onStartEdit: () => void;
+  valeurEdition: string;
+  onChangeEdition: (v: string) => void;
+  onSave: () => void;
+  label: string;
+  placeholder: string;
+}) {
+  return (
+    <div onClick={() => { if (!enEdition) onStartEdit(); }}>
+      {enEdition ? (
+        <input
+          autoFocus
+          type="url"
+          value={valeurEdition}
+          onChange={(e) => onChangeEdition(e.target.value)}
+          onBlur={onSave}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onSave(); } }}
+          placeholder={placeholder}
+          className="w-full bg-[#F3F3F2] border border-[#005259] text-[#404040] rounded-lg p-1.5 text-[11px] outline-none focus:ring-1 focus:ring-[#005259]"
+        />
+      ) : valeur ? (
+        <a
+          href={valeur}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          title={valeur}
+          className="text-[#005259] underline truncate block hover:text-[#EA601F] transition-colors cursor-pointer p-1"
+        >
+          {label}
+        </a>
+      ) : (
+        <span className="text-[#404040]/40 italic cursor-pointer hover:text-[#005259] p-1 block">Ajouter un lien...</span>
+      )}
+    </div>
+  );
 }
 
 export default function SuiviCollecteTech() {
@@ -33,6 +103,14 @@ export default function SuiviCollecteTech() {
   const [loading, setLoading] = useState(true);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [commentValue, setCommentValue] = useState("");
+  const [editingDriveId, setEditingDriveId] = useState<string | null>(null);
+  const [driveValue, setDriveValue] = useState("");
+  const [editingAttestationId, setEditingAttestationId] = useState<string | null>(null);
+  const [attestationValue, setAttestationValue] = useState("");
+  const [editingRemiseMaterielId, setEditingRemiseMaterielId] = useState<string | null>(null);
+  const [remiseMaterielValue, setRemiseMaterielValue] = useState("");
+  const [editingScansId, setEditingScansId] = useState<string | null>(null);
+  const [scansValue, setScansValue] = useState("");
 
   // Chargement unique (pas de temps réel) : le scan des sous-collections de
   // chaque usager est coûteux (3×N lectures) — on l'exécute au chargement de
@@ -96,6 +174,10 @@ export default function SuiviCollecteTech() {
               facture: !!userData.facture,
               dechargeMateriel: !!userData.dechargeMateriel,
               scanArchivage: !!userData.scanArchivage,
+              lienDossierDrive: userData.lienDossierDrive || "",
+              lienAttestation: userData.lienAttestation || "",
+              lienRemiseMateriel: userData.lienRemiseMateriel || "",
+              lienScans: userData.lienScans || "",
               commentaires: userData.commentairesCollecte || ""
             });
           }
@@ -127,6 +209,13 @@ export default function SuiviCollecteTech() {
 
   const handleToggleStep = async (id: string, field: keyof BeneficiaireCollecte, currentVal: boolean) => {
     const newVal = !currentVal;
+
+    // Mise à jour optimiste immédiate : cette page ne s'actualise pas en
+    // temps réel (chargement unique, voir fetchBeneficiairesCollecte), donc
+    // sans ça la case ne se cochait visuellement qu'au prochain "Rafraîchir"
+    // manuel — d'où l'impression de lenteur, l'écriture Firestore elle-même
+    // étant pourtant rapide.
+    setBeneficiaires(prev => prev.map(b => (b.id === id ? { ...b, [field]: newVal } : b)));
 
     try {
       // 1. Mise à jour de l'état dans Firestore
@@ -163,6 +252,9 @@ export default function SuiviCollecteTech() {
       }
     } catch (err) {
       console.error("Erreur lors de la mise à jour :", err);
+      // L'écriture Firestore a échoué : annule la mise à jour optimiste
+      // pour ne pas laisser la case cochée à tort à l'écran.
+      setBeneficiaires(prev => prev.map(b => (b.id === id ? { ...b, [field]: currentVal } : b)));
     }
   };
 
@@ -175,11 +267,51 @@ export default function SuiviCollecteTech() {
     }
   };
 
+  const handleSaveDrive = async (id: string) => {
+    try {
+      await updateDoc(doc(db, "utilisateurs", id), { lienDossierDrive: driveValue.trim() });
+      setBeneficiaires(prev => prev.map(b => b.id === id ? { ...b, lienDossierDrive: driveValue.trim() } : b));
+      setEditingDriveId(null);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSaveAttestation = async (id: string) => {
+    try {
+      await updateDoc(doc(db, "utilisateurs", id), { lienAttestation: attestationValue.trim() });
+      setBeneficiaires(prev => prev.map(b => b.id === id ? { ...b, lienAttestation: attestationValue.trim() } : b));
+      setEditingAttestationId(null);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSaveRemiseMateriel = async (id: string) => {
+    try {
+      await updateDoc(doc(db, "utilisateurs", id), { lienRemiseMateriel: remiseMaterielValue.trim() });
+      setBeneficiaires(prev => prev.map(b => b.id === id ? { ...b, lienRemiseMateriel: remiseMaterielValue.trim() } : b));
+      setEditingRemiseMaterielId(null);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSaveScans = async (id: string) => {
+    try {
+      await updateDoc(doc(db, "utilisateurs", id), { lienScans: scansValue });
+      setBeneficiaires(prev => prev.map(b => b.id === id ? { ...b, lienScans: scansValue } : b));
+      setEditingScansId(null);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const exportToCSV = () => {
     if (beneficiaires.length === 0) return;
-    const headers = ["Année;Nom;Prénom;Numéro de téléphone personnel;Mail contact;Création Dossier DRIVE;Test entrée Google Form;Test sortie PIX (ABC PIX);Remise de l'attestation compétences;Devis;Facture;Décharge matériel;Scan et archivage;Commentaires\n"];
-    const rows = beneficiaires.map(b => 
-      `${b.annee};${b.nom};${b.prenom};${b.telephone};${b.email};${b.creationDossier?'X':''};${b.testEntreeForm?'X':''};${b.testSortiePix?'X':''};${b.remiseAttestation?'X':''};${b.devis?'X':''};${b.facture?'X':''};${b.dechargeMateriel?'X':''};${b.scanArchivage?'X':''};${b.commentaires.replace(/\n/g, " ")}`
+    const headers = ["Année;Nom;Prénom;Numéro de téléphone personnel;Mail contact;Création Dossier DRIVE;Lien Dossier Drive;Test entrée Google Form;Test sortie PIX (ABC PIX);Remise de l'attestation compétences;Lien Attestation;Devis;Facture;Décharge matériel;Lien Remise Matériel;Scan et archivage;Liens Scans;Commentaires\n"];
+    const rows = beneficiaires.map(b =>
+      `${b.annee};${b.nom};${b.prenom};${b.telephone};${b.email};${b.creationDossier?'X':''};${b.lienDossierDrive};${b.testEntreeForm?'X':''};${b.testSortiePix?'X':''};${b.remiseAttestation?'X':''};${b.lienAttestation};${b.devis?'X':''};${b.facture?'X':''};${b.dechargeMateriel?'X':''};${b.lienRemiseMateriel};${b.scanArchivage?'X':''};${b.lienScans.replace(/\n/g, " | ")};${b.commentaires.replace(/\n/g, " ")}`
     );
     const blob = new Blob([headers + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -250,7 +382,7 @@ export default function SuiviCollecteTech() {
         ) : (
           <div className="w-full bg-white border border-[#404040]/10 rounded-2xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse table-fixed min-w-[1500px]">
+              <table className="w-full text-left border-collapse table-fixed min-w-[2100px]">
                 <thead>
                   <tr className="bg-[#F3F3F2] text-[10px] font-bold uppercase text-[#005259] border-b border-[#404040]/10 tracking-wider">
                     <th className="p-3 w-24 pl-5">Année</th>
@@ -260,14 +392,18 @@ export default function SuiviCollecteTech() {
                     <th className="p-3 w-52">Mail contact</th>
                     
                     <th className="p-2 w-28 text-center text-[9px] border-l border-[#404040]/10">Création Dossier DRIVE</th>
+                    <th className="p-3 w-56 text-[9px]">Lien Dossier Drive</th>
                     <th className="p-2 w-24 text-center text-[9px]">Test entrée Google Form</th>
                     <th className="p-2 w-24 text-center text-[9px]">Test sortie PIX</th>
                     <th className="p-2 w-24 text-center text-[9px]">Remise Attestation</th>
+                    <th className="p-3 w-48 text-[9px]">Lien Attestation</th>
                     <th className="p-2 w-20 text-center text-[9px] bg-[#EA601F]/10 text-[#EA601F] border-l border-[#404040]/10">Devis</th>
                     <th className="p-2 w-20 text-center text-[9px] border-l border-[#404040]/10">Facture</th>
                     <th className="p-2 w-24 text-center text-[9px]">Décharge matériel</th>
+                    <th className="p-3 w-48 text-[9px]">Lien Remise Matériel</th>
                     <th className="p-2 w-24 text-center text-[9px]">Scan & Archivage</th>
-                    
+                    <th className="p-3 w-56 text-[9px]">Liens Scans (titre | lien, un par ligne)</th>
+
                     <th className="p-3 w-80 border-l border-[#404040]/10">Commentaires</th>
                   </tr>
                 </thead>
@@ -298,35 +434,155 @@ export default function SuiviCollecteTech() {
                       <td className="p-3 text-[#404040]/80 text-xs">{b.telephone}</td>
                       <td className="p-3 text-[#404040]/80 truncate text-xs">{b.email}</td>
                       
-                      {[
-                        { field: "creationDossier", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
-                        { field: "testEntreeForm", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
-                        { field: "testSortiePix", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
-                        { field: "remiseAttestation", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
-                        { field: "devis", color: "accent-[#EA601F]", bg: "bg-[#EA601F]/5" },
-                        { field: "facture", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
-                        { field: "dechargeMateriel", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
-                        { field: "scanArchivage", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" }
-                      ].map((cell) => {
-                        const isChecked = b[cell.field as keyof BeneficiaireCollecte] as boolean;
+                      {(() => {
+                        const renderCase = (cell: { field: string; color: string; bg: string }) => {
+                          const isChecked = b[cell.field as keyof BeneficiaireCollecte] as boolean;
+                          return (
+                            <td
+                              key={cell.field}
+                              className={`p-2 text-center border-l border-[#404040]/10 ${cell.bg} ${isChecked ? 'bg-[#A9E0C9]/30' : ''}`}
+                            >
+                              <PermissionGuard actionId="collecte_toggle_step">
+                                <label className="flex items-center justify-center w-full h-full cursor-pointer py-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleToggleStep(b.id, cell.field as keyof BeneficiaireCollecte, isChecked)}
+                                    className={`w-4 h-4 rounded border-[#404040]/30 bg-white ${cell.color} transition-all cursor-pointer`}
+                                  />
+                                </label>
+                              </PermissionGuard>
+                            </td>
+                          );
+                        };
                         return (
-                          <td 
-                            key={cell.field} 
-                            className={`p-2 text-center border-l border-[#404040]/10 ${cell.bg} ${isChecked ? 'bg-[#A9E0C9]/30' : ''}`}
-                          >
-                            <PermissionGuard actionId="collecte_toggle_step">
-                              <label className="flex items-center justify-center w-full h-full cursor-pointer py-1">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => handleToggleStep(b.id, cell.field as keyof BeneficiaireCollecte, isChecked)}
-                                  className={`w-4 h-4 rounded border-[#404040]/30 bg-white ${cell.color} transition-all cursor-pointer`}
+                          <>
+                            {renderCase({ field: "creationDossier", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" })}
+
+                            <td className="p-2 border-l border-[#404040]/10 text-[11px]">
+                              <PermissionGuard
+                                actionId="collecte_comment_edit"
+                                fallback={b.lienDossierDrive ? (
+                                  <a href={b.lienDossierDrive} target="_blank" rel="noopener noreferrer" className="text-[#005259] underline truncate block hover:text-[#EA601F] transition-colors">Dossier Drive</a>
+                                ) : <span className="text-[#404040]/40 italic">—</span>}
+                              >
+                                <LienUnique
+                                  valeur={b.lienDossierDrive}
+                                  enEdition={editingDriveId === b.id}
+                                  onStartEdit={() => { setEditingDriveId(b.id); setDriveValue(b.lienDossierDrive); }}
+                                  valeurEdition={driveValue}
+                                  onChangeEdition={setDriveValue}
+                                  onSave={() => handleSaveDrive(b.id)}
+                                  label="Dossier Drive"
+                                  placeholder="https://drive.google.com/..."
                                 />
-                              </label>
-                            </PermissionGuard>
-                          </td>
+                              </PermissionGuard>
+                            </td>
+
+                            {[
+                              { field: "testEntreeForm", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
+                              { field: "testSortiePix", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
+                              { field: "remiseAttestation", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
+                            ].map(renderCase)}
+
+                            <td className="p-2 border-l border-[#404040]/10 text-[11px]">
+                              <PermissionGuard
+                                actionId="collecte_comment_edit"
+                                fallback={b.lienAttestation ? (
+                                  <a href={b.lienAttestation} target="_blank" rel="noopener noreferrer" className="text-[#005259] underline truncate block hover:text-[#EA601F] transition-colors">Attestation</a>
+                                ) : <span className="text-[#404040]/40 italic">—</span>}
+                              >
+                                <LienUnique
+                                  valeur={b.lienAttestation}
+                                  enEdition={editingAttestationId === b.id}
+                                  onStartEdit={() => { setEditingAttestationId(b.id); setAttestationValue(b.lienAttestation); }}
+                                  valeurEdition={attestationValue}
+                                  onChangeEdition={setAttestationValue}
+                                  onSave={() => handleSaveAttestation(b.id)}
+                                  label="Attestation"
+                                  placeholder="https://..."
+                                />
+                              </PermissionGuard>
+                            </td>
+
+                            {[
+                              { field: "devis", color: "accent-[#EA601F]", bg: "bg-[#EA601F]/5" },
+                              { field: "facture", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
+                              { field: "dechargeMateriel", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
+                            ].map(renderCase)}
+
+                            <td className="p-2 border-l border-[#404040]/10 text-[11px]">
+                              <PermissionGuard
+                                actionId="collecte_comment_edit"
+                                fallback={b.lienRemiseMateriel ? (
+                                  <a href={b.lienRemiseMateriel} target="_blank" rel="noopener noreferrer" className="text-[#005259] underline truncate block hover:text-[#EA601F] transition-colors">Remise matériel</a>
+                                ) : <span className="text-[#404040]/40 italic">—</span>}
+                              >
+                                <LienUnique
+                                  valeur={b.lienRemiseMateriel}
+                                  enEdition={editingRemiseMaterielId === b.id}
+                                  onStartEdit={() => { setEditingRemiseMaterielId(b.id); setRemiseMaterielValue(b.lienRemiseMateriel); }}
+                                  valeurEdition={remiseMaterielValue}
+                                  onChangeEdition={setRemiseMaterielValue}
+                                  onSave={() => handleSaveRemiseMateriel(b.id)}
+                                  label="Remise matériel"
+                                  placeholder="https://..."
+                                />
+                              </PermissionGuard>
+                            </td>
+
+                            {[
+                              { field: "scanArchivage", color: "accent-[#005259]", bg: "bg-[#F3F3F2]/30" },
+                            ].map(renderCase)}
+
+                            <td className="p-2 border-l border-[#404040]/10 text-[11px]">
+                              <PermissionGuard
+                                actionId="collecte_comment_edit"
+                                fallback={
+                                  <div className="flex flex-col gap-0.5">
+                                    {parserLignesLiens(b.lienScans).map(({ titre, url }, i) => (
+                                      <a key={i} href={url} target="_blank" rel="noopener noreferrer" title={url} className="text-[#005259] underline truncate hover:text-[#EA601F] transition-colors">
+                                        {titre || `Scan ${i + 1}`}
+                                      </a>
+                                    ))}
+                                    {!b.lienScans && <span className="text-[#404040]/40 italic">—</span>}
+                                  </div>
+                                }
+                              >
+                                <div onClick={() => { if (editingScansId !== b.id) { setEditingScansId(b.id); setScansValue(b.lienScans); } }}>
+                                  {editingScansId === b.id ? (
+                                    <textarea
+                                      autoFocus
+                                      value={scansValue}
+                                      onChange={(e) => setScansValue(e.target.value)}
+                                      onBlur={() => handleSaveScans(b.id)}
+                                      placeholder={"Un lien par ligne, titre optionnel :\nPasseport | https://...\nhttps://... (sans titre = \"Scan 1\")"}
+                                      className="w-full bg-[#F3F3F2] border border-[#005259] text-[#404040] rounded-lg p-1.5 text-[11px] outline-none min-h-[64px] focus:ring-1 focus:ring-[#005259] resize-y"
+                                    />
+                                  ) : (
+                                    <div className="flex flex-col gap-0.5 p-1 cursor-pointer">
+                                      {parserLignesLiens(b.lienScans).map(({ titre, url }, i) => (
+                                        <a
+                                          key={i}
+                                          href={url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={(e) => e.stopPropagation()}
+                                          title={url}
+                                          className="text-[#005259] underline truncate hover:text-[#EA601F] transition-colors"
+                                        >
+                                          {titre || `Scan ${i + 1}`}
+                                        </a>
+                                      ))}
+                                      {!b.lienScans && <span className="text-[#404040]/40 italic hover:text-[#005259]">Ajouter des liens...</span>}
+                                    </div>
+                                  )}
+                                </div>
+                              </PermissionGuard>
+                            </td>
+                          </>
                         );
-                      })}
+                      })()}
 
                       <td className="p-2 border-l border-[#404040]/10 text-[11px]">
                         <PermissionGuard

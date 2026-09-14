@@ -101,7 +101,7 @@ function RapportDiagnosticPixContent() {
     equipement: "//",
     niveauMaitrise: "niveau débutant / grand débutant",
     bonnesReponsesDiag: 0,
-    totalQuestionsDiag: 44,
+    totalQuestionsDiag: 22,
     tempsTest: "1h",
     nombreSujets: 42,
     resultatsThematiques: 8,
@@ -182,14 +182,20 @@ function RapportDiagnosticPixContent() {
 
           if (diagDoc) {
             let scoreObtenu = 0;
-            let totalMax = 44;
+            let totalMax = 22;
 
             if (diagDoc.score) {
+              // Le score est enregistré en POINTS ("X / 44" — 22 questions à
+              // 2 points chacune, voir app/mediation/rencontres-numeriques/
+              // diagnosticform), pas en nombre de bonnes réponses : diviser
+              // par 2 pour obtenir le nombre réel de questions réussies,
+              // sans quoi la fiche affichait par ex. "44/44 bonnes réponses"
+              // pour un diagnostic de 22 questions.
               const parts = String(diagDoc.score).split("/");
-              scoreObtenu = parseInt(parts[0].trim(), 10) || 0;
-              if (parts[1]) {
-                totalMax = parseInt(parts[1].trim(), 10) || totalMax;
-              }
+              const pointsObtenus = parseInt(parts[0].trim(), 10) || 0;
+              const pointsMax = parts[1] ? (parseInt(parts[1].trim(), 10) || 44) : 44;
+              scoreObtenu = Math.round(pointsObtenus / 2);
+              totalMax = Math.round(pointsMax / 2);
             } else if (diagDoc.satisfaction) {
               const scoreNode = typeof diagDoc.satisfaction === "object" 
                 ? diagDoc.satisfaction.evaluationGlobale 
