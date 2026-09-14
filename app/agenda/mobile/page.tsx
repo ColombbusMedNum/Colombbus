@@ -94,6 +94,22 @@ export default function AgendaMobilePage() {
     return actions.filter((a) => estActionDuMediateur(a, medAffiche));
   }, [actions, medAffiche]);
 
+  // "RN Observation" ne désigne pas un site physique précis (voir
+  // lib/activitesTypes.ts genererCreneauxPourModele) : la personne en
+  // observation y est rattachée selon sa propre grille horaire, pas selon un
+  // lieu nommément identique à "92 - RN - Suresnes"/"92 - RN91". Sans ce
+  // regroupement, elle n'apparaissait jamais comme "équipe" de la personne
+  // qu'elle accompagne, puisque equipeParCreneau groupait strictement par
+  // texte de lieu identique. RND (visites à domicile) reste volontairement
+  // à l'écart de ce regroupement : c'est une activité différente, pas une
+  // permanence RN partagée avec d'autres médiateurs ce jour-là.
+  function familleSitePourEquipe(lieu: string): string {
+    const normalise = lieu.normalize("NFD").replace(/\p{Diacritic}/gu, "").toUpperCase();
+    const estRND = normalise.includes("RND");
+    if (!estRND && normalise.includes("RN")) return "RN";
+    return lieu;
+  }
+
   // Qui est positionné sur le même lieu/jour/demi-journée (utile notamment
   // pour un ACI, qui veut savoir avec qui il/elle travaille). Regroupement
   // par identifiantMediateur (déduplication) plutôt que par mediateurNom
@@ -102,7 +118,7 @@ export default function AgendaMobilePage() {
     const map: Record<string, { nom: string; statut?: string }[]> = Object.create(null);
     actions.forEach((a) => {
       if (!a.lieu) return;
-      const cle = `${a.date}_${a.moment || ""}_${a.lieu}`;
+      const cle = `${a.date}_${a.moment || ""}_${familleSitePourEquipe(a.lieu)}`;
       const idMed = identifiantMediateur(a);
       const fiche = mediateurs.find((m) => m.id === idMed || nomCompletMediateur(m) === (a.mediateurNom || a.mediateur));
       const nom = fiche ? nomCompletMediateur(fiche) : (a.mediateurNom || a.mediateur || "");
@@ -122,7 +138,7 @@ export default function AgendaMobilePage() {
     // soit utile (quasiment tout le monde y apparaîtrait) — pas affichée
     // pour ce lieu précis.
     if (a.lieu.toUpperCase().includes("TERRAGE")) return [];
-    const cle = `${a.date}_${a.moment || ""}_${a.lieu}`;
+    const cle = `${a.date}_${a.moment || ""}_${familleSitePourEquipe(a.lieu)}`;
     const liste = equipeParCreneau[cle] || [];
     return liste.length > 1 ? liste : [];
   };
