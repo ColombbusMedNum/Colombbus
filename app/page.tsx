@@ -12,6 +12,7 @@ import { ActionSchema } from "@/lib/dynamicActions/types";
 import { ecouterActionsDynamiques } from "@/lib/dynamicActions/store";
 import {
   UserCircleIcon,
+  HomeModernIcon,
   UsersIcon,
   ChartBarIcon,
   ChartPieIcon,
@@ -91,6 +92,7 @@ const NAV_TREE: NavNode[] = [
             actionId: "home_folder_beneficiaires",
             children: [
               { id: "liste-benef", kind: "leaf", accent: "teal", icon: UsersIcon, title: "Liste des bénéficiaires", subtitle: "Consulter et modifier les fiches existantes", actionId: "home_nav_liste_benef", href: "/mediation/rencontres-numeriques/liste-beneficiaires" },
+              { id: "suivi-rnd", kind: "leaf", accent: "orange", icon: HomeModernIcon, title: "Suivi Visites à Domicile", subtitle: "Suivi des bénéficiaires en visite à domicile (RND)", actionId: "home_nav_suivi_rnd", href: "/mediation/rencontres-numeriques/suivi-rnd" },
               { id: "emargement-gen", kind: "leaf", accent: "orange", icon: DocumentPlusIcon, title: "Générateur d'Émargements", subtitle: "Éditer de nouvelles feuilles A4 prêtes à imprimer", actionId: "home_nav_emargement_gen", href: "/mediation/rencontres-numeriques/emargement" },
             ],
           },

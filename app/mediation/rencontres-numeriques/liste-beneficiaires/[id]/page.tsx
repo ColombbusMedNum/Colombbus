@@ -35,7 +35,8 @@ import {
   ClipboardDocumentCheckIcon,
   ExclamationTriangleIcon,
   TrashIcon,
-  NoSymbolIcon
+  NoSymbolIcon,
+  KeyIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
@@ -58,6 +59,10 @@ interface Beneficiaire {
   Téléphone?: string;
   email?: string;
   Adresse_Rue?: string;
+  // Notes d'accès libres (digicode, numéro/lettre de bâtiment, étage,
+  // nom sur l'interphone...) — distinct de Adresse_Rue pour ne pas
+  // alourdir le champ adresse structurée utilisé ailleurs (QPV, export...).
+  Complement_Adresse?: string;
   Ville?: string;
   Code_Postal?: string;
   Situation_Socio_Pro?: string;
@@ -69,6 +74,13 @@ interface Beneficiaire {
   Statut_Blacklist?: string;
   Charte_Engagement?: string;
   Date_Charte_Engagement?: string;
+  // Suivi spécifique aux bénéficiaires en visite à domicile (RND) — voir
+  // section "Suivi visite à domicile" plus bas, affichée seulement quand
+  // Lieu_RDV correspond à un lieu RND (import de l'ancien tableur de suivi).
+  Mise_En_Contact?: string;
+  CCAS_Prevenu?: string;
+  Premier_RD_Telephone?: string;
+  Annee_Intervention?: string;
 }
 
 interface Visite {
@@ -154,10 +166,11 @@ export default function FicheBeneficiaire() {
   // Formulaire profil
   const [profilFormData, setProfilFormData] = useState<Required<Beneficiaire>>({
     Civilité: "M.", Nom: "", Prénom: "", Age: "", Date_Naissance: "", Date_Adhesion: "",
-    Téléphone: "", email: "", Adresse_Rue: "", Ville: "", Code_Postal: "",
+    Téléphone: "", email: "", Adresse_Rue: "", Complement_Adresse: "", Ville: "", Code_Postal: "",
     Situation_Socio_Pro: "", Situation_Handicap: "Non", RQTH: "Non",
     QPV: "Non", Lieu_RDV: "", lieuRDV: "", Statut_Blacklist: "Non",
-    Charte_Engagement: "Non", Date_Charte_Engagement: ""
+    Charte_Engagement: "Non", Date_Charte_Engagement: "",
+    Mise_En_Contact: "", CCAS_Prevenu: "Non", Premier_RD_Telephone: "Non", Annee_Intervention: ""
   });
 
   // Rendez-vous en cours d'édition (ré-ouvre la modale de création avec les
@@ -176,7 +189,7 @@ export default function FicheBeneficiaire() {
   // (consultées à chaque fois), Situation & accompagnement replié (consulté
   // plus ponctuellement).
   const [profilSectionsOuvertes, setProfilSectionsOuvertes] = useState<Record<string, boolean>>({
-    dates: true, coordonnees: true, situation: false
+    dates: true, coordonnees: true, situation: false, rnd: true
   });
   const toggleProfilSection = (cle: string) =>
     setProfilSectionsOuvertes(prev => ({ ...prev, [cle]: !prev[cle] }));
@@ -354,12 +367,15 @@ export default function FicheBeneficiaire() {
           Civilité: data.Civilité || "M.", Nom: data.Nom, Prénom: data.Prénom, Age: data.Age ?? "",
           Date_Naissance: data.Date_Naissance || "", Date_Adhesion: data.Date_Adhesion || "",
           Téléphone: data.Téléphone || "", email: data.email || "", Adresse_Rue: data.Adresse_Rue || "",
+          Complement_Adresse: data.Complement_Adresse || "",
           Ville: data.Ville || "", Code_Postal: data.Code_Postal || "", Situation_Socio_Pro: data.Situation_Socio_Pro || "",
           Situation_Handicap: data.Situation_Handicap || "Non", RQTH: data.RQTH || "Non",
-          QPV: data.QPV || "Non", 
+          QPV: data.QPV || "Non",
           Lieu_RDV: data.Lieu_RDV || "", lieuRDV: data.lieuRDV || "",
           Statut_Blacklist: data.Statut_Blacklist || "Non",
-          Charte_Engagement: data.Charte_Engagement || "Non", Date_Charte_Engagement: data.Date_Charte_Engagement || ""
+          Charte_Engagement: data.Charte_Engagement || "Non", Date_Charte_Engagement: data.Date_Charte_Engagement || "",
+          Mise_En_Contact: data.Mise_En_Contact || "", CCAS_Prevenu: data.CCAS_Prevenu || "Non",
+          Premier_RD_Telephone: data.Premier_RD_Telephone || "Non", Annee_Intervention: data.Annee_Intervention || ""
         });
         setUserExists(true);
         setLoading(false);
@@ -639,6 +655,10 @@ export default function FicheBeneficiaire() {
   // recherche du lieu correspondant avant de tester le texte.
   const lieuRattachementSelectionne = lieuxGlobaux.find(l => l.nomCourt === profilFormData.Lieu_RDV);
   const estResidenceAutonomie = /r[ée]sidence autonomie/i.test(lieuRattachementSelectionne?.nomComplet || profilFormData.Lieu_RDV || "");
+  // RND = "Rencontres à Domicile" (visite à domicile) — détecté par le
+  // rattachement principal choisi ("92 - RND Suresnes"...), plutôt qu'une
+  // case à cocher séparée : voir l'échange avec l'utilisateur du 2026-09-14.
+  const estRND = /RND/i.test(profilFormData.Lieu_RDV || "");
 
   return (
     <PageGuard pageId="page_access_fiche_beneficiaire">
@@ -769,6 +789,12 @@ export default function FicheBeneficiaire() {
               <div className="flex items-center gap-3 bg-[#F3F3F2] p-3 rounded-xl border border-[#404040]/10"><EnvelopeIcon className="w-4 h-4 text-[#EA601F]" /><span className="text-xs truncate text-[#404040] font-medium">{user?.email || "Non renseigné"}</span></div>
               <div className="flex items-center gap-3 bg-[#F3F3F2] p-3 rounded-xl border border-[#404040]/10"><MapPinIcon className="w-4 h-4 text-[#EA601F]" /><span className="text-xs text-[#404040] font-medium truncate">{user?.Ville || "—"} ({user?.Code_Postal || "—"})</span></div>
               <div className="flex items-center gap-3 bg-[#F3F3F2] p-3 rounded-xl border border-[#404040]/10"><BriefcaseIcon className="w-4 h-4 text-[#EA601F]" /><span className="text-xs text-[#404040] font-medium">{user?.Situation_Socio_Pro || "—"}</span></div>
+              {user?.Complement_Adresse && (
+                <div className="flex items-center gap-3 bg-[#F9C44E]/15 p-3 rounded-xl border border-[#F9C44E]/40 sm:col-span-2 md:col-span-4">
+                  <KeyIcon className="w-4 h-4 text-[#EA601F] shrink-0" />
+                  <span className="text-xs text-[#404040] font-medium whitespace-pre-wrap">{user.Complement_Adresse}</span>
+                </div>
+              )}
             </div>
           </div>
         </header>
@@ -1513,6 +1539,17 @@ export default function FicheBeneficiaire() {
                   </div>
 
                   <div>
+                    <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Complément d'adresse (digicode, bâtiment, étage, interphone...)</label>
+                    <textarea
+                      rows={2}
+                      value={profilFormData.Complement_Adresse}
+                      onChange={e => setProfilFormData({...profilFormData, Complement_Adresse: e.target.value})}
+                      className={`${inputClass} resize-none`}
+                      placeholder="Ex : Bâtiment 2, code 31903, interphone Rouveillat"
+                    />
+                  </div>
+
+                  <div>
                     <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Ville</label>
                     <input type="text" value={profilFormData.Ville} onChange={e => setProfilFormData({...profilFormData, Ville: e.target.value})} onBlur={verifierQpv} className={inputClass} placeholder="Suresnes..." />
                   </div>
@@ -1562,6 +1599,46 @@ export default function FicheBeneficiaire() {
                     </div>
                   </div>
                 </Accordion>
+
+                {estRND && (
+                  <Accordion title="Suivi visite à domicile (RND)" open={!!profilSectionsOuvertes.rnd} onToggle={() => toggleProfilSection("rnd")}>
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Mise en contact</label>
+                      <select value={profilFormData.Mise_En_Contact} onChange={e => setProfilFormData({...profilFormData, Mise_En_Contact: e.target.value})} className={inputClass}>
+                        <option value="">-- Sélectionner --</option>
+                        <option value="CCAS">CCAS</option>
+                        <option value="Appel - Suresnes">Appel - Suresnes</option>
+                        <option value="Via RN - Suresnes">Via RN - Suresnes</option>
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="flex items-center gap-2 text-xs text-[#404040] font-semibold cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={profilFormData.CCAS_Prevenu === "Oui"}
+                          onChange={e => setProfilFormData({...profilFormData, CCAS_Prevenu: e.target.checked ? "Oui" : "Non"})}
+                          className="w-4 h-4 rounded accent-[#005259] cursor-pointer"
+                        />
+                        CCAS prévenu ?
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-[#404040] font-semibold cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={profilFormData.Premier_RD_Telephone === "Oui"}
+                          onChange={e => setProfilFormData({...profilFormData, Premier_RD_Telephone: e.target.checked ? "Oui" : "Non"})}
+                          className="w-4 h-4 rounded accent-[#005259] cursor-pointer"
+                        />
+                        1er RD par téléphone fait ?
+                      </label>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Année d'intervention</label>
+                      <input type="text" value={profilFormData.Annee_Intervention} onChange={e => setProfilFormData({...profilFormData, Annee_Intervention: e.target.value})} className={inputClass} placeholder="2026" />
+                    </div>
+                  </Accordion>
+                )}
 
                 <div className="pt-4 space-y-3">
                   {modalStatus && <div className="p-3 rounded-xl text-xs font-bold text-center border bg-[#F3F3F2] text-[#005259] border-[#404040]/10">{modalStatus}</div>}

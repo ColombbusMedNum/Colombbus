@@ -39,6 +39,7 @@ const DETAILED_PAGES: PageEntry[] = [
       { id: "home_folder_stats", nom: "Badge Statistiques & Bilans", type: "button", description: "Déploie le dossier analytique" },
       { id: "home_folder_parametres", nom: "Badge Paramètres (Admin)", type: "button", description: "Déploie le dossier Journal des connexions / Signalements / Droits / Paramètres Généraux" },
       { id: "home_nav_liste_benef", nom: "Lien Liste des Bénéficiaires", type: "Link", description: "Accède au répertoire principal des usagers" },
+      { id: "home_nav_suivi_rnd", nom: "Lien Suivi Visites à Domicile (RND)", type: "Link", description: "Accède au suivi des bénéficiaires en visite à domicile" },
       { id: "home_nav_collectes", nom: "Lien Suivi Collectes Tech", type: "Link", description: "Ouvre le tableau Excel de Collectes Tech" },
       { id: "home_nav_fiche_bilan", nom: "Lien Fiche Bilan", type: "Link", description: "Accède aux fiches de synthèses et bilans" },
       { id: "home_nav_bilan_tech", nom: "Lien Bilan Tech", type: "Link", description: "Accède à la page d'exécution et de suivi des bilans techniques" },
@@ -327,6 +328,7 @@ const PAGE_ONLY_ROUTES: Omit<PageEntry, "actions">[] = [
   // Comme page_access_planning : ouverte à tout le staff connecté quel que
   // soit son rôle (connexion self-service à son propre Google Agenda).
   { pageId: "page_access_mon_compte", pageName: "Mon Compte", route: "/mon-compte", filePath: "app/mon-compte/page.tsx" },
+  { pageId: "page_access_suivi_rnd", pageName: "Suivi Visites à Domicile (RND)", route: "/mediation/rencontres-numeriques/suivi-rnd", filePath: "app/mediation/rencontres-numeriques/suivi-rnd/page.tsx" },
 ];
 
 export const PAGES_CATALOG: PageEntry[] = [
@@ -368,14 +370,14 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   }, {} as Record<string, boolean>),
 
   mediateur: {
-    page_access_home: true, page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_mon_compte: true, page_access_liste_beneficiaires: true,
+    page_access_home: true, page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_mon_compte: true, page_access_liste_beneficiaires: true, page_access_suivi_rnd: true,
     page_access_fiche_beneficiaire: true, page_access_diagnosticform: true, page_access_actions_collectives: true, page_access_actions_collectives_accueil: true,
     page_access_agenda: true, page_access_agenda_mobile: true, page_access_suivi_collecte: true, page_access_suresnes: true,
     page_access_adresses: true, page_access_equipe: true, page_access_mediateurs: true,
     page_access_localisations: true, page_access_bilan_tech: true, page_access_emargement: true,
     page_access_emargements: true, page_access_fiches_bilans: true, page_access_fiches_bilans_historique: true,
     page_access_notifications: true, page_access_bibliotheque_logos: true, page_access_guide: true, page_access_statistiques: true,
-    home_logout: true, home_folder_rencontres: true, home_folder_stats: true, home_nav_liste_benef: true,
+    home_logout: true, home_folder_rencontres: true, home_folder_stats: true, home_nav_liste_benef: true, home_nav_suivi_rnd: true,
     home_folder_beneficiaires: true, home_folder_bilans: true, home_folder_lieux: true,
     home_nav_fiche_bilan: true, home_nav_bilan_tech: true, home_nav_ajouter_lieu: true, home_nav_equipe: true, home_nav_participants: true, home_nav_bibliotheque_logos: true,
     home_nav_collectes: true, home_nav_agenda_suresnes: true, home_nav_emargement_docs: true,
@@ -403,7 +405,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   },
 
   coordinateur: {
-    page_access_home: true, page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_mon_compte: true, page_access_liste_beneficiaires: true,
+    page_access_home: true, page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_mon_compte: true, page_access_liste_beneficiaires: true, page_access_suivi_rnd: true,
     page_access_fiche_beneficiaire: true, page_access_diagnosticform: true, page_access_actions_collectives: true, page_access_actions_collectives_accueil: true,
     page_access_agenda: true, page_access_agenda_mobile: true, page_access_suivi_collecte: true, page_access_suresnes: true, page_access_equipe: true,
     page_access_adresses: true, page_access_mediateurs: true, page_access_localisations: true,
@@ -413,7 +415,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     page_access_fiches_bilans_historique: true, page_access_notifications: true, page_access_bibliotheque_logos: true,
     page_access_modeles: true, modeles_create: true, modeles_edit: true, modeles_delete: true, home_nav_modeles: true,
     page_access_guide: true, home_nav_guide: true,
-    home_logout: true, home_folder_rencontres: true, home_folder_stats: true, home_nav_liste_benef: true,
+    home_logout: true, home_folder_rencontres: true, home_folder_stats: true, home_nav_liste_benef: true, home_nav_suivi_rnd: true,
     home_folder_beneficiaires: true, home_folder_bilans: true, home_folder_lieux: true,
     home_nav_fiche_bilan: true, home_nav_bilan_tech: true, home_nav_rdv_par_lieu: true, home_nav_ajouter_lieu: true, home_nav_equipe: true, home_nav_participants: true, home_nav_bibliotheque_logos: true,
     home_nav_collectes: true, home_nav_agenda_suresnes: true, home_nav_emargement_docs: true,
@@ -451,11 +453,11 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
   // médiateurs et à ses notes/commentaires — sans pouvoir créer/supprimer de
   // créneau ni modifier une note.
   aci: {
-    page_access_home: true, page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_mon_compte: true, page_access_liste_beneficiaires: true, page_access_suresnes: true,
+    page_access_home: true, page_access_login: true, page_access_reset_password: true, page_access_planning: true, page_access_mon_compte: true, page_access_liste_beneficiaires: true, page_access_suivi_rnd: true, page_access_suresnes: true,
     page_access_agenda: true, page_access_agenda_mobile: true, page_access_adresses: true, page_access_fiche_beneficiaire: true,
     page_access_diagnosticform: true, page_access_actions_collectives: true, page_access_actions_collectives_accueil: true, page_access_mediateurs: true,
     page_access_localisations: true, page_access_notifications: true, page_access_guide: true,
-    home_logout: true, home_folder_rencontres: true, home_nav_liste_benef: true,
+    home_logout: true, home_folder_rencontres: true, home_nav_liste_benef: true, home_nav_suivi_rnd: true,
     home_folder_beneficiaires: true,
     // Pas de home_folder_gestion_colombbus (dossier réservé aux permanents) :
     // les anciens droits sur ses sous-dossiers/liens (Bilans, Lieux,
