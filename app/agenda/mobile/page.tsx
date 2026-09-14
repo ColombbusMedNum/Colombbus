@@ -155,6 +155,13 @@ export default function AgendaMobilePage() {
       if (!map[cle]) map[cle] = [];
       map[cle].push(a);
     });
+    // Tri par heure de début — les créneaux sont sinon dans leur ordre
+    // d'écriture Firestore, sans rapport avec la chronologie de la demi-
+    // journée (ex TERRAGE, chargé en premier, s'affichait avant une action
+    // ponctuelle démarrant plus tôt). Sans horaire, laissé en dernier.
+    Object.values(map).forEach((actions) => {
+      actions.sort((a, b) => (a.debut || "99:99").localeCompare(b.debut || "99:99"));
+    });
     return map;
   }, [actionsDuMedAffiche]);
 
