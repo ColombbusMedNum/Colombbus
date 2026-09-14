@@ -57,6 +57,10 @@ interface Beneficiaire {
   Date_Naissance?: string;
   Date_Adhesion?: string;
   Téléphone?: string;
+  // Second numéro optionnel (ex un proche/aidant à joindre en plus, ou une
+  // ligne fixe en complément du portable) — voir la colonne "N° de
+  // téléphone" à deux numéros de l'ancien tableur de suivi RND.
+  Téléphone_2?: string;
   email?: string;
   Adresse_Rue?: string;
   // Notes d'accès libres (digicode, numéro/lettre de bâtiment, étage,
@@ -143,6 +147,20 @@ function decomposerThematiques(valeur: string | undefined): string[] {
   return (valeur || "").split(",").map(t => t.trim()).filter(Boolean);
 }
 
+// Plusieurs situations peuvent se cumuler (ex "Retraité et Invalidité" dans
+// l'ancien tableur de suivi RND) — stockées comme une seule chaîne "Valeur A,
+// Valeur B", même format que les thématiques d'un RDV (voir
+// decomposerThematiques ci-dessus, réutilisée pour ce champ aussi).
+const SITUATIONS_SOCIO_PRO: { value: string; label: string }[] = [
+  { value: "Salarie", label: "Salarié(e)" },
+  { value: "Demandeur emploi", label: "Demandeur d'emploi" },
+  { value: "Retraite", label: "Retraité(e)" },
+  { value: "Etudiant", label: "Étudiant(e)" },
+  { value: "Sans activite", label: "Sans activité" },
+  { value: "Invalidite", label: "Invalidité" },
+  { value: "Reconversion professionnelle", label: "Reconversion professionnelle" },
+];
+
 export default function FicheBeneficiaire() {
   const { showToast } = useToast();
   const confirm = useConfirm();
@@ -166,7 +184,7 @@ export default function FicheBeneficiaire() {
   // Formulaire profil
   const [profilFormData, setProfilFormData] = useState<Required<Beneficiaire>>({
     Civilité: "M.", Nom: "", Prénom: "", Age: "", Date_Naissance: "", Date_Adhesion: "",
-    Téléphone: "", email: "", Adresse_Rue: "", Complement_Adresse: "", Ville: "", Code_Postal: "",
+    Téléphone: "", Téléphone_2: "", email: "", Adresse_Rue: "", Complement_Adresse: "", Ville: "", Code_Postal: "",
     Situation_Socio_Pro: "", Situation_Handicap: "Non", RQTH: "Non",
     QPV: "Non", Lieu_RDV: "", lieuRDV: "", Statut_Blacklist: "Non",
     Charte_Engagement: "Non", Date_Charte_Engagement: "",
@@ -366,7 +384,7 @@ export default function FicheBeneficiaire() {
         setProfilFormData({
           Civilité: data.Civilité || "M.", Nom: data.Nom, Prénom: data.Prénom, Age: data.Age ?? "",
           Date_Naissance: data.Date_Naissance || "", Date_Adhesion: data.Date_Adhesion || "",
-          Téléphone: data.Téléphone || "", email: data.email || "", Adresse_Rue: data.Adresse_Rue || "",
+          Téléphone: data.Téléphone || "", Téléphone_2: data.Téléphone_2 || "", email: data.email || "", Adresse_Rue: data.Adresse_Rue || "",
           Complement_Adresse: data.Complement_Adresse || "",
           Ville: data.Ville || "", Code_Postal: data.Code_Postal || "", Situation_Socio_Pro: data.Situation_Socio_Pro || "",
           Situation_Handicap: data.Situation_Handicap || "Non", RQTH: data.RQTH || "Non",
@@ -381,6 +399,10 @@ export default function FicheBeneficiaire() {
         setLoading(false);
       } else {
         setUserExists(false);
+        // Fiche vierge (venant de "Nouveau bénéficiaire") : rien à consulter
+        // dans les sections repliables, pas besoin de les ouvrir par défaut
+        // comme pour l'édition d'une fiche existante.
+        setProfilSectionsOuvertes({ dates: false, coordonnees: false, situation: false, rnd: false });
         setIsModalProfilOpen(true);
         setLoading(false);
       }
@@ -785,14 +807,20 @@ export default function FicheBeneficiaire() {
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mt-6">
-              <div className="flex items-center gap-3 bg-[#F3F3F2] p-3 rounded-xl border border-[#404040]/10"><PhoneIcon className="w-4 h-4 text-[#EA601F]" /><span className="text-xs text-[#404040] font-medium">{formatPhoneNumber(user?.Téléphone)}</span></div>
+              <div className="flex items-center gap-3 bg-[#F3F3F2] p-3 rounded-xl border border-[#404040]/10">
+                <PhoneIcon className="w-4 h-4 text-[#EA601F] shrink-0" />
+                <span className="text-xs text-[#404040] font-medium truncate">
+                  {formatPhoneNumber(user?.Téléphone)}
+                  {user?.Téléphone_2 && <span className="text-[#404040]/50"> · {formatPhoneNumber(user.Téléphone_2)}</span>}
+                </span>
+              </div>
               <div className="flex items-center gap-3 bg-[#F3F3F2] p-3 rounded-xl border border-[#404040]/10"><EnvelopeIcon className="w-4 h-4 text-[#EA601F]" /><span className="text-xs truncate text-[#404040] font-medium">{user?.email || "Non renseigné"}</span></div>
               <div className="flex items-center gap-3 bg-[#F3F3F2] p-3 rounded-xl border border-[#404040]/10"><MapPinIcon className="w-4 h-4 text-[#EA601F]" /><span className="text-xs text-[#404040] font-medium truncate">{user?.Ville || "—"} ({user?.Code_Postal || "—"})</span></div>
               <div className="flex items-center gap-3 bg-[#F3F3F2] p-3 rounded-xl border border-[#404040]/10"><BriefcaseIcon className="w-4 h-4 text-[#EA601F]" /><span className="text-xs text-[#404040] font-medium">{user?.Situation_Socio_Pro || "—"}</span></div>
               {user?.Complement_Adresse && (
                 <div className="flex items-center gap-3 bg-[#F9C44E]/20 p-3 rounded-xl border border-[#F9C44E]/60 sm:col-span-2 md:col-span-4">
                   <KeyIcon className="w-5 h-5 text-[#8A6200] shrink-0" />
-                  <span className="text-sm text-[#8A6200] font-bold whitespace-pre-wrap">{user.Complement_Adresse}</span>
+                  <span className="text-xs text-[#8A6200] font-bold whitespace-pre-wrap">{user.Complement_Adresse}</span>
                 </div>
               )}
             </div>
@@ -1522,9 +1550,14 @@ export default function FicheBeneficiaire() {
                       <input type="tel" value={profilFormData.Téléphone} onChange={e => setProfilFormData({...profilFormData, Téléphone: e.target.value})} className={inputClass} placeholder="06..." />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Adresse Email</label>
-                      <input type="email" value={profilFormData.email} onChange={e => setProfilFormData({...profilFormData, email: e.target.value})} className={inputClass} placeholder="exemple@mail.com" />
+                      <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Téléphone 2 (Optionnel)</label>
+                      <input type="tel" value={profilFormData.Téléphone_2} onChange={e => setProfilFormData({...profilFormData, Téléphone_2: e.target.value})} className={inputClass} placeholder="06... ou 01..." />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Adresse Email</label>
+                    <input type="email" value={profilFormData.email} onChange={e => setProfilFormData({...profilFormData, email: e.target.value})} className={inputClass} placeholder="exemple@mail.com" />
                   </div>
 
                   <div className="grid grid-cols-3 gap-3">
@@ -1538,16 +1571,18 @@ export default function FicheBeneficiaire() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Complément d'adresse (digicode, bâtiment, étage, interphone...)</label>
-                    <textarea
-                      rows={2}
-                      value={profilFormData.Complement_Adresse}
-                      onChange={e => setProfilFormData({...profilFormData, Complement_Adresse: e.target.value})}
-                      className={`${inputClass} resize-none`}
-                      placeholder="Ex : Bâtiment 2, code 31903, interphone Rouveillat"
-                    />
-                  </div>
+                  {estRND && (
+                    <div>
+                      <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Complément d'adresse (digicode, bâtiment, étage, interphone...)</label>
+                      <textarea
+                        rows={2}
+                        value={profilFormData.Complement_Adresse}
+                        onChange={e => setProfilFormData({...profilFormData, Complement_Adresse: e.target.value})}
+                        className={`${inputClass} resize-none`}
+                        placeholder="Ex : Bâtiment 2, code 31903, interphone Rouveillat"
+                      />
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Ville</label>
@@ -1571,15 +1606,34 @@ export default function FicheBeneficiaire() {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Situation Socio-Pro</label>
-                    <select value={profilFormData.Situation_Socio_Pro} onChange={e => setProfilFormData({...profilFormData, Situation_Socio_Pro: e.target.value})} className={inputClass}>
-                      <option value="">-- Sélectionner --</option>
-                      <option value="Salarie">Salarié(e)</option>
-                      <option value="Demandeur emploi">Demandeur d'emploi</option>
-                      <option value="Retraite">Retraité(e)</option>
-                      <option value="Etudiant">Étudiant(e)</option>
-                      <option value="Sans activite">Sans activité</option>
-                    </select>
+                    <label className="block text-[10px] font-bold text-[#404040]/70 uppercase mb-1">Situation Socio-Pro (plusieurs choix possibles)</label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {SITUATIONS_SOCIO_PRO.map(({ value, label }) => {
+                        const selection = decomposerThematiques(profilFormData.Situation_Socio_Pro);
+                        const estCochee = selection.includes(value);
+                        return (
+                          <label
+                            key={value}
+                            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border cursor-pointer select-none text-xs transition-colors ${
+                              estCochee ? "bg-white border-[#005259]/30 text-[#005259] font-bold" : "border-[#404040]/15 text-[#404040]/80 hover:bg-[#F3F3F2]"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="w-3.5 h-3.5 rounded accent-[#005259] cursor-pointer shrink-0"
+                              checked={estCochee}
+                              onChange={() => {
+                                const nouvelleSelection = estCochee
+                                  ? selection.filter(v => v !== value)
+                                  : [...selection, value];
+                                setProfilFormData({...profilFormData, Situation_Socio_Pro: nouvelleSelection.join(", ")});
+                              }}
+                            />
+                            {label}
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">

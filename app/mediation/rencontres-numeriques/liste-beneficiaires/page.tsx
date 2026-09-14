@@ -17,6 +17,7 @@ import {
   MagnifyingGlassIcon,
   UserPlusIcon,
   HomeIcon,
+  HomeModernIcon,
   ArrowTopRightOnSquareIcon,
   UserGroupIcon,
   CalendarDaysIcon,
@@ -455,6 +456,16 @@ export default function ListeBeneficiaires() {
               >
                 <UserGroupIcon className="w-4 h-4 text-[#EA601F]" />
                 <span>Bénéficiaires Suresnes</span>
+              </Link>
+            </PermissionGuard>
+
+            <PermissionGuard actionId="benef_nav_suivi_rnd">
+              <Link
+                href="/mediation/rencontres-numeriques/suivi-rnd"
+                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+              >
+                <HomeModernIcon className="w-4 h-4 text-[#EA601F]" />
+                <span>Suivi Visites à Domicile</span>
               </Link>
             </PermissionGuard>
 

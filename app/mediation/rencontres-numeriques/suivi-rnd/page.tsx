@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot } from "firebase/firestore";
 import Link from "next/link";
@@ -11,6 +11,7 @@ import { calculerAge } from "@/lib/dateNaissance";
 import {
   HomeIcon,
   HomeModernIcon,
+  UsersIcon,
   TableCellsIcon,
   Squares2X2Icon,
   PhoneIcon,
@@ -29,6 +30,7 @@ interface BeneficiaireRND {
   prenom: string;
   age: number | null;
   telephone: string;
+  telephone2: string;
   adresse: string;
   complementAdresse: string;
   ville: string;
@@ -96,6 +98,7 @@ export default function SuiviRNDPage() {
             prenom: lirePrenom(data),
             age: dateNaissance ? calculerAge(dateNaissance) : (data.Age ? Number(data.Age) : null),
             telephone: lireTelephone(data),
+            telephone2: data.Téléphone_2 || "",
             adresse: data.Adresse_Rue || "",
             complementAdresse: data.Complement_Adresse || "",
             ville: data.Ville || "",
@@ -162,6 +165,13 @@ export default function SuiviRNDPage() {
                 </button>
               </div>
               <Link
+                href="/mediation/rencontres-numeriques/liste-beneficiaires"
+                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm w-fit"
+              >
+                <UsersIcon className="w-4 h-4 text-[#EA601F]" />
+                <span>Bénéficiaires</span>
+              </Link>
+              <Link
                 href="/"
                 className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm w-fit"
               >
@@ -194,46 +204,49 @@ export default function SuiviRNDPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#404040]/10">
-                    {beneficiaires.map((b) => (
-                      <tr key={b.id} className="hover:bg-[#F3F3F2]/50 transition-colors align-top">
-                        <td className="py-3 px-4">
+                    {beneficiaires.map((b, i) => {
+                      const fondAlterne = i % 2 === 1 ? "bg-[#F3F3F2]/40" : "bg-white";
+                      return (
+                      <Fragment key={b.id}>
+                      <tr className={`hover:bg-[#F3F3F2]/70 transition-colors ${fondAlterne} ${b.complementAdresse ? "border-b-0" : ""}`}>
+                        <td className="py-3 px-4 align-top">
                           <div className="font-bold text-xs text-[#005259] uppercase">
                             {b.civilite && <span className="text-[#404040]/50 font-normal mr-1">{b.civilite}</span>}
                             {b.nom} <span className="font-normal normal-case text-[#404040]/70">{b.prenom}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-3 text-xs text-[#404040]">{b.age ?? "—"}</td>
-                        <td className="py-3 px-3 text-xs text-[#404040] whitespace-nowrap">
+                        <td className="py-3 px-3 text-xs text-[#404040] align-top">{b.age ?? "—"}</td>
+                        <td className="py-3 px-3 text-xs text-[#404040] whitespace-nowrap align-top">
                           <div className="flex items-center gap-1">
                             <PhoneIcon className="w-3.5 h-3.5 text-[#EA601F] shrink-0" />
                             {b.telephone ? formaterTelephone(b.telephone) : "—"}
                           </div>
-                        </td>
-                        <td className="py-3 px-4 text-xs text-[#404040] max-w-[220px]">
-                          <div className="flex items-start gap-1">
-                            <MapPinIcon className="w-3.5 h-3.5 text-[#EA601F] shrink-0 mt-0.5" />
-                            <div>
-                              {b.adresse || "—"}{b.codePostal || b.ville ? ` — ${b.codePostal} ${b.ville}`.trim() : ""}
-                              {b.complementAdresse && (
-                                <div className="flex items-start gap-1.5 mt-1.5 bg-[#F9C44E]/20 border border-[#F9C44E]/60 rounded-lg p-2 text-[#8A6200]">
-                                  <KeyIcon className="w-4 h-4 shrink-0 mt-0.5" />
-                                  <span className="whitespace-pre-wrap text-sm font-bold leading-snug">{b.complementAdresse}</span>
-                                </div>
-                              )}
+                          {b.telephone2 && (
+                            <div className="flex items-center gap-1 mt-0.5 text-[#404040]/60">
+                              <PhoneIcon className="w-3 h-3 shrink-0" />
+                              {formaterTelephone(b.telephone2)}
                             </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-xs text-[#404040] max-w-[220px] align-top">
+                          <div className="flex items-center gap-1 min-w-0">
+                            <MapPinIcon className="w-3.5 h-3.5 text-[#EA601F] shrink-0" />
+                            <span className="truncate" title={`${b.adresse || ""}${b.codePostal || b.ville ? ` — ${b.codePostal} ${b.ville}`.trim() : ""}`}>
+                              {b.adresse || "—"}{b.codePostal || b.ville ? ` — ${b.codePostal} ${b.ville}`.trim() : ""}
+                            </span>
                           </div>
                         </td>
-                        <td className="py-3 px-3 text-xs text-[#404040]">
+                        <td className="py-3 px-3 text-xs text-[#404040] align-top">
                           <div className="flex items-center gap-1">
                             <BriefcaseIcon className="w-3.5 h-3.5 text-[#EA601F] shrink-0" />
                             {b.situationProfessionnelle || "—"}
                           </div>
                         </td>
-                        <td className="py-3 px-3"><BadgeContact valeur={b.miseEnContact} /></td>
-                        <td className="py-3 px-3 text-center"><PuceOuiNon valeur={b.ccasPrevenu} /></td>
-                        <td className="py-3 px-3 text-center"><PuceOuiNon valeur={b.premierRdTelephone} /></td>
-                        <td className="py-3 px-3 text-xs font-mono text-[#404040]">{b.anneeIntervention || "—"}</td>
-                        <td className="py-3 px-4 text-right">
+                        <td className="py-3 px-3 align-top"><BadgeContact valeur={b.miseEnContact} /></td>
+                        <td className="py-3 px-3 text-center align-top"><PuceOuiNon valeur={b.ccasPrevenu} /></td>
+                        <td className="py-3 px-3 text-center align-top"><PuceOuiNon valeur={b.premierRdTelephone} /></td>
+                        <td className="py-3 px-3 text-xs font-mono text-[#404040] align-top">{b.anneeIntervention || "—"}</td>
+                        <td className="py-3 px-4 text-right align-top">
                           <Link
                             href={`/mediation/rencontres-numeriques/liste-beneficiaires/${b.id}`}
                             className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#F3F3F2] hover:bg-[#005259] hover:text-white text-[#005259] rounded-lg text-[10px] font-bold uppercase tracking-wide transition-colors"
@@ -242,15 +255,27 @@ export default function SuiviRNDPage() {
                           </Link>
                         </td>
                       </tr>
-                    ))}
+                      {b.complementAdresse && (
+                        <tr className={`hover:bg-[#F3F3F2]/70 transition-colors ${fondAlterne}`}>
+                          <td colSpan={10} className="px-4 pb-3 pt-0">
+                            <div className="flex items-center gap-1.5 bg-[#F9C44E]/20 border border-[#F9C44E]/60 rounded-lg px-3 py-1.5 text-[#8A6200]">
+                              <KeyIcon className="w-4 h-4 shrink-0" />
+                              <span className="text-xs font-bold">{b.complementAdresse}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {beneficiaires.map((b) => (
-                <div key={b.id} className="bg-white border border-[#404040]/10 rounded-2xl p-4 shadow-sm space-y-3">
+              {beneficiaires.map((b, i) => (
+                <div key={b.id} className={`${i % 2 === 1 ? "bg-[#F3F3F2]/40" : "bg-white"} border border-[#404040]/10 rounded-2xl p-4 shadow-sm space-y-3`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="font-bold text-sm text-[#005259] uppercase">
                       {b.civilite && <span className="text-[#404040]/50 font-normal mr-1">{b.civilite}</span>}
@@ -270,6 +295,7 @@ export default function SuiviRNDPage() {
                     <div className="flex items-center gap-1.5">
                       <PhoneIcon className="w-3.5 h-3.5 text-[#EA601F] shrink-0" />
                       {b.telephone ? formaterTelephone(b.telephone) : "Non renseigné"}
+                      {b.telephone2 && <span className="text-[#404040]/50"> · {formaterTelephone(b.telephone2)}</span>}
                     </div>
                     <div className="flex items-start gap-1.5">
                       <MapPinIcon className="w-3.5 h-3.5 text-[#EA601F] shrink-0 mt-0.5" />
@@ -278,7 +304,7 @@ export default function SuiviRNDPage() {
                     {b.complementAdresse && (
                       <div className="flex items-start gap-2 bg-[#F9C44E]/20 border border-[#F9C44E]/60 rounded-xl p-2.5 text-[#8A6200]">
                         <KeyIcon className="w-5 h-5 shrink-0 mt-0.5" />
-                        <span className="whitespace-pre-wrap text-sm font-bold leading-snug">{b.complementAdresse}</span>
+                        <span className="whitespace-pre-wrap text-xs font-bold leading-snug">{b.complementAdresse}</span>
                       </div>
                     )}
                     <div className="flex items-center gap-1.5">
