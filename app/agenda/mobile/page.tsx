@@ -97,17 +97,20 @@ export default function AgendaMobilePage() {
   // "RN Observation" ne désigne pas un site physique précis (voir
   // lib/activitesTypes.ts genererCreneauxPourModele) : la personne en
   // observation y est rattachée selon sa propre grille horaire, pas selon un
-  // lieu nommément identique à "92 - RN - Suresnes"/"92 - RN91". Sans ce
-  // regroupement, elle n'apparaissait jamais comme "équipe" de la personne
-  // qu'elle accompagne, puisque equipeParCreneau groupait strictement par
-  // texte de lieu identique. RND (visites à domicile) reste volontairement
-  // à l'écart de ce regroupement : c'est une activité différente, pas une
+  // lieu nommément identique à "92 - RN - Suresnes". Sans ce regroupement,
+  // elle n'apparaissait jamais comme "équipe" de la personne qu'elle
+  // accompagne, puisque equipeParCreneau groupait strictement par texte de
+  // lieu identique. Le regroupement reste borné au département (préfixe
+  // "91 -"/"92 -" du nom de lieu) : "91 - RN" (Essonne) et "92 - RN -
+  // Suresnes" sont deux sites sans rapport, jamais à mélanger. RND (visites
+  // à domicile) reste aussi à l'écart : activité différente, pas une
   // permanence RN partagée avec d'autres médiateurs ce jour-là.
   function familleSitePourEquipe(lieu: string): string {
     const normalise = lieu.normalize("NFD").replace(/\p{Diacritic}/gu, "").toUpperCase();
     const estRND = normalise.includes("RND");
-    if (!estRND && normalise.includes("RN")) return "RN";
-    return lieu;
+    if (estRND || !normalise.includes("RN")) return lieu;
+    const departement = lieu.match(/^(\d{2})\s*-/)?.[1] || "";
+    return `RN_${departement}`;
   }
 
   // Qui est positionné sur le même lieu/jour/demi-journée (utile notamment
