@@ -164,6 +164,9 @@ function MonCompteContenu() {
             ) : (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F3F3F2] border border-[#404040]/10 rounded-xl p-3.5">
                 <span className="text-xs font-bold text-[#404040]/70 uppercase tracking-wide">Non connecté</span>
+                {/* Bouton masqué temporairement (déploiement progressif, voir
+                    demande du 2026-09-14) — ne pas supprimer, juste décommenter
+                    quand la fonctionnalité est prête à être ouverte à tout le staff.
                 <button
                   onClick={connecterGoogle}
                   disabled={enCours}
@@ -172,6 +175,7 @@ function MonCompteContenu() {
                   <ArrowTopRightOnSquareIcon className="w-4 h-4" />
                   Connecter mon agenda Google
                 </button>
+                */}
               </div>
             )}
           </div>
