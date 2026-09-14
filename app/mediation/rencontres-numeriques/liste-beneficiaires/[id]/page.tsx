@@ -790,9 +790,9 @@ export default function FicheBeneficiaire() {
               <div className="flex items-center gap-3 bg-[#F3F3F2] p-3 rounded-xl border border-[#404040]/10"><MapPinIcon className="w-4 h-4 text-[#EA601F]" /><span className="text-xs text-[#404040] font-medium truncate">{user?.Ville || "—"} ({user?.Code_Postal || "—"})</span></div>
               <div className="flex items-center gap-3 bg-[#F3F3F2] p-3 rounded-xl border border-[#404040]/10"><BriefcaseIcon className="w-4 h-4 text-[#EA601F]" /><span className="text-xs text-[#404040] font-medium">{user?.Situation_Socio_Pro || "—"}</span></div>
               {user?.Complement_Adresse && (
-                <div className="flex items-center gap-3 bg-[#F9C44E]/15 p-3 rounded-xl border border-[#F9C44E]/40 sm:col-span-2 md:col-span-4">
-                  <KeyIcon className="w-4 h-4 text-[#EA601F] shrink-0" />
-                  <span className="text-xs text-[#404040] font-medium whitespace-pre-wrap">{user.Complement_Adresse}</span>
+                <div className="flex items-center gap-3 bg-[#F9C44E]/20 p-3 rounded-xl border border-[#F9C44E]/60 sm:col-span-2 md:col-span-4">
+                  <KeyIcon className="w-5 h-5 text-[#8A6200] shrink-0" />
+                  <span className="text-sm text-[#8A6200] font-bold whitespace-pre-wrap">{user.Complement_Adresse}</span>
                 </div>
               )}
             </div>

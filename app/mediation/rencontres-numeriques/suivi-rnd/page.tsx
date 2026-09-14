@@ -76,7 +76,10 @@ function PuceOuiNon({ valeur }: { valeur: boolean }) {
 export default function SuiviRNDPage() {
   const [beneficiaires, setBeneficiaires] = useState<BeneficiaireRND[]>([]);
   const [loading, setLoading] = useState(true);
-  const [vue, setVue] = useState<"tableau" | "cartes">("tableau");
+  // Cartes par défaut : cette page est consultée majoritairement depuis un
+  // téléphone (en visite, pour retrouver un digicode) — le tableau, pensé
+  // pour un écran large, y reste disponible en option.
+  const [vue, setVue] = useState<"tableau" | "cartes">("cartes");
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "utilisateurs"), (snap) => {
@@ -212,9 +215,9 @@ export default function SuiviRNDPage() {
                             <div>
                               {b.adresse || "—"}{b.codePostal || b.ville ? ` — ${b.codePostal} ${b.ville}`.trim() : ""}
                               {b.complementAdresse && (
-                                <div className="flex items-start gap-1 mt-0.5 text-[#8A6200] font-medium">
-                                  <KeyIcon className="w-3 h-3 shrink-0 mt-0.5" />
-                                  <span className="whitespace-pre-wrap">{b.complementAdresse}</span>
+                                <div className="flex items-start gap-1.5 mt-1.5 bg-[#F9C44E]/20 border border-[#F9C44E]/60 rounded-lg p-2 text-[#8A6200]">
+                                  <KeyIcon className="w-4 h-4 shrink-0 mt-0.5" />
+                                  <span className="whitespace-pre-wrap text-sm font-bold leading-snug">{b.complementAdresse}</span>
                                 </div>
                               )}
                             </div>
@@ -273,9 +276,9 @@ export default function SuiviRNDPage() {
                       <span>{b.adresse || "—"}{b.codePostal || b.ville ? ` — ${b.codePostal} ${b.ville}`.trim() : ""}</span>
                     </div>
                     {b.complementAdresse && (
-                      <div className="flex items-start gap-1.5 bg-[#F9C44E]/15 border border-[#F9C44E]/40 rounded-lg p-2 text-[#8A6200] font-medium">
-                        <KeyIcon className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                        <span className="whitespace-pre-wrap">{b.complementAdresse}</span>
+                      <div className="flex items-start gap-2 bg-[#F9C44E]/20 border border-[#F9C44E]/60 rounded-xl p-2.5 text-[#8A6200]">
+                        <KeyIcon className="w-5 h-5 shrink-0 mt-0.5" />
+                        <span className="whitespace-pre-wrap text-sm font-bold leading-snug">{b.complementAdresse}</span>
                       </div>
                     )}
                     <div className="flex items-center gap-1.5">
