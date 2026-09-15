@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import {
   collection, onSnapshot, query, orderBy, addDoc,
-  deleteDoc, doc, getDocs, where, updateDoc,
+  deleteDoc, doc, getDoc, getDocs, where, updateDoc,
 } from "firebase/firestore";
 import { quicksand } from "@/lib/fonts";
 import {
@@ -55,6 +55,85 @@ export default function ModelesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
+  // "Voir les dates" : liste des jours où ce modèle a déjà des créneaux
+  // posés dans planning_mediateurs, avec un lien direct vers la case
+  // correspondante dans l'agenda des médiateurs (voir app/agenda/page.tsx,
+  // qui lit ?date=&med= au chargement pour s'y positionner et la surligner).
+  interface DateModele { date: string; mediateurNom: string; mediatId: string | null; docIds: string[]; commentaire: string; }
+  const [modeleDatesOuvert, setModeleDatesOuvert] = useState<ActiviteType | null>(null);
+  const [datesModele, setDatesModele] = useState<DateModele[]>([]);
+  const [chargementDates, setChargementDates] = useState(false);
+  // Nouveau commentaire en cours de saisie par ligne (clé = date_mediateurNom).
+  const [nouveauCommentaireParDate, setNouveauCommentaireParDate] = useState<Record<string, string>>({});
+  const [enregistrementCommentaireEnCours, setEnregistrementCommentaireEnCours] = useState<string | null>(null);
+
+  const ouvrirDatesModele = async (type: ActiviteType, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setModeleDatesOuvert(type);
+    setChargementDates(true);
+    try {
+      const snap = await getDocs(query(collection(db, "planning_mediateurs"), where("lieu", "==", type.lieu)));
+      const resoudreMediateurId = (data: any): string | null => {
+        if (data.mediatId) return data.mediatId;
+        const nom = data.mediateurNom || data.mediateur;
+        if (!nom) return null;
+        return mediateurs.find((m: any) => `${m.prenom || ""} ${m.nom || ""}`.trim() === nom)?.id || null;
+      };
+      const parCle = new Map<string, DateModele>();
+      snap.docs.forEach((d) => {
+        const data = d.data() as any;
+        if (!data.date) return;
+        const mediateurNom = data.mediateurNom || data.mediateur || "—";
+        const cle = `${data.date}_${mediateurNom}`;
+        const existant = parCle.get(cle);
+        if (existant) {
+          existant.docIds.push(d.id);
+          if (!existant.commentaire && data.commentaire) existant.commentaire = data.commentaire;
+        } else {
+          parCle.set(cle, { date: data.date, mediateurNom, mediatId: resoudreMediateurId(data), docIds: [d.id], commentaire: data.commentaire || "" });
+        }
+      });
+      setDatesModele(Array.from(parCle.values()).sort((a, b) => a.date.localeCompare(b.date) || a.mediateurNom.localeCompare(b.mediateurNom, "fr")));
+    } catch (error) {
+      console.error("Erreur lors du chargement des dates du modèle :", error);
+      showToast("Erreur lors du chargement des dates.", "error");
+    } finally {
+      setChargementDates(false);
+    }
+  };
+
+  // Ajoute (plutôt que remplace) le commentaire saisi sur TOUS les créneaux
+  // de cette ligne (Matin + Après-midi peuvent être deux documents séparés
+  // pour le même médiateur/jour) — daté, pour garder une trace de chaque
+  // ajout au lieu d'écraser un commentaire déjà présent dans l'agenda.
+  const ajouterCommentaireDate = async (item: DateModele, cle: string) => {
+    const texte = (nouveauCommentaireParDate[cle] || "").trim();
+    if (!texte) return;
+    setEnregistrementCommentaireEnCours(cle);
+    try {
+      const ligne = `[${new Date().toLocaleDateString("fr-FR")}] ${texte}`;
+      await Promise.all(
+        item.docIds.map(async (docId) => {
+          const ref = doc(db, "planning_mediateurs", docId);
+          const snap = await getDoc(ref);
+          const commentaireActuel = snap.data()?.commentaire || "";
+          const nouveauCommentaire = commentaireActuel ? `${commentaireActuel}\n${ligne}` : ligne;
+          await updateDoc(ref, { commentaire: nouveauCommentaire });
+        })
+      );
+      setDatesModele(prev => prev.map(d => (d.date === item.date && d.mediateurNom === item.mediateurNom)
+        ? { ...d, commentaire: d.commentaire ? `${d.commentaire}\n${ligne}` : ligne }
+        : d));
+      setNouveauCommentaireParDate(prev => ({ ...prev, [cle]: "" }));
+      showToast("Commentaire ajouté sur l'agenda des médiateurs.");
+    } catch (error) {
+      console.error("Erreur lors de l'ajout du commentaire :", error);
+      showToast("Erreur lors de l'ajout du commentaire.", "error");
+    } finally {
+      setEnregistrementCommentaireEnCours(null);
+    }
+  };
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingActivite, setEditingActivite] = useState<ActiviteType | null>(null);
   const [selectedLieuPredefini, setSelectedLieuPredefini] = useState("");
@@ -99,7 +178,13 @@ export default function ModelesPage() {
     const aPeriode = !!(type.dateDebut || type.dateFin);
 
     return (
-      <div key={type.id} className="bg-white border border-[#404040]/10 rounded-2xl p-4 shadow-sm flex flex-col gap-3" style={{ borderTopColor: type.couleur || "#005259", borderTopWidth: 3 }}>
+      <div
+        key={type.id}
+        onClick={(e) => ouvrirDatesModele(type, e)}
+        title="Voir les dates où ce modèle est positionné dans l'agenda"
+        className="bg-white border border-[#404040]/10 rounded-2xl p-4 shadow-sm flex flex-col gap-3 cursor-pointer hover:border-[#005259]/40 transition-colors"
+        style={{ borderTopColor: type.couleur || "#005259", borderTopWidth: 3 }}
+      >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <h3 className="font-extrabold text-sm text-[#005259] uppercase tracking-wide truncate flex items-center gap-1.5">
@@ -112,7 +197,7 @@ export default function ModelesPage() {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
             <PermissionGuard actionId="modeles_create">
               <button onClick={() => handleDuplicate(type)} className="p-1.5 text-[#404040]/60 hover:text-[#EA601F] cursor-pointer" title="Dupliquer pour une nouvelle période (activité récurrente)">
                 <DocumentDuplicateIcon className="w-4 h-4" />
@@ -683,6 +768,69 @@ export default function ModelesPage() {
               <button type="button" onClick={() => { setIsModalOpen(false); setEditingActivite(null); setSelectedLieuPredefini(""); }} className="text-[#404040]/60 text-xs px-2 font-bold">Annuler</button>
             </div>
           </form>
+        </div>
+      )}
+
+      {modeleDatesOuvert && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setModeleDatesOuvert(null)}>
+          <div
+            className="bg-white border border-[#404040]/10 p-5 rounded-xl w-full max-w-md shadow-2xl text-[#404040] max-h-[85vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-bold text-sm text-[#005259] mb-1">Dates de "{modeleDatesOuvert.lieu}"</h3>
+            <p className="text-[10px] text-[#404040]/60 mb-3">Cliquer sur une date ouvre l'agenda des médiateurs à la semaine correspondante, ligne surlignée.</p>
+            {chargementDates ? (
+              <p className="text-xs text-[#404040]/60 italic py-4 text-center">Chargement...</p>
+            ) : datesModele.length === 0 ? (
+              <p className="text-xs text-[#404040]/60 italic py-4 text-center">Aucun créneau posé pour ce modèle pour le moment.</p>
+            ) : (
+              <div className="flex flex-col divide-y divide-[#F3F3F2]">
+                {datesModele.map((d) => {
+                  const cle = `${d.date}_${d.mediateurNom}`;
+                  return (
+                    <div key={cle} className="py-2 px-1">
+                      <Link
+                        href={`/agenda?date=${d.date}${d.mediatId ? `&med=${d.mediatId}` : ""}`}
+                        onClick={() => setModeleDatesOuvert(null)}
+                        className="flex items-center justify-between gap-2 hover:bg-[#F3F3F2] rounded-lg transition-colors group px-1 -mx-1 py-0.5"
+                      >
+                        <span className="text-xs font-bold text-[#005259]">
+                          {new Date(`${d.date}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
+                        </span>
+                        <span className="text-[11px] text-[#404040]/70 truncate">{d.mediateurNom}</span>
+                        <CalendarDaysIcon className="w-3.5 h-3.5 text-[#404040]/30 group-hover:text-[#EA601F] shrink-0 transition-colors" />
+                      </Link>
+                      {d.commentaire && (
+                        <p className="text-[10px] text-[#404040]/60 whitespace-pre-wrap mt-1 bg-[#F3F3F2]/60 rounded-md px-2 py-1">{d.commentaire}</p>
+                      )}
+                      <form
+                        onSubmit={(e) => { e.preventDefault(); ajouterCommentaireDate(d, cle); }}
+                        className="flex items-center gap-1 mt-1"
+                      >
+                        <input
+                          type="text"
+                          value={nouveauCommentaireParDate[cle] || ""}
+                          onChange={(e) => setNouveauCommentaireParDate(prev => ({ ...prev, [cle]: e.target.value }))}
+                          placeholder="Ajouter un commentaire..."
+                          className="flex-1 border border-[#404040]/15 rounded-md px-2 py-1 text-[10px] focus:outline-none focus:border-[#005259]/50"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!(nouveauCommentaireParDate[cle] || "").trim() || enregistrementCommentaireEnCours === cle}
+                          className="text-[10px] font-bold text-white bg-[#005259] rounded-md px-2 py-1 disabled:opacity-30"
+                        >
+                          {enregistrementCommentaireEnCours === cle ? "..." : "Ajouter"}
+                        </button>
+                      </form>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <button type="button" onClick={() => setModeleDatesOuvert(null)} className="mt-4 w-full text-center text-[#404040]/60 text-xs font-bold py-1.5 hover:text-[#005259] cursor-pointer">
+              Fermer
+            </button>
+          </div>
         </div>
       )}
     </main>

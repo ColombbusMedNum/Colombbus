@@ -328,6 +328,8 @@ export default function ListeBeneficiaires() {
         matchesBadge = usagersDuJour.some(u => nomComplet.includes(u) || u.includes(nomComplet));
       } else if (filtreActif === "Suresnes") {
         matchesBadge = b.Ville?.toLowerCase() === "suresnes";
+      } else if (filtreActif === "Essonne") {
+        matchesBadge = (b.Code_Postal || "").trim().startsWith("91");
       } else if (filtreActif === "DE") {
         matchesBadge = situation.includes("emploi") || situation === "de";
       } else if (filtreActif === "Blacklistes") {
@@ -351,13 +353,14 @@ export default function ListeBeneficiaires() {
     [beneficiaires, searchTerm, filtreActif, usagersDuJour]
   );
 
-  const { countAujourdhui, countSuresnes, countDE, countBlacklistes, countAdherents, countVilleNonRenseignee } = useMemo(() => {
+  const { countAujourdhui, countSuresnes, countEssonne, countDE, countBlacklistes, countAdherents, countVilleNonRenseignee } = useMemo(() => {
     const countAujourdhui = beneficiaires.filter(b => {
       const nomComplet = `${b.prenomAffiche} ${b.nomAffiche}`.toLowerCase().trim();
       return usagersDuJour.some(u => nomComplet.includes(u) || u.includes(nomComplet));
     }).length;
 
     const countSuresnes = beneficiaires.filter(b => b.Ville?.toLowerCase() === "suresnes").length;
+    const countEssonne = beneficiaires.filter(b => (b.Code_Postal || "").trim().startsWith("91")).length;
     const countDE = beneficiaires.filter(b => {
       const sit = (b.Situation_Socio_Pro || b.Situation || "").toLowerCase();
       return sit.includes("emploi") || sit === "de";
@@ -366,7 +369,7 @@ export default function ListeBeneficiaires() {
     const countAdherents = beneficiaires.filter(b => b.Date_Adhesion && b.Date_Adhesion.trim() !== "").length;
     const countVilleNonRenseignee = beneficiaires.filter(b => !b.Ville || b.Ville.trim() === "").length;
 
-    return { countAujourdhui, countSuresnes, countDE, countBlacklistes, countAdherents, countVilleNonRenseignee };
+    return { countAujourdhui, countSuresnes, countEssonne, countDE, countBlacklistes, countAdherents, countVilleNonRenseignee };
   }, [beneficiaires, usagersDuJour]);
 
   // Table de correspondance "lettre -> a des bénéficiaires ?" calculée une
@@ -589,6 +592,19 @@ export default function ListeBeneficiaires() {
               }`}
             >
               📍 Suresnes ({countSuresnes})
+            </button>
+          </PermissionGuard>
+
+          <PermissionGuard actionId="benef_filter_essonne">
+            <button
+              onClick={() => setFiltreActif("Essonne")}
+              className={`px-4 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                filtreActif === "Essonne"
+                  ? "bg-[#005259] text-white shadow-sm"
+                  : "bg-white text-[#404040] border border-[#404040]/10 hover:border-[#005259] hover:text-[#005259]"
+              }`}
+            >
+              📍 Essonne ({countEssonne})
             </button>
           </PermissionGuard>
 

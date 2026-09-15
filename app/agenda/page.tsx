@@ -146,6 +146,23 @@ export default function PlanningExpertMix() {
 
   // États UI
   const [currentDate, setCurrentDate] = useState(new Date());
+  // Arrivée depuis "Voir les dates" sur un modèle (/mediation/modeles) :
+  // ?date=AAAA-MM-JJ&med=<id> positionne la semaine et prépare la mise en
+  // évidence d'une ligne précise une fois les données chargées (effet plus
+  // bas). Lu directement sur window.location plutôt que via useSearchParams,
+  // pour ne pas avoir à englober toute cette page (très volumineuse) dans un
+  // Suspense — cette page est de toute façon 100% côté client.
+  const [medASurligner, setMedASurligner] = useState<string | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const dateParam = params.get("date");
+    if (dateParam) {
+      const d = new Date(`${dateParam}T12:00:00`);
+      if (!isNaN(d.getTime())) setCurrentDate(d);
+    }
+    const medParam = params.get("med");
+    if (medParam) setMedASurligner(medParam);
+  }, []);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isActiviteModalOpen, setIsActiviteModalOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<ActiviteType | null>(null);
@@ -634,6 +651,25 @@ export default function PlanningExpertMix() {
       return nomA.localeCompare(nomB, "fr");
     })
   }));
+
+  // Une fois la semaine et les médiateurs chargés, déplie la catégorie
+  // contenant le médiateur ciblé (si elle avait été repliée), fait défiler
+  // jusqu'à sa ligne et la surligne brièvement — voir l'effet de lecture de
+  // ?date=/?med= plus haut. Léger délai pour laisser le DOM se peindre avant
+  // de mesurer sa position.
+  useEffect(() => {
+    if (!medASurligner || mediateurs.length === 0) return;
+    const groupeCible = groupesMediateursAgenda.find(g => g.membres.some(m => m.id === medASurligner));
+    if (groupeCible && categoriesOuvertesAgenda[groupeCible.key] === false) {
+      setCategoriesOuvertesAgenda(prev => ({ ...prev, [groupeCible.key]: true }));
+    }
+    const timer = setTimeout(() => {
+      document.getElementById(`ligne-med-${medASurligner}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
+    const timerEffacement = setTimeout(() => setMedASurligner(null), 4000);
+    return () => { clearTimeout(timer); clearTimeout(timerEffacement); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [medASurligner, mediateurs.length, actions.length]);
 
   const processActionCreation = async (
     mediatId: string,
@@ -1734,7 +1770,12 @@ export default function PlanningExpertMix() {
                       const rowBgClass = m.masque ? "bg-[#F3F3F2]" : (bandToggle ? "bg-[#F9C44E]/[0.08]" : "bg-white");
                       return (
                         <React.Fragment key={m.id}>
-                          <div className={`pr-2 py-2 sticky left-0 z-10 border-b border-[#F3F3F2] hover:bg-[#F3F3F2]/60 transition-colors ${rowBgClass} ${m.masque ? 'opacity-40' : ''}`}>
+                          <div
+                            id={`ligne-med-${m.id}`}
+                            className={`pr-2 py-2 sticky left-0 z-10 border-b transition-colors ${
+                              medASurligner === m.id ? "bg-[#F9C44E]/40 border-[#F9C44E] ring-2 ring-[#F9C44E] ring-inset" : `border-[#F3F3F2] hover:bg-[#F3F3F2]/60 ${rowBgClass}`
+                            } ${m.masque ? 'opacity-40' : ''}`}
+                          >
                               <div className="flex items-start justify-between gap-1">
                                 <div className={`flex flex-col text-xs leading-tight select-none ${m.masque ? 'line-through text-[#404040]/50' : ''}`}>
                                   <span className="font-bold text-[#005259]">{pNom}</span>
@@ -2340,6 +2381,12 @@ export default function PlanningExpertMix() {
               </div>
             </Accordion>
 
+            {/* Section masquée temporairement (demande du 2026-09-15) — ne pas
+                supprimer, juste décommenter pour la réafficher. Le modèle
+                garde ses champs mediateursIds/generationMoment existants
+                intacts (des modèles déjà configurés continuent de générer
+                leurs créneaux normalement), seule cette UI d'édition est
+                cachée.
             <Accordion title="Médiateurs & génération automatique" open={!!openSections.mediateurs} onToggle={() => toggleSection("mediateurs")}>
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] text-[#404040]/70 font-semibold">Médiateurs concernés (Optionnel — sinon, modèle générique pour tous)</label>
@@ -2392,6 +2439,7 @@ export default function PlanningExpertMix() {
                 </div>
               )}
             </Accordion>
+            */}
 
             <div className="flex gap-2 pt-2">
               <button type="submit" className="flex-1 bg-[#005259] text-white py-1.5 rounded-md text-xs font-bold">Valider</button>

@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, doc, updateDoc, getDocs, addDoc } from "firebase/firestore";
-import { ChevronLeftIcon, ArrowDownTrayIcon, UserGroupIcon, HomeIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import { ChevronLeftIcon, ArrowDownTrayIcon, UserGroupIcon, HomeIcon, ArrowPathIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
 import PageGuard from "@/components/PageGuard";
@@ -67,33 +67,52 @@ function LienUnique({
   label: string;
   placeholder: string;
 }) {
+  if (enEdition) {
+    return (
+      <input
+        autoFocus
+        type="url"
+        value={valeurEdition}
+        onChange={(e) => onChangeEdition(e.target.value)}
+        onBlur={onSave}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onSave(); } }}
+        placeholder={placeholder}
+        className="w-full bg-[#F3F3F2] border border-[#005259] text-[#404040] rounded-lg p-1.5 text-[11px] outline-none focus:ring-1 focus:ring-[#005259]"
+      />
+    );
+  }
+
+  if (!valeur) {
+    return (
+      <span onClick={onStartEdit} className="text-[#404040]/40 italic cursor-pointer hover:text-[#005259] p-1 block">
+        Ajouter un lien...
+      </span>
+    );
+  }
+
+  // Le clic sur le lien ouvre l'URL (comportement attendu d'un lien) : le
+  // bouton crayon, séparé, est donc indispensable pour pouvoir revenir
+  // éditer/remplacer une valeur déjà enregistrée — sans lui, un lien une
+  // fois posé n'était plus jamais modifiable depuis cette cellule.
   return (
-    <div onClick={() => { if (!enEdition) onStartEdit(); }}>
-      {enEdition ? (
-        <input
-          autoFocus
-          type="url"
-          value={valeurEdition}
-          onChange={(e) => onChangeEdition(e.target.value)}
-          onBlur={onSave}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onSave(); } }}
-          placeholder={placeholder}
-          className="w-full bg-[#F3F3F2] border border-[#005259] text-[#404040] rounded-lg p-1.5 text-[11px] outline-none focus:ring-1 focus:ring-[#005259]"
-        />
-      ) : valeur ? (
-        <a
-          href={valeur}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          title={valeur}
-          className="text-[#005259] underline truncate block hover:text-[#EA601F] transition-colors cursor-pointer p-1"
-        >
-          {label}
-        </a>
-      ) : (
-        <span className="text-[#404040]/40 italic cursor-pointer hover:text-[#005259] p-1 block">Ajouter un lien...</span>
-      )}
+    <div className="flex items-center gap-1 group/lien">
+      <a
+        href={valeur}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={valeur}
+        className="text-[#005259] underline truncate hover:text-[#EA601F] transition-colors p-1"
+      >
+        {label}
+      </a>
+      <button
+        type="button"
+        onClick={onStartEdit}
+        title="Modifier le lien"
+        className="p-0.5 text-[#404040]/30 hover:text-[#005259] opacity-0 group-hover/lien:opacity-100 transition-opacity shrink-0 cursor-pointer"
+      >
+        <PencilSquareIcon className="w-3.5 h-3.5" />
+      </button>
     </div>
   );
 }
@@ -111,6 +130,23 @@ export default function SuiviCollecteTech() {
   const [remiseMaterielValue, setRemiseMaterielValue] = useState("");
   const [editingScansId, setEditingScansId] = useState<string | null>(null);
   const [scansValue, setScansValue] = useState("");
+
+  // Barre de défilement horizontal dupliquée en haut du tableau (en plus de
+  // celle, normale, tout en bas) : un simple div de la largeur réelle du
+  // tableau, dont le scroll est synchronisé dans les deux sens avec le vrai
+  // conteneur scrollable qui l'entoure.
+  const scrollHautRef = useRef<HTMLDivElement>(null);
+  const scrollTableRef = useRef<HTMLDivElement>(null);
+  const [largeurTableau, setLargeurTableau] = useState(0);
+
+  useEffect(() => {
+    const mettreAJourLargeur = () => {
+      if (scrollTableRef.current) setLargeurTableau(scrollTableRef.current.scrollWidth);
+    };
+    mettreAJourLargeur();
+    window.addEventListener("resize", mettreAJourLargeur);
+    return () => window.removeEventListener("resize", mettreAJourLargeur);
+  }, [beneficiaires]);
 
   // Chargement unique (pas de temps réel) : le scan des sous-collections de
   // chaque usager est coûteux (3×N lectures) — on l'exécute au chargement de
@@ -261,6 +297,7 @@ export default function SuiviCollecteTech() {
   const handleSaveComment = async (id: string) => {
     try {
       await updateDoc(doc(db, "utilisateurs", id), { commentairesCollecte: commentValue });
+      setBeneficiaires(prev => prev.map(b => b.id === id ? { ...b, commentaires: commentValue } : b));
       setEditingCommentId(null);
     } catch (err) {
       console.error(err);
@@ -381,13 +418,24 @@ export default function SuiviCollecteTech() {
           </div>
         ) : (
           <div className="w-full bg-white border border-[#404040]/10 rounded-2xl overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
+            <div
+              ref={scrollHautRef}
+              className="overflow-x-auto overflow-y-hidden"
+              onScroll={(e) => { if (scrollTableRef.current) scrollTableRef.current.scrollLeft = e.currentTarget.scrollLeft; }}
+            >
+              <div style={{ width: largeurTableau, height: 1 }} />
+            </div>
+            <div
+              ref={scrollTableRef}
+              className="overflow-x-auto"
+              onScroll={(e) => { if (scrollHautRef.current) scrollHautRef.current.scrollLeft = e.currentTarget.scrollLeft; }}
+            >
               <table className="w-full text-left border-collapse table-fixed min-w-[2100px]">
                 <thead>
                   <tr className="bg-[#F3F3F2] text-[10px] font-bold uppercase text-[#005259] border-b border-[#404040]/10 tracking-wider">
                     <th className="p-3 w-24 pl-5">Année</th>
-                    <th className="p-3 w-40">Nom</th>
-                    <th className="p-3 w-40">Prénom</th>
+                    <th className="p-3 w-40 sticky left-0 z-20 bg-[#F3F3F2] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]">Nom</th>
+                    <th className="p-3 w-40 sticky left-40 z-20 bg-[#F3F3F2] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]">Prénom</th>
                     <th className="p-3 w-44">Téléphone personnel</th>
                     <th className="p-3 w-52">Mail contact</th>
                     
@@ -425,12 +473,12 @@ export default function SuiviCollecteTech() {
                         </PermissionGuard>
                       </td>
 
-                      <td className="p-3 font-bold text-[#005259] uppercase truncate">
+                      <td className="p-3 font-bold text-[#005259] uppercase truncate sticky left-0 z-10 bg-white group-hover:bg-[#F3F3F2]/60 transition-colors shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]">
                         <Link href={`/mediation/rencontres-numeriques/liste-beneficiaires/${b.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
                           {b.nom}
                         </Link>
                       </td>
-                      <td className="p-3 text-[#404040] font-bold capitalize truncate">{b.prenom}</td>
+                      <td className="p-3 text-[#404040] font-bold capitalize truncate sticky left-40 z-10 bg-white group-hover:bg-[#F3F3F2]/60 transition-colors shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]">{b.prenom}</td>
                       <td className="p-3 text-[#404040]/80 text-xs">{b.telephone}</td>
                       <td className="p-3 text-[#404040]/80 truncate text-xs">{b.email}</td>
                       
@@ -549,35 +597,48 @@ export default function SuiviCollecteTech() {
                                   </div>
                                 }
                               >
-                                <div onClick={() => { if (editingScansId !== b.id) { setEditingScansId(b.id); setScansValue(b.lienScans); } }}>
-                                  {editingScansId === b.id ? (
-                                    <textarea
-                                      autoFocus
-                                      value={scansValue}
-                                      onChange={(e) => setScansValue(e.target.value)}
-                                      onBlur={() => handleSaveScans(b.id)}
-                                      placeholder={"Un lien par ligne, titre optionnel :\nPasseport | https://...\nhttps://... (sans titre = \"Scan 1\")"}
-                                      className="w-full bg-[#F3F3F2] border border-[#005259] text-[#404040] rounded-lg p-1.5 text-[11px] outline-none min-h-[64px] focus:ring-1 focus:ring-[#005259] resize-y"
-                                    />
-                                  ) : (
-                                    <div className="flex flex-col gap-0.5 p-1 cursor-pointer">
+                                {editingScansId === b.id ? (
+                                  <textarea
+                                    autoFocus
+                                    value={scansValue}
+                                    onChange={(e) => setScansValue(e.target.value)}
+                                    onBlur={() => handleSaveScans(b.id)}
+                                    placeholder={"Un lien par ligne, titre optionnel :\nPasseport | https://...\nhttps://... (sans titre = \"Scan 1\")"}
+                                    className="w-full bg-[#F3F3F2] border border-[#005259] text-[#404040] rounded-lg p-1.5 text-[11px] outline-none min-h-[64px] focus:ring-1 focus:ring-[#005259] resize-y"
+                                  />
+                                ) : !b.lienScans ? (
+                                  <span
+                                    onClick={() => { setEditingScansId(b.id); setScansValue(b.lienScans); }}
+                                    className="text-[#404040]/40 italic cursor-pointer hover:text-[#005259] p-1 block"
+                                  >
+                                    Ajouter des liens...
+                                  </span>
+                                ) : (
+                                  <div className="flex items-start gap-1 group/lien p-1">
+                                    <div className="flex flex-col gap-0.5 min-w-0">
                                       {parserLignesLiens(b.lienScans).map(({ titre, url }, i) => (
                                         <a
                                           key={i}
                                           href={url}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          onClick={(e) => e.stopPropagation()}
                                           title={url}
                                           className="text-[#005259] underline truncate hover:text-[#EA601F] transition-colors"
                                         >
                                           {titre || `Scan ${i + 1}`}
                                         </a>
                                       ))}
-                                      {!b.lienScans && <span className="text-[#404040]/40 italic hover:text-[#005259]">Ajouter des liens...</span>}
                                     </div>
-                                  )}
-                                </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setEditingScansId(b.id); setScansValue(b.lienScans); }}
+                                      title="Modifier les liens"
+                                      className="p-0.5 text-[#404040]/30 hover:text-[#005259] opacity-0 group-hover/lien:opacity-100 transition-opacity shrink-0 cursor-pointer"
+                                    >
+                                      <PencilSquareIcon className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                )}
                               </PermissionGuard>
                             </td>
                           </>
