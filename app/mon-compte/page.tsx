@@ -168,18 +168,19 @@ function MonCompteContenu() {
             ) : (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F3F3F2] border border-[#404040]/10 rounded-xl p-3.5">
                 <span className="text-xs font-bold text-[#404040]/70 uppercase tracking-wide">Non connecté</span>
-                {/* Bouton masqué temporairement (déploiement progressif, voir
-                    demande du 2026-09-14) — ne pas supprimer, juste décommenter
-                    quand la fonctionnalité est prête à être ouverte à tout le staff.
-                <button
-                  onClick={connecterGoogle}
-                  disabled={enCours}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#005259] hover:bg-[#EA601F] text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer shrink-0"
-                >
-                  <ArrowTopRightOnSquareIcon className="w-4 h-4" />
-                  Connecter mon agenda Google
-                </button>
-                */}
+                {/* Fonctionnalité en cours de validation — réservée à ce
+                    compte pour le moment. Retirer cette condition pour
+                    l'ouvrir à tout le staff. */}
+                {user?.email === "emmanuel.chaudy@colombbus.org" && (
+                  <button
+                    onClick={connecterGoogle}
+                    disabled={enCours}
+                    className="flex items-center gap-2 px-4 py-2 bg-[#005259] hover:bg-[#EA601F] text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer shrink-0"
+                  >
+                    <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+                    Connecter mon agenda Google
+                  </button>
+                )}
               </div>
             )}
           </div>
