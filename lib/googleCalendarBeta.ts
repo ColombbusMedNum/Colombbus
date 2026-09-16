@@ -9,5 +9,7 @@ const COMPTES_BETA_GOOGLE_AGENDA = [
 ];
 
 export function estBetaGoogleAgenda(email?: string | null): boolean {
-  return !!email && COMPTES_BETA_GOOGLE_AGENDA.includes(email);
+  if (!email) return false;
+  const normalise = email.toLowerCase().trim();
+  return COMPTES_BETA_GOOGLE_AGENDA.includes(normalise);
 }
