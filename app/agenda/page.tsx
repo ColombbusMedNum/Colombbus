@@ -31,6 +31,7 @@ import {
   type ActiviteType, BLOCS_THEMATIQUES, getJoursFeries,
   genererCreneauxPourModele, estimerNombreCreneaux, estVisibleCetteSemaine,
   formatDateFrCourt, estModeleProtege, resoudreHoraireModele, resoudreHoraireAffichage, resoudreHoraireGrilleACI,
+  horairesSuresnesPourSite,
 } from "../../lib/activitesTypes";
 import { regrouperParCategorie } from "../../lib/equipeCategories";
 import { estBetaGoogleAgenda } from "../../lib/googleCalendarBeta";
@@ -873,11 +874,11 @@ export default function PlanningExpertMix() {
     });
 
     if (isSuresnesAction) {
-      const horaires = moment === "Matin" ? ["10h00 - 11h30", "11h30 - 13h00"] : ["14h00 - 15h30", "15h30 - 17h00"];
       const isRND = upperLieu.includes("RND");
       // Même agenda planning_suresnes, plusieurs sites RN distingués par le
       // numéro de département dans le nom du lieu (voir genererCreneauxPourModele).
       const siteSuresnes = upperLieu.includes("91") ? "rn91" : "suresnes";
+      const horaires = horairesSuresnesPourSite(siteSuresnes, moment === "Après-midi" ? "Après-midi" : "Matin");
       const nomAvecType = siteSuresnes === "rn91" ? `${nomCompletLiaison} (RN91)` : isRND ? `${nomCompletLiaison} (RND)` : `${nomCompletLiaison} (RN)`;
 
       for (const h of horaires) {
@@ -1050,9 +1051,9 @@ export default function PlanningExpertMix() {
           );
           const snapExistant = await getDocs(qExistant);
           if (snapExistant.empty) {
-            const horaires = actionDoc.moment === "Matin" ? ["10h00 - 11h30", "11h30 - 13h00"] : ["14h00 - 15h30", "15h30 - 17h00"];
             const isRND = upperNouveau.includes("RND");
             const siteSuresnes = upperNouveau.includes("91") ? "rn91" : "suresnes";
+            const horaires = horairesSuresnesPourSite(siteSuresnes, actionDoc.moment === "Après-midi" ? "Après-midi" : "Matin");
             const nomAvecType = siteSuresnes === "rn91" ? `${nomCompletLiaison} (RN91)` : isRND ? `${nomCompletLiaison} (RND)` : `${nomCompletLiaison} (RN)`;
             for (const h of horaires) {
               await addDoc(collection(db, "planning_suresnes"), {

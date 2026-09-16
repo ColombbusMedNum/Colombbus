@@ -9,6 +9,7 @@ import { useConfirm } from "@/components/ConfirmProvider";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import { usePermissions } from "@/lib/PermissionsProvider";
 import { lireNom, lirePrenom, lireTelephone, formaterTelephone } from "@/lib/beneficiaireFields";
+import { horairesSuresnesPourSite } from "@/lib/activitesTypes";
 import ScrollToTopButton from "@/components/ScrollToTopButton";
 import Accordion from "@/components/Accordion";
 import {
@@ -699,14 +700,14 @@ export default function PlanningSuresnes() {
   // Ajout manuel d'un créneau (ex. oubli lors de la génération depuis
   // l'agenda, créneau supplémentaire ponctuel) — écrit directement dans
   // planning_suresnes avec le même format que la génération automatique
-  // (voir app/agenda/page.tsx, processActionCreation), et les mêmes 4
-  // horaires fixes que la grille Suresnes/RN habituelle — la demi-journée
-  // (Matin/Après-midi) en découle directement, pas besoin de la redemander.
+  // (voir app/agenda/page.tsx, processActionCreation), et les mêmes horaires
+  // fixes que la grille Suresnes/RN habituelle (horairesSuresnesPourSite,
+  // Massy/rn91 décalé d'une heure le matin) — la demi-journée (Matin/
+  // Après-midi) en découle directement, pas besoin de la redemander.
+  const siteSuresnesActuel: "rn91" | "suresnes" = siteActif === "rn91" ? "rn91" : "suresnes";
   const HORAIRES_SURESNES = [
-    { horaire: "10h00 - 11h30", moment: "Matin" },
-    { horaire: "11h30 - 13h00", moment: "Matin" },
-    { horaire: "14h00 - 15h30", moment: "Après-midi" },
-    { horaire: "15h30 - 17h00", moment: "Après-midi" },
+    ...horairesSuresnesPourSite(siteSuresnesActuel, "Matin").map((horaire) => ({ horaire, moment: "Matin" as const })),
+    ...horairesSuresnesPourSite(siteSuresnesActuel, "Après-midi").map((horaire) => ({ horaire, moment: "Après-midi" as const })),
   ];
   const [ajoutCreneauOuvert, setAjoutCreneauOuvert] = useState(false);
   const [nouveauCreneau, setNouveauCreneau] = useState({ date: "", horaire: "", mediateurNom: "", rnd: false });

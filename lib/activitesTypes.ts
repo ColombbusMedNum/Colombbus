@@ -81,6 +81,18 @@ export interface ActiviteType {
   observationACIDateFin?: string;
 }
 
+// Horaires des créneaux "Suresnes" (consultations individuelles de 1h30)
+// posés dans planning_suresnes pour un site RN donné — Massy (91 - RN,
+// site "rn91") démarre sa demi-journée du matin une heure plus tôt que
+// Suresnes (92 - RN). L'après-midi est identique sur les deux sites.
+export function horairesSuresnesPourSite(
+  site: "rn91" | "suresnes",
+  moment: "Matin" | "Après-midi"
+): string[] {
+  if (moment === "Après-midi") return ["14h00 - 15h30", "15h30 - 17h00"];
+  return site === "rn91" ? ["09h00 - 10h30", "10h30 - 12h00"] : ["10h00 - 11h30", "11h30 - 13h00"];
+}
+
 // Horaire à appliquer à un créneau "Matin" ou "Après-midi" posé depuis ce
 // modèle : priorité aux champs dédiés au moment, repli sur l'ancien couple
 // unique debut/fin (modèles non encore réenregistrés depuis la scission).
@@ -436,7 +448,7 @@ export async function genererCreneauxPourModele(
         await commitSiPlein();
 
         if (isSuresnesAction) {
-          const horaires = moment === "Matin" ? ["10h00 - 11h30", "11h30 - 13h00"] : ["14h00 - 15h30", "15h30 - 17h00"];
+          const horaires = horairesSuresnesPourSite(siteSuresnes, moment as "Matin" | "Après-midi");
           const nomAvecType = siteSuresnes === "rn91" ? `${nomComplet} (RN91)` : isRND ? `${nomComplet} (RND)` : `${nomComplet} (RN)`;
           for (const h of horaires) {
             const refS = doc(collection(db, "planning_suresnes"));
