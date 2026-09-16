@@ -33,6 +33,7 @@ import {
   formatDateFrCourt, estModeleProtege, resoudreHoraireModele, resoudreHoraireAffichage, resoudreHoraireGrilleACI,
 } from "../../lib/activitesTypes";
 import { regrouperParCategorie } from "../../lib/equipeCategories";
+import { estBetaGoogleAgenda } from "../../lib/googleCalendarBeta";
 import { estActionDuMediateur } from "../../lib/matchMediateur";
 
 interface NotificationItem {
@@ -542,40 +543,17 @@ export default function PlanningExpertMix() {
     }
   };
 
-  // Rattrape la synchro Google Agenda des créneaux de ce modèle déjà posés
-  // avant que leurs médiateurs ne connectent leur compte Google — la Cloud
+  // Rattrape la synchro Google Agenda de TOUT planning_mediateurs — la Cloud
   // Function ne réagit qu'aux vraies écritures Firestore (voir
   // functions/src/index.ts), donc un simple horodatage "resyncGoogleDemande"
   // sur chaque créneau existant suffit à déclencher son passage en revue,
   // sans toucher à l'horaire/lieu réel. Ignoré silencieusement pour les
   // médiateurs qui n'ont toujours pas connecté leur compte (la fonction
-  // s'arrête d'elle-même dans ce cas).
-  const [resyncEnCours, setResyncEnCours] = useState(false);
-  const relancerSyncGoogleAgenda = async () => {
-    if (!editingActivite?.lieu) return;
-    if (!(await confirm(`Relancer la synchro Google Agenda pour tous les créneaux existants de "${editingActivite.lieu}" ?`))) return;
-    setResyncEnCours(true);
-    try {
-      const qActions = query(collection(db, "planning_mediateurs"), where("lieu", "==", editingActivite.lieu));
-      const snapActions = await getDocs(qActions);
-      await Promise.all(
-        snapActions.docs.map((actionDoc) => updateDoc(doc(db, "planning_mediateurs", actionDoc.id), { resyncGoogleDemande: Date.now() }))
-      );
-      showToast(`Resynchronisation demandée pour ${snapActions.size} créneau(x).`);
-    } catch (error) {
-      console.error("Erreur lors de la resynchronisation Google Agenda :", error);
-      showToast("Erreur lors de la resynchronisation.", "error");
-    } finally {
-      setResyncEnCours(false);
-    }
-  };
-
-  // Même mécanisme que relancerSyncGoogleAgenda, mais sur TOUT
-  // planning_mediateurs plutôt qu'un seul lieu — bouton d'urgence pour
-  // rattraper des créneaux qui n'auraient jamais atteint Google Agenda
-  // (ex. connexion Google faite après coup, ou la Cloud Function pas encore
-  // redéployée avec le code courant). Écriture par lots de 450 (marge sous
-  // la limite Firestore de 500 opérations par batch).
+  // s'arrête d'elle-même dans ce cas). Sert de filet de sécurité : la
+  // connexion initiale (app/api/google-calendar/callback/route.ts) pose déjà
+  // ce même horodatage sur tout l'historique de la personne dès qu'elle se
+  // connecte pour la première fois. Écriture par lots de 450 (marge sous la
+  // limite Firestore de 500 opérations par batch).
   const [resyncGlobalEnCours, setResyncGlobalEnCours] = useState(false);
   const forcerSyncGoogleAgendaGlobale = async () => {
     if (!(await confirm("Forcer la resynchronisation de TOUT l'agenda des médiateurs avec Google Agenda ? Cette opération peut prendre plusieurs minutes."))) return;
@@ -1434,11 +1412,10 @@ export default function PlanningExpertMix() {
 
         <div className="flex items-center gap-3">
 
-          {/* Fonctionnalité en cours de validation — réservée à ce compte
-              pour le moment (voir aussi la case "Resynchroniser avec Google
-              Agenda" par modèle). Retirer cette condition pour la rouvrir à
-              tout le monde. */}
-          {user?.email === "emmanuel.chaudy@colombbus.org" && (
+          {/* Fonctionnalité en cours de validation — réservée aux comptes de
+              test pour le moment (voir lib/googleCalendarBeta.ts). Retirer
+              cette condition pour la rouvrir à tout le monde. */}
+          {estBetaGoogleAgenda(user?.email) && (
             <button
               onClick={forcerSyncGoogleAgendaGlobale}
               disabled={resyncGlobalEnCours}
@@ -2441,21 +2418,6 @@ export default function PlanningExpertMix() {
               )}
             </div>
 
-            {/* Fonctionnalité en cours de validation — réservée à ce compte
-                pour le moment, le temps de la tester en conditions réelles.
-                Retirer cette condition pour la rouvrir à tout le monde. */}
-            {editingActivite?.lieu && user?.email === "emmanuel.chaudy@colombbus.org" && (
-              <label className="flex items-center gap-2 text-xs text-[#404040] font-semibold cursor-pointer p-2 rounded-md border border-[#404040]/10 bg-[#F3F3F2]">
-                <input
-                  type="checkbox"
-                  checked={false}
-                  disabled={resyncEnCours}
-                  onChange={relancerSyncGoogleAgenda}
-                  className="w-4 h-4 accent-[#005259] cursor-pointer disabled:cursor-not-allowed"
-                />
-                {resyncEnCours ? "Resynchronisation en cours..." : "Resynchroniser avec Google Agenda"}
-              </label>
-            )}
 
             <Accordion title="Apparence (bloc thématique, couleur)" open={!!openSections.apparence} onToggle={() => toggleSection("apparence")}>
               <div className="flex flex-col gap-1">

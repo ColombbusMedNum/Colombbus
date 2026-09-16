@@ -9,6 +9,7 @@ import { usePermissions } from "@/lib/PermissionsProvider";
 import PageGuard from "@/components/PageGuard";
 import { useToast } from "@/components/ToastProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { estBetaGoogleAgenda } from "@/lib/googleCalendarBeta";
 import { quicksand } from "@/lib/fonts";
 import {
   HomeIcon,
@@ -168,10 +169,11 @@ function MonCompteContenu() {
             ) : (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F3F3F2] border border-[#404040]/10 rounded-xl p-3.5">
                 <span className="text-xs font-bold text-[#404040]/70 uppercase tracking-wide">Non connecté</span>
-                {/* Fonctionnalité en cours de validation — réservée à ce
-                    compte pour le moment. Retirer cette condition pour
+                {/* Fonctionnalité en cours de validation — réservée aux
+                    comptes de test pour le moment (voir
+                    lib/googleCalendarBeta.ts). Retirer cette condition pour
                     l'ouvrir à tout le staff. */}
-                {user?.email === "emmanuel.chaudy@colombbus.org" && (
+                {estBetaGoogleAgenda(user?.email) && (
                   <button
                     onClick={connecterGoogle}
                     disabled={enCours}

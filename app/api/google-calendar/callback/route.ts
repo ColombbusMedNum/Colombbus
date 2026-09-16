@@ -54,6 +54,32 @@ export async function GET(request: NextRequest) {
       { merge: true }
     );
 
+    // Première connexion : jusqu'ici, la Cloud Function (voir
+    // functions/src/index.ts) ne répercute que les écritures à venir, jamais
+    // l'historique déjà posé avant la connexion. On pose donc le même
+    // horodatage "resyncGoogleDemande" que la resynchronisation manuelle sur
+    // TOUS les créneaux déjà existants de cette personne, pour qu'elle
+    // retrouve d'un coup tout son agenda déjà posé dans "COSMOS — Planning" —
+    // best-effort : un échec ici ne doit pas faire échouer la connexion,
+    // déjà effective à ce stade.
+    try {
+      const snapCreneaux = await adminDb.collection("planning_mediateurs").where("mediatId", "==", uid).get();
+      let batch = adminDb.batch();
+      let opsDansBatch = 0;
+      for (const creneauDoc of snapCreneaux.docs) {
+        batch.update(creneauDoc.ref, { resyncGoogleDemande: Date.now() });
+        opsDansBatch++;
+        if (opsDansBatch >= 450) {
+          await batch.commit();
+          batch = adminDb.batch();
+          opsDansBatch = 0;
+        }
+      }
+      if (opsDansBatch > 0) await batch.commit();
+    } catch (err) {
+      console.error("Synchronisation initiale de l'historique échouée (connexion déjà effective) :", err);
+    }
+
     return rediriger("?connecte=1");
   } catch (err) {
     console.error("Erreur callback Google Agenda :", err);

@@ -16,7 +16,6 @@ import Link from "next/link";
 import PageGuard from "@/components/PageGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { useToast } from "@/components/ToastProvider";
-import { usePermissions } from "@/lib/PermissionsProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
 import Accordion from "@/components/Accordion";
 import { useMediateurs } from "@/lib/MediateursProvider";
@@ -48,7 +47,6 @@ function sectionsOuvertesInitiales(type: ActiviteType): Record<string, boolean> 
 export default function ModelesPage() {
   const { showToast } = useToast();
   const confirm = useConfirm();
-  const { user } = usePermissions();
   const { mediateurs: mediateursBruts } = useMediateurs();
   const mediateurs = React.useMemo(
     () => mediateursBruts.filter((m: any) => m.actif !== false && (m.prenom || m.nom)),
@@ -449,31 +447,6 @@ export default function ModelesPage() {
     }
   };
 
-  // Rattrape la synchro Google Agenda des créneaux de ce modèle déjà posés
-  // avant que leurs médiateurs ne connectent leur compte Google — même
-  // mécanisme que app/agenda/page.tsx (voir ce fichier pour le détail) : un
-  // horodatage "resyncGoogleDemande" suffit à faire repasser la Cloud
-  // Function en revue chaque créneau existant, sans toucher à ses horaires.
-  const [resyncEnCours, setResyncEnCours] = useState(false);
-  const relancerSyncGoogleAgenda = async () => {
-    if (!editingActivite?.lieu) return;
-    if (!(await confirm(`Relancer la synchro Google Agenda pour tous les créneaux existants de "${editingActivite.lieu}" ?`))) return;
-    setResyncEnCours(true);
-    try {
-      const qActions = query(collection(db, "planning_mediateurs"), where("lieu", "==", editingActivite.lieu));
-      const snapActions = await getDocs(qActions);
-      await Promise.all(
-        snapActions.docs.map((actionDoc) => updateDoc(doc(db, "planning_mediateurs", actionDoc.id), { resyncGoogleDemande: Date.now() }))
-      );
-      showToast(`Resynchronisation demandée pour ${snapActions.size} créneau(x).`);
-    } catch (error) {
-      console.error("Erreur lors de la resynchronisation Google Agenda :", error);
-      showToast("Erreur lors de la resynchronisation.", "error");
-    } finally {
-      setResyncEnCours(false);
-    }
-  };
-
   // Pour une activité récurrente (ex: "Quintinie") qui revient sur plusieurs
   // périodes distinctes dans l'année : crée un nouveau modèle avec les mêmes
   // horaires/lieu/type/médiateurs, dates vides à remplir directement dans le
@@ -736,21 +709,6 @@ export default function ModelesPage() {
               )}
             </div>
 
-            {/* Fonctionnalité en cours de validation — réservée à ce compte
-                pour le moment, le temps de la tester en conditions réelles.
-                Retirer cette condition pour la rouvrir à tout le monde. */}
-            {editingActivite?.lieu && user?.email === "emmanuel.chaudy@colombbus.org" && (
-              <label className="flex items-center gap-2 text-xs text-[#404040] font-semibold cursor-pointer p-2 rounded-md border border-[#404040]/10 bg-[#F3F3F2]">
-                <input
-                  type="checkbox"
-                  checked={false}
-                  disabled={resyncEnCours}
-                  onChange={relancerSyncGoogleAgenda}
-                  className="w-4 h-4 accent-[#005259] cursor-pointer disabled:cursor-not-allowed"
-                />
-                {resyncEnCours ? "Resynchronisation en cours..." : "Resynchroniser avec Google Agenda"}
-              </label>
-            )}
 
             <Accordion title="Apparence (bloc thématique, couleur)" open={!!openSections.apparence} onToggle={() => toggleSection("apparence")}>
               <div className="flex flex-col gap-1">

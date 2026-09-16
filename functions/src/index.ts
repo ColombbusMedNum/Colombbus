@@ -148,11 +148,29 @@ export const synchroniserPlanningMediateurs = onDocumentWritten(
       const dejaLie = !!(avant && avant.mediatId === apres.mediatId && apres.googleEventId);
 
       if (dejaLie) {
-        await ctx.calendar.events.patch({
-          calendarId: ctx.calendarId,
-          eventId: apres.googleEventId,
-          requestBody: evenement,
-        });
+        try {
+          await ctx.calendar.events.patch({
+            calendarId: ctx.calendarId,
+            eventId: apres.googleEventId,
+            requestBody: evenement,
+          });
+        } catch (err: any) {
+          // L'événement lié n'existe plus dans CE calendrier — typiquement
+          // après une déconnexion/reconnexion (le calendrier "COSMOS —
+          // Planning" a été recréé avec un nouvel id, mais le document garde
+          // l'ancien googleEventId), ou une suppression manuelle côté
+          // Google. Plutôt que d'échouer silencieusement à chaque écriture
+          // suivante, on recrée l'événement et on repose le bon id.
+          if (err?.code === 404 || err?.response?.status === 404) {
+            const { data: cree } = await ctx.calendar.events.insert({
+              calendarId: ctx.calendarId,
+              requestBody: evenement,
+            });
+            await docRef.update({ googleEventId: cree.id });
+          } else {
+            throw err;
+          }
+        }
       } else {
         const { data: cree } = await ctx.calendar.events.insert({
           calendarId: ctx.calendarId,
