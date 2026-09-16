@@ -13,6 +13,7 @@ import {
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import PageGuard from "@/components/PageGuard";
+import { resoudreHoraireAffichage } from "@/lib/activitesTypes";
 
 export default function ListeAdresses() {
   const [lieuxUniques, setLieuxUniques] = useState<string[]>([]);
@@ -177,12 +178,25 @@ export default function ListeAdresses() {
                         )}
                       </h3>
                       
-                      {act.debut && (
-                        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#EA601F] bg-[#F3F3F2] border border-[#404040]/10 px-2.5 py-1 rounded-lg uppercase tracking-wider self-start sm:self-center font-mono">
-                          <ClockIcon className="w-3.5 h-3.5 text-[#EA601F] shrink-0" /> 
-                          <span>{act.debut} — {act.fin}</span>
-                        </span>
-                      )}
+                      {(() => {
+                        const hMatin = resoudreHoraireAffichage(act, "Matin");
+                        const hApresMidi = resoudreHoraireAffichage(act, "Après-midi");
+                        if (!hMatin && !hApresMidi) return null;
+                        return (
+                          <span className="inline-flex flex-col gap-0.5 text-[11px] font-bold text-[#EA601F] bg-[#F3F3F2] border border-[#404040]/10 px-2.5 py-1 rounded-lg uppercase tracking-wider self-start sm:self-center font-mono">
+                            {hMatin && (
+                              <span className="inline-flex items-center gap-1.5">
+                                <ClockIcon className="w-3.5 h-3.5 text-[#EA601F] shrink-0" /> Matin {hMatin.debut} — {hMatin.fin}
+                              </span>
+                            )}
+                            {hApresMidi && (
+                              <span className="inline-flex items-center gap-1.5">
+                                <ClockIcon className="w-3.5 h-3.5 text-[#EA601F] shrink-0" /> Après-midi {hApresMidi.debut} — {hApresMidi.fin}
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })()}
                     </div>
                     
                     <p className="text-xs text-[#404040]/70 font-medium mt-1.5 leading-relaxed">

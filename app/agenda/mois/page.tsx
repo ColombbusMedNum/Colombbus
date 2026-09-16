@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { quicksand } from "@/lib/fonts";
-import { HomeIcon, ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, CalendarDaysIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ArrowLeftIcon, ChevronLeftIcon, ChevronRightIcon, CalendarDaysIcon, MapPinIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import PageGuard from "@/components/PageGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
@@ -14,6 +14,20 @@ import { getJoursFeries } from "@/lib/activitesTypes";
 import type { Mediateur, ActionPlanning } from "@/lib/types";
 
 const JOURS_SEMAINE = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+
+// Une couleur de modèle claire (pastel) utilisée telle quelle comme couleur
+// de texte devient illisible sur le fond quasi blanc des cases du mois —
+// voir isLightColor dans app/agenda/page.tsx pour le même correctif côté
+// grille hebdomadaire. On bascule alors sur un texte sombre neutre plutôt
+// que la couleur pâle du modèle.
+function isLightColor(hex: string): boolean {
+  if (!hex || !hex.startsWith('#') || hex.length < 7) return false;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6;
+}
 
 // Vue mensuelle complète du planning d'un seul médiateur, choisi dans un
 // sélecteur — complémentaire à la grille hebdomadaire de /agenda, qui montre
@@ -244,14 +258,28 @@ export default function VueMoisAgendaPage() {
                       <div className="flex flex-col gap-0.5">
                         {actionsJour.map((a) => {
                           const hexColor = a.couleur || "#005259";
+                          const estClaire = isLightColor(hexColor);
+                          const textColor = estClaire ? "#1A1A1A" : hexColor;
                           return (
                             <div
                               key={a.id}
                               title={`${a.moment || ""} — ${a.lieu || ""}${a.debut ? ` (${a.debut}-${a.fin})` : ""}`}
-                              className="text-[9px] font-bold px-1.5 py-0.5 rounded truncate border"
-                              style={{ backgroundColor: `${hexColor}1A`, borderColor: hexColor, color: hexColor }}
+                              className="text-[9px] font-bold px-1.5 py-0.5 rounded truncate border flex items-center gap-0.5"
+                              style={{ backgroundColor: `${hexColor}${estClaire ? "40" : "1A"}`, borderColor: hexColor, color: textColor }}
                             >
-                              {a.lieu}
+                              {a.adresse && (
+                                <a
+                                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a.adresse)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  title={`Ouvrir dans Google Maps : ${a.adresse}`}
+                                  className="shrink-0"
+                                >
+                                  <MapPinIcon className="w-2.5 h-2.5" style={{ color: textColor }} />
+                                </a>
+                              )}
+                              <span className="truncate min-w-0">{a.lieu}</span>
                             </div>
                           );
                         })}

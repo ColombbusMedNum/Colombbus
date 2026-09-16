@@ -23,8 +23,24 @@ export function estModeleProtege(lieu?: string): boolean {
 export interface ActiviteType {
   id?: string;
   lieu: string;
-  debut: string;
-  fin: string;
+  // Horaires "legacy" (un seul couple pour toute la journée), conservés en
+  // lecture pour les modèles créés avant la scission matin/après-midi —
+  // resoudreHoraireModele() s'en sert de repli quand le champ du moment
+  // demandé (ci-dessous) est vide. Les nouveaux/modifiés modèles n'écrivent
+  // plus que debutMatin/finMatin/debutApresMidi/finApresMidi.
+  debut?: string;
+  fin?: string;
+  debutMatin?: string;
+  finMatin?: string;
+  debutApresMidi?: string;
+  finApresMidi?: string;
+  // Coché quand ce modèle représente une plage horaire continue sur toute la
+  // journée (ex. Congés) plutôt que deux demi-journées distinctes — sert
+  // uniquement à ouvrir automatiquement l'accordéon "Horaires" à l'édition,
+  // sans influer sur la résolution des horaires elle-même (voir
+  // resoudreHoraireModele, toujours basée sur debutMatin/finMatin et
+  // debutApresMidi/finApresMidi).
+  journeeComplete?: boolean;
   adresse: string;
   territoire: string;
   couleur: string;
@@ -63,6 +79,100 @@ export interface ActiviteType {
   // sans date, elle s'applique indéfiniment.
   observationACI?: boolean;
   observationACIDateFin?: string;
+}
+
+// Horaire à appliquer à un créneau "Matin" ou "Après-midi" posé depuis ce
+// modèle : priorité aux champs dédiés au moment, repli sur l'ancien couple
+// unique debut/fin (modèles non encore réenregistrés depuis la scission).
+export function resoudreHoraireModele(
+  modele: Pick<ActiviteType, "debut" | "fin" | "debutMatin" | "finMatin" | "debutApresMidi" | "finApresMidi">,
+  moment: "Matin" | "Après-midi"
+): { debut: string; fin: string } | null {
+  if (moment === "Matin" && modele.debutMatin && modele.finMatin) {
+    return { debut: modele.debutMatin, fin: modele.finMatin };
+  }
+  if (moment === "Après-midi" && modele.debutApresMidi && modele.finApresMidi) {
+    return { debut: modele.debutApresMidi, fin: modele.finApresMidi };
+  }
+  if (modele.debut && modele.fin) return { debut: modele.debut, fin: modele.fin };
+  return null;
+}
+
+// Découpe l'horaire journalier d'une grille ACI (un seul couple début/fin,
+// ex. 09:00-17:00 — voir configuration_equipe/parametres_horaires) en sa
+// moitié Matin ou Après-midi, de part et d'autre d'une pause méridienne
+// TOUJOURS fixée à 13h00-14h00, indépendamment de l'horaire du modèle posé.
+// Renvoie null si la grille ne couvre pas du tout cette demi-journée (ex.
+// grille finissant à 12h30 : pas d'après-midi ce jour-là pour cette
+// personne).
+export function decouperGrilleACI(
+  grille: { debut: string; fin: string },
+  moment: "Matin" | "Après-midi"
+): { debut: string; fin: string } | null {
+  if (moment === "Matin") {
+    return grille.debut < "13:00" ? { debut: grille.debut, fin: "13:00" } : null;
+  }
+  return grille.fin > "14:00" ? { debut: "14:00", fin: grille.fin } : null;
+}
+
+// Résout, pour un médiateur ACI positionné sur un lieu à grille horaire
+// dédiée (TERRAGE -> toujours Paris, MASSY -> toujours Massy, RN Observation
+// -> le rattachement personnel de la personne), l'horaire de sa demi-journée
+// pour une date et un moment donnés — découpé en Matin/Après-midi via
+// decouperGrilleACI. Point d'entrée unique, utilisé à la fois à la création
+// d'un créneau (processActionCreation, genererCreneauxPourModele) et lors de
+// la répercussion d'une modification de modèle sur les créneaux déjà posés
+// (sans quoi ces derniers repartaient sur l'horaire brut du modèle, écrasant
+// la grille personnelle de l'ACI). Renvoie null si le lieu ne concerne pas ce
+// mécanisme, si la personne n'est pas ACI, ou si sa grille ne couvre pas
+// cette demi-journée.
+export function resoudreHoraireGrilleACI(
+  lieu: string,
+  med: Pick<Mediateur, "statut" | "rattachementHoraireACI"> | undefined,
+  dateStr: string,
+  moment: "Matin" | "Après-midi",
+  grillesHorairesACI: Record<string, Record<string, { debut: string; fin: string }>> | null | undefined
+): { debut: string; fin: string } | null {
+  if (!med || med.statut !== "ACI" || !grillesHorairesACI) return null;
+  const upperLieu = (lieu || "").toUpperCase();
+  const estTerrage = upperLieu.includes("TERRAGE");
+  const estMassyLieu = upperLieu.includes("MASSY");
+  const estObservation = upperLieu.includes("OBSERVATION");
+  if (!estTerrage && !estMassyLieu && !estObservation) return null;
+  const site = estTerrage ? "Paris" : estMassyLieu ? "Massy" : (med.rattachementHoraireACI || "Paris");
+  const joursParIndex = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+  const jourKey = joursParIndex[new Date(`${dateStr}T00:00:00`).getDay()];
+  const h = grillesHorairesACI[site]?.[jourKey];
+  if (!h?.debut || !h?.fin) return null;
+  return decouperGrilleACI(h, moment);
+}
+
+// Variante d'affichage de resoudreHoraireModele, pour les listes/cartes de
+// modèles (sidebar agenda, page Modèles, page Adresses) : un modèle legacy
+// (pas encore réenregistré avec des champs dédiés matin/après-midi, "Journée
+// complète" non cochée) affichait sinon le même horaire unique dupliqué sur
+// les deux lignes Matin/Après-midi, ce qui est trompeur puisqu'il ne
+// concernait en réalité souvent qu'une seule des deux (ex: 14h30-17h30 posé
+// uniquement l'après-midi). On devine alors la demi-journée réellement
+// concernée à partir de l'heure de début historique (avant 13h = matin,
+// sinon après-midi) et on laisse l'autre ligne vide plutôt que de deviner à
+// tort en dupliquant. N'affecte jamais la résolution réelle d'un horaire
+// posé sur un créneau (resoudreHoraireModele reste inchangée pour ça).
+export function resoudreHoraireAffichage(
+  modele: Pick<ActiviteType, "debut" | "fin" | "debutMatin" | "finMatin" | "debutApresMidi" | "finApresMidi" | "journeeComplete">,
+  moment: "Matin" | "Après-midi"
+): { debut: string; fin: string } | null {
+  const champsDedies = moment === "Matin"
+    ? !!(modele.debutMatin && modele.finMatin)
+    : !!(modele.debutApresMidi && modele.finApresMidi);
+  if (champsDedies) return resoudreHoraireModele(modele, moment);
+
+  if (!modele.debut || !modele.fin) return null;
+  if (modele.journeeComplete) return { debut: modele.debut, fin: modele.fin };
+
+  const estMatin = modele.debut < "13:00";
+  if (estMatin === (moment === "Matin")) return { debut: modele.debut, fin: modele.fin };
+  return null;
 }
 
 // Un modèle est-il visible dans la sidebar de l'agenda pour la semaine
@@ -272,7 +382,6 @@ export async function genererCreneauxPourModele(
     const snapHoraires = await getDoc(doc(db, "configuration_equipe", "parametres_horaires"));
     grillesHorairesACI = snapHoraires.exists() ? (snapHoraires.data() as any) : null;
   }
-  const JOURS_PAR_INDEX = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
   let crees = 0;
   let ignores = 0;
@@ -293,21 +402,14 @@ export async function genererCreneauxPourModele(
     let creesPourCeMed = 0;
 
     for (const dateStr of dates) {
-      let horaireOverride: { debut: string; fin: string } | null = null;
-      if ((estTerrage || estMassyLieu || estObservation) && med.statut === "ACI" && grillesHorairesACI) {
-        const site = estTerrage ? "Paris" : estMassyLieu ? "Massy" : ((med as any).rattachementHoraireACI || "Paris");
-        const jourKey = JOURS_PAR_INDEX[new Date(`${dateStr}T00:00:00`).getDay()];
-        const h = grillesHorairesACI[site]?.[jourKey];
-        if (h?.debut && h?.fin) horaireOverride = h;
-      }
-
       for (const moment of moments) {
         if (occupes.has(`${med.id}_${dateStr}_${moment}`) || occupes.has(`${nomComplet}_${dateStr}_${moment}`)) {
           ignores++;
           continue;
         }
 
-        const horaireCreneau = horaireOverride || (modele.debut ? { debut: modele.debut, fin: modele.fin } : null);
+        const horaireOverride = resoudreHoraireGrilleACI(modele.lieu, med, dateStr, moment as "Matin" | "Après-midi", grillesHorairesACI);
+        const horaireCreneau = horaireOverride || resoudreHoraireModele(modele, moment as "Matin" | "Après-midi");
 
         const ref = doc(collection(db, "planning_mediateurs"));
         batch.set(ref, {

@@ -16,16 +16,19 @@ import Link from "next/link";
 import PageGuard from "@/components/PageGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { useToast } from "@/components/ToastProvider";
+import { usePermissions } from "@/lib/PermissionsProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
 import Accordion from "@/components/Accordion";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import {
-  type ActiviteType, BLOCS_THEMATIQUES,
+  type ActiviteType, BLOCS_THEMATIQUES, resoudreHoraireModele, resoudreHoraireAffichage, resoudreHoraireGrilleACI,
   genererCreneauxPourModele, estimerNombreCreneaux, formatDateFrCourt, formatDateFr, estModeleProtege,
 } from "@/lib/activitesTypes";
 
 const ACTIVITE_VIDE: ActiviteType = {
-  lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "",
+  lieu: "", debutMatin: "09:00", finMatin: "12:00", debutApresMidi: "14:00", finApresMidi: "17:30",
+  journeeComplete: false,
+  adresse: "", territoire: "",
   couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "",
   blocs: [], mediateursIds: [], generationMoment: "Les deux", datesActives: [],
 };
@@ -35,6 +38,7 @@ const ACTIVITE_VIDE: ActiviteType = {
 // interminable tout en gardant visible ce qui a déjà été configuré.
 function sectionsOuvertesInitiales(type: ActiviteType): Record<string, boolean> {
   return {
+    horaires: !!type.journeeComplete || !!(type.debutMatin || type.debutApresMidi),
     apparence: (type.blocs || []).length > 0,
     periode: !!(type.dateDebut || type.dateFin || (type.datesActives || []).length > 0),
     mediateurs: (type.mediateursIds || []).length > 0,
@@ -44,6 +48,7 @@ function sectionsOuvertesInitiales(type: ActiviteType): Record<string, boolean> 
 export default function ModelesPage() {
   const { showToast } = useToast();
   const confirm = useConfirm();
+  const { user } = usePermissions();
   const { mediateurs: mediateursBruts } = useMediateurs();
   const mediateurs = React.useMemo(
     () => mediateursBruts.filter((m: any) => m.actif !== false && (m.prenom || m.nom)),
@@ -223,11 +228,25 @@ export default function ModelesPage() {
         </div>
 
         <div className="flex flex-wrap gap-1.5 text-[10px] text-[#404040]/70">
-          {type.debut && (
-            <span className="inline-flex items-center gap-1 bg-[#F3F3F2] border border-[#404040]/10 px-2 py-0.5 rounded-lg font-mono font-bold">
-              <ClockIcon className="w-3 h-3 text-[#EA601F]" /> {type.debut}–{type.fin}
-            </span>
-          )}
+          {(() => {
+            const hMatin = resoudreHoraireAffichage(type, "Matin");
+            const hApresMidi = resoudreHoraireAffichage(type, "Après-midi");
+            if (!hMatin && !hApresMidi) return null;
+            return (
+              <span className="inline-flex flex-col gap-0.5 bg-[#F3F3F2] border border-[#404040]/10 px-2 py-1 rounded-lg font-mono font-bold">
+                {hMatin && (
+                  <span className="inline-flex items-center gap-1">
+                    <ClockIcon className="w-3 h-3 text-[#EA601F] shrink-0" /> Matin {hMatin.debut}–{hMatin.fin}
+                  </span>
+                )}
+                {hApresMidi && (
+                  <span className="inline-flex items-center gap-1">
+                    <ClockIcon className="w-3 h-3 text-[#EA601F] shrink-0" /> Après-midi {hApresMidi.debut}–{hApresMidi.fin}
+                  </span>
+                )}
+              </span>
+            );
+          })()}
           {aPeriode && (
             <span className="inline-flex items-center gap-1 bg-[#F3F3F2] border border-[#404040]/10 px-2 py-0.5 rounded-lg font-bold">
               <CalendarDaysIcon className="w-3 h-3 text-[#EA601F]" />
@@ -293,10 +312,20 @@ export default function ModelesPage() {
 
   const openEdit = (type: ActiviteType) => {
     setEditingActivite(type);
+    // resoudreHoraireAffichage (pas resoudreHoraireModele) : un modèle legacy
+    // qui ne concernait déjà qu'une demi-journée (generationMoment "Matin" ou
+    // "Après-midi") doit rouvrir avec l'autre champ vide, pas prérempli avec
+    // le même horaire — sans quoi le vider et l'enregistrer ne "collait"
+    // jamais (l'ancien debut/fin repartait dans les deux à la réédition).
+    const hMatin = resoudreHoraireAffichage(type, "Matin");
+    const hApresMidi = resoudreHoraireAffichage(type, "Après-midi");
     setNewActivite({
       lieu: type.lieu || "",
-      debut: type.debut || "09:00",
-      fin: type.fin || "17:00",
+      debutMatin: hMatin?.debut || "",
+      finMatin: hMatin?.fin || "",
+      debutApresMidi: hApresMidi?.debut || "",
+      finApresMidi: hApresMidi?.fin || "",
+      journeeComplete: type.journeeComplete || false,
       adresse: type.adresse || "",
       territoire: type.territoire || "",
       couleur: type.couleur || "#005259",
@@ -334,8 +363,17 @@ export default function ModelesPage() {
     try {
       const dataPayload = {
         lieu: newActivite.lieu.trim(),
-        debut: newActivite.debut,
-        fin: newActivite.fin,
+        // Écrase l'ancien couple debut/fin (pré-scission matin/après-midi) :
+        // sans ça, resoudreHoraireModele continuerait à y retomber dès que
+        // l'un des 4 champs ci-dessous est vide, empêchant de vider
+        // délibérément une demi-journée (voir openEdit).
+        debut: "",
+        fin: "",
+        debutMatin: newActivite.debutMatin,
+        finMatin: newActivite.finMatin,
+        debutApresMidi: newActivite.debutApresMidi,
+        finApresMidi: newActivite.finApresMidi,
+        journeeComplete: newActivite.journeeComplete || false,
         adresse: newActivite.adresse.trim(),
         territoire: newActivite.territoire,
         couleur: newActivite.couleur,
@@ -357,20 +395,37 @@ export default function ModelesPage() {
         await updateDoc(doc(db, "activites_types", editingActivite.id), dataPayload);
         const qActions = query(collection(db, "planning_mediateurs"), where("lieu", "==", editingActivite.lieu));
         const snapActions = await getDocs(qActions);
-        const updates = snapActions.docs.map(actionDoc =>
-          updateDoc(doc(db, "planning_mediateurs", actionDoc.id), {
+
+        // Sur TERRAGE/MASSY/RN Observation, un ACI garde sa grille horaire
+        // personnelle même quand le modèle est modifié : sans ça, cette
+        // répercussion écraserait ses créneaux déjà posés avec l'horaire brut
+        // du modèle (voir resoudreHoraireGrilleACI).
+        const upperLieuEdite = (newActivite.lieu || "").toUpperCase();
+        const concerneGrilleACI = upperLieuEdite.includes("TERRAGE") || upperLieuEdite.includes("MASSY") || upperLieuEdite.includes("OBSERVATION");
+        let grillesHorairesACIPropagation: Record<string, Record<string, { debut: string; fin: string }>> | null = null;
+        if (concerneGrilleACI) {
+          const snapHoraires = await getDoc(doc(db, "configuration_equipe", "parametres_horaires"));
+          grillesHorairesACIPropagation = snapHoraires.exists() ? (snapHoraires.data() as any) : null;
+        }
+
+        const updates = snapActions.docs.map((actionDoc) => {
+          const data = actionDoc.data();
+          const moment = data.moment === "Après-midi" ? "Après-midi" : "Matin";
+          const med = mediateursBruts.find((m: any) => m.id === data.mediatId);
+          const horaireACI = resoudreHoraireGrilleACI(newActivite.lieu, med, data.date, moment, grillesHorairesACIPropagation);
+          const horaire = horaireACI || resoudreHoraireModele(newActivite, moment);
+          return updateDoc(doc(db, "planning_mediateurs", actionDoc.id), {
             codeAnalytique: newActivite.codeAnalytique.trim(),
             couleur: newActivite.couleur,
             lieu: newActivite.lieu.trim(),
-            debut: newActivite.debut,
-            fin: newActivite.fin,
+            ...(horaire ? { debut: horaire.debut, fin: horaire.fin } : {}),
             adresse: newActivite.adresse.trim(),
             territoire: newActivite.territoire,
             estProduction: newActivite.estProduction || false,
             observationACI: newActivite.observationACI || false,
             observationACIDateFin: newActivite.observationACI ? (newActivite.observationACIDateFin || "") : "",
-          })
-        );
+          });
+        });
         await Promise.all(updates);
       } else {
         const ref = await addDoc(collection(db, "activites_types"), dataPayload);
@@ -391,6 +446,31 @@ export default function ModelesPage() {
     } catch (error) {
       console.error("Erreur sauvegarde modèle :", error);
       showToast("Une erreur est survenue lors de l'enregistrement du modèle.", "error");
+    }
+  };
+
+  // Rattrape la synchro Google Agenda des créneaux de ce modèle déjà posés
+  // avant que leurs médiateurs ne connectent leur compte Google — même
+  // mécanisme que app/agenda/page.tsx (voir ce fichier pour le détail) : un
+  // horodatage "resyncGoogleDemande" suffit à faire repasser la Cloud
+  // Function en revue chaque créneau existant, sans toucher à ses horaires.
+  const [resyncEnCours, setResyncEnCours] = useState(false);
+  const relancerSyncGoogleAgenda = async () => {
+    if (!editingActivite?.lieu) return;
+    if (!(await confirm(`Relancer la synchro Google Agenda pour tous les créneaux existants de "${editingActivite.lieu}" ?`))) return;
+    setResyncEnCours(true);
+    try {
+      const qActions = query(collection(db, "planning_mediateurs"), where("lieu", "==", editingActivite.lieu));
+      const snapActions = await getDocs(qActions);
+      await Promise.all(
+        snapActions.docs.map((actionDoc) => updateDoc(doc(db, "planning_mediateurs", actionDoc.id), { resyncGoogleDemande: Date.now() }))
+      );
+      showToast(`Resynchronisation demandée pour ${snapActions.size} créneau(x).`);
+    } catch (error) {
+      console.error("Erreur lors de la resynchronisation Google Agenda :", error);
+      showToast("Erreur lors de la resynchronisation.", "error");
+    } finally {
+      setResyncEnCours(false);
     }
   };
 
@@ -562,16 +642,56 @@ export default function ModelesPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex flex-col gap-0.5">
-                <label className="text-[9px] text-[#404040]/70 font-bold uppercase">Heure début</label>
-                <input type="time" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.debut} onChange={e => setNewActivite({...newActivite, debut: e.target.value})} />
+            <label className="flex items-center gap-2 text-xs text-[#404040] font-semibold cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!newActivite.journeeComplete}
+                onChange={e => {
+                  const checked = e.target.checked;
+                  setNewActivite({
+                    ...newActivite,
+                    journeeComplete: checked,
+                    // Horaire par défaut d'une journée complète, à ajuster
+                    // ensuite dans l'accordéon si besoin.
+                    ...(checked ? { debutMatin: "09:30", finMatin: "13:00", debutApresMidi: "14:00", finApresMidi: "17:30" } : {}),
+                  });
+                  if (checked) setOpenSections(prev => ({ ...prev, horaires: true }));
+                }}
+                className="w-4 h-4 accent-[#005259] cursor-pointer"
+              />
+              Journée complète (horaire continu, ex. congés)
+            </label>
+
+            <Accordion title="Horaires (matin / après-midi)" open={!!openSections.horaires} onToggle={() => toggleSection("horaires")}>
+              <div className="space-y-2">
+                <div>
+                  <label className="text-[9px] text-[#404040]/50 font-bold uppercase tracking-wider">Matin</label>
+                  <div className="grid grid-cols-2 gap-2 mt-0.5">
+                    <div className="flex flex-col gap-0.5">
+                      <label className="text-[9px] text-[#404040]/70 font-bold uppercase">Heure début</label>
+                      <input type="time" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.debutMatin || ""} onChange={e => setNewActivite({...newActivite, debutMatin: e.target.value})} />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <label className="text-[9px] text-[#404040]/70 font-bold uppercase">Heure fin</label>
+                      <input type="time" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.finMatin || ""} onChange={e => setNewActivite({...newActivite, finMatin: e.target.value})} />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[9px] text-[#404040]/50 font-bold uppercase tracking-wider">Après-midi</label>
+                  <div className="grid grid-cols-2 gap-2 mt-0.5">
+                    <div className="flex flex-col gap-0.5">
+                      <label className="text-[9px] text-[#404040]/70 font-bold uppercase">Heure début</label>
+                      <input type="time" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.debutApresMidi || ""} onChange={e => setNewActivite({...newActivite, debutApresMidi: e.target.value})} />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <label className="text-[9px] text-[#404040]/70 font-bold uppercase">Heure fin</label>
+                      <input type="time" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.finApresMidi || ""} onChange={e => setNewActivite({...newActivite, finApresMidi: e.target.value})} />
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex flex-col gap-0.5">
-                <label className="text-[9px] text-[#404040]/70 font-bold uppercase">Heure fin</label>
-                <input type="time" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.fin} onChange={e => setNewActivite({...newActivite, fin: e.target.value})} />
-              </div>
-            </div>
+            </Accordion>
 
             <div className="flex flex-col gap-1">
               <label className="text-[10px] text-[#404040]/70 font-semibold">Code Analytique (Optionnel)</label>
@@ -615,6 +735,22 @@ export default function ModelesPage() {
                 </div>
               )}
             </div>
+
+            {/* Fonctionnalité en cours de validation — réservée à ce compte
+                pour le moment, le temps de la tester en conditions réelles.
+                Retirer cette condition pour la rouvrir à tout le monde. */}
+            {editingActivite?.lieu && user?.email === "emmanuel.chaudy@colombbus.org" && (
+              <label className="flex items-center gap-2 text-xs text-[#404040] font-semibold cursor-pointer p-2 rounded-md border border-[#404040]/10 bg-[#F3F3F2]">
+                <input
+                  type="checkbox"
+                  checked={false}
+                  disabled={resyncEnCours}
+                  onChange={relancerSyncGoogleAgenda}
+                  className="w-4 h-4 accent-[#005259] cursor-pointer disabled:cursor-not-allowed"
+                />
+                {resyncEnCours ? "Resynchronisation en cours..." : "Resynchroniser avec Google Agenda"}
+              </label>
+            )}
 
             <Accordion title="Apparence (bloc thématique, couleur)" open={!!openSections.apparence} onToggle={() => toggleSection("apparence")}>
               <div className="flex flex-col gap-1">

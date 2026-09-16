@@ -26,6 +26,7 @@ import {
   PhotoIcon,
   XMarkIcon,
   ChevronDownIcon,
+  PrinterIcon,
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { formatPhoneNumber } from "@/lib/formatPhone";
@@ -306,10 +307,10 @@ const textareaEditClass = `${inputEditClass} resize-y`;
 
 function Section({ icon: Icon, titre, children }: { icon: React.ComponentType<{ className?: string }>; titre: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm p-5 space-y-4">
+    <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm p-5 space-y-4 print:shadow-none print:border-black print:break-inside-avoid-page">
       <div className="flex items-center gap-2.5">
         <Icon className="w-4 h-4 text-[#EA601F]" />
-        <h2 className="text-xs font-extrabold uppercase tracking-widest text-[#005259]">{titre}</h2>
+        <h2 className="text-xs font-extrabold uppercase tracking-widest text-[#005259] print:text-black">{titre}</h2>
       </div>
       {children}
     </div>
@@ -879,6 +880,17 @@ export default function FicheApprenantNumerikUpProPage() {
               </button>
             </div>
 
+            {ongletActif === "fiche" && (
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex items-center gap-2 bg-[#EA601F] hover:bg-[#005259] text-white px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+              >
+                <PrinterIcon className="w-4 h-4" />
+                <span>Imprimer</span>
+              </button>
+            )}
+
             <Link
               href={`/mediation/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(sessionId)}/apprenants`}
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
@@ -899,7 +911,7 @@ export default function FicheApprenantNumerikUpProPage() {
         {ongletActif === "diagnostic" ? (
           <FicheEntretienDiagnostic inscription={i} mettreAJourChamp={mettreAJourChamp} />
         ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 print:grid-cols-1">
 
           <Section icon={UserCircleIcon} titre="Identité & contact">
             <div className="grid grid-cols-2 gap-4">
@@ -1262,6 +1274,15 @@ export default function FicheApprenantNumerikUpProPage() {
         )}
 
       </div>
+
+      <style jsx global>{`
+        @media print {
+          html, body {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+        }
+      `}</style>
     </main>
     </PageGuard>
   );

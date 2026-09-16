@@ -114,10 +114,19 @@ export const synchroniserPlanningMediateurs = onDocumentWritten(
         return;
       }
 
+      // "resyncGoogleDemande" (horodatage) permet de forcer une resynchro
+      // sans rien changer d'autre — posé en masse depuis /agenda ou
+      // /mediation/modeles ("Resynchroniser avec Google Agenda" sur un
+      // modèle) pour rattraper des créneaux créés avant que la personne
+      // n'ait connecté son compte Google. Sans ce champ, le garde-fou
+      // anti-boucle ci-dessous ignorerait ces écritures de rattrapage
+      // puisqu'elles ne touchent justement à aucun champ pertinent.
+      const demandeResyncChangee = (avant?.resyncGoogleDemande || null) !== (apres.resyncGoogleDemande || null);
+
       // Garde-fou anti-boucle : ignore une écriture qui ne change rien de
       // pertinent (notamment celle que cette fonction vient elle-même de
       // faire pour poser googleEventId).
-      if (avant && avant.mediatId === apres.mediatId && champsPertinentsIdentiques(avant, apres)) {
+      if (avant && avant.mediatId === apres.mediatId && champsPertinentsIdentiques(avant, apres) && !demandeResyncChangee) {
         return;
       }
 

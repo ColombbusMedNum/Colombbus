@@ -27,6 +27,7 @@ import {
   PlusIcon,
   PhotoIcon,
   ChevronDownIcon,
+  PrinterIcon,
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { formatPhoneNumber, formatPhoneForStorage } from "@/lib/formatPhone";
@@ -211,10 +212,10 @@ const textareaEditClass = `${inputEditClass} resize-y`;
 
 function Section({ icon: Icon, titre, children }: { icon: React.ComponentType<{ className?: string }>; titre: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm p-5 space-y-4">
+    <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm p-5 space-y-4 print:shadow-none print:border-black print:break-inside-avoid-page">
       <div className="flex items-center gap-2.5">
         <Icon className="w-4 h-4 text-[#EA601F]" />
-        <h2 className="text-xs font-extrabold uppercase tracking-widest text-[#005259]">{titre}</h2>
+        <h2 className="text-xs font-extrabold uppercase tracking-widest text-[#005259] print:text-black">{titre}</h2>
       </div>
       {children}
     </div>
@@ -768,12 +769,12 @@ export default function FicheApprenantNumerikUpPage() {
     <PageGuard pageId="page_access_actions_collectives_accueil">
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
 
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none print:hidden"></div>
 
       <div className="max-w-[80rem] mx-auto relative z-10 space-y-6">
 
         {/* EN-TÊTE & NAVIGATION */}
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center pb-4 border-b border-[#404040]/10 gap-4">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center pb-4 border-b border-[#404040]/10 gap-4 print:hidden">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-[#005259] text-white flex items-center justify-center text-lg font-black uppercase shadow-[0_0_15px_rgba(0,82,89,0.3)] shrink-0">
               {(i.Prénom?.[0] || "") + (i.Nom?.[0] || "")}
@@ -803,6 +804,14 @@ export default function FicheApprenantNumerikUpPage() {
               <PencilSquareIcon className="w-4 h-4" />
               <span>Modifier</span>
             </button>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="flex items-center gap-2 bg-[#EA601F] hover:bg-[#005259] text-white px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+            >
+              <PrinterIcon className="w-4 h-4" />
+              <span>Imprimer</span>
+            </button>
             <Link
               href={`/mediation/actions-collectives/reponses/numerik-up/${encodeURIComponent(sessionId)}/apprenants`}
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
@@ -820,7 +829,7 @@ export default function FicheApprenantNumerikUpPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 print:grid-cols-1">
 
           <Section icon={UserCircleIcon} titre="Identité & contact">
             <div className="grid grid-cols-2 gap-4">
@@ -1340,6 +1349,15 @@ export default function FicheApprenantNumerikUpPage() {
           </div>
         </div>
       )}
+
+      <style jsx global>{`
+        @media print {
+          html, body {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+        }
+      `}</style>
     </main>
     </PageGuard>
   );

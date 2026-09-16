@@ -7,9 +7,9 @@ import { useToast } from "../../components/ToastProvider";
 import { usePermissions } from "../../lib/PermissionsProvider";
 import { PermissionGuard } from "../../components/PermissionGuard";
 import { useMediateurs } from "../../lib/MediateursProvider";
-import { 
-  collection, onSnapshot, query, orderBy, addDoc, 
-  deleteDoc, doc, getDocs, where, updateDoc, setDoc, writeBatch,
+import {
+  collection, onSnapshot, query, orderBy, addDoc,
+  deleteDoc, doc, getDoc, getDocs, where, updateDoc, setDoc, writeBatch,
   DocumentData, Query
 } from "firebase/firestore";
 import { 
@@ -30,7 +30,7 @@ import ScrollToTopButton from "../../components/ScrollToTopButton";
 import {
   type ActiviteType, BLOCS_THEMATIQUES, getJoursFeries,
   genererCreneauxPourModele, estimerNombreCreneaux, estVisibleCetteSemaine,
-  formatDateFrCourt, estModeleProtege,
+  formatDateFrCourt, estModeleProtege, resoudreHoraireModele, resoudreHoraireAffichage, resoudreHoraireGrilleACI,
 } from "../../lib/activitesTypes";
 import { regrouperParCategorie } from "../../lib/equipeCategories";
 import { estActionDuMediateur } from "../../lib/matchMediateur";
@@ -108,7 +108,9 @@ function getWeekIdentifier(date: Date) {
 }
 
 const ACTIVITE_VIDE: ActiviteType = {
-  lieu: "", debut: "09:00", fin: "17:00", adresse: "", territoire: "",
+  lieu: "", debutMatin: "09:00", finMatin: "12:00", debutApresMidi: "14:00", finApresMidi: "17:30",
+  journeeComplete: false,
+  adresse: "", territoire: "",
   couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "",
   blocs: [], mediateursIds: [], generationMoment: "Les deux", datesActives: [],
   estProduction: false, observationACI: false, observationACIDateFin: "",
@@ -119,6 +121,7 @@ const ACTIVITE_VIDE: ActiviteType = {
 // interminable tout en gardant visible ce qui a déjà été configuré.
 function sectionsOuvertesInitiales(type: ActiviteType): Record<string, boolean> {
   return {
+    horaires: !!type.journeeComplete || !!(type.debutMatin || type.debutApresMidi),
     apparence: (type.blocs || []).length > 0,
     periode: !!(type.dateDebut || type.dateFin || (type.datesActives || []).length > 0),
     mediateurs: (type.mediateursIds || []).length > 0,
@@ -452,8 +455,17 @@ export default function PlanningExpertMix() {
     try {
       const dataPayload = {
         lieu: newActivite.lieu.trim(),
-        debut: newActivite.debut,
-        fin: newActivite.fin,
+        // Écrase l'ancien couple debut/fin (pré-scission matin/après-midi) :
+        // sans ça, resoudreHoraireModele continuerait à y retomber dès que
+        // l'un des 4 champs ci-dessous est vide, empêchant de vider
+        // délibérément une demi-journée (voir handleOpenEditActivite).
+        debut: "",
+        fin: "",
+        debutMatin: newActivite.debutMatin,
+        finMatin: newActivite.finMatin,
+        debutApresMidi: newActivite.debutApresMidi,
+        finApresMidi: newActivite.finApresMidi,
+        journeeComplete: newActivite.journeeComplete || false,
         adresse: newActivite.adresse.trim(),
         territoire: newActivite.territoire,
         couleur: newActivite.couleur,
@@ -476,20 +488,36 @@ export default function PlanningExpertMix() {
         const qActions = query(collection(db, "planning_mediateurs"), where("lieu", "==", editingActivite.lieu));
         const snapActions = await getDocs(qActions);
 
-        const updates = snapActions.docs.map(actionDoc =>
-          updateDoc(doc(db, "planning_mediateurs", actionDoc.id), {
+        // Sur TERRAGE/MASSY/RN Observation, un ACI garde sa grille horaire
+        // personnelle même quand le modèle est modifié : sans ça, cette
+        // répercussion écraserait ses créneaux déjà posés avec l'horaire brut
+        // du modèle (voir resoudreHoraireGrilleACI).
+        const upperLieuEdite = (newActivite.lieu || "").toUpperCase();
+        const concerneGrilleACI = upperLieuEdite.includes("TERRAGE") || upperLieuEdite.includes("MASSY") || upperLieuEdite.includes("OBSERVATION");
+        let grillesHorairesACIPropagation: Record<string, Record<string, { debut: string; fin: string }>> | null = null;
+        if (concerneGrilleACI) {
+          const snapHoraires = await getDoc(doc(db, "configuration_equipe", "parametres_horaires"));
+          grillesHorairesACIPropagation = snapHoraires.exists() ? (snapHoraires.data() as any) : null;
+        }
+
+        const updates = snapActions.docs.map((actionDoc) => {
+          const data = actionDoc.data();
+          const moment = data.moment === "Après-midi" ? "Après-midi" : "Matin";
+          const med = mediateursBruts.find((m: any) => m.id === data.mediatId);
+          const horaireACI = resoudreHoraireGrilleACI(newActivite.lieu, med, data.date, moment, grillesHorairesACIPropagation);
+          const horaire = horaireACI || resoudreHoraireModele(newActivite, moment);
+          return updateDoc(doc(db, "planning_mediateurs", actionDoc.id), {
             codeAnalytique: newActivite.codeAnalytique.trim(),
             couleur: newActivite.couleur,
             lieu: newActivite.lieu.trim(),
-            debut: newActivite.debut,
-            fin: newActivite.fin,
+            ...(horaire ? { debut: horaire.debut, fin: horaire.fin } : {}),
             adresse: newActivite.adresse.trim(),
             territoire: newActivite.territoire,
             estProduction: newActivite.estProduction || false,
             observationACI: newActivite.observationACI || false,
             observationACIDateFin: newActivite.observationACI ? (newActivite.observationACIDateFin || "") : ""
-          })
-        );
+          });
+        });
         await Promise.all(updates);
 
         if (selectedModel?.id === editingActivite.id) {
@@ -514,13 +542,51 @@ export default function PlanningExpertMix() {
     }
   };
 
+  // Rattrape la synchro Google Agenda des créneaux de ce modèle déjà posés
+  // avant que leurs médiateurs ne connectent leur compte Google — la Cloud
+  // Function ne réagit qu'aux vraies écritures Firestore (voir
+  // functions/src/index.ts), donc un simple horodatage "resyncGoogleDemande"
+  // sur chaque créneau existant suffit à déclencher son passage en revue,
+  // sans toucher à l'horaire/lieu réel. Ignoré silencieusement pour les
+  // médiateurs qui n'ont toujours pas connecté leur compte (la fonction
+  // s'arrête d'elle-même dans ce cas).
+  const [resyncEnCours, setResyncEnCours] = useState(false);
+  const relancerSyncGoogleAgenda = async () => {
+    if (!editingActivite?.lieu) return;
+    if (!(await confirm(`Relancer la synchro Google Agenda pour tous les créneaux existants de "${editingActivite.lieu}" ?`))) return;
+    setResyncEnCours(true);
+    try {
+      const qActions = query(collection(db, "planning_mediateurs"), where("lieu", "==", editingActivite.lieu));
+      const snapActions = await getDocs(qActions);
+      await Promise.all(
+        snapActions.docs.map((actionDoc) => updateDoc(doc(db, "planning_mediateurs", actionDoc.id), { resyncGoogleDemande: Date.now() }))
+      );
+      showToast(`Resynchronisation demandée pour ${snapActions.size} créneau(x).`);
+    } catch (error) {
+      console.error("Erreur lors de la resynchronisation Google Agenda :", error);
+      showToast("Erreur lors de la resynchronisation.", "error");
+    } finally {
+      setResyncEnCours(false);
+    }
+  };
+
   const handleOpenEditActivite = (type: ActiviteType, e: React.MouseEvent) => {
-    e.stopPropagation(); 
+    e.stopPropagation();
     setEditingActivite(type);
+    // resoudreHoraireAffichage (pas resoudreHoraireModele) : un modèle legacy
+    // qui ne concernait déjà qu'une demi-journée (generationMoment "Matin" ou
+    // "Après-midi") doit rouvrir avec l'autre champ vide, pas prérempli avec
+    // le même horaire — sans quoi le vider et l'enregistrer ne "collait"
+    // jamais (l'ancien debut/fin repartait dans les deux à la réédition).
+    const hMatin = resoudreHoraireAffichage(type, "Matin");
+    const hApresMidi = resoudreHoraireAffichage(type, "Après-midi");
     setNewActivite({
       lieu: type.lieu || "",
-      debut: type.debut || "09:00",
-      fin: type.fin || "17:00",
+      debutMatin: hMatin?.debut || "",
+      finMatin: hMatin?.fin || "",
+      debutApresMidi: hApresMidi?.debut || "",
+      finApresMidi: hApresMidi?.fin || "",
+      journeeComplete: type.journeeComplete || false,
       adresse: type.adresse || "",
       territoire: type.territoire || "",
       couleur: type.couleur || "#005259",
@@ -702,14 +768,7 @@ export default function PlanningExpertMix() {
     // RN Observation suit la même logique, mais son lieu ne désigne pas un
     // site physique précis : on utilise alors le rattachement personnel de
     // l'ACI (rattachementHoraireACI, "Paris" par défaut).
-    let horaireOverride: { debut: string; fin: string } | null = null;
-    if (estACI && (upperLieu.includes("TERRAGE") || upperLieu.includes("MASSY") || upperLieu.includes("OBSERVATION"))) {
-      const site = upperLieu.includes("TERRAGE") ? "Paris" : upperLieu.includes("MASSY") ? "Massy" : (medObj?.rattachementHoraireACI || "Paris");
-      const joursParIndex = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
-      const jourKey = joursParIndex[new Date(`${dateStr}T00:00:00`).getDay()];
-      const h = grillesHorairesACI[site]?.[jourKey];
-      if (h?.debut && h?.fin) horaireOverride = h;
-    }
+    const horaireOverride = resoudreHoraireGrilleACI(lieu, medObj, dateStr, moment === "Après-midi" ? "Après-midi" : "Matin", grillesHorairesACI);
 
     let dateFormatee = dateStr;
     try {
@@ -744,7 +803,7 @@ export default function PlanningExpertMix() {
 
     const horaireFinal = horaireManuel || horaireOverride
       || (actionSource?.debut && actionSource?.fin ? { debut: actionSource.debut, fin: actionSource.fin } : null)
-      || (selectedModel?.debut && selectedModel?.fin ? { debut: selectedModel.debut, fin: selectedModel.fin } : null);
+      || (selectedModel ? resoudreHoraireModele(selectedModel, moment === "Après-midi" ? "Après-midi" : "Matin") : null);
     const adresseFinale = actionSource?.adresse || selectedModel?.adresse;
     const territoireFinal = actionSource?.territoire || selectedModel?.territoire;
     const codeAnalytiqueFinal = actionSource?.codeAnalytique || selectedModel?.codeAnalytique;
@@ -1593,6 +1652,8 @@ export default function PlanningExpertMix() {
                 const isLight = isLightColor(colorTheme);
                 const textColor = isLight ? "#1A1A1A" : colorTheme;
                 const bgColor = hexToRgba(colorTheme, isLight ? 0.35 : (isSelected ? 0.2 : 0.08));
+                const hMatin = resoudreHoraireAffichage(type, "Matin");
+                const hApresMidi = resoudreHoraireAffichage(type, "Après-midi");
 
                 return (
                   <div
@@ -1609,31 +1670,36 @@ export default function PlanningExpertMix() {
                       <span className="w-2 h-2 rounded-full shrink-0 border border-black/10" style={{ backgroundColor: colorTheme }}></span>
                       <span className="truncate flex-1">{type.lieu}</span>
                     </div>
-                    <div className="w-full flex items-center justify-between mt-1 pl-3.5">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        {type.territoire && <span className="text-[9px] bg-white px-1 rounded border border-current shrink-0">{type.territoire}</span>}
-                        {type.debut && <span className="text-[8px] opacity-80 font-mono truncate">{type.debut} - {type.fin}</span>}
+                    <div className="w-full mt-1 pl-3.5">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {type.territoire && <span className="text-[9px] bg-white px-1 rounded border border-current shrink-0">{type.territoire}</span>}
+                          {hMatin && <span className="text-[8px] opacity-80 font-mono truncate">Matin {hMatin.debut}-{hMatin.fin}</span>}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                          <PermissionGuard actionId="agenda_model_actions">
+                            <button onClick={(e) => handleOpenEditActivite(type, e)} className="hover:opacity-70 p-0.5">
+                              <PencilSquareIcon className="w-3 h-3" />
+                            </button>
+                          </PermissionGuard>
+                          {type.id && (
+                            isModeleProtege ? (
+                              <span className="p-0.5 opacity-60" title="Modèle protégé : lié à Suresnes, non supprimable">
+                                <LockClosedIcon className="w-3 h-3" />
+                              </span>
+                            ) : (
+                              <PermissionGuard actionId="agenda_model_actions">
+                                <button onClick={(e) => handleDeleteActiviteType(type.id!, e)} className="hover:text-[#EF736A] p-0.5">
+                                  <XMarkIcon className="w-3.5 h-3.5" />
+                                </button>
+                              </PermissionGuard>
+                            )
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                        <PermissionGuard actionId="agenda_model_actions">
-                          <button onClick={(e) => handleOpenEditActivite(type, e)} className="hover:opacity-70 p-0.5">
-                            <PencilSquareIcon className="w-3 h-3" />
-                          </button>
-                        </PermissionGuard>
-                        {type.id && (
-                          isModeleProtege ? (
-                            <span className="p-0.5 opacity-60" title="Modèle protégé : lié à Suresnes, non supprimable">
-                              <LockClosedIcon className="w-3 h-3" />
-                            </span>
-                          ) : (
-                            <PermissionGuard actionId="agenda_model_actions">
-                              <button onClick={(e) => handleDeleteActiviteType(type.id!, e)} className="hover:text-[#EF736A] p-0.5">
-                                <XMarkIcon className="w-3.5 h-3.5" />
-                              </button>
-                            </PermissionGuard>
-                          )
-                        )}
-                      </div>
+                      {hApresMidi && (
+                        <div className="text-[8px] opacity-80 font-mono truncate mt-0.5">Après-midi {hApresMidi.debut}-{hApresMidi.fin}</div>
+                      )}
                     </div>
                   </div>
                 );
@@ -2233,16 +2299,56 @@ export default function PlanningExpertMix() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex flex-col gap-0.5">
-                <label className="text-[9px] text-[#404040]/70 font-bold uppercase">Heure début</label>
-                <input type="time" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.debut} onChange={e => setNewActivite({...newActivite, debut: e.target.value})} />
+            <label className="flex items-center gap-2 text-xs text-[#404040] font-semibold cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!newActivite.journeeComplete}
+                onChange={e => {
+                  const checked = e.target.checked;
+                  setNewActivite({
+                    ...newActivite,
+                    journeeComplete: checked,
+                    // Horaire par défaut d'une journée complète, à ajuster
+                    // ensuite dans l'accordéon si besoin.
+                    ...(checked ? { debutMatin: "09:30", finMatin: "13:00", debutApresMidi: "14:00", finApresMidi: "17:30" } : {}),
+                  });
+                  if (checked) setOpenSections(prev => ({ ...prev, horaires: true }));
+                }}
+                className="w-4 h-4 accent-[#005259] cursor-pointer"
+              />
+              Journée complète (horaire continu, ex. congés)
+            </label>
+
+            <Accordion title="Horaires (matin / après-midi)" open={!!openSections.horaires} onToggle={() => toggleSection("horaires")}>
+              <div className="space-y-2">
+                <div>
+                  <label className="text-[9px] text-[#404040]/50 font-bold uppercase tracking-wider">Matin</label>
+                  <div className="grid grid-cols-2 gap-2 mt-0.5">
+                    <div className="flex flex-col gap-0.5">
+                      <label className="text-[9px] text-[#404040]/70 font-bold uppercase">Heure début</label>
+                      <input type="time" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.debutMatin || ""} onChange={e => setNewActivite({...newActivite, debutMatin: e.target.value})} />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <label className="text-[9px] text-[#404040]/70 font-bold uppercase">Heure fin</label>
+                      <input type="time" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.finMatin || ""} onChange={e => setNewActivite({...newActivite, finMatin: e.target.value})} />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[9px] text-[#404040]/50 font-bold uppercase tracking-wider">Après-midi</label>
+                  <div className="grid grid-cols-2 gap-2 mt-0.5">
+                    <div className="flex flex-col gap-0.5">
+                      <label className="text-[9px] text-[#404040]/70 font-bold uppercase">Heure début</label>
+                      <input type="time" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.debutApresMidi || ""} onChange={e => setNewActivite({...newActivite, debutApresMidi: e.target.value})} />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <label className="text-[9px] text-[#404040]/70 font-bold uppercase">Heure fin</label>
+                      <input type="time" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.finApresMidi || ""} onChange={e => setNewActivite({...newActivite, finApresMidi: e.target.value})} />
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex flex-col gap-0.5">
-                <label className="text-[9px] text-[#404040]/70 font-bold uppercase">Heure fin</label>
-                <input type="time" className="w-full px-2 py-1 bg-[#F3F3F2] border border-[#404040]/20 rounded text-xs text-[#404040]" value={newActivite.fin} onChange={e => setNewActivite({...newActivite, fin: e.target.value})} />
-              </div>
-            </div>
+            </Accordion>
 
             <div className="flex flex-col gap-1">
               <label className="text-[10px] text-[#404040]/70 font-semibold">Code Analytique BluePowder (Optionnel)</label>
@@ -2286,6 +2392,22 @@ export default function PlanningExpertMix() {
                 </div>
               )}
             </div>
+
+            {/* Fonctionnalité en cours de validation — réservée à ce compte
+                pour le moment, le temps de la tester en conditions réelles.
+                Retirer cette condition pour la rouvrir à tout le monde. */}
+            {editingActivite?.lieu && user?.email === "emmanuel.chaudy@colombbus.org" && (
+              <label className="flex items-center gap-2 text-xs text-[#404040] font-semibold cursor-pointer p-2 rounded-md border border-[#404040]/10 bg-[#F3F3F2]">
+                <input
+                  type="checkbox"
+                  checked={false}
+                  disabled={resyncEnCours}
+                  onChange={relancerSyncGoogleAgenda}
+                  className="w-4 h-4 accent-[#005259] cursor-pointer disabled:cursor-not-allowed"
+                />
+                {resyncEnCours ? "Resynchronisation en cours..." : "Resynchroniser avec Google Agenda"}
+              </label>
+            )}
 
             <Accordion title="Apparence (bloc thématique, couleur)" open={!!openSections.apparence} onToggle={() => toggleSection("apparence")}>
               <div className="flex flex-col gap-1">
