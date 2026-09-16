@@ -90,11 +90,15 @@ function MonCompteContenu() {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!reponse.ok) throw new Error();
+      const data = await reponse.json().catch(() => ({}));
+      if (!reponse.ok) throw new Error(data.erreur || `Erreur ${reponse.status}`);
       showToast("Google Agenda déconnecté.", "success");
     } catch (err) {
       console.error(err);
-      showToast("❌ Erreur lors de la déconnexion.", "error");
+      // Message renvoyé par l'API affiché tel quel — plus utile que le
+      // "Erreur" générique précédent pour diagnostiquer (ex. authentification
+      // manquante en local, jeton Google invalide...).
+      showToast(`❌ Erreur lors de la déconnexion${err instanceof Error && err.message ? ` : ${err.message}` : ""}.`, "error");
     } finally {
       setEnCours(false);
     }

@@ -21,16 +21,20 @@ export async function POST(request: NextRequest) {
     const donnees = tokenSnap.data() as { refreshToken?: string; calendarId?: string } | undefined;
 
     if (donnees?.refreshToken && donnees?.calendarId) {
-      const redirectUri = `${obtenirOrigineExterne(request)}/api/google-calendar/callback`;
-      const client = creerClientOAuth(redirectUri);
-      client.setCredentials({ refresh_token: donnees.refreshToken });
-      const calendar = google.calendar({ version: "v3", auth: client });
+      // Tout ce qui touche à l'API Google (construction du client compris,
+      // pas seulement l'appel calendars.delete) est capturé ici : un
+      // calendrier déjà supprimé manuellement côté Google, un jeton devenu
+      // invalide, ou même des identifiants OAuth mal configurés ne doivent
+      // jamais empêcher le nettoyage local ci-dessous — sans quoi la
+      // personne resterait bloquée en état "connecté" sans pouvoir se
+      // déconnecter.
       try {
+        const redirectUri = `${obtenirOrigineExterne(request)}/api/google-calendar/callback`;
+        const client = creerClientOAuth(redirectUri);
+        client.setCredentials({ refresh_token: donnees.refreshToken });
+        const calendar = google.calendar({ version: "v3", auth: client });
         await calendar.calendars.delete({ calendarId: donnees.calendarId });
       } catch (err) {
-        // Le calendrier a pu déjà être supprimé manuellement côté Google —
-        // on continue quand même le nettoyage local plutôt que de laisser
-        // la personne bloquée en état "connecté" sans pouvoir se déconnecter.
         console.error("Suppression du calendrier Google échouée (poursuite du nettoyage) :", err);
       }
     }

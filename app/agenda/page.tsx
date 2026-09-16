@@ -19,7 +19,7 @@ import {
   CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon,
   LockClosedIcon, BellIcon,
   ChatBubbleLeftRightIcon, ExclamationTriangleIcon,
-  ChevronDownIcon, HomeIcon, ClockIcon, WrenchScrewdriverIcon, DevicePhoneMobileIcon
+  ChevronDownIcon, HomeIcon, ClockIcon, WrenchScrewdriverIcon, DevicePhoneMobileIcon, ArrowPathIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
@@ -567,6 +567,39 @@ export default function PlanningExpertMix() {
       showToast("Erreur lors de la resynchronisation.", "error");
     } finally {
       setResyncEnCours(false);
+    }
+  };
+
+  // Même mécanisme que relancerSyncGoogleAgenda, mais sur TOUT
+  // planning_mediateurs plutôt qu'un seul lieu — bouton d'urgence pour
+  // rattraper des créneaux qui n'auraient jamais atteint Google Agenda
+  // (ex. connexion Google faite après coup, ou la Cloud Function pas encore
+  // redéployée avec le code courant). Écriture par lots de 450 (marge sous
+  // la limite Firestore de 500 opérations par batch).
+  const [resyncGlobalEnCours, setResyncGlobalEnCours] = useState(false);
+  const forcerSyncGoogleAgendaGlobale = async () => {
+    if (!(await confirm("Forcer la resynchronisation de TOUT l'agenda des médiateurs avec Google Agenda ? Cette opération peut prendre plusieurs minutes."))) return;
+    setResyncGlobalEnCours(true);
+    try {
+      const snapActions = await getDocs(collection(db, "planning_mediateurs"));
+      let batch = writeBatch(db);
+      let opsDansBatch = 0;
+      for (const actionDoc of snapActions.docs) {
+        batch.update(actionDoc.ref, { resyncGoogleDemande: Date.now() });
+        opsDansBatch++;
+        if (opsDansBatch >= 450) {
+          await batch.commit();
+          batch = writeBatch(db);
+          opsDansBatch = 0;
+        }
+      }
+      if (opsDansBatch > 0) await batch.commit();
+      showToast(`Resynchronisation demandée pour ${snapActions.size} créneau(x).`);
+    } catch (error) {
+      console.error("Erreur lors de la resynchronisation globale Google Agenda :", error);
+      showToast("Erreur lors de la resynchronisation.", "error");
+    } finally {
+      setResyncGlobalEnCours(false);
     }
   };
 
@@ -1400,6 +1433,21 @@ export default function PlanningExpertMix() {
         </div>
 
         <div className="flex items-center gap-3">
+
+          {/* Fonctionnalité en cours de validation — réservée à ce compte
+              pour le moment (voir aussi la case "Resynchroniser avec Google
+              Agenda" par modèle). Retirer cette condition pour la rouvrir à
+              tout le monde. */}
+          {user?.email === "emmanuel.chaudy@colombbus.org" && (
+            <button
+              onClick={forcerSyncGoogleAgendaGlobale}
+              disabled={resyncGlobalEnCours}
+              className="p-2 bg-[#003d42] border border-[#002b2f] hover:bg-[#002b2f] rounded-lg text-white cursor-pointer flex items-center justify-center min-w-[36px] h-9 disabled:cursor-not-allowed disabled:opacity-60"
+              title="Forcer la resynchronisation de tout l'agenda avec Google Agenda"
+            >
+              <ArrowPathIcon className={`w-5 h-5 text-white ${resyncGlobalEnCours ? "animate-spin" : ""}`} />
+            </button>
+          )}
 
           {/* CLOCHE NOTIFICATION — un peu de marge à gauche pour ne pas coller
               au bouton de validation de semaine, surtout quand la fenêtre est
