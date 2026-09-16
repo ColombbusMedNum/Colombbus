@@ -1359,9 +1359,13 @@ export default function PlanningSuresnes() {
                                       <option value="Choisir ses logiciels informatiques">⚙️ Choisir ses logiciels informatiques</option>
                                       <option value="Création multimédia">🎨 Création multimédia</option>
                                       <option value="Outils informatiques pour la fabrication">🛠️ Outils informatiques pour la fabrication</option>
-                                      <option value="Collecte Tech" className="text-[#EA601F] font-bold">🧺 Collecte Tech</option>
-                                      <option value="Collecte Tech - Remise de matériel" className="text-[#EA601F] font-bold">🧺 Collecte Tech - Remise de matériel</option>
-                                      <option value="Collecte Tech - Tests de positionnement" className="text-[#EA601F] font-bold">🧺 Collecte Tech - Tests de positionnement</option>
+                                      {siteActif !== "rn91" && (
+                                        <>
+                                          <option value="Collecte Tech" className="text-[#EA601F] font-bold">🧺 Collecte Tech</option>
+                                          <option value="Collecte Tech - Remise de matériel" className="text-[#EA601F] font-bold">🧺 Collecte Tech - Remise de matériel</option>
+                                          <option value="Collecte Tech - Tests de positionnement" className="text-[#EA601F] font-bold">🧺 Collecte Tech - Tests de positionnement</option>
+                                        </>
+                                      )}
                                       {c.thematique && !THEMATIQUES_CONNUES.includes(c.thematique) && (
                                         <option value={c.thematique}>{c.thematique}</option>
                                       )}

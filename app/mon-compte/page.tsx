@@ -36,7 +36,7 @@ export default function MonComptePage() {
 }
 
 function MonCompteContenu() {
-  const { user, loading } = usePermissions();
+  const { user, statut, loading } = usePermissions();
   const { showToast } = useToast();
   const confirm = useConfirm();
   const searchParams = useSearchParams();
@@ -173,7 +173,7 @@ function MonCompteContenu() {
                     comptes de test pour le moment (voir
                     lib/googleCalendarBeta.ts). Retirer cette condition pour
                     l'ouvrir à tout le staff. */}
-                {estBetaGoogleAgenda(user?.email) && (
+                {estBetaGoogleAgenda(user?.email, statut) && (
                   <button
                     onClick={connecterGoogle}
                     disabled={enCours}

@@ -27,7 +27,7 @@ const GOOGLE_OAUTH_CLIENT_SECRET = defineSecret("GOOGLE_OAUTH_CLIENT_SECRET");
 // Google — "ordre" (position dans la demi-journée) en est volontairement
 // exclu, de même que googleEventId lui-même (posé par cette fonction, sans
 // quoi sa propre écriture se re-déclencherait indéfiniment).
-const CHAMPS_SUIVIS = ["date", "debut", "fin", "lieu", "adresse", "commentaire", "territoire"];
+const CHAMPS_SUIVIS = ["date", "debut", "fin", "lieu", "adresse", "commentaire", "territoire", "codeACI"];
 
 function champsPertinentsIdentiques(avant: any, apres: any): boolean {
   return CHAMPS_SUIVIS.every((champ) => (avant?.[champ] || "") === (apres?.[champ] || ""));
@@ -63,7 +63,10 @@ async function resoudreCalendrier(mediatId: string | undefined) {
 }
 
 function construireEvenement(action: any) {
-  const summary = action.lieu || "Action";
+  // "codeACI" (ex. "#accueil"), quand renseigné sur le modèle, est ajouté en
+  // préfixe du titre pour l'intégration aux agendas ACI — le commentaire va
+  // dans la description, l'adresse dans le lieu (déjà gérés ci-dessous).
+  const summary = action.codeACI ? `${action.codeACI} ${action.lieu || "Action"}` : (action.lieu || "Action");
   const description = action.commentaire || undefined;
   const location = action.adresse || undefined;
 

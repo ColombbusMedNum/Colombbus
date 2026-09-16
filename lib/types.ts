@@ -79,4 +79,9 @@ export interface ActionPlanning {
   // dans lib/planningHours.ts), jusqu'à observationACIDateFin si renseignée.
   observationACI?: boolean;
   observationACIDateFin?: string;
+  // Copié depuis le modèle d'activité (voir ActiviteType) — tag texte (ex.
+  // "#accueil") ajouté en préfixe du titre de l'événement Google Agenda
+  // créé pour ce créneau (voir construireEvenement dans
+  // functions/src/index.ts), pour l'intégration aux agendas ACI.
+  codeACI?: string;
 }

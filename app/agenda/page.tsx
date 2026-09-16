@@ -113,7 +113,7 @@ const ACTIVITE_VIDE: ActiviteType = {
   lieu: "", debutMatin: "09:00", finMatin: "12:00", debutApresMidi: "14:00", finApresMidi: "17:30",
   journeeComplete: false,
   adresse: "", territoire: "",
-  couleur: "#005259", codeAnalytique: "", dateDebut: "", dateFin: "",
+  couleur: "#005259", codeAnalytique: "", codeACI: "", dateDebut: "", dateFin: "",
   blocs: [], mediateursIds: [], generationMoment: "Les deux", datesActives: [],
   estProduction: false, observationACI: false, observationACIDateFin: "",
 };
@@ -267,7 +267,7 @@ export default function PlanningExpertMix() {
   const estSemaineValidee = !!semainesValidees[currentWeekId];
   const nonLuesCount = notifications.filter(n => !n.lue).length;
 
-  const { can, user } = usePermissions();
+  const { can, user, statut } = usePermissions();
   // La collection "notifications" cible chaque destinataire par son UID
   // Firebase Auth (voir destinataireId posé dans processActionCreation et
   // lib/activitesTypes.ts) : longtemps codé en dur sur un texte de
@@ -472,6 +472,7 @@ export default function PlanningExpertMix() {
         territoire: newActivite.territoire,
         couleur: newActivite.couleur,
         codeAnalytique: newActivite.codeAnalytique.trim(),
+        codeACI: (newActivite.codeACI || "").trim(),
         dateDebut: newActivite.dateDebut,
         dateFin: newActivite.dateFin,
         blocs: newActivite.blocs || [],
@@ -510,6 +511,7 @@ export default function PlanningExpertMix() {
           const horaire = horaireACI || resoudreHoraireModele(newActivite, moment);
           return updateDoc(doc(db, "planning_mediateurs", actionDoc.id), {
             codeAnalytique: newActivite.codeAnalytique.trim(),
+            codeACI: (newActivite.codeACI || "").trim(),
             couleur: newActivite.couleur,
             lieu: newActivite.lieu.trim(),
             ...(horaire ? { debut: horaire.debut, fin: horaire.fin } : {}),
@@ -603,6 +605,7 @@ export default function PlanningExpertMix() {
       territoire: type.territoire || "",
       couleur: type.couleur || "#005259",
       codeAnalytique: type.codeAnalytique || "",
+      codeACI: type.codeACI || "",
       dateDebut: type.dateDebut || "",
       dateFin: type.dateFin || "",
       blocs: type.blocs || [],
@@ -819,6 +822,7 @@ export default function PlanningExpertMix() {
     const adresseFinale = actionSource?.adresse || selectedModel?.adresse;
     const territoireFinal = actionSource?.territoire || selectedModel?.territoire;
     const codeAnalytiqueFinal = actionSource?.codeAnalytique || selectedModel?.codeAnalytique;
+    const codeACIFinal = actionSource?.codeACI || selectedModel?.codeACI;
     const estProductionFinal = actionSource?.estProduction ?? selectedModel?.estProduction ?? false;
     const observationACIFinal = actionSource?.observationACI ?? selectedModel?.observationACI ?? false;
     const observationACIDateFinFinal = actionSource?.observationACIDateFin ?? selectedModel?.observationACIDateFin;
@@ -838,6 +842,7 @@ export default function PlanningExpertMix() {
       ...(horaireFinal ? { debut: horaireFinal.debut, fin: horaireFinal.fin } : {}),
       ...(territoireFinal ? { territoire: territoireFinal } : {}),
       ...(codeAnalytiqueFinal ? { codeAnalytique: codeAnalytiqueFinal } : {}),
+      ...(codeACIFinal ? { codeACI: codeACIFinal } : {}),
       ...(observationACIFinal ? { observationACI: true } : {}),
       ...(observationACIFinal && observationACIDateFinFinal ? { observationACIDateFin: observationACIDateFinFinal } : {})
     });
@@ -1416,7 +1421,7 @@ export default function PlanningExpertMix() {
           {/* Fonctionnalité en cours de validation — réservée aux comptes de
               test pour le moment (voir lib/googleCalendarBeta.ts). Retirer
               cette condition pour la rouvrir à tout le monde. */}
-          {estBetaGoogleAgenda(user?.email) && (
+          {estBetaGoogleAgenda(user?.email, statut) && (
             <button
               onClick={forcerSyncGoogleAgendaGlobale}
               disabled={resyncGlobalEnCours}
@@ -2383,6 +2388,18 @@ export default function PlanningExpertMix() {
                 value={newActivite.codeAnalytique}
                 className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none"
                 onChange={e => setNewActivite({...newActivite, codeAnalytique: e.target.value})}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] text-[#404040]/70 font-semibold">
+                # ACI (Optionnel — ajouté en préfixe du titre dans Google Agenda)
+              </label>
+              <input
+                placeholder="Ex: #accueil"
+                value={newActivite.codeACI || ""}
+                className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none"
+                onChange={e => setNewActivite({...newActivite, codeACI: e.target.value})}
               />
             </div>
 

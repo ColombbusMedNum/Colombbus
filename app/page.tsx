@@ -414,7 +414,7 @@ function LeafTile({ node }: { node: LeafNode }) {
 
 export default function HomePage() {
   const [path, setPath] = useState<string[]>([]);
-  const { can, user, terminerSession } = usePermissions();
+  const { can, user, statut, terminerSession } = usePermissions();
   const [recherche, setRecherche] = useState("");
   const [rechercheOuverte, setRechercheOuverte] = useState(false);
   const [actionsDynamiques, setActionsDynamiques] = useState<ActionSchema[]>([]);
@@ -490,7 +490,7 @@ export default function HomePage() {
             (identifiants Cloud Run valides côté serveur, contrairement au
             dev local — voir lib/firebaseAdmin.ts et lib/googleCalendarBeta.ts).
             Retirer cette condition pour l'ouvrir à tout le staff. */}
-        {estBetaGoogleAgenda(user?.email) && (
+        {estBetaGoogleAgenda(user?.email, statut) && (
           <Link
             href="/mon-compte"
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/15 rounded-xl text-[#005259] text-xs font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95 group cursor-pointer"

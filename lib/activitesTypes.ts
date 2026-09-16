@@ -41,6 +41,11 @@ export interface ActiviteType {
   // resoudreHoraireModele, toujours basée sur debutMatin/finMatin et
   // debutApresMidi/finApresMidi).
   journeeComplete?: boolean;
+  // Tag texte (ex. "#accueil", "#Accompagnement") ajouté en préfixe du titre
+  // de l'événement Google Agenda créé pour ce modèle (voir construireEvenement
+  // dans functions/src/index.ts) — sert à catégoriser l'action pour les
+  // besoins d'intégration aux agendas ACI, indépendamment du lieu affiché.
+  codeACI?: string;
   adresse: string;
   territoire: string;
   couleur: string;
@@ -437,6 +442,7 @@ export async function genererCreneauxPourModele(
           ...(horaireCreneau ? { debut: horaireCreneau.debut, fin: horaireCreneau.fin } : {}),
           ...(modele.territoire ? { territoire: modele.territoire } : {}),
           ...(modele.codeAnalytique ? { codeAnalytique: modele.codeAnalytique } : {}),
+          ...(modele.codeACI ? { codeACI: modele.codeACI } : {}),
           ...(modele.observationACI ? { observationACI: true } : {}),
           ...(modele.observationACI && modele.observationACIDateFin
             ? { observationACIDateFin: modele.observationACIDateFin }

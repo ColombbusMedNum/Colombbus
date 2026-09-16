@@ -10,6 +10,10 @@ import { resolvePermission } from "./permissionsCatalog";
 interface PermissionsContextValue {
   user: User | null;
   role: string | null;
+  // Type de contrat (fiche liste_mediateurs.statut : "Permanent", "ACI",
+  // "Cadre", "CIP", "Prestataire", "Stagiaire"...) — distinct du rôle
+  // (permissions), voir son usage existant pour le couvre-feu plus bas.
+  statut: string | null;
   loading: boolean;
   can: (actionId: string) => boolean;
   terminerSession: () => Promise<void>;
@@ -18,6 +22,7 @@ interface PermissionsContextValue {
 const PermissionsContext = createContext<PermissionsContextValue>({
   user: null,
   role: null,
+  statut: null,
   loading: true,
   can: () => false,
   terminerSession: async () => {},
@@ -308,7 +313,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   const loading = !authResolved || !roleResolved || !matrixResolved;
 
   return (
-    <PermissionsContext.Provider value={{ user, role, loading, can, terminerSession: terminerSessionJournal }}>
+    <PermissionsContext.Provider value={{ user, role, statut, loading, can, terminerSession: terminerSessionJournal }}>
       {children}
     </PermissionsContext.Provider>
   );
