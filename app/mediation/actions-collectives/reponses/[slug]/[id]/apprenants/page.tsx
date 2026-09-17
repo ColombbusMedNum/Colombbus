@@ -63,8 +63,9 @@ export default function ApprenantsSessionPage() {
     const noms = apprenantsSession.map((a) => `${encodeURIComponent(a.Prénom || "")}|${encodeURIComponent(a.Nom || "")}`).join(";");
     const params = new URLSearchParams({ intitule: schema?.label || "" });
     if (noms) params.set("noms", noms);
+    params.set("retour", `/mediation/actions-collectives/reponses/${slug}/${encodeURIComponent(sessionId)}/apprenants`);
     return `/mediation/rencontres-numeriques/emargement?${params.toString()}`;
-  }, [apprenantsSession, schema]);
+  }, [apprenantsSession, schema, slug, sessionId]);
 
   const territoireDeSession = useMemo(() => {
     if (!config) return "";

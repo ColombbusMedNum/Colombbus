@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { collection, getDocs } from "firebase/firestore";
-import { PrinterIcon, BookOpenIcon, SquaresPlusIcon, PlusIcon, MinusIcon, HomeIcon } from "@heroicons/react/24/outline";
+import { PrinterIcon, BookOpenIcon, SquaresPlusIcon, PlusIcon, MinusIcon, HomeIcon, ArrowLeftIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
 import PageGuard from "@/components/PageGuard";
@@ -35,6 +35,10 @@ export default function GenerateurEmargementPage() {
 
 function GenerateurEmargementPagesIdentiques() {
   const searchParams = useSearchParams();
+  // URL de la page "Apprenant·e·s" d'où on vient (posée par chaque page
+  // appelante, voir ses 5 variantes) — permet un vrai retour contextuel
+  // plutôt que de dépendre du bouton "Précédent" du navigateur.
+  const retourVers = searchParams.get("retour");
   const [logosBank, setLogosBank] = useState<LogoEmargement[]>([]);
   const [selectedLogos, setSelectedLogos] = useState<string[]>([]);
   const [nbLignesVoulues, setNbLignesVoulues] = useState<number>(12);
@@ -118,6 +122,18 @@ function GenerateurEmargementPagesIdentiques() {
         <div className="print:hidden mb-8 bg-white border border-[#404040]/10 rounded-3xl p-6 space-y-6 shadow-sm">
           <div className="flex justify-between items-center flex-wrap gap-4 border-b border-[#404040]/10 pb-4">
             <div className="flex items-center gap-4">
+              {/* BOUTON RETOUR À LA SESSION — n'apparaît que si on arrive
+                  bien depuis une page Apprenant·e·s (qui pose ?retour=...). */}
+              {retourVers && (
+                <Link
+                  href={retourVers}
+                  className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+                >
+                  <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
+                  <span>Retour à la session</span>
+                </Link>
+              )}
+
               {/* BOUTON RETOUR DASHBOARD */}
               <Link
                 href="/"
@@ -126,7 +142,7 @@ function GenerateurEmargementPagesIdentiques() {
                 <HomeIcon className="w-4 h-4 text-[#EA601F]" />
                 <span>Accueil</span>
               </Link>
-              
+
               <div>
                 <h1 className="text-lg font-extrabold uppercase text-[#005259] tracking-tight flex items-center gap-2">
                   <SquaresPlusIcon className="w-5 h-5 text-[#EA601F]" />

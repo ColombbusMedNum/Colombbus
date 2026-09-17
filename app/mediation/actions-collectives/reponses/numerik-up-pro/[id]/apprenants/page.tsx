@@ -142,8 +142,9 @@ export default function ApprenantsNumerikUpProSessionPage() {
       .join(";");
     const params = new URLSearchParams({ intitule: "NUMERIK PRO" });
     if (noms) params.set("noms", noms);
+    params.set("retour", `/mediation/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(sessionId)}/apprenants`);
     return `/mediation/rencontres-numeriques/emargement?${params.toString()}`;
-  }, [apprenantsSession]);
+  }, [apprenantsSession, sessionId]);
 
   // Territoire(s) auxquels appartient la session sélectionnée, d'après la
   // configuration définie sur la page de paramètres.

@@ -115,8 +115,9 @@ export default function ApprenantsDigitalUpSessionPage() {
       .join(";");
     const params = new URLSearchParams({ intitule: "Digital'UP" });
     if (noms) params.set("noms", noms);
+    params.set("retour", `/mediation/actions-collectives/reponses/digital-up/${encodeURIComponent(sessionId)}/apprenants`);
     return `/mediation/rencontres-numeriques/emargement?${params.toString()}`;
-  }, [apprenantsSession]);
+  }, [apprenantsSession, sessionId]);
 
   // Code interne d'une session ("MN26_..."), tel qu'enregistré par
   // "parcoursId|territoire|date" sur la page de paramètres. Retombe sur la

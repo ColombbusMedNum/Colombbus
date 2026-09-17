@@ -33,7 +33,8 @@ import {
   TrashIcon,
   XMarkIcon,
   FolderOpenIcon,
-  HomeIcon
+  HomeIcon,
+  ArrowLeftIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { useToast } from "@/components/ToastProvider";
@@ -470,6 +471,18 @@ function RapportDiagnosticPixContent() {
             <PrinterIcon className="w-4 h-4 text-[#EA601F]" />
             <span>Imprimer</span>
           </button>
+
+          {/* BOUTON RETOUR AU PROFIL — n'apparaît que si on arrive bien avec
+              un bénéficiaire identifié (?id=...), sinon rien à quoi revenir. */}
+          {userIdFromUrl && (
+            <Link
+              href={`/mediation/rencontres-numeriques/liste-beneficiaires/${userIdFromUrl}`}
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+            >
+              <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Retour au profil</span>
+            </Link>
+          )}
 
           {/* BOUTON RETOUR TABLEAU DE BORD */}
           <Link

@@ -142,8 +142,9 @@ export default function ApprenantsPrfeSessionPage() {
       .join(";");
     const params = new URLSearchParams({ intitule: "Préparation Parcours Métiers" });
     if (noms) params.set("noms", noms);
+    params.set("retour", `/mediation/actions-collectives/reponses/prfe/${encodeURIComponent(sessionId)}/apprenants`);
     return `/mediation/rencontres-numeriques/emargement?${params.toString()}`;
-  }, [apprenantsSession]);
+  }, [apprenantsSession, sessionId]);
 
   // Territoire(s) auxquels appartient la session sélectionnée, d'après la
   // configuration définie sur la page de paramètres.

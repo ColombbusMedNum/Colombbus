@@ -115,8 +115,9 @@ export default function ApprenantsSessionPage() {
       .join(";");
     const params = new URLSearchParams({ intitule: "Numérik'UP" });
     if (noms) params.set("noms", noms);
+    params.set("retour", `/mediation/actions-collectives/reponses/numerik-up/${encodeURIComponent(sessionId)}/apprenants`);
     return `/mediation/rencontres-numeriques/emargement?${params.toString()}`;
-  }, [apprenantsSession]);
+  }, [apprenantsSession, sessionId]);
 
   // Code interne d'une session ("MN26_NKUP-91_01"), tel qu'enregistré par
   // "parcoursId|territoire|date" sur la page de paramètres. Retombe sur la
