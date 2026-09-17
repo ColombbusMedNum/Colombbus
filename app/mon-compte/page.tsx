@@ -42,6 +42,7 @@ function MonCompteContenu() {
   const searchParams = useSearchParams();
   const [connecte, setConnecte] = useState<boolean | null>(null);
   const [enCours, setEnCours] = useState(false);
+  const [backfillEnCours, setBackfillEnCours] = useState(false);
 
   useEffect(() => {
     if (searchParams.get("connecte") === "1") {
@@ -102,6 +103,31 @@ function MonCompteContenu() {
       showToast(`❌ Erreur lors de la déconnexion${err instanceof Error && err.message ? ` : ${err.message}` : ""}.`, "error");
     } finally {
       setEnCours(false);
+    }
+  };
+
+  // Action de rattrapage à usage unique : les comptes connectés avant
+  // l'ajout de l'activation automatique des notifications (voir
+  // app/api/google-calendar/callback/route.ts) ne les ont pas — celle-ci
+  // les active pour TOUT LE MONDE en une fois, pas seulement pour ce compte.
+  const rattraperNotifications = async () => {
+    if (!user) return;
+    if (!(await confirm("Activer les notifications email Google Agenda pour TOUS les comptes déjà connectés (pas seulement le vôtre) ?"))) return;
+    setBackfillEnCours(true);
+    try {
+      const token = await user.getIdToken();
+      const reponse = await fetch("/api/google-calendar/backfill-notifications", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await reponse.json().catch(() => ({}));
+      if (!reponse.ok) throw new Error(data.erreur || `Erreur ${reponse.status}`);
+      showToast(`Notifications activées pour ${data.traites} compte(s)${data.echecs > 0 ? `, ${data.echecs} échec(s)` : ""}.`);
+    } catch (err) {
+      console.error(err);
+      showToast(`❌ Erreur lors de l'activation${err instanceof Error && err.message ? ` : ${err.message}` : ""}.`, "error");
+    } finally {
+      setBackfillEnCours(false);
     }
   };
 
@@ -186,6 +212,24 @@ function MonCompteContenu() {
               </div>
             )}
           </div>
+
+          {/* Rattrapage à usage unique — voir rattraperNotifications ci-dessus.
+              À retirer une fois exécuté pour tout le monde. */}
+          {estBetaGoogleAgenda(user?.email, statut) && (
+            <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-2">
+              <p className="text-[11px] text-[#404040]/60 leading-relaxed">
+                Action ponctuelle : active les notifications email de Google Agenda sur le calendrier
+                "COSMOS — Planning" de tous les comptes déjà connectés (les nouvelles connexions l'ont automatiquement).
+              </p>
+              <button
+                onClick={rattraperNotifications}
+                disabled={backfillEnCours}
+                className="px-4 py-2 bg-[#F3F3F2] hover:bg-[#005259] hover:text-white border border-[#404040]/10 text-[#404040] rounded-xl text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
+              >
+                {backfillEnCours ? "Activation en cours..." : "Activer pour tous les comptes déjà connectés"}
+              </button>
+            </div>
+          )}
         </div>
       </main>
     </PageGuard>

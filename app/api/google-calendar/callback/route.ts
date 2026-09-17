@@ -44,6 +44,29 @@ export async function GET(request: NextRequest) {
       requestBody: { summary: NOM_CALENDRIER_COSMOS, timeZone: "Europe/Paris" },
     });
 
+    // Active les notifications par email de Google Agenda sur ce calendrier
+    // secondaire (création/modification/annulation d'événement) — c'est
+    // Google qui envoie l'email, jamais COSMOS : aucune infra d'envoi à
+    // gérer. Réglage propre au calendrier, indépendant de qui modifie
+    // l'événement (la Cloud Function de synchro y compris). Best-effort :
+    // la connexion reste effective même si ce réglage échoue.
+    try {
+      await calendar.calendarList.patch({
+        calendarId: calendarCree.id!,
+        requestBody: {
+          notificationSettings: {
+            notifications: [
+              { method: "email", type: "eventCreation" },
+              { method: "email", type: "eventChange" },
+              { method: "email", type: "eventCancellation" },
+            ],
+          },
+        },
+      });
+    } catch (err) {
+      console.error("Activation des notifications email Google Agenda échouée :", err);
+    }
+
     await adminDb.collection("oauth_google_tokens").doc(uid).set({
       refreshToken: tokens.refresh_token,
       calendarId: calendarCree.id,
