@@ -46,6 +46,26 @@ async function obtenirGoogle(): Promise<typeof googleType> {
   return modeleGoogle;
 }
 
+// Retente un appel à l'API Google Agenda en cas de quota dépassé
+// ("rateLimitExceeded"/429) — arrive typiquement lors d'une resynchro en
+// masse (bouton "Forcer la resynchronisation", ou rattrapage à la première
+// connexion) qui déclenche beaucoup d'appels d'un coup pour le même compte :
+// sans cette reprise, une partie des créneaux échouait silencieusement et ne
+// se retrouvait jamais dans Google Agenda. Délai croissant (1s, 3s, 8s).
+async function avecRelance<T>(appel: () => Promise<T>, tentatives = 4): Promise<T> {
+  const delais = [1000, 3000, 8000];
+  for (let essai = 0; ; essai++) {
+    try {
+      return await appel();
+    } catch (err: any) {
+      const estLimiteDebit = err?.code === 429 || err?.response?.status === 429
+        || (err?.code === 403 && /rateLimitExceeded|quotaExceeded|userRateLimitExceeded/i.test(JSON.stringify(err?.errors || err?.message || "")));
+      if (!estLimiteDebit || essai >= tentatives - 1) throw err;
+      await new Promise((resolve) => setTimeout(resolve, delais[essai] || 8000));
+    }
+  }
+}
+
 // Résout le calendrier Google secondaire d'un médiateur — null si la
 // personne n'a jamais connecté son compte (cas normal et fréquent, pas une
 // erreur : la synchro est purement opt-in).
@@ -62,19 +82,37 @@ async function resoudreCalendrier(mediatId: string | undefined) {
   return { calendar: google.calendar({ version: "v3", auth: client }), calendarId: donnees.calendarId };
 }
 
-function construireEvenement(action: any) {
+// Adresse email d'un médiateur/ACI (fiche liste_mediateurs.email) — null si
+// absente, ce qui n'est pas une erreur (anciennes fiches non renseignées).
+async function resoudreEmailMediateur(mediatId: string | undefined): Promise<string | null> {
+  if (!mediatId) return null;
+  const snap = await db.collection("liste_mediateurs").doc(mediatId).get();
+  const email = snap.exists ? (snap.data()?.email as string | undefined) : undefined;
+  return email && email.trim() ? email.trim() : null;
+}
+
+function construireEvenement(action: any, emailProprietaire: string | null) {
   // "codeACI" (ex. "#accueil"), quand renseigné sur le modèle, est ajouté en
   // préfixe du titre pour l'intégration aux agendas ACI — le commentaire va
   // dans la description, l'adresse dans le lieu (déjà gérés ci-dessous).
   const summary = action.codeACI ? `${action.codeACI} ${action.lieu || "Action"}` : (action.lieu || "Action");
   const description = action.commentaire || undefined;
   const location = action.adresse || undefined;
+  // Les réglages de notification par calendrier (eventCreation/eventChange)
+  // ne concernent que les changements faits par QUELQU'UN D'AUTRE sur un
+  // agenda partagé — jamais les événements que le propriétaire crée
+  // lui-même via sa propre autorisation API, même si l'appelant réel est
+  // COSMOS. Seule méthode fiable pour obtenir un vrai email : l'inscrire
+  // comme invité de son propre événement et demander l'envoi via
+  // sendUpdates="all" (voir les appels events.insert/patch/delete).
+  const attendees = emailProprietaire ? [{ email: emailProprietaire, responseStatus: "accepted" }] : undefined;
 
   if (action.date && action.debut && action.fin) {
     return {
       summary,
       description,
       location,
+      attendees,
       start: { dateTime: `${action.date}T${action.debut}:00`, timeZone: "Europe/Paris" },
       end: { dateTime: `${action.date}T${action.fin}:00`, timeZone: "Europe/Paris" },
     };
@@ -85,6 +123,7 @@ function construireEvenement(action: any) {
     summary,
     description,
     location,
+    attendees,
     start: { date: action.date },
     end: { date: action.date },
   };
@@ -110,7 +149,7 @@ export const synchroniserPlanningMediateurs = onDocumentWritten(
         if (!avant) return;
         const ctx = await resoudreCalendrier(avant.mediatId);
         if (ctx && avant.googleEventId) {
-          await ctx.calendar.events.delete({ calendarId: ctx.calendarId, eventId: avant.googleEventId }).catch((err) => {
+          await avecRelance(() => ctx.calendar.events.delete({ calendarId: ctx.calendarId, eventId: avant.googleEventId, sendUpdates: "all" })).catch((err) => {
             console.error("Suppression événement Google échouée :", err);
           });
         }
@@ -138,7 +177,7 @@ export const synchroniserPlanningMediateurs = onDocumentWritten(
       if (avant?.mediatId && apres.mediatId && avant.mediatId !== apres.mediatId && avant.googleEventId) {
         const ancienCtx = await resoudreCalendrier(avant.mediatId);
         if (ancienCtx) {
-          await ancienCtx.calendar.events.delete({ calendarId: ancienCtx.calendarId, eventId: avant.googleEventId }).catch((err) => {
+          await avecRelance(() => ancienCtx.calendar.events.delete({ calendarId: ancienCtx.calendarId, eventId: avant.googleEventId, sendUpdates: "all" })).catch((err) => {
             console.error("Suppression événement Google (réaffectation) échouée :", err);
           });
         }
@@ -147,16 +186,18 @@ export const synchroniserPlanningMediateurs = onDocumentWritten(
       const ctx = await resoudreCalendrier(apres.mediatId);
       if (!ctx) return; // Personne non connectée à Google Agenda.
 
-      const evenement = construireEvenement(apres);
+      const emailProprietaire = await resoudreEmailMediateur(apres.mediatId);
+      const evenement = construireEvenement(apres, emailProprietaire);
       const dejaLie = !!(avant && avant.mediatId === apres.mediatId && apres.googleEventId);
 
       if (dejaLie) {
         try {
-          await ctx.calendar.events.patch({
+          await avecRelance(() => ctx.calendar.events.patch({
             calendarId: ctx.calendarId,
             eventId: apres.googleEventId,
             requestBody: evenement,
-          });
+            sendUpdates: "all",
+          }));
         } catch (err: any) {
           // L'événement lié n'existe plus dans CE calendrier — typiquement
           // après une déconnexion/reconnexion (le calendrier "COSMOS —
@@ -165,20 +206,22 @@ export const synchroniserPlanningMediateurs = onDocumentWritten(
           // Google. Plutôt que d'échouer silencieusement à chaque écriture
           // suivante, on recrée l'événement et on repose le bon id.
           if (err?.code === 404 || err?.response?.status === 404) {
-            const { data: cree } = await ctx.calendar.events.insert({
+            const { data: cree } = await avecRelance(() => ctx.calendar.events.insert({
               calendarId: ctx.calendarId,
               requestBody: evenement,
-            });
+              sendUpdates: "all",
+            }));
             await docRef.update({ googleEventId: cree.id });
           } else {
             throw err;
           }
         }
       } else {
-        const { data: cree } = await ctx.calendar.events.insert({
+        const { data: cree } = await avecRelance(() => ctx.calendar.events.insert({
           calendarId: ctx.calendarId,
           requestBody: evenement,
-        });
+          sendUpdates: "all",
+        }));
         await docRef.update({ googleEventId: cree.id });
       }
     } catch (err) {

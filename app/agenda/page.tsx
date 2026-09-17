@@ -10,7 +10,7 @@ import { useMediateurs } from "../../lib/MediateursProvider";
 import {
   collection, onSnapshot, query, orderBy, addDoc,
   deleteDoc, doc, getDoc, getDocs, where, updateDoc, setDoc, writeBatch,
-  DocumentData, Query
+  DocumentData, Query, QueryDocumentSnapshot
 } from "firebase/firestore";
 import { 
   PlusIcon, TrashIcon, XMarkIcon,
@@ -915,16 +915,24 @@ export default function PlanningExpertMix() {
     if (estActionDuMediateur(action, mDest) && action.moment === momentDest && action.date === dateDest) return;
 
     try {
-      const qSuresnesSource = query(collection(db, "planning_suresnes"), where("date", "==", action.date), where("moment", "==", action.moment));
-      const snapSuresnesSource = await getDocs(qSuresnesSource);
-      const docsDuMediateurSource = snapSuresnesSource.docs.filter((d) => {
-        const mNom = d.data().mediateurNom || "";
-        const cible = action.mediateurNom || "";
-        return mNom === cible || mNom === `${cible} (RN)` || mNom === `${cible} (RND)` || mNom === `${cible} (RN91)`;
-      });
-      if (docsDuMediateurSource.some((d) => d.data().usager && d.data().usager.trim() !== "")) {
-        showToast("⚠️ Déplacement par glisser-déposer impossible : des bénéficiaires sont déjà inscrits sur ce créneau Suresnes. Utilisez \"Réaffecter médiateur\" depuis l'agenda Suresnes pour les conserver.", "error");
-        return;
+      // Comme confirmDeleteAction : ne touche/ne bloque sur planning_suresnes
+      // que si l'action déplacée est elle-même Suresnes/RN.
+      const upperLieuAction = (action.lieu || "").toUpperCase();
+      const estActionSuresnes = (upperLieuAction.includes("RN") || upperLieuAction.includes("RND")) && !upperLieuAction.includes("OBSERVATION");
+      let docsDuMediateurSource: QueryDocumentSnapshot<DocumentData>[] = [];
+
+      if (estActionSuresnes) {
+        const qSuresnesSource = query(collection(db, "planning_suresnes"), where("date", "==", action.date), where("moment", "==", action.moment));
+        const snapSuresnesSource = await getDocs(qSuresnesSource);
+        docsDuMediateurSource = snapSuresnesSource.docs.filter((d) => {
+          const mNom = d.data().mediateurNom || "";
+          const cible = action.mediateurNom || "";
+          return mNom === cible || mNom === `${cible} (RN)` || mNom === `${cible} (RND)` || mNom === `${cible} (RN91)`;
+        });
+        if (docsDuMediateurSource.some((d) => d.data().usager && d.data().usager.trim() !== "")) {
+          showToast("⚠️ Déplacement par glisser-déposer impossible : des bénéficiaires sont déjà inscrits sur ce créneau Suresnes. Utilisez \"Réaffecter médiateur\" depuis l'agenda Suresnes pour les conserver.", "error");
+          return;
+        }
       }
 
       await processActionCreation(mDest.id, mDest.prenom || "", mDest.nom || "", momentDest, dateDest, action.lieu || "", null, action);
@@ -1027,8 +1035,6 @@ export default function PlanningExpertMix() {
       champs.fin = fin;
     }
     try {
-      await updateDoc(doc(db, "planning_mediateurs", id), champs);
-
       // Contrairement à processActionCreation (case vide/glisser-déposer),
       // cette modale ne fait qu'un updateDoc sur le lieu — sans ce qui suit,
       // remplacer un lieu non-RN (Terrage...) par un lieu RN via "Modifier
@@ -1046,6 +1052,32 @@ export default function PlanningExpertMix() {
         // brut — donc une égalité stricte sur nomCompletLiaison ne trouverait
         // jamais rien ; on teste les variantes possibles.
         const variantesNom = [nomCompletLiaison, `${nomCompletLiaison} (RN)`, `${nomCompletLiaison} (RN91)`, `${nomCompletLiaison} (RND)`];
+
+        // Quitte Suresnes (RN -> autre chose) : vérifié AVANT de toucher au
+        // lieu — sans quoi le changement était appliqué puis seulement
+        // signalé après coup, laissant les créneaux Suresnes déjà réservés
+        // orphelins (et bloquant ensuite, à tort, la suppression de CETTE
+        // action désormais non-Suresnes — voir confirmDeleteAction, qui se
+        // base sur date+moment+médiateur, pas sur le lieu).
+        if (!estSuresnesMaintenant && etaitSuresnes) {
+          const qExistant = query(
+            collection(db, "planning_suresnes"),
+            where("date", "==", actionDoc.date),
+            where("moment", "==", actionDoc.moment),
+            where("mediateurNom", "in", variantesNom)
+          );
+          const snapExistant = await getDocs(qExistant);
+          const hasUsagers = snapExistant.docs.some(d => d.data().usager && d.data().usager.trim() !== "");
+          if (hasUsagers) {
+            showToast("⚠️ Changement de lieu impossible : des usagers sont inscrits à Suresnes sur ce créneau.", "error");
+            return;
+          }
+          await updateDoc(doc(db, "planning_mediateurs", id), champs);
+          await Promise.all(snapExistant.docs.map(d => deleteDoc(doc(db, "planning_suresnes", d.id))));
+          return;
+        }
+
+        await updateDoc(doc(db, "planning_mediateurs", id), champs);
 
         if (estSuresnesMaintenant && !etaitSuresnes) {
           const qExistant = query(
@@ -1071,21 +1103,9 @@ export default function PlanningExpertMix() {
               });
             }
           }
-        } else if (!estSuresnesMaintenant && etaitSuresnes) {
-          const qExistant = query(
-            collection(db, "planning_suresnes"),
-            where("date", "==", actionDoc.date),
-            where("moment", "==", actionDoc.moment),
-            where("mediateurNom", "in", variantesNom)
-          );
-          const snapExistant = await getDocs(qExistant);
-          const hasUsagers = snapExistant.docs.some(d => d.data().usager && d.data().usager.trim() !== "");
-          if (hasUsagers) {
-            showToast(`⚠️ Lieu modifié, mais des usagers sont inscrits à Suresnes sur ce créneau : les créneaux Suresnes n'ont pas été retirés.`, "error");
-          } else {
-            await Promise.all(snapExistant.docs.map(d => deleteDoc(doc(db, "planning_suresnes", d.id))));
-          }
         }
+      } else {
+        await updateDoc(doc(db, "planning_mediateurs", id), champs);
       }
     } catch (error) {
       console.error("Erreur lors de la modification de l'action :", error);
@@ -1159,21 +1179,34 @@ export default function PlanningExpertMix() {
       return;
     }
 
-    const qSuresnes = query(collection(db, "planning_suresnes"), where("date", "==", actionDoc.date), where("moment", "==", actionDoc.moment));
-    const snapSuresnes = await getDocs(qSuresnes);
-    const docsDuMediateur = snapSuresnes.docs.filter(d => {
-      const mNom = d.data().mediateurNom || "";
-      const cible = actionDoc.mediateurNom || "";
-      return mNom === cible || mNom === `${cible} (RN)` || mNom === `${cible} (RND)` || mNom === `${cible} (RN91)`;
-    });
+    // Ne touche/ne bloque sur planning_suresnes QUE si l'action supprimée
+    // est elle-même Suresnes/RN — sinon on risquerait de bloquer (ou de
+    // supprimer) des créneaux Suresnes sans rapport, simplement parce qu'ils
+    // partagent le même jour/moment/médiateur (ex. créneaux orphelins
+    // laissés par un changement de lieu antérieur, voir
+    // handleConfirmEditAction) : n'importe quelle action non-Suresnes du
+    // médiateur devenait alors indélébile.
+    const upperLieuAction = (actionDoc.lieu || "").toUpperCase();
+    const estActionSuresnes = (upperLieuAction.includes("RN") || upperLieuAction.includes("RND")) && !upperLieuAction.includes("OBSERVATION");
 
-    if (docsDuMediateur.some(d => d.data().usager && d.data().usager.trim() !== "")) {
-      showToast("⚠️ Suppression impossible : Des usagers sont inscrits à Suresnes.", "error");
-      setDeleteConfirmModalData(null);
-      return; 
+    if (estActionSuresnes) {
+      const qSuresnes = query(collection(db, "planning_suresnes"), where("date", "==", actionDoc.date), where("moment", "==", actionDoc.moment));
+      const snapSuresnes = await getDocs(qSuresnes);
+      const docsDuMediateur = snapSuresnes.docs.filter(d => {
+        const mNom = d.data().mediateurNom || "";
+        const cible = actionDoc.mediateurNom || "";
+        return mNom === cible || mNom === `${cible} (RN)` || mNom === `${cible} (RND)` || mNom === `${cible} (RN91)`;
+      });
+
+      if (docsDuMediateur.some(d => d.data().usager && d.data().usager.trim() !== "")) {
+        showToast("⚠️ Suppression impossible : Des usagers sont inscrits à Suresnes.", "error");
+        setDeleteConfirmModalData(null);
+        return;
+      }
+
+      await Promise.all(docsDuMediateur.map(d => deleteDoc(doc(db, "planning_suresnes", d.id))));
     }
 
-    await Promise.all(docsDuMediateur.map(d => deleteDoc(doc(db, "planning_suresnes", d.id))));
     await deleteDoc(doc(db, "planning_mediateurs", id));
 
     // Historique de l'agenda ("qui a positionné quoi") — voir /agenda/historique.
@@ -1210,21 +1243,11 @@ export default function PlanningExpertMix() {
     }
     if (!(await confirm(`Supprimer les ${actionsOFF.length} action(s) "OFF" trouvée(s) dans toute la base ?`))) return;
 
+    // "OFF" n'est jamais un lieu Suresnes/RN : pas besoin de vérifier/purger
+    // planning_suresnes ici (voir confirmDeleteAction pour le principe).
     let supprimees = 0;
-    let bloquees = 0;
+    const bloquees = 0;
     for (const actionDoc of actionsOFF) {
-      const qSuresnes = query(collection(db, "planning_suresnes"), where("date", "==", actionDoc.date), where("moment", "==", actionDoc.moment));
-      const snapSuresnes = await getDocs(qSuresnes);
-      const nomComplet = actionDoc.mediateurNom || "";
-      const docsDuMediateur = snapSuresnes.docs.filter((d) => {
-        const mNom = d.data().mediateurNom || "";
-        return mNom === nomComplet || mNom === `${nomComplet} (RN)` || mNom === `${nomComplet} (RND)` || mNom === `${nomComplet} (RN91)`;
-      });
-      if (docsDuMediateur.some((d) => d.data().usager && d.data().usager.trim() !== "")) {
-        bloquees++;
-        continue;
-      }
-      await Promise.all(docsDuMediateur.map((d) => deleteDoc(doc(db, "planning_suresnes", d.id))));
       await deleteDoc(doc(db, "planning_mediateurs", actionDoc.id));
       supprimees++;
     }
@@ -1303,17 +1326,23 @@ export default function PlanningExpertMix() {
     let supprimees = 0;
     let bloquees = 0;
     for (const actionDoc of actionsDeLaLigne) {
-      const qSuresnes = query(collection(db, "planning_suresnes"), where("date", "==", actionDoc.date), where("moment", "==", actionDoc.moment));
-      const snapSuresnes = await getDocs(qSuresnes);
-      const docsDuMediateur = snapSuresnes.docs.filter((d) => {
-        const mNom = d.data().mediateurNom || "";
-        return mNom === nomComplet || mNom === `${nomComplet} (RN)` || mNom === `${nomComplet} (RND)` || mNom === `${nomComplet} (RN91)`;
-      });
-      if (docsDuMediateur.some((d) => d.data().usager && d.data().usager.trim() !== "")) {
-        bloquees++;
-        continue;
+      // Comme confirmDeleteAction : ne bloque/ne purge planning_suresnes que
+      // pour une action Suresnes/RN.
+      const upperLieuAction = (actionDoc.lieu || "").toUpperCase();
+      const estActionSuresnes = (upperLieuAction.includes("RN") || upperLieuAction.includes("RND")) && !upperLieuAction.includes("OBSERVATION");
+      if (estActionSuresnes) {
+        const qSuresnes = query(collection(db, "planning_suresnes"), where("date", "==", actionDoc.date), where("moment", "==", actionDoc.moment));
+        const snapSuresnes = await getDocs(qSuresnes);
+        const docsDuMediateur = snapSuresnes.docs.filter((d) => {
+          const mNom = d.data().mediateurNom || "";
+          return mNom === nomComplet || mNom === `${nomComplet} (RN)` || mNom === `${nomComplet} (RND)` || mNom === `${nomComplet} (RN91)`;
+        });
+        if (docsDuMediateur.some((d) => d.data().usager && d.data().usager.trim() !== "")) {
+          bloquees++;
+          continue;
+        }
+        await Promise.all(docsDuMediateur.map((d) => deleteDoc(doc(db, "planning_suresnes", d.id))));
       }
-      await Promise.all(docsDuMediateur.map((d) => deleteDoc(doc(db, "planning_suresnes", d.id))));
       await deleteDoc(doc(db, "planning_mediateurs", actionDoc.id));
       addDoc(collection(db, "historique_agenda"), {
         type: "suppression",
