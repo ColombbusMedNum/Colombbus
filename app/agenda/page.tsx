@@ -306,7 +306,19 @@ export default function PlanningExpertMix() {
   // "voir samedi") au lieu de toute la collection depuis toujours. Effet
   // séparé des autres écoutes ci-dessous pour ne les re-déclencher que
   // lorsque c'est réellement nécessaire (changement de semaine uniquement).
+  //
+  // Dépend de currentUserId (pas seulement currentDate) : sans ça, si ce
+  // onSnapshot démarre avant que Firebase Auth ait fini de restaurer la
+  // session (request.auth encore null côté règles), il essuie un
+  // "permission-denied" et Firestore ne relance JAMAIS un listener après une
+  // erreur de permission, même une fois la session bien reconnue — toutes
+  // les cases de tous les médiateurs restent alors vides pour le reste de la
+  // session, sans rapport avec le compte de la personne connectée (même
+  // course déjà rencontrée et corrigée dans MediateursProvider/
+  // PermissionsProvider). Le callback d'erreur permet de diagnostiquer un
+  // futur cas similaire au lieu d'échouer en silence.
   useEffect(() => {
+    if (!currentUserId) return;
     const monday = getMonday(currentDate);
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
@@ -318,12 +330,18 @@ export default function PlanningExpertMix() {
       where("date", ">=", debutSemaineStr),
       where("date", "<=", finSemaineStr)
     );
-    const unsubActions = onSnapshot(qActions, (snap) => {
-      setActions(snap.docs.map(d => ({ id: d.id, ...d.data() } as ActionPlanning)));
-    });
+    const unsubActions = onSnapshot(
+      qActions,
+      (snap) => {
+        setActions(snap.docs.map(d => ({ id: d.id, ...d.data() } as ActionPlanning)));
+      },
+      (err) => {
+        console.error("Erreur chargement planning_mediateurs :", err);
+      }
+    );
 
     return () => unsubActions();
-  }, [currentDate]);
+  }, [currentDate, currentUserId]);
 
   useEffect(() => {
     const unsubSemaines = onSnapshot(collection(db, "semaines_validees"), (snap) => {

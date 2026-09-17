@@ -134,6 +134,16 @@ export const synchroniserPlanningMediateurs = onDocumentWritten(
     document: "planning_mediateurs/{docId}",
     region: "europe-west1",
     secrets: [GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET],
+    // Une resynchronisation en masse (bouton "Forcer la resynchronisation",
+    // rattrapage à la première connexion) déclenche des centaines d'écritures
+    // Firestore d'un coup — sans cette limite, Cloud Functions lance quasiment
+    // autant d'exécutions en parallèle, qui cognent TOUTES au même moment
+    // contre le quota "par minute et par utilisateur" de l'API Google Agenda
+    // (avecRelance ne suffit pas seul : ses tentatives, elles aussi lancées en
+    // même temps par toutes les instances, retombent sur le même mur). Une
+    // faible limite force Cloud Functions à traiter la rafale par petits
+    // groupes successifs plutôt que d'un coup.
+    maxInstances: 3,
   },
   async (event) => {
     const avantSnap = event.data?.before;
