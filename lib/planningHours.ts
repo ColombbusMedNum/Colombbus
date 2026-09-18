@@ -23,9 +23,21 @@ export function minutesToTime(minutes: number): string {
 const PAUSE_DEBUT_MIN = 13 * 60;
 const PAUSE_FIN_MIN = 14 * 60;
 
+// La pause déjeuner est 13h-14h partout, SAUF sur l'action Levallois (NPT),
+// la seule dont la pause réelle est 12h-13h (la personne reprend à 13h, pas
+// à 14h) — sans ce repli par lieu, un créneau après-midi commençant à 13h y
+// était à tort compris comme "chevauchant" la pause standard 13h-14h et se
+// voyait retirer une heure qui avait déjà été exclue par la coupure
+// matin/après-midi elle-même.
+function resoudrePauseDejeuner(lieu?: string): { debut: number; fin: number } {
+  const normalise = (lieu || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toUpperCase();
+  if (normalise.includes("LEVALLOIS")) return { debut: 12 * 60, fin: 13 * 60 };
+  return { debut: PAUSE_DEBUT_MIN, fin: PAUSE_FIN_MIN };
+}
+
 // Durée totale d'un créneau, pause déjeuner déduite si le créneau l'englobe
 // entièrement. Repli à 3.5h si les horaires sont absents/invalides.
-export function calculerDureeHeures(debut: string, fin: string): number {
+export function calculerDureeHeures(debut: string, fin: string, lieu?: string): number {
   if (!debut || !fin) return 3.5;
 
   const minutesDebut = timeToMinutes(debut);
@@ -35,7 +47,8 @@ export function calculerDureeHeures(debut: string, fin: string): number {
   let totalMinutes = minutesFin - minutesDebut;
   if (totalMinutes <= 0) return 3.5;
 
-  if (minutesDebut <= PAUSE_DEBUT_MIN && minutesFin >= PAUSE_FIN_MIN) {
+  const pause = resoudrePauseDejeuner(lieu);
+  if (minutesDebut <= pause.debut && minutesFin >= pause.fin) {
     totalMinutes -= 60;
   }
 
@@ -45,6 +58,7 @@ export function calculerDureeHeures(debut: string, fin: string): number {
 export interface OccurrenceHoraire {
   debut?: string;
   fin?: string;
+  lieu?: string;
 }
 
 export interface FragmentHoraire {
@@ -113,11 +127,12 @@ export function repartirHeuresSansChevauchement<T extends OccurrenceHoraire>(
       segments = suivants;
     });
 
+    const pause = resoudrePauseDejeuner(o.lieu);
     const fragments: FragmentHoraire[] = [];
     segments.forEach(([s, e]) => {
       let minutes = e - s;
       if (minutes <= 0) return;
-      if (!pauseDejaDeduite && s <= PAUSE_DEBUT_MIN && e >= PAUSE_FIN_MIN) {
+      if (!pauseDejaDeduite && s <= pause.debut && e >= pause.fin) {
         minutes -= 60;
         pauseDejaDeduite = true;
       }
@@ -252,9 +267,10 @@ export function calculerHeuresComplementairesACI(
   const start = timeToMinutes(action.debut);
   const end = timeToMinutes(action.fin);
 
+  const pause = resoudrePauseDejeuner(action.lieu);
   let minsContrat = 0;
   for (let t = start; t < end; t++) {
-    if (t >= debutContrat && t < finContrat && !(t >= PAUSE_DEBUT_MIN && t < PAUSE_FIN_MIN)) {
+    if (t >= debutContrat && t < finContrat && !(t >= pause.debut && t < pause.fin)) {
       minsContrat++;
     }
   }

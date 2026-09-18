@@ -33,6 +33,8 @@ import { formatPhoneNumber } from "@/lib/formatPhone";
 import FicheEntretienDiagnostic from "./FicheEntretienDiagnostic";
 import FicheDiagnosticEquipement from "./FicheDiagnosticEquipement";
 import ResultatsPixFiche from "@/components/ResultatsPixFiche";
+import ResultatsTestLangueFiche from "@/components/ResultatsTestLangueFiche";
+import ResultatsCollecteTechFiche from "@/components/ResultatsCollecteTechFiche";
 import type { PixResultat } from "@/lib/pixImport";
 
 interface AbsenceRecord {
@@ -243,6 +245,22 @@ export interface Inscription {
   EquipDiag_BesoinEquipement?: string[];
   EquipDiag_Attentes?: string;
   EquipDiag_DateRealisation?: string;
+  // Suivi administratif (voir [id]/suivi-administratif/page.tsx) — lu ici en
+  // lecture seule pour un récapitulatif complet sur la fiche.
+  Admin_Ressources?: boolean;
+  Admin_ContratPLIE91?: boolean;
+  Admin_CharteEngagement?: boolean;
+  Admin_DiagnosticEntree?: boolean;
+  Admin_DiagnosticEquipement?: boolean;
+  Admin_AutorisationDroitImage?: boolean;
+  Admin_FicheEntretienDiagnostic?: boolean;
+  Admin_QuestionnaireFSE?: boolean;
+  Admin_CniTitreSejour?: boolean;
+  Admin_AttestationParticipation?: boolean;
+  Admin_RQTH?: boolean;
+  Admin_ConvocationFormationPix?: boolean;
+  Admin_TestLangue?: boolean;
+  Admin_LienDossierDrive?: string;
 }
 
 interface EntreeJournal {
@@ -1019,12 +1037,17 @@ export default function FicheApprenantDigitalUpProPage() {
                   <Puce actif={i.Charte_Engagement} label="Charte" />
                   <Puce actif={i.Reglement_Interieur} label="Règlement" />
                   <Puce actif={i.Signature_Droit_Image} label="Droit image" />
+                  {/* Intégration Kairos / Validation Kairos masquées (comme sur
+                      la page Apprenant·e·s) — code conservé.
                   <Puce actif={i.Integration_Kairos} label="Intégration Kairos" />
                   <Puce actif={i.Validation_Kairos} label="Validation Kairos" />
+                  */}
                   <Puce actif={i.Acces_Drive_Apprenant} label="Accès Drive" />
                   <Puce actif={i.Cotisation_Adhesion} label="Cotisation" />
                 </div>
               </SousGroupe>
+              {/* Positionnement & matériel / Modules réseau & cybersécurité
+                  masqués (comme sur la page Apprenant·e·s) — code conservé.
               <SousGroupe titre="Positionnement & matériel">
                 <div className="grid grid-cols-3 gap-3 mb-2">
                   <Champ label="Positionnement E." valeur={i.Questionnaire_Positionnement_Entree} />
@@ -1036,6 +1059,7 @@ export default function FicheApprenantDigitalUpProPage() {
                   <Puce actif={i.Trousse_Outils} label="Trousse à outils" />
                 </div>
               </SousGroupe>
+              */}
               <SousGroupe titre="Bilan & certifications">
                 <div className="grid grid-cols-2 gap-3 mb-2">
                   <Champ label="Bilan intermédiaire" valeur={i.Date_Bilan_Intermediaire} />
@@ -1043,11 +1067,14 @@ export default function FicheApprenantDigitalUpProPage() {
                 <div className="flex flex-wrap gap-2">
                   <Puce actif={i.Satisfaction_Chaud_Mois1} label="Satisfaction M1" />
                   <Puce actif={i.Projet_Developpement_Mois2_CV} label="Projet Dev. M2 (CV)" />
+                  {/* Certifications masquées (comme sur la page Apprenant·e·s) — code conservé.
                   <Puce actif={i.Certification_PIX} label="PIX" />
                   <Puce actif={i.Certification_HTML_CSS} label="HTML/CSS" />
                   <Puce actif={i.Certification_MYSQL} label="MySQL" />
+                  */}
                 </div>
               </SousGroupe>
+              {/*
               <SousGroupe titre="Modules réseau & cybersécurité">
                 <div className="flex flex-wrap gap-2">
                   <Puce actif={i.Module_Analyse_Risques_SI} label="Risques SI" />
@@ -1060,6 +1087,7 @@ export default function FicheApprenantDigitalUpProPage() {
                   <Puce actif={i.OC_Decouvrir_Metier_Technicien} label="Métier technicien" />
                 </div>
               </SousGroupe>
+              */}
               <SousGroupe titre="Clôture">
                 <div className="flex flex-wrap gap-2">
                   <Puce actif={i.Entretien_Fin_Parcours} label="Entretien fin parcours" />
@@ -1101,6 +1129,45 @@ export default function FicheApprenantDigitalUpProPage() {
           </Section>
 
           <ResultatsPixFiche historique={i.PixResultats} />
+
+          <ResultatsTestLangueFiche nom={i.Nom} prenom={i.Prénom} email={i.Email} />
+
+          <ResultatsCollecteTechFiche nom={i.Nom} prenom={i.Prénom} email={i.Email} />
+
+          <div className="lg:col-span-2">
+            <Section icon={ClipboardDocumentCheckIcon} titre="Suivi administratif">
+              <div className="flex flex-wrap gap-2">
+                <Puce actif={i.Admin_CniTitreSejour} label="CNI/Titre de séjour" />
+                <Puce actif={i.Admin_RQTH} label="RQTH" />
+                <Puce actif={i.Admin_Ressources} label="Ressources (CAF, ASS, France Travail)" />
+                <Puce actif={i.Admin_ContratPLIE91} label="Contrat PLIE 91 + Fiche préconisation" />
+                <Puce actif={i.Admin_CharteEngagement} label="Charte d'engagement" />
+                <Puce actif={i.Admin_AutorisationDroitImage} label="Autorisation droit à l'image" />
+                <Puce actif={i.Admin_DiagnosticEntree} label="Diagnostic entrée" />
+                <Puce actif={i.Admin_DiagnosticEquipement} label="Diagnostic compétences numériques et équipement" />
+                <Puce actif={i.Admin_FicheEntretienDiagnostic} label="Fiche entretien diagnostic" />
+                <Puce actif={i.Admin_TestLangue} label="Test de langue" />
+                <Puce actif={i.Admin_ConvocationFormationPix} label="Convocation formation/Pix" />
+                <Puce actif={i.Admin_QuestionnaireFSE} label="Questionnaire FSE+" />
+                <Puce actif={i.Admin_AttestationParticipation} label="Attestation de participation" />
+              </div>
+              <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#404040]/10 mt-3">
+                {i.Admin_LienDossierDrive ? (
+                  <a href={i.Admin_LienDossierDrive} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-[#005259] underline hover:text-[#EA601F]">
+                    Dossier Drive
+                  </a>
+                ) : (
+                  <span className="text-xs text-[#404040]/50 font-medium">Aucun dossier Drive renseigné.</span>
+                )}
+                <Link
+                  href={`/mediation/actions-collectives/reponses/digital-up-pro/${encodeURIComponent(sessionId)}/suivi-administratif`}
+                  className="text-[10px] font-bold uppercase tracking-wider text-[#005259] hover:text-[#EA601F] underline"
+                >
+                  Modifier le suivi administratif
+                </Link>
+              </div>
+            </Section>
+          </div>
 
           <Section icon={ExclamationTriangleIcon} titre="Absences">
             {absencesTriees.length === 0 ? (

@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
-import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, ChartBarIcon, DocumentPlusIcon, ChartPieIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, ChartBarIcon, DocumentPlusIcon, ChartPieIcon, ClipboardDocumentCheckIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 
 // Champs issus du formulaire de pré-inscription (lecture seule ici) + champs
@@ -231,10 +231,20 @@ export default function ApprenantsDigitalUpProSessionPage() {
     }
   };
 
+  // Deux cases de cette page désignent le même document administratif qu'une
+  // case de la page "Suivi administratif" (Charte d'engagement / Autorisation
+  // droit à l'image) — cocher l'une coche l'autre, et inversement, puisque
+  // les deux pages écrivent sur le même document inscriptions_digitaluppro.
+  const CHAMPS_LIES_SUIVI_ADMINISTRATIF: Partial<Record<string, string>> = {
+    Charte_Engagement: "Admin_CharteEngagement",
+    Signature_Droit_Image: "Admin_AutorisationDroitImage",
+  };
+
   const basculerChampBooleen = async (id: string, champ: keyof Apprenant, valeur: boolean) => {
     setInscriptions((prev) => prev.map((i) => (i.id === id ? { ...i, [champ]: valeur } : i)));
+    const champLie = CHAMPS_LIES_SUIVI_ADMINISTRATIF[champ as string];
     try {
-      await updateDoc(doc(db, "inscriptions_digitaluppro", id), { [champ]: valeur });
+      await updateDoc(doc(db, "inscriptions_digitaluppro", id), champLie ? { [champ]: valeur, [champLie]: valeur } : { [champ]: valeur });
     } catch (error) {
       console.error(`Erreur lors de la mise à jour du champ ${champ} :`, error);
     }
@@ -309,6 +319,13 @@ export default function ApprenantsDigitalUpProSessionPage() {
             >
               <ChartPieIcon className="w-4 h-4 text-[#EA601F]" />
               <span>Résultats Pix</span>
+            </Link>
+            <Link
+              href={`/mediation/actions-collectives/reponses/digital-up-pro/${encodeURIComponent(sessionId)}/suivi-administratif`}
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+            >
+              <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Suivi administratif</span>
             </Link>
             <Link
               href={hrefEmargement}
@@ -392,16 +409,21 @@ export default function ApprenantsDigitalUpProSessionPage() {
               <thead>
                 <tr className="bg-[#F3F3F2] text-[#005259] text-[10px] uppercase tracking-widest font-bold">
                   <th className="px-3 py-2 border-b border-[#404040]/10" colSpan={16}>Apprenant·e·s</th>
-                  <th className="px-3 py-2 border-b border-l border-[#404040]/10" colSpan={35}>Administratif</th>
+                  <th className="px-3 py-2 border-b border-l border-[#404040]/10" colSpan={17}>Administratif</th>
                 </tr>
                 <tr className="bg-[#005259]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
                   <th className="px-3 py-1.5" colSpan={16}></th>
-                  <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={11}>Intégration</th>
+                  <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={9}>Intégration</th>
+                  {/* Groupes Positionnement, Matériel, Certifications et Modules
+                      réseau & cybersécurité masqués (demandé) — code conservé.
                   <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={3}>Positionnement</th>
                   <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={2}>Matériel</th>
+                  */}
                   <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={3}>Suivi pédagogique</th>
+                  {/*
                   <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={3}>Certifications</th>
                   <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={8}>Modules réseau &amp; cybersécurité</th>
+                  */}
                   <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={5}>Clôture</th>
                 </tr>
                 <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
@@ -428,18 +450,23 @@ export default function ApprenantsDigitalUpProSessionPage() {
                   <th className="px-2 py-3 text-center">Charte</th>
                   <th className="px-2 py-3 text-center">Règlement</th>
                   <th className="px-2 py-3 text-center">Droit image</th>
+                  {/* Intégration Kairos / Validation Kairos masquées (demandé) — code conservé.
                   <th className="px-2 py-3 text-center">Intégration Kairos</th>
                   <th className="px-2 py-3 text-center">Validation Kairos</th>
+                  */}
                   <th className="px-2 py-3 text-center">Accès Drive</th>
                   <th className="px-2 py-3 text-center">Cotisation</th>
+                  {/* Positionnement / Matériel masqués (demandé) — code conservé.
                   <th className="px-2 py-3 border-l border-[#404040]/10 text-center">Positionnement E.</th>
                   <th className="px-2 py-3 text-center">Positionnement S.</th>
                   <th className="px-2 py-3 text-center">Convoc. PIX</th>
                   <th className="px-2 py-3 border-l border-[#404040]/10 text-center">Clé USB</th>
                   <th className="px-2 py-3 text-center">Trousse à outils</th>
+                  */}
                   <th className="px-2 py-3 border-l border-[#404040]/10 text-center">Bilan intermédiaire</th>
                   <th className="px-2 py-3 text-center">Satisfaction M1</th>
                   <th className="px-2 py-3 text-center">Projet Dev. M2 (CV)</th>
+                  {/* Certifications / Modules réseau & cybersécurité masqués (demandé) — code conservé.
                   <th className="px-2 py-3 border-l border-[#404040]/10 text-center">PIX</th>
                   <th className="px-2 py-3 text-center">HTML/CSS</th>
                   <th className="px-2 py-3 text-center">MYSQL</th>
@@ -451,6 +478,7 @@ export default function ApprenantsDigitalUpProSessionPage() {
                   <th className="px-2 py-3 text-center">Monter un PC</th>
                   <th className="px-2 py-3 text-center">Installer W11</th>
                   <th className="px-2 py-3 text-center">Métier technicien</th>
+                  */}
                   <th className="px-2 py-3 border-l border-[#404040]/10 text-center">Entretien fin parcours</th>
                   <th className="px-2 py-3 text-center">Satisfaction fin session</th>
                   <th className="px-2 py-3 text-center">Bilan envoyé</th>
@@ -517,18 +545,21 @@ export default function ApprenantsDigitalUpProSessionPage() {
                         <td className="px-2 py-2 text-center">
                           <input type="checkbox" checked={i.Signature_Droit_Image || false} onChange={(e) => basculerChampBooleen(i.id, "Signature_Droit_Image", e.target.checked)} className={checkboxClass} />
                         </td>
+                        {/* Intégration Kairos / Validation Kairos masquées (demandé) — code conservé.
                         <td className="px-2 py-2 text-center">
                           <input type="checkbox" checked={i.Integration_Kairos || false} onChange={(e) => basculerChampBooleen(i.id, "Integration_Kairos", e.target.checked)} className={checkboxClass} />
                         </td>
                         <td className="px-2 py-2 text-center">
                           <input type="checkbox" checked={i.Validation_Kairos || false} onChange={(e) => basculerChampBooleen(i.id, "Validation_Kairos", e.target.checked)} className={checkboxClass} />
                         </td>
+                        */}
                         <td className="px-2 py-2 text-center">
                           <input type="checkbox" checked={i.Acces_Drive_Apprenant || false} onChange={(e) => basculerChampBooleen(i.id, "Acces_Drive_Apprenant", e.target.checked)} className={checkboxClass} />
                         </td>
                         <td className="px-2 py-2 text-center">
                           <input type="checkbox" checked={i.Cotisation_Adhesion || false} onChange={(e) => basculerChampBooleen(i.id, "Cotisation_Adhesion", e.target.checked)} className={checkboxClass} />
                         </td>
+                        {/* Positionnement / Matériel masqués (demandé) — code conservé.
                         <td className="px-2 py-2 border-l border-[#404040]/10">
                           <input type="text" defaultValue={i.Questionnaire_Positionnement_Entree || ""} onBlur={(e) => mettreAJourChampTexte(i.id, "Questionnaire_Positionnement_Entree", e.target.value)} className={inputEditClass} />
                         </td>
@@ -544,6 +575,7 @@ export default function ApprenantsDigitalUpProSessionPage() {
                         <td className="px-2 py-2 text-center">
                           <input type="checkbox" checked={i.Trousse_Outils || false} onChange={(e) => basculerChampBooleen(i.id, "Trousse_Outils", e.target.checked)} className={checkboxClass} />
                         </td>
+                        */}
                         <td className="px-2 py-2 border-l border-[#404040]/10">
                           <input type="text" defaultValue={i.Date_Bilan_Intermediaire || ""} onBlur={(e) => mettreAJourChampTexte(i.id, "Date_Bilan_Intermediaire", e.target.value)} className={inputEditClass} />
                         </td>
@@ -553,6 +585,7 @@ export default function ApprenantsDigitalUpProSessionPage() {
                         <td className="px-2 py-2 text-center">
                           <input type="checkbox" checked={i.Projet_Developpement_Mois2_CV || false} onChange={(e) => basculerChampBooleen(i.id, "Projet_Developpement_Mois2_CV", e.target.checked)} className={checkboxClass} />
                         </td>
+                        {/* Certifications / Modules réseau & cybersécurité masqués (demandé) — code conservé.
                         <td className="px-2 py-2 border-l border-[#404040]/10 text-center">
                           <input type="checkbox" checked={i.Certification_PIX || false} onChange={(e) => basculerChampBooleen(i.id, "Certification_PIX", e.target.checked)} className={checkboxClass} />
                         </td>
@@ -586,6 +619,7 @@ export default function ApprenantsDigitalUpProSessionPage() {
                         <td className="px-2 py-2 text-center">
                           <input type="checkbox" checked={i.OC_Decouvrir_Metier_Technicien || false} onChange={(e) => basculerChampBooleen(i.id, "OC_Decouvrir_Metier_Technicien", e.target.checked)} className={checkboxClass} />
                         </td>
+                        */}
                         <td className="px-2 py-2 border-l border-[#404040]/10 text-center">
                           <input type="checkbox" checked={i.Entretien_Fin_Parcours || false} onChange={(e) => basculerChampBooleen(i.id, "Entretien_Fin_Parcours", e.target.checked)} className={checkboxClass} />
                         </td>
@@ -606,7 +640,7 @@ export default function ApprenantsDigitalUpProSessionPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={51} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
+                    <td colSpan={33} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
                       🔍 Aucun·e apprenant·e retenu·e (OK) pour cette session.
                     </td>
                   </tr>

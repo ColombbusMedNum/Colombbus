@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { collection, doc, getDoc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, updateDoc } from "firebase/firestore";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
 import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, AcademicCapIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, IdentificationIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { useToast } from "@/components/ToastProvider";
+import { usePermissions } from "@/lib/PermissionsProvider";
 
 // Champs issus du formulaire de pré-inscription (lecture seule ici — ce sont
 // les réponses telles que soumises), puis champs de suivi de recrutement
@@ -79,6 +80,14 @@ interface ResultatTestLangue {
   Niveau_B1_Francais?: string;
 }
 
+interface ResultatCollecteTech {
+  Nom?: string;
+  Prénom?: string;
+  Email?: string;
+  Score?: number;
+  Profil?: string;
+}
+
 function normaliserTexte(s?: string): string {
   return (s || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").trim();
 }
@@ -124,10 +133,12 @@ export default function ReponsesDigitalUpProSessionPage() {
   const params = useParams();
   const router = useRouter();
   const { showToast } = useToast();
+  const { user } = usePermissions();
   const sessionId = decodeURIComponent((params?.id as string) || "");
 
   const [inscriptions, setInscriptions] = useState<Inscription[]>([]);
   const [resultatsTestLangue, setResultatsTestLangue] = useState<ResultatTestLangue[]>([]);
+  const [resultatsCollecteTech, setResultatsCollecteTech] = useState<ResultatCollecteTech[]>([]);
   const [loading, setLoading] = useState(true);
   const [recherche, setRecherche] = useState("");
   // "en_attente" = pas encore de décision (OK_NOK vide) ; "affectes" = décision
@@ -139,6 +150,26 @@ export default function ReponsesDigitalUpProSessionPage() {
   const basculerTriNom = () => {
     setTriNom((prev) => (prev === "asc" ? "desc" : prev === "desc" ? null : "asc"));
   };
+
+  // Sélection multiple : remplir un champ sur une ligne sélectionnée reporte
+  // la même valeur sur toutes les autres lignes sélectionnées (voir
+  // mettreAJourChamp), à l'exception des horaires de convocation aux
+  // entretiens (propres à chaque personne, jamais partagés).
+  const [lignesSelectionnees, setLignesSelectionnees] = useState<Set<string>>(new Set());
+  const CHAMPS_JAMAIS_PARTAGES = useMemo(() => new Set<keyof Inscription>(["Date_Heures_Entretien"]), []);
+  const basculerSelectionLigne = (id: string) => {
+    setLignesSelectionnees((prev) => {
+      const suivant = new Set(prev);
+      if (suivant.has(id)) suivant.delete(id);
+      else suivant.add(id);
+      return suivant;
+    });
+  };
+  // Compteur de remontage par ligne : les champs texte/date de ce tableau
+  // sont non contrôlés (defaultValue + onBlur) — sans forcer un remontage,
+  // une valeur reportée par la sélection multiple sur une AUTRE ligne ne
+  // s'affichait qu'après rechargement de la page.
+  const [versionParLigne, setVersionParLigne] = useState<Record<string, number>>({});
   // sessions[parcoursId][territoire] = liste de dates de session, telles que
   // définies sur la page de paramètres — sert de source pour les sélecteurs.
   const [sessions, setSessions] = useState<Record<string, Record<string, string[]>>>({});
@@ -157,32 +188,35 @@ export default function ReponsesDigitalUpProSessionPage() {
   // réelle (offsetWidth) de chaque colonne — offsetLeft est peu fiable à
   // l'intérieur d'un <table> (offsetParent ambigu selon les navigateurs), on
   // additionne donc nous-mêmes les largeurs mesurées des colonnes qui précèdent.
+  const refSelect = useRef<HTMLTableCellElement>(null);
   const refNum = useRef<HTMLTableCellElement>(null);
   const refCivilite = useRef<HTMLTableCellElement>(null);
   const refPrenom = useRef<HTMLTableCellElement>(null);
   const refNom = useRef<HTMLTableCellElement>(null);
   const refTelephone = useRef<HTMLTableCellElement>(null);
-  const [decalages, setDecalages] = useState({ num: 0, civilite: 0, prenom: 0, nom: 0, telephone: 0 });
+  const [decalages, setDecalages] = useState({ select: 0, num: 0, civilite: 0, prenom: 0, nom: 0, telephone: 0 });
 
   useEffect(() => {
     const mesurer = () => {
+      const largeurSelect = refSelect.current?.offsetWidth || 0;
       const largeurNum = refNum.current?.offsetWidth || 0;
       const largeurCivilite = refCivilite.current?.offsetWidth || 0;
       const largeurPrenom = refPrenom.current?.offsetWidth || 0;
       const largeurNom = refNom.current?.offsetWidth || 0;
       const suivant = {
-        num: 0,
-        civilite: largeurNum,
-        prenom: largeurNum + largeurCivilite,
-        nom: largeurNum + largeurCivilite + largeurPrenom,
-        telephone: largeurNum + largeurCivilite + largeurPrenom + largeurNom,
+        select: 0,
+        num: largeurSelect,
+        civilite: largeurSelect + largeurNum,
+        prenom: largeurSelect + largeurNum + largeurCivilite,
+        nom: largeurSelect + largeurNum + largeurCivilite + largeurPrenom,
+        telephone: largeurSelect + largeurNum + largeurCivilite + largeurPrenom + largeurNom,
       };
       // Ne déclenche un nouveau rendu que si les valeurs mesurées ont
       // réellement changé — sans cet garde, l'effet (sans tableau de
       // dépendances, pour se remesurer si le contenu change) provoque une
       // boucle de rendu infinie (setState -> rendu -> effet -> setState...).
       setDecalages((prev) =>
-        prev.civilite === suivant.civilite && prev.prenom === suivant.prenom && prev.nom === suivant.nom && prev.telephone === suivant.telephone
+        prev.num === suivant.num && prev.civilite === suivant.civilite && prev.prenom === suivant.prenom && prev.nom === suivant.nom && prev.telephone === suivant.telephone
           ? prev
           : suivant
       );
@@ -228,14 +262,12 @@ export default function ReponsesDigitalUpProSessionPage() {
   useEffect(() => {
     const charger = async () => {
       try {
-        const [snapInscriptions, snapSessions, snapTerritoires, snapTestLangue] = await Promise.all([
+        const [snapInscriptions, snapSessions, snapTerritoires] = await Promise.all([
           getDocs(query(collection(db, "inscriptions_digitaluppro"), orderBy("createdAt", "desc"))),
           getDoc(doc(db, "configuration_digitaluppro", "sessions")),
           getDoc(doc(db, "configuration_digitaluppro", "territoires")),
-          getDocs(collection(db, "resultats_test_langue_digitaluppro")),
         ]);
         setInscriptions(snapInscriptions.docs.map((d) => ({ id: d.id, ...d.data() } as Inscription)));
-        setResultatsTestLangue(snapTestLangue.docs.map((d) => d.data() as ResultatTestLangue));
         if (snapSessions.exists()) {
           setSessions(snapSessions.data().parTerritoire || {});
           setCodesSession(snapSessions.data().codes || {});
@@ -251,6 +283,38 @@ export default function ReponsesDigitalUpProSessionPage() {
     };
     charger();
   }, []);
+
+  // Résultats du test de langue B1 en direct (onSnapshot, pas un chargement
+  // ponctuel) — sans ça, un résultat déposé pendant que cette page reste
+  // ouverte dans un onglet n'apparaissait jamais tant qu'on ne rechargeait
+  // pas la page ("il ne récupère pas les données de test de langue").
+  // Attend que Firebase Auth ait fini de restaurer la session (user non nul)
+  // avant de s'abonner : sans ce garde, l'abonnement pouvait démarrer avant
+  // que l'utilisateur soit authentifié, échouer avec "permission-denied" une
+  // seule fois, puis ne plus jamais se relancer (même défaut déjà corrigé sur
+  // /agenda pour planning_mediateurs) — d'où des résultats invisibles alors
+  // qu'ils apparaissent bien sur la page dédiée Test de langue.
+  useEffect(() => {
+    if (!user) return;
+    const unsub = onSnapshot(
+      collection(db, "resultats_test_langue_digitaluppro"),
+      (snap) => setResultatsTestLangue(snap.docs.map((d) => d.data() as ResultatTestLangue)),
+      (error) => console.error("Erreur lors de l'écoute des résultats du test de langue :", error)
+    );
+    return () => unsub();
+  }, [user]);
+
+  // Résultats du diagnostic Collecte Tech — même principe que le test de
+  // langue B1 ci-dessus (enregistrement autonome, onSnapshot, gardé par "user").
+  useEffect(() => {
+    if (!user) return;
+    const unsub = onSnapshot(
+      collection(db, "resultats_collecte_tech_digitaluppro"),
+      (snap) => setResultatsCollecteTech(snap.docs.map((d) => d.data() as ResultatCollecteTech)),
+      (error) => console.error("Erreur lors de l'écoute des résultats Collecte Tech :", error)
+    );
+    return () => unsub();
+  }, [user]);
 
   // Seules les personnes affectées à cette session (case "Suivi
   // recrutement" cochée sur la page générale) apparaissent ici.
@@ -327,10 +391,24 @@ export default function ReponsesDigitalUpProSessionPage() {
   // suivi — chaque cellule éditable enregistre indépendamment des autres, et
   // confirme visuellement l'enregistrement (ou l'échec) via un toast.
   const mettreAJourChamp = async (id: string, champ: keyof Inscription, valeur: string) => {
-    setInscriptions((prev) => prev.map((i) => (i.id === id ? { ...i, [champ]: valeur } : i)));
+    // Si la ligne éditée fait partie d'une sélection multiple (et que le
+    // champ n'est pas exclu), la valeur est reportée sur toutes les lignes
+    // sélectionnées, pas seulement celle-ci.
+    const cibles =
+      lignesSelectionnees.has(id) && lignesSelectionnees.size > 1 && !CHAMPS_JAMAIS_PARTAGES.has(champ)
+        ? Array.from(lignesSelectionnees)
+        : [id];
+
+    setInscriptions((prev) => prev.map((i) => (cibles.includes(i.id) ? { ...i, [champ]: valeur } : i)));
+    setVersionParLigne((prev) => {
+      const suivant = { ...prev };
+      cibles.forEach((cid) => { suivant[cid] = (suivant[cid] || 0) + 1; });
+      return suivant;
+    });
+
     try {
-      await updateDoc(doc(db, "inscriptions_digitaluppro", id), { [champ]: valeur });
-      showToast("Champ enregistré.");
+      await Promise.all(cibles.map((cibleId) => updateDoc(doc(db, "inscriptions_digitaluppro", cibleId), { [champ]: valeur })));
+      showToast(cibles.length > 1 ? `Champ enregistré sur ${cibles.length} lignes.` : "Champ enregistré.");
     } catch (error) {
       console.error(`Erreur lors de la mise à jour du champ ${champ} :`, error);
       showToast("Erreur lors de l'enregistrement du champ.", "error");
@@ -351,6 +429,18 @@ export default function ReponsesDigitalUpProSessionPage() {
     const nom = normaliserTexte(i.Nom);
     const prenom = normaliserTexte(i.Prénom);
     return resultatsTestLangue.find((r) => normaliserTexte(r.Nom) === nom && normaliserTexte(r.Prénom) === prenom);
+  };
+
+  // Même rapprochement pour le diagnostic Collecte Tech.
+  const trouverResultatCollecteTech = (i: Inscription): ResultatCollecteTech | undefined => {
+    const email = normaliserTexte(i.Email);
+    if (email) {
+      const parEmail = resultatsCollecteTech.find((r) => normaliserTexte(r.Email) === email);
+      if (parEmail) return parEmail;
+    }
+    const nom = normaliserTexte(i.Nom);
+    const prenom = normaliserTexte(i.Prénom);
+    return resultatsCollecteTech.find((r) => normaliserTexte(r.Nom) === nom && normaliserTexte(r.Prénom) === prenom);
   };
 
   // Reporte automatiquement le résultat du test de langue B1 dans les cases
@@ -484,7 +574,20 @@ export default function ReponsesDigitalUpProSessionPage() {
               onChange={(e) => setRecherche(e.target.value)}
             />
           </div>
+          {lignesSelectionnees.size > 0 && (
+            <div className="flex items-center gap-2 bg-[#005259]/10 border border-[#005259]/20 rounded-2xl px-4 py-2 text-xs font-bold text-[#005259] uppercase tracking-wider shrink-0">
+              <span>{lignesSelectionnees.size} ligne{lignesSelectionnees.size > 1 ? "s" : ""} sélectionnée{lignesSelectionnees.size > 1 ? "s" : ""}</span>
+              <button type="button" onClick={() => setLignesSelectionnees(new Set())} className="text-[#EA601F] hover:underline cursor-pointer">
+                Désélectionner
+              </button>
+            </div>
+          )}
         </div>
+        {lignesSelectionnees.size > 1 && (
+          <p className="text-[11px] text-[#404040]/60 -mt-2">
+            Modifier un champ sur une ligne sélectionnée l'applique aussi aux {lignesSelectionnees.size - 1} autres lignes sélectionnées (sauf la date/heure d'entretien, propre à chacun·e).
+          </p>
+        )}
 
         {/* BARRE DE DÉFILEMENT HORIZONTAL (haut) — collée en haut de l'écran
             au défilement vertical, sinon elle sort du cadre et devient
@@ -503,6 +606,15 @@ export default function ReponsesDigitalUpProSessionPage() {
             <table className="border-separate border-spacing-0 text-xs">
               <thead>
                 <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
+                  <th ref={refSelect} className={`${classeFigee} px-3 py-3 text-center bg-[#F3F3F2]`} style={{ left: decalages.select }}>
+                    <input
+                      type="checkbox"
+                      checked={inscriptionsFiltrees.length > 0 && inscriptionsFiltrees.every((i) => lignesSelectionnees.has(i.id))}
+                      onChange={(e) => setLignesSelectionnees(e.target.checked ? new Set(inscriptionsFiltrees.map((i) => i.id)) : new Set())}
+                      className="w-4 h-4 accent-[#005259] cursor-pointer"
+                      title="Tout sélectionner"
+                    />
+                  </th>
                   <th ref={refNum} className={`${classeFigee} px-3 py-3 text-center bg-[#F3F3F2]`} style={{ left: decalages.num }}>#</th>
                   <th ref={refCivilite} className={`${classeFigee} px-3 py-3 bg-[#F3F3F2]`} style={{ left: decalages.civilite }}>Civilité</th>
                   <th ref={refPrenom} className={`${classeFigee} px-3 py-3 bg-[#F3F3F2]`} style={{ left: decalages.prenom }}>Prénom</th>
@@ -541,6 +653,7 @@ export default function ReponsesDigitalUpProSessionPage() {
                   <th className="px-3 py-3">Ont-ils un ordi ?</th>
                   <th className="px-3 py-3">Attribution PC Colombbus</th>
                   <th className="px-3 py-3">N° PC Colombbus</th>
+                  <th className="px-3 py-3">Diagnostic Collecte Tech (auto)</th>
                   <th className="px-3 py-3">Compétences numériques</th>
                   <th className="px-3 py-3">Récupération CV</th>
                   <th className="px-3 py-3">Date / heures entretien</th>
@@ -562,9 +675,19 @@ export default function ReponsesDigitalUpProSessionPage() {
                     // dessous et ne peuvent donc pas hériter du fond de <tr>.
                     const estE2C = prescripteur.toUpperCase().includes("E2C");
                     const resultatTestLangue = trouverResultatTestLangue(i);
+                    const resultatCollecteTech = trouverResultatCollecteTech(i);
                     const fondFigee = estE2C ? "bg-[#F5EEFF] group-hover:bg-[#7C1FD1]/10" : "bg-white group-hover:bg-[#F3F3F2]/60";
+                    const selectionnee = lignesSelectionnees.has(i.id);
                     return (
-                      <tr key={i.id} className={`group transition-colors align-top ${estE2C ? "bg-[#7C1FD1]/5 hover:bg-[#7C1FD1]/10" : "hover:bg-[#F3F3F2]/60"}`}>
+                      <tr key={`${i.id}-v${versionParLigne[i.id] || 0}`} className={`group transition-colors align-top ${selectionnee ? "bg-[#005259]/5" : estE2C ? "bg-[#7C1FD1]/5 hover:bg-[#7C1FD1]/10" : "hover:bg-[#F3F3F2]/60"}`}>
+                        <td className={`${classeFigee} px-3 py-2 text-center ${fondFigee}`} style={{ left: decalages.select }}>
+                          <input
+                            type="checkbox"
+                            checked={selectionnee}
+                            onChange={() => basculerSelectionLigne(i.id)}
+                            className="w-4 h-4 accent-[#005259] cursor-pointer"
+                          />
+                        </td>
                         <td className={`${classeFigee} px-3 py-2 text-center text-[#404040]/50 font-bold ${fondFigee}`} style={{ left: decalages.num }}>{index + 1}</td>
                         <td className={`${classeFigee} px-3 py-2 whitespace-nowrap ${fondFigee}`} style={{ left: decalages.civilite }}>{i.Civilité || "—"}</td>
                         <td className={`${classeFigee} px-3 py-2 whitespace-nowrap font-bold text-[#005259] ${fondFigee}`} style={{ left: decalages.prenom }}>{i.Prénom || "—"}</td>
@@ -649,6 +772,17 @@ export default function ReponsesDigitalUpProSessionPage() {
                         <td className="px-3 py-2">
                           <input type="text" defaultValue={i.Numero_PC_Colombbus || ""} onBlur={(e) => mettreAJourChamp(i.id, "Numero_PC_Colombbus", e.target.value)} placeholder="N° PC" className={inputEditClass} />
                         </td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {resultatCollecteTech ? (
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide ${
+                              (resultatCollecteTech.Score ?? 0) > 30 ? "bg-[#A9E0C9]/40 text-[#005259]" : (resultatCollecteTech.Score ?? 0) > 14 ? "bg-[#F9C44E]/25 text-[#8a6d1a]" : "bg-[#EF736A]/15 text-[#C0392B]"
+                            }`}>
+                              {resultatCollecteTech.Score ?? "—"}/44 — {resultatCollecteTech.Profil || "—"}
+                            </span>
+                          ) : (
+                            <span className="text-[#404040]/40">—</span>
+                          )}
+                        </td>
                         <td className="px-3 py-2">
                           <input type="text" defaultValue={i.Competences_Numeriques || ""} onBlur={(e) => mettreAJourChamp(i.id, "Competences_Numeriques", e.target.value)} placeholder="Ex : 97%" className={inputEditClass} />
                         </td>
@@ -708,7 +842,7 @@ export default function ReponsesDigitalUpProSessionPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={42} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
+                    <td colSpan={44} className="px-6 py-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
                       🔍 Aucune inscription trouvée.
                     </td>
                   </tr>

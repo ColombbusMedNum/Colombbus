@@ -1,17 +1,33 @@
 "use client";
 
-import { useState } from "react";
-import { PrinterIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { useEffect, useState } from "react";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot } from "firebase/firestore";
+import { PrinterIcon, ExclamationTriangleIcon, WrenchScrewdriverIcon, CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/outline";
 import type { Inscription } from "./page";
 import {
   ChampLigne, ZoneTexte, CocherChoixMultiple, SectionPDF, BoiteSignatureLocale, labelClass,
 } from "./FicheEntretienDiagnostic";
+import { QUESTIONS_COLLECTE_TECH, SCORE_MAX_COLLECTE_TECH, profilCollecteTechDepuisScore } from "@/lib/collecteTechQuiz";
 
 // Reproduction éditable + imprimable de la "Fiche de diagnostic —
 // Compétences numériques & équipement — Digital Up" (formulaire papier
 // fourni, plus court que la fiche entretien diagnostic) — voir
 // FicheEntretienDiagnostic.tsx pour les briques réutilisées (ChampLigne,
 // ZoneTexte, etc., exportées depuis ce fichier).
+
+interface ResultatCollecteTech {
+  Nom?: string;
+  Prénom?: string;
+  Email?: string;
+  Score?: number;
+  Profil?: string;
+  Réponses?: Record<string, number>;
+}
+
+function normaliserTexte(s?: string): string {
+  return (s || "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").trim();
+}
 
 export default function FicheDiagnosticEquipement({
   inscription, mettreAJourChamp,
@@ -25,6 +41,40 @@ export default function FicheDiagnosticEquipement({
   const [signatureMedUrl, setSignatureMedUrl] = useState<string | undefined>(undefined);
   const [signatureBenefUrl, setSignatureBenefUrl] = useState<string | undefined>(undefined);
   const [televersementEnCours, setTeleversementEnCours] = useState<"med" | "benef" | null>(null);
+
+  // Résultat du diagnostic Collecte Tech public (enregistrement autonome,
+  // voir app/inscription/digital-up-pro-collecte-tech), rapproché par email
+  // puis nom/prénom — reporté ici pour tout·e apprenant·e dont le diagnostic
+  // a été rempli, sans avoir à aller chercher la réponse ailleurs.
+  const [resultatCollecteTech, setResultatCollecteTech] = useState<ResultatCollecteTech | null>(null);
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, "resultats_collecte_tech_digitaluppro"),
+      (snap) => {
+        const resultats = snap.docs.map((d) => d.data() as ResultatCollecteTech);
+        const email = normaliserTexte(i.Email);
+        const nom = normaliserTexte(i.Nom);
+        const prenom = normaliserTexte(i.Prénom);
+        const trouve =
+          (email && resultats.find((r) => normaliserTexte(r.Email) === email)) ||
+          resultats.find((r) => normaliserTexte(r.Nom) === nom && normaliserTexte(r.Prénom) === prenom) ||
+          null;
+        setResultatCollecteTech(trouve);
+      },
+      (error) => console.error("Erreur lors de l'écoute du résultat Collecte Tech :", error)
+    );
+    return () => unsub();
+  }, [i.Email, i.Nom, i.Prénom]);
+
+  // Reporte le profil déduit dans "Niveau observé" — seulement si la case est
+  // encore vide, pour ne jamais écraser une observation déjà saisie à la main.
+  useEffect(() => {
+    if (resultatCollecteTech && !i.EquipDiag_NiveauObserve) {
+      const profil = resultatCollecteTech.Profil || profilCollecteTechDepuisScore(resultatCollecteTech.Score || 0).label;
+      maj("EquipDiag_NiveauObserve", `${resultatCollecteTech.Score ?? "—"}/${SCORE_MAX_COLLECTE_TECH} — ${profil} (auto)`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resultatCollecteTech]);
 
   const televerserSignature = (cible: "med" | "benef", file: File) => {
     if (file.size > 500 * 1024) {
@@ -79,6 +129,33 @@ export default function FicheDiagnosticEquipement({
             onChange={(v) => maj("EquipDiag_BesoinEquipement", v)}
           />
         </SectionPDF>
+
+        {resultatCollecteTech && (
+          <SectionPDF titre="Diagnostic Collecte Tech (résultat auto)">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide bg-[#005259]/10 text-[#005259]">
+                <WrenchScrewdriverIcon className="w-4 h-4" />
+                {resultatCollecteTech.Score ?? "—"}/{SCORE_MAX_COLLECTE_TECH} — {resultatCollecteTech.Profil || "—"}
+              </span>
+            </div>
+            <div className="space-y-2 print:break-inside-avoid-page">
+              {QUESTIONS_COLLECTE_TECH.map((q, index) => {
+                const idxReponse = resultatCollecteTech.Réponses?.[q.id];
+                const reponse = idxReponse !== undefined ? q.options[idxReponse] : undefined;
+                const correct = (reponse?.points ?? 0) > 0;
+                return (
+                  <div key={q.id} className="text-xs">
+                    <p className="font-bold text-[#404040]">{index + 1}. {q.question}</p>
+                    <p className={`flex items-center gap-1.5 mt-0.5 ${correct ? "text-[#005259]" : "text-[#C0392B]"}`}>
+                      {reponse ? (correct ? <CheckCircleIcon className="w-3.5 h-3.5 shrink-0" /> : <XCircleIcon className="w-3.5 h-3.5 shrink-0" />) : null}
+                      {reponse?.text || "Pas de réponse"}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </SectionPDF>
+        )}
 
         <SectionPDF titre="Attentes individuelles de cette formation">
           <ZoneTexte valeur={i.EquipDiag_Attentes} onValide={(v) => maj("EquipDiag_Attentes", v)} rows={4} />
