@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, doc, onSnapshot } from "firebase/firestore";
+import { collection, doc, onSnapshot, setDoc, deleteField } from "firebase/firestore";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
@@ -61,6 +61,36 @@ function formaterDateAvecJour(date: string): string {
   return `${JOURS_SEMAINE[d.getDay()]} ${date.split("-").reverse().join("/")}`;
 }
 
+interface PeriodePaie { debut: string; fin: string }
+interface ConfigPeriodesPaie {
+  // clé "AAAA-MM" -> bornes exactes (incluses) de la période de paie de ce
+  // mois, quand elle diffère de la règle par défaut (ex. le 20 tombe un
+  // week-end) — voir /mediation/volume-horaire, sélecteur "Période de paie".
+  overrides: Record<string, PeriodePaie>;
+}
+const JOUR_COUPURE_DEFAUT = 20;
+
+function versISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Période de paie (bornes incluses) pour une année+mois donnés : par défaut,
+// du jour 20 du mois précédent au jour 20 du mois choisi ("ça compte du 20 au
+// 20"), sauf ajustement ponctuel enregistré pour ce mois précis (paramétrable
+// par mois ET par année, contrairement à une règle fixe). Retourne null si
+// l'année ou le mois n'est pas précisé (pas de période absolue calculable).
+function calculerPeriodePaie(annee: string, mois: string, config: ConfigPeriodesPaie): PeriodePaie | null {
+  if (annee === "toutes" || mois === "tous") return null;
+  const cle = `${annee}-${mois}`;
+  if (config.overrides[cle]) return config.overrides[cle];
+  const anneeNum = parseInt(annee, 10);
+  const moisNum = parseInt(mois, 10);
+  return {
+    debut: versISODate(new Date(anneeNum, moisNum - 2, JOUR_COUPURE_DEFAUT)),
+    fin: versISODate(new Date(anneeNum, moisNum - 1, JOUR_COUPURE_DEFAUT)),
+  };
+}
+
 const MOIS = [
   { value: "01", label: "Janvier" }, { value: "02", label: "Février" }, { value: "03", label: "Mars" },
   { value: "04", label: "Avril" }, { value: "05", label: "Mai" }, { value: "06", label: "Juin" },
@@ -80,6 +110,10 @@ export default function VolumeHoraireComplet() {
 
   const [anneeFiltre, setAnneeFiltre] = useState("toutes");
   const [moisFiltre, setMoisFiltre] = useState("tous");
+  // Mois civil (1er au dernier jour du mois) ou période de paie (20 au 20,
+  // ajustable par mois/année) — les deux restent disponibles, "civil" par
+  // défaut pour ne rien changer aux usages existants.
+  const [modePeriode, setModePeriode] = useState<"civil" | "paie">("civil");
   const [statutFiltre, setStatutFiltre] = useState<"tous" | "ACI">("tous");
   // Filtre sur le champ estProduction (voir lib/types.ts), coché sur le
   // modèle d'activité pour les créneaux de production Médiation Numérique —
@@ -130,6 +164,43 @@ export default function VolumeHoraireComplet() {
     return () => unsub();
   }, []);
 
+  const [configPeriodesPaie, setConfigPeriodesPaie] = useState<ConfigPeriodesPaie>({ overrides: {} });
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "configuration_equipe", "periodesPaie"), (snap) => {
+      setConfigPeriodesPaie({ overrides: snap.data()?.overrides || {} });
+    });
+    return () => unsub();
+  }, []);
+  const periodePaie = useMemo(
+    () => (modePeriode === "paie" ? calculerPeriodePaie(anneeFiltre, moisFiltre, configPeriodesPaie) : null),
+    [modePeriode, anneeFiltre, moisFiltre, configPeriodesPaie]
+  );
+
+  const periodeEstAjustee = modePeriode === "paie" && !!configPeriodesPaie.overrides[`${anneeFiltre}-${moisFiltre}`];
+  // Modifie directement une borne (début ou fin) de la période du mois
+  // sélectionné — pas de mode édition séparé, la saisie enregistre aussitôt.
+  const modifierBornePeriode = async (champ: "debut" | "fin", valeur: string) => {
+    if (!periodePaie || !valeur) return;
+    const cle = `${anneeFiltre}-${moisFiltre}`;
+    try {
+      await setDoc(
+        doc(db, "configuration_equipe", "periodesPaie"),
+        { overrides: { [cle]: { ...periodePaie, [champ]: valeur } } },
+        { merge: true }
+      );
+    } catch (error) {
+      console.error("Erreur lors de l'enregistrement de la période de paie :", error);
+    }
+  };
+  const reinitialiserPeriode = async () => {
+    const cle = `${anneeFiltre}-${moisFiltre}`;
+    try {
+      await setDoc(doc(db, "configuration_equipe", "periodesPaie"), { overrides: { [cle]: deleteField() } }, { merge: true });
+    } catch (error) {
+      console.error("Erreur lors de la réinitialisation de la période de paie :", error);
+    }
+  };
+
   // Années réellement présentes dans les données, pour ne proposer que des
   // choix pertinents plutôt qu'une plage arbitraire.
   const anneesDisponibles = useMemo(() => {
@@ -141,12 +212,16 @@ export default function VolumeHoraireComplet() {
   const planningFiltre = useMemo(() => {
     return planningRaw.filter((a: any) => {
       if (!a.date) return anneeFiltre === "toutes" && moisFiltre === "tous";
-      if (anneeFiltre !== "toutes" && a.date.slice(0, 4) !== anneeFiltre) return false;
-      if (moisFiltre !== "tous" && a.date.slice(5, 7) !== moisFiltre) return false;
+      if (periodePaie) {
+        if (a.date < periodePaie.debut || a.date > periodePaie.fin) return false;
+      } else {
+        if (anneeFiltre !== "toutes" && a.date.slice(0, 4) !== anneeFiltre) return false;
+        if (moisFiltre !== "tous" && a.date.slice(5, 7) !== moisFiltre) return false;
+      }
       if (filtreProduction === "production" && !a.estProduction) return false;
       return true;
     });
-  }, [planningRaw, anneeFiltre, moisFiltre, filtreProduction]);
+  }, [planningRaw, anneeFiltre, moisFiltre, filtreProduction, periodePaie]);
 
   // Table de correspondance par id ET par nom complet, dérivée du cache
   // partagé de liste_mediateurs (lib/MediateursProvider.tsx).
@@ -501,6 +576,26 @@ export default function VolumeHoraireComplet() {
             )}
             <div className="flex items-center gap-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-xl p-1">
               <button
+                onClick={() => setModePeriode("civil")}
+                title="1er au dernier jour du mois civil"
+                className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                  modePeriode === "civil" ? "bg-[#005259] text-white" : "text-[#404040]/70 hover:text-[#005259]"
+                }`}
+              >
+                Mois civil
+              </button>
+              <button
+                onClick={() => setModePeriode("paie")}
+                title="Période de paie (20 du mois précédent au 20 du mois choisi par défaut, ajustable)"
+                className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                  modePeriode === "paie" ? "bg-[#EA601F] text-white" : "text-[#404040]/70 hover:text-[#EA601F]"
+                }`}
+              >
+                Période de paie
+              </button>
+            </div>
+            <div className="flex items-center gap-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-xl p-1">
+              <button
                 onClick={() => setStatutFiltre("tous")}
                 className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
                   statutFiltre === "tous" ? "bg-[#005259] text-white" : "text-[#404040]/70 hover:text-[#005259]"
@@ -559,6 +654,56 @@ export default function VolumeHoraireComplet() {
             </button>
           </div>
         </div>
+
+        {/* PÉRIODE DE PAIE — bornes exactes retenues, ajustables par mois et
+            par année (défaut : du 20 du mois précédent au 20 du mois choisi). */}
+        {modePeriode === "paie" && (
+          <div className="bg-white border border-[#EA601F]/20 rounded-2xl p-4 flex flex-wrap items-center gap-3 shadow-sm">
+            {!periodePaie ? (
+              <p className="text-xs font-medium text-[#404040]/60">
+                Sélectionne une année et un mois précis pour appliquer une période de paie.
+              </p>
+            ) : (
+              <>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#EA601F]">Période retenue :</span>
+                {peutConfigurerSeuils ? (
+                  <>
+                    <input
+                      type="date"
+                      value={periodePaie.debut}
+                      onChange={e => modifierBornePeriode("debut", e.target.value)}
+                      className="px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-xs font-mono outline-none focus:border-[#005259] cursor-pointer"
+                    />
+                    <span className="text-xs text-[#404040]/50">→</span>
+                    <input
+                      type="date"
+                      value={periodePaie.fin}
+                      onChange={e => modifierBornePeriode("fin", e.target.value)}
+                      className="px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-xs font-mono outline-none focus:border-[#005259] cursor-pointer"
+                    />
+                  </>
+                ) : (
+                  <span className="text-xs font-mono font-bold text-[#005259]">
+                    {periodePaie.debut.split("-").reverse().join("/")} → {periodePaie.fin.split("-").reverse().join("/")}
+                  </span>
+                )}
+                {periodeEstAjustee && (
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-[#EA601F] bg-[#EA601F]/10 border border-[#EA601F]/20 px-2 py-0.5 rounded-full">
+                    Ajustée
+                  </span>
+                )}
+                {peutConfigurerSeuils && periodeEstAjustee && (
+                  <button
+                    onClick={reinitialiserPeriode}
+                    className="ml-auto px-3 py-1.5 bg-[#F3F3F2] hover:bg-[#EF736A] hover:text-white border border-[#404040]/10 text-[#404040]/70 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                  >
+                    Rétablir le 20 → 20
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {/* CARTES DE SYNTHÈSE DES CHIFFRES KIS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
