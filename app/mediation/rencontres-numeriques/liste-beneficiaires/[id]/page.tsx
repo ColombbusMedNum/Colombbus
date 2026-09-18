@@ -243,6 +243,12 @@ export default function FicheBeneficiaire() {
   };
 
   const aujourdhuiStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
+  // Moment par défaut déduit de l'heure actuelle (comme la date, déduite du
+  // jour actuel) — évite d'enregistrer par erreur un RDV de l'après-midi
+  // comme "Matin" simplement parce que c'est la valeur par défaut du
+  // formulaire, ce qui arrivait en enchaînant les fiches d'un après-midi.
+  const heureActuelle = parseInt(new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris', hour: 'numeric', hour12: false }), 10);
+  const momentParDefaut = heureActuelle >= 13 ? "Après-midi" : "Matin";
 
   // Formulaire d'ajout d'action
   const [formData, setFormData] = useState({
@@ -253,7 +259,7 @@ export default function FicheBeneficiaire() {
     details: "",
     satisfaction: "5",
     dateChoisie: aujourdhuiStr,
-    momentChoisi: "Matin",
+    momentChoisi: momentParDefaut,
     statut: "Présent" as "Présent" | "Absent",
     absencePar: "Bénéficiaire" as "Bénéficiaire" | "Colombbus"
   });
@@ -321,6 +327,11 @@ export default function FicheBeneficiaire() {
       })
       .sort((a, b) => (a.nom || "").localeCompare(b.nom || "", "fr", { sensitivity: "base" }));
   }, [mediateursBruts]);
+
+  // "Suresnes" tout court (ancien libellé de lieu, encore présent sur des RDV
+  // plus anciens) s'affiche désormais sous son intitulé complet — ne change
+  // que l'affichage dans le suivi des rendez-vous, pas la donnée en base.
+  const afficherLieu = (lieu: string | undefined) => (lieu && lieu.trim().toLowerCase() === "suresnes" ? "92 - RN - SURESNES" : lieu);
 
   // Affichage d'un ou plusieurs médiateurs référents (champ "mediateur" d'un
   // RDV, "A, B" — voir decomposerThematiques) avec un badge ACI à côté de
@@ -980,7 +991,7 @@ export default function FicheBeneficiaire() {
 
                             <td className="py-3 px-3 max-w-[200px]">
                               <div>
-                                <p className="text-[#404040]/60 italic text-[11px] truncate uppercase font-bold">{rdv.lieu}</p>
+                                <p className="text-[#404040]/60 italic text-[11px] truncate uppercase font-bold">{afficherLieu(rdv.lieu)}</p>
                                 <p className="text-[#404040] line-clamp-2 text-[11px] leading-relaxed mt-0.5">{rdv.statut === "Absent" ? "— (Absent)" : (rdv.details || "Aucune note rédigée.")}</p>
                               </div>
                             </td>
@@ -1066,7 +1077,7 @@ export default function FicheBeneficiaire() {
 
                   <div>
                     <p className="text-[10px] font-bold uppercase text-[#404040]/50">Lieu</p>
-                    <p className="text-xs text-[#404040] font-bold">{detailRdvOuvert.lieu}</p>
+                    <p className="text-xs text-[#404040] font-bold">{afficherLieu(detailRdvOuvert.lieu)}</p>
                   </div>
 
                   <div>

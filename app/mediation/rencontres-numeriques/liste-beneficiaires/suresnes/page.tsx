@@ -95,6 +95,18 @@ function calculerAge(dateNaissanceStr?: string): number | null {
   return age < 0 || isNaN(age) ? null : age;
 }
 
+// Les libellés Suresnes saisis de façons diverses ("Suresnes", "92 - RND
+// Suresnes"...) s'affichent sous une forme normalisée unique — RND reste RND
+// (visite à domicile, voir toggleRND dans .../suresnes/page.tsx), tout le
+// reste tombe sur RN (sur place). Même principe que sur la fiche
+// individuelle (liste-beneficiaires/[id]/page.tsx, fonction afficherLieu).
+function afficherLieu(lieu: string): string {
+  const normalise = lieu.trim().toUpperCase();
+  if (normalise.includes("RND") && normalise.includes("SURESNES")) return "92 - RND - SURESNES";
+  if (normalise === "SURESNES" || (normalise.includes("SURESNES") && !normalise.includes("COLLECTE"))) return "92 - RN - SURESNES";
+  return lieu;
+}
+
 export default function ListeBeneficiairesSuresnes() {
   const [beneficiaires, setBeneficiaires] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,6 +149,15 @@ export default function ListeBeneficiairesSuresnes() {
               .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
             const premiereVisite = visitesTriees[0] || null;
             const premiereDateObj = premiereVisite ? new Date(premiereVisite.date) : null;
+
+            // Contrairement à la 1ère visite, la dernière visite doit compter
+            // même les rendez-vous marqués comme une absence (l'absence est
+            // un événement du suivi comme un autre, pas à écarter).
+            const visitesTrieesToutes = docsVisites
+              .filter((v) => v.date)
+              .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+            const derniereVisite = visitesTrieesToutes[visitesTrieesToutes.length - 1] || null;
+            const derniereDateObj = derniereVisite ? new Date(derniereVisite.date) : null;
             // "Suresnes - à domicile" désigne une visite au domicile du
             // bénéficiaire plutôt qu'au lieu d'accueil (même règle que
             // normaliserSiteId dans bilan-suresnes/page.tsx) ; sinon, la
@@ -170,14 +191,22 @@ export default function ListeBeneficiairesSuresnes() {
               // sa propre colonne.
               lieuAccueil: (() => {
                 const lieuProfil = userData.Lieu_RDV || userData.lieuRDV || "";
-                if (typeVisite === "Domicile") return lieuProfil ? `${lieuProfil} - Domicile` : "Domicile";
-                return lieuProfil || (premiereVisite ? "Suresnes" : "");
+                const lieuAffiche = lieuProfil ? afficherLieu(lieuProfil) : "";
+                // RND est déjà un lieu "à domicile" en soi (voir afficherLieu
+                // ci-dessus) — ajouter "- Domicile" en plus serait redondant.
+                const estDejaRND = lieuAffiche.toUpperCase().includes("RND");
+                if (typeVisite === "Domicile" && !estDejaRND) return lieuAffiche ? `${lieuAffiche} - Domicile` : "Domicile";
+                return lieuAffiche || (premiereVisite ? "92 - RN - SURESNES" : "");
               })(),
               thematiquePhare,
               thematiqueMairie: thematiqueMairieCorrespondante(thematiquePhare),
               premiereDateObj,
               premiereVisiteAffichee: premiereDateObj
                 ? premiereDateObj.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
+                : "—",
+              derniereDateObj,
+              derniereVisiteAffichee: derniereDateObj
+                ? derniereDateObj.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
                 : "—",
             };
           });
@@ -217,9 +246,9 @@ export default function ListeBeneficiairesSuresnes() {
 
   const exporterCSV = () => {
     if (beneficiairesFiltres.length === 0) return;
-    const headers = "Lieu d'accueil;Civilité;Prénom;Nom;CP;N° Tel;Âge;Thématique;Thématique (Numérique pour tous);1ère visite\n";
+    const headers = "Lieu d'accueil;Civilité;Prénom;Nom;CP;N° Tel;Âge;Thématique;Thématique (Numérique pour tous);1ère visite;Dernière visite\n";
     const rows = beneficiairesFiltres.map((b) =>
-      [b.lieuAccueil, b.civilite, b.prenom, b.nom, b.codePostal, formatPhoneNumber(b.telephone), b.age, b.thematiquePhare, b.thematiqueMairie, b.premiereVisiteAffichee]
+      [b.lieuAccueil, b.civilite, b.prenom, b.nom, b.codePostal, formatPhoneNumber(b.telephone), b.age, b.thematiquePhare, b.thematiqueMairie, b.premiereVisiteAffichee, b.derniereVisiteAffichee]
         .map((champ) => String(champ ?? "").replace(/;/g, ",").replace(/\n/g, " "))
         .join(";")
     );
@@ -344,6 +373,7 @@ export default function ListeBeneficiairesSuresnes() {
                   <th className="px-6 py-4 hidden lg:table-cell">Thématique la plus récurrente</th>
                   <th className="px-6 py-4 hidden lg:table-cell">Thématique (Numérique pour tous)</th>
                   <th className="px-6 py-4">1ère visite</th>
+                  <th className="px-6 py-4 hidden sm:table-cell">Dernière visite</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#404040]/5">
@@ -388,6 +418,11 @@ export default function ListeBeneficiairesSuresnes() {
                     <td className="px-6 py-4">
                       <span className="text-xs font-medium text-[#404040]/80">
                         {b.premiereVisiteAffichee}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 hidden sm:table-cell">
+                      <span className="text-xs font-medium text-[#404040]/80">
+                        {b.derniereVisiteAffichee}
                       </span>
                     </td>
                   </tr>

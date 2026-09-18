@@ -56,19 +56,23 @@ interface LieuTech {
   localisation?: string;
 }
 
+// Les 11 compétences reprises telles quelles de l'export Pix (onglet
+// "Résultats"), pas les 16 du référentiel complet — certaines (Collaborer,
+// Développer des documents multimedia, Adapter les documents à leur
+// finalité, Programmer, Protéger la santé/le bien-être/l'environnement) n'y
+// figurent pas.
 const DEFAULT_COMPETENCES: CompetencePix[] = [
   { id: "1", label: "Mener une recherche et une veille d'information", score: 0, categorie: "Information & données" },
   { id: "2", label: "Gérer des données", score: 0, categorie: "Information & données" },
-  { id: "3", label: "Interagir", score: 0, categorie: "Communication & collaboration" },
-  { id: "4", label: "S'insérer dans le monde numérique", score: 0, categorie: "Communication & collaboration" },
-  { id: "5", label: "Développer des documents textuels", score: 0, categorie: "Création de contenu" },
-  { id: "6", label: "Développer des documents multimedia", score: 0, categorie: "Création de contenu" },
-  { id: "7", label: "Adapter les documents à leur finalité", score: 0, categorie: "Création de contenu" },
+  { id: "3", label: "Traiter des données", score: 0, categorie: "Information & données" },
+  { id: "4", label: "Interagir", score: 0, categorie: "Communication & collaboration" },
+  { id: "5", label: "Partager et publier", score: 0, categorie: "Communication & collaboration" },
+  { id: "6", label: "S'insérer dans le monde numérique", score: 0, categorie: "Communication & collaboration" },
+  { id: "7", label: "Développer des documents textuels", score: 0, categorie: "Création de contenu" },
   { id: "8", label: "Sécuriser l'environnement numérique", score: 0, categorie: "Protection & sécurité" },
   { id: "9", label: "Protéger les données personnelles et la vie privée", score: 0, categorie: "Protection & sécurité" },
-  { id: "10", label: "Protéger la santé, le bien-être et l'environnement", score: 0, categorie: "Protection & sécurité" },
+  { id: "10", label: "Résoudre des problèmes techniques", score: 0, categorie: "Environnement numérique" },
   { id: "11", label: "Construire un environnement numérique", score: 0, categorie: "Environnement numérique" },
-  { id: "12", label: "Connaître et utiliser l'e-administration", score: 0, categorie: "Environnement numérique" },
 ];
 
 function RapportDiagnosticPixContent() {
@@ -377,7 +381,18 @@ function RapportDiagnosticPixContent() {
     );
   };
 
+  // Le titre du document est repris par le navigateur comme nom de fichier
+  // suggéré par défaut lors d'un "Imprimer > Enregistrer en PDF" — on le
+  // change juste le temps de l'impression puis on le restaure (sinon l'onglet
+  // garderait ce nom au lieu du titre normal de la page).
   const handlePrint = () => {
+    const titreOriginal = document.title;
+    document.title = `[MN26 - SURESNES_COLLECT.TECH] - ${formData.nom || ""} ${formData.prenom || ""}`.trim();
+    const restaurerTitre = () => {
+      document.title = titreOriginal;
+      window.removeEventListener("afterprint", restaurerTitre);
+    };
+    window.addEventListener("afterprint", restaurerTitre);
     window.print();
   };
 
