@@ -87,7 +87,7 @@ const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
 
 // Ne liste que les apprenant·e·s retenu·e·s (OK) pour cette session précise
 // — reprend la structure de la feuille de suivi pédagogique/administratif.
-export default function ApprenantsNumerikUpProSessionPage() {
+export default function ApprenantsDigitalUpProSessionPage() {
   const params = useParams();
   const router = useRouter();
   const sessionId = decodeURIComponent((params?.id as string) || "");
@@ -106,9 +106,9 @@ export default function ApprenantsNumerikUpProSessionPage() {
     const charger = async () => {
       try {
         const [snapInscriptions, snapSessions, snapTerritoires] = await Promise.all([
-          getDocs(query(collection(db, "inscriptions_numerikuppro"), orderBy("createdAt", "desc"))),
-          getDoc(doc(db, "configuration_numerikuppro", "sessions")),
-          getDoc(doc(db, "configuration_numerikuppro", "territoires")),
+          getDocs(query(collection(db, "inscriptions_digitaluppro"), orderBy("createdAt", "desc"))),
+          getDoc(doc(db, "configuration_digitaluppro", "sessions")),
+          getDoc(doc(db, "configuration_digitaluppro", "territoires")),
         ]);
         setInscriptions(snapInscriptions.docs.map((d) => ({ id: d.id, ...d.data() } as Apprenant)));
         if (snapSessions.exists()) {
@@ -140,9 +140,9 @@ export default function ApprenantsNumerikUpProSessionPage() {
     const noms = apprenantsSession
       .map((a) => `${encodeURIComponent(a.Prénom || "")}|${encodeURIComponent(a.Nom || "")}`)
       .join(";");
-    const params = new URLSearchParams({ intitule: "NUMERIK PRO" });
+    const params = new URLSearchParams({ intitule: "DIGITAL UP 96H" });
     if (noms) params.set("noms", noms);
-    params.set("retour", `/mediation/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(sessionId)}/apprenants`);
+    params.set("retour", `/mediation/actions-collectives/reponses/digital-up-pro/${encodeURIComponent(sessionId)}/apprenants`);
     return `/mediation/rencontres-numeriques/emargement?${params.toString()}`;
   }, [apprenantsSession, sessionId]);
 
@@ -178,7 +178,7 @@ export default function ApprenantsNumerikUpProSessionPage() {
   );
 
   const changerSession = (nouvelleSession: string) => {
-    router.push(`/mediation/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(nouvelleSession)}/apprenants`);
+    router.push(`/mediation/actions-collectives/reponses/digital-up-pro/${encodeURIComponent(nouvelleSession)}/apprenants`);
   };
 
   const changerTerritoire = (nouveauTerritoire: string) => {
@@ -225,7 +225,7 @@ export default function ApprenantsNumerikUpProSessionPage() {
   const mettreAJourChampTexte = async (id: string, champ: keyof Apprenant, valeur: string) => {
     setInscriptions((prev) => prev.map((i) => (i.id === id ? { ...i, [champ]: valeur } : i)));
     try {
-      await updateDoc(doc(db, "inscriptions_numerikuppro", id), { [champ]: valeur });
+      await updateDoc(doc(db, "inscriptions_digitaluppro", id), { [champ]: valeur });
     } catch (error) {
       console.error(`Erreur lors de la mise à jour du champ ${champ} :`, error);
     }
@@ -234,7 +234,7 @@ export default function ApprenantsNumerikUpProSessionPage() {
   const basculerChampBooleen = async (id: string, champ: keyof Apprenant, valeur: boolean) => {
     setInscriptions((prev) => prev.map((i) => (i.id === id ? { ...i, [champ]: valeur } : i)));
     try {
-      await updateDoc(doc(db, "inscriptions_numerikuppro", id), { [champ]: valeur });
+      await updateDoc(doc(db, "inscriptions_digitaluppro", id), { [champ]: valeur });
     } catch (error) {
       console.error(`Erreur lors de la mise à jour du champ ${champ} :`, error);
     }
@@ -297,14 +297,14 @@ export default function ApprenantsNumerikUpProSessionPage() {
               </select>
             )}
             <Link
-              href={`/mediation/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(sessionId)}/evolution`}
+              href={`/mediation/actions-collectives/reponses/digital-up-pro/${encodeURIComponent(sessionId)}/evolution`}
               className="flex items-center gap-2 bg-[#EA601F] hover:bg-[#EF736A] text-white px-3.5 py-2 rounded-xl transition-colors text-xs font-bold uppercase tracking-wider shadow-sm"
             >
               <ChartBarIcon className="w-4 h-4" />
               <span>Évolution</span>
             </Link>
             <Link
-              href={`/mediation/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(sessionId)}/pix`}
+              href={`/mediation/actions-collectives/reponses/digital-up-pro/${encodeURIComponent(sessionId)}/pix`}
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >
               <ChartPieIcon className="w-4 h-4 text-[#EA601F]" />
@@ -318,7 +318,7 @@ export default function ApprenantsNumerikUpProSessionPage() {
               <span>Générateur d'émargement</span>
             </Link>
             <Link
-              href={`/mediation/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(sessionId)}`}
+              href={`/mediation/actions-collectives/reponses/digital-up-pro/${encodeURIComponent(sessionId)}`}
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >
               <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
@@ -467,12 +467,12 @@ export default function ApprenantsNumerikUpProSessionPage() {
                         <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{index + 1}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Civilité || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">
-                          <Link href={`/mediation/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(sessionId)}/apprenants/${i.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
+                          <Link href={`/mediation/actions-collectives/reponses/digital-up-pro/${encodeURIComponent(sessionId)}/apprenants/${i.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
                             {i.Prénom || "—"}
                           </Link>
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">
-                          <Link href={`/mediation/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(sessionId)}/apprenants/${i.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
+                          <Link href={`/mediation/actions-collectives/reponses/digital-up-pro/${encodeURIComponent(sessionId)}/apprenants/${i.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
                             {i.Nom || "—"}
                           </Link>
                         </td>

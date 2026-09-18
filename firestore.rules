@@ -219,6 +219,45 @@ service cloud.firestore {
       allow update, delete: if isCoordinateurOuPlus();
     }
 
+    // Même architecture, dupliquée pour DIGITAL UP 96H (voir
+    // actions-collectives/reponses/digital-up-pro et .../inscription/digital-up-pro)
+    // — mêmes règles, collections distinctes de NUMERIK PRO (aucune donnée partagée).
+    match /configuration_digitaluppro/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /inscriptions_digitaluppro/{docId} {
+      allow read: if isStaff();
+      allow create: if isStaff() || (
+        request.resource.data.keys().hasAll(['Nom', 'Prénom', 'Téléphone', 'Email', 'Parcours', 'Territoire', 'Session', 'RGPD', 'Consentement_Partage_Simulation']) &&
+        request.resource.data['Nom'] is string && request.resource.data['Nom'].size() > 0 &&
+        request.resource.data['Prénom'] is string && request.resource.data['Prénom'].size() > 0 &&
+        request.resource.data['Email'] is string && request.resource.data['Email'].size() > 0 &&
+        request.resource.data['RGPD'] == true &&
+        request.resource.data['Consentement_Partage_Simulation'] == true &&
+        request.resource.data.get('_piege', '') == '' &&
+        request.resource.data.get('_dureeRemplissageMs', 0) > 3000
+      );
+      allow update, delete: if isCoordinateurOuPlus();
+    }
+
+    // Test de langue B1 public, auto-corrigé (voir
+    // app/inscription/digital-up-pro-test-langue et lib/testLangueB1.ts) —
+    // enregistrement autonome, pas de rapprochement avec inscriptions_digitaluppro.
+    match /resultats_test_langue_digitaluppro/{docId} {
+      allow read: if isStaff();
+      allow create: if isStaff() || (
+        request.resource.data.keys().hasAll(['Nom', 'Prénom', 'Email', 'Score', 'Niveau_B1_Francais', 'RGPD']) &&
+        request.resource.data['Nom'] is string && request.resource.data['Nom'].size() > 0 &&
+        request.resource.data['Prénom'] is string && request.resource.data['Prénom'].size() > 0 &&
+        request.resource.data['Email'] is string && request.resource.data['Email'].size() > 0 &&
+        request.resource.data['RGPD'] == true &&
+        request.resource.data.get('_piege', '') == '' &&
+        request.resource.data.get('_dureeRemplissageMs', 0) > 3000
+      );
+      allow update, delete: if isCoordinateurOuPlus();
+    }
+
     // Même architecture, dupliquée pour PRFE (voir
     // actions-collectives/reponses/prfe et .../inscription/prfe) — mêmes
     // règles, collections distinctes de NUMERIK PRO (aucune donnée partagée).

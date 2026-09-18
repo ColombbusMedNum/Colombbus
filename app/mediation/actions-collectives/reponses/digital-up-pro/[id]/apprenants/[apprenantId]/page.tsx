@@ -31,6 +31,7 @@ import {
 import PageGuard from "@/components/PageGuard";
 import { formatPhoneNumber } from "@/lib/formatPhone";
 import FicheEntretienDiagnostic from "./FicheEntretienDiagnostic";
+import FicheDiagnosticEquipement from "./FicheDiagnosticEquipement";
 import ResultatsPixFiche from "@/components/ResultatsPixFiche";
 import type { PixResultat } from "@/lib/pixImport";
 
@@ -79,6 +80,7 @@ export interface Inscription {
   Conseiller_Email?: string;
   Parcours?: string;
   Session?: string;
+  Positionnement_Initial?: string;
   // Suivi de recrutement
   Convocation_Info_Collective?: string;
   Date_Convocation_Info_Collective?: string;
@@ -178,7 +180,7 @@ export interface Inscription {
   // Firebase Storage) — pas besoin d'un vrai fichier hébergé pour ça.
   Entretien_SignatureApprenantUrl?: string;
   Entretien_SignatureColombbusUrl?: string;
-  // Fiche entretien diagnostic (formulaire papier Numérik'Pro Tech saisi
+  // Fiche entretien diagnostic (formulaire papier Digital Up 96H Tech saisi
   // directement ici) — voir FicheEntretienDiagnostic.tsx. Les champs
   // d'identité/contact déjà présents plus haut (Civilité, Nom, Prénom,
   // Téléphone, Email, Code_Postal, Ville, RQTH, France_Travail,
@@ -233,6 +235,14 @@ export interface Inscription {
   Diagnostic_ProblemesSpecifiques?: string;
   Diagnostic_ContraintesParticulieres?: string;
   Diagnostic_DateAttestation?: string;
+  // Fiche de diagnostic "Compétences numériques & équipement" (formulaire
+  // papier séparé, plus court — voir FicheDiagnosticEquipement.tsx). Nom/
+  // Prénom déjà présents plus haut sont réutilisés tels quels.
+  EquipDiag_LieuEtDate?: string;
+  EquipDiag_NiveauObserve?: string;
+  EquipDiag_BesoinEquipement?: string[];
+  EquipDiag_Attentes?: string;
+  EquipDiag_DateRealisation?: string;
 }
 
 interface EntreeJournal {
@@ -247,7 +257,7 @@ interface EntreeAppreciation {
 }
 
 // Catégorie "activité" de la grille Évolution — modifiable par action depuis
-// la page paramètres (Firestore, configuration_numerikuppro/evolutionCategories),
+// la page paramètres (Firestore, configuration_digitaluppro/evolutionCategories),
 // contrairement aux 4 codes structurels fixes ci-dessous.
 interface CategorieEvolution {
   code: string;
@@ -592,11 +602,11 @@ function SousGroupe({ titre, children }: { titre: string; children: React.ReactN
   );
 }
 
-// Fiche consolidée d'un·e apprenant·e NUMERIK PRO : regroupe en un seul
+// Fiche consolidée d'un·e apprenant·e DIGITAL UP 96H : regroupe en un seul
 // écran ce qui est aujourd'hui réparti entre Réponses, Suivi de recrutement,
 // Apprenant·e·s, Évolution et Absences, en lisant un unique document
 // Firestore.
-export default function FicheApprenantNumerikUpProPage() {
+export default function FicheApprenantDigitalUpProPage() {
   const params = useParams();
   const sessionId = decodeURIComponent((params?.id as string) || "");
   const apprenantId = (params?.apprenantId as string) || "";
@@ -605,15 +615,15 @@ export default function FicheApprenantNumerikUpProPage() {
   const [categoriesActivite, setCategoriesActivite] = useState<CategorieEvolution[]>(ACTIVITE_DEFAUT);
   const [loading, setLoading] = useState(true);
   const [introuvable, setIntrouvable] = useState(false);
-  const [ongletActif, setOngletActif] = useState<"fiche" | "diagnostic">("fiche");
+  const [ongletActif, setOngletActif] = useState<"fiche" | "diagnostic" | "equipement">("fiche");
   const { mediateurs } = useMediateurs();
 
   useEffect(() => {
     const charger = async () => {
       try {
         const [snap, snapCategories] = await Promise.all([
-          getDoc(doc(db, "inscriptions_numerikuppro", apprenantId)),
-          getDoc(doc(db, "configuration_numerikuppro", "evolutionCategories")),
+          getDoc(doc(db, "inscriptions_digitaluppro", apprenantId)),
+          getDoc(doc(db, "configuration_digitaluppro", "evolutionCategories")),
         ]);
         if (snap.exists()) {
           setInscription({ id: snap.id, ...snap.data() } as Inscription);
@@ -713,7 +723,7 @@ export default function FicheApprenantNumerikUpProPage() {
   const mettreAJourChamp = async (champ: keyof Inscription, valeur: any) => {
     setInscription((prev) => (prev ? { ...prev, [champ]: valeur } : prev));
     try {
-      await updateDoc(doc(db, "inscriptions_numerikuppro", apprenantId), { [champ]: valeur });
+      await updateDoc(doc(db, "inscriptions_digitaluppro", apprenantId), { [champ]: valeur });
     } catch (error) {
       console.error(`Erreur lors de la mise à jour de ${champ} :`, error);
     }
@@ -820,7 +830,7 @@ export default function FicheApprenantNumerikUpProPage() {
       <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex flex-col items-center justify-center gap-4 text-[#404040] antialiased`}>
         <p className="text-xs font-bold uppercase tracking-widest text-[#404040]/60">Apprenant·e introuvable.</p>
         <Link
-          href={`/mediation/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(sessionId)}/apprenants`}
+          href={`/mediation/actions-collectives/reponses/digital-up-pro/${encodeURIComponent(sessionId)}/apprenants`}
           className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
         >
           <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
@@ -883,6 +893,15 @@ export default function FicheApprenantNumerikUpProPage() {
               >
                 Entretien diagnostic
               </button>
+              <button
+                type="button"
+                onClick={() => setOngletActif("equipement")}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                  ongletActif === "equipement" ? "bg-[#005259] text-white" : "text-[#404040]/60 hover:text-[#005259]"
+                }`}
+              >
+                Diagnostic équipement
+              </button>
             </div>
 
             {ongletActif === "fiche" && (
@@ -897,7 +916,7 @@ export default function FicheApprenantNumerikUpProPage() {
             )}
 
             <Link
-              href={`/mediation/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(sessionId)}/apprenants`}
+              href={`/mediation/actions-collectives/reponses/digital-up-pro/${encodeURIComponent(sessionId)}/apprenants`}
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >
               <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
@@ -915,6 +934,8 @@ export default function FicheApprenantNumerikUpProPage() {
 
         {ongletActif === "diagnostic" ? (
           <FicheEntretienDiagnostic inscription={i} mettreAJourChamp={mettreAJourChamp} />
+        ) : ongletActif === "equipement" ? (
+          <FicheDiagnosticEquipement inscription={i} mettreAJourChamp={mettreAJourChamp} />
         ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 print:grid-cols-1">
 
@@ -928,6 +949,7 @@ export default function FicheApprenantNumerikUpProPage() {
               <Champ label="Niveau de diplôme" valeur={i.Niveau_Etudes} />
               <Champ label="Parcours" valeur={i.Parcours} />
               <Champ label="Ordinateur utilisé" valeur={i.Ordinateur_Utilise} />
+              <Champ label="Positionnement du bénéficiaire" valeur={i.Positionnement_Initial} />
             </div>
           </Section>
 

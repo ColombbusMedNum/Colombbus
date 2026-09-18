@@ -1,0 +1,851 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { db, storage } from "@/lib/firebase";
+import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import Link from "next/link";
+import { quicksand } from "@/lib/fonts";
+import { HomeIcon, ArrowLeftIcon, PlusIcon, XMarkIcon, TrashIcon, TagIcon, PhotoIcon } from "@heroicons/react/24/outline";
+import PageGuard from "@/components/PageGuard";
+import { usePermissions } from "@/lib/PermissionsProvider";
+
+interface Parcours {
+  id: string;
+  label: string;
+}
+
+// Reprend les deux parcours réels observés dans les réponses au formulaire
+// Digital Up 96H — librement renommables/complétables ensuite depuis cette page.
+const PARCOURS_DEFAUT: Parcours[] = [
+  { id: "digitaluppro-tech", label: "Digital Up 96H Tech" },
+  { id: "digitaluppro-marketing", label: "Digital Up 96H Marketing" },
+];
+
+const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
+
+// Catégorie "activité" de la grille Évolution (page suivi de session) —
+// modifiable depuis cette page, contrairement aux 4 codes structurels fixes
+// (Absence justifiée "A" / non justifiée "ANJ" / Férié "F" / Abandon "AB"),
+// gérés par le moteur car d'autres logiques en dépendent.
+interface CategorieEvolution {
+  code: string;
+  label: string;
+  bg: string;
+  text: string;
+}
+
+// Palette actuelle, codée en dur sur la grille Évolution — reprise ici telle
+// quelle comme valeur de départ tant que personne n'a encore sauvegardé de
+// catégories personnalisées (aucun changement visuel tant que cette page n'a
+// pas été utilisée pour de vrai).
+const CATEGORIES_EVOLUTION_DEFAUT: CategorieEvolution[] = [
+  { code: "G", label: "Game Design", bg: "#7C1FD1", text: "#FFFFFF" },
+  { code: "D", label: "Développement", bg: "#F5820D", text: "#FFFFFF" },
+  { code: "GR", label: "Graphisme", bg: "#22D3EE", text: "#003044" },
+  { code: "SK", label: "Soft Skills", bg: "#FDE047", text: "#3A3300" },
+  { code: "M", label: "Maintenance", bg: "#3B82F6", text: "#FFFFFF" },
+];
+
+function slugifier(texte: string, dejaUtilises: string[]): string {
+  const base = texte
+    .trim().toLowerCase()
+    .normalize("NFD").replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "parcours";
+  let candidat = base;
+  let compteur = 2;
+  while (dejaUtilises.includes(candidat)) {
+    candidat = `${base}-${compteur}`;
+    compteur++;
+  }
+  return candidat;
+}
+
+const MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+const JOURS_FR = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+
+// "YYYY-MM-DD" (valeur d'un <input type="date">) → Date locale, sans décalage
+// de fuseau horaire (contrairement à new Date("YYYY-MM-DD") qui est en UTC).
+function parseDateInput(valeur: string): Date | null {
+  const m = valeur.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+// Reconstruit le libellé "Du lundi 7 septembre 2026 au vendredi 2 octobre
+// 2026 — Matin" à partir des deux dates saisies séparément et du créneau —
+// la session se déroule entièrement le matin OU l'après-midi, jamais les
+// deux (même logique que la grille Évolution). Le créneau fait partie
+// intégrante du libellé, qui sert d'identifiant de session partout ailleurs
+// (champ Session, URLs, codes internes) : l'ajouter ici suffit à le propager
+// sans toucher aucun autre fichier.
+function formaterLibelleSession(debut: Date, fin: Date, creneau: string): string {
+  const formater = (d: Date) => `${JOURS_FR[d.getDay()]} ${d.getDate()} ${MOIS_FR[d.getMonth()]} ${d.getFullYear()}`;
+  return `Du ${formater(debut)} au ${formater(fin)} — ${creneau}`;
+}
+
+// Extrait les dates de début et de fin d'un libellé de session (première et
+// dernière occurrence "jour mois année") pour les réafficher séparément.
+function extraireDebutFin(texte: string): { debut: string; fin: string } | null {
+  const regex = new RegExp(`\\d{1,2}\\s+(?:${MOIS_FR.join("|")})\\s+\\d{4}`, "gi");
+  const correspondances = texte.match(regex);
+  if (!correspondances || correspondances.length === 0) return null;
+  return { debut: correspondances[0], fin: correspondances[correspondances.length - 1] };
+}
+
+// Les dates de session sont du texte libre (ex. "Du lundi 7 septembre au
+// vendredi 2 octobre 2026") : on extrait la première occurrence "jour mois
+// année" pour obtenir un ordre chronologique fiable ; à défaut, on retombe
+// sur un tri alphabétique du texte brut.
+function extraireDatePourTri(texte: string): number | null {
+  const regex = new RegExp(`(\\d{1,2})\\s+(${MOIS_FR.join("|")})\\s+(\\d{4})`, "i");
+  const correspondance = texte.toLowerCase().match(regex);
+  if (!correspondance) return null;
+  const jour = parseInt(correspondance[1], 10);
+  const mois = MOIS_FR.indexOf(correspondance[2].toLowerCase());
+  const annee = parseInt(correspondance[3], 10);
+  return new Date(annee, mois, jour).getTime();
+}
+
+const inputClass = "w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-sm text-[#404040] placeholder-[#404040]/40 outline-none font-medium transition-colors";
+const labelClass = "block text-[11px] font-bold text-[#404040]/70 uppercase tracking-wide mb-1";
+
+export default function ParametresDigitalUpProPage() {
+  const { role, loading: loadingPermissions } = usePermissions();
+  const [parcoursListe, setParcoursListe] = useState<Parcours[]>(PARCOURS_DEFAUT);
+  const [nouveauParcoursLabel, setNouveauParcoursLabel] = useState("");
+  const [territoiresListe, setTerritoiresListe] = useState<string[]>(TERRITOIRES_DEFAUT);
+  const [nouveauTerritoire, setNouveauTerritoire] = useState("");
+  // sessions[parcoursId][territoire] = liste de dates de session.
+  const [sessions, setSessions] = useState<Record<string, Record<string, string[]>>>({});
+  // codes["parcoursId|territoire|date"] = code interne, jamais affiché sur le
+  // formulaire public — sert uniquement en usage interne (Drive, suivi...).
+  const [codes, setCodes] = useState<Record<string, string>>({});
+  const [categoriesEvolution, setCategoriesEvolution] = useState<CategorieEvolution[]>(CATEGORIES_EVOLUTION_DEFAUT);
+  const [loading, setLoading] = useState(true);
+
+  const [nouvelleSessionParcours, setNouvelleSessionParcours] = useState("");
+  const [nouvelleSessionTerritoire, setNouvelleSessionTerritoire] = useState("91");
+  const [nouvelleSessionDebut, setNouvelleSessionDebut] = useState("");
+  const [nouvelleSessionFin, setNouvelleSessionFin] = useState("");
+  const [nouvelleSessionCreneau, setNouvelleSessionCreneau] = useState("Matin");
+
+  // Logos affichés dans l'en-tête du formulaire public (app/inscription/
+  // digital-up-pro), choisis parmi la bibliothèque partagée (voir
+  // /mediation/bibliotheque-logos) — pas de nouveau système d'upload dédié.
+  // Un même partenaire ne finance pas forcément l'action sur tous les
+  // territoires : la sélection se fait donc par territoire, pas globalement.
+  const [logosDisponibles, setLogosDisponibles] = useState<any[]>([]);
+  const [logosParTerritoire, setLogosParTerritoire] = useState<Record<string, string[]>>({});
+  const [territoireLogosActif, setTerritoireLogosActif] = useState("91");
+
+  // Visuels "programme" par parcours (ex. affiche/déroulé de session),
+  // affichés dans un bloc dépliable sous l'étape Parcours/Session du
+  // formulaire public — plusieurs images possibles par parcours (ex. une
+  // page infos pratiques + une page programme détaillé).
+  const [programmes, setProgrammes] = useState<Record<string, { storagePath: string; url: string }[]>>({});
+  const [televersementProgrammeEnCours, setTeleversementProgrammeEnCours] = useState<string | null>(null);
+
+  useEffect(() => {
+    const charger = async () => {
+      const [snapSessions, snapParcours, snapTerritoires, snapLogosFormulaire, snapProgrammes, snapLogos, snapCategoriesEvolution] = await Promise.all([
+        getDoc(doc(db, "configuration_digitaluppro", "sessions")),
+        getDoc(doc(db, "configuration_digitaluppro", "parcours")),
+        getDoc(doc(db, "configuration_digitaluppro", "territoires")),
+        getDoc(doc(db, "configuration_digitaluppro", "logosFormulaire")),
+        getDoc(doc(db, "configuration_digitaluppro", "programmes")),
+        getDocs(collection(db, "logos_emargement")),
+        getDoc(doc(db, "configuration_digitaluppro", "evolutionCategories")),
+      ]);
+      setLogosDisponibles(snapLogos.docs.map((d) => ({ id: d.id, ...d.data() })));
+      if (snapCategoriesEvolution.exists() && Array.isArray(snapCategoriesEvolution.data().liste) && snapCategoriesEvolution.data().liste.length > 0) {
+        setCategoriesEvolution(snapCategoriesEvolution.data().liste);
+      }
+      if (snapLogosFormulaire.exists()) {
+        const data = snapLogosFormulaire.data();
+        if (data.parTerritoire && typeof data.parTerritoire === "object") {
+          setLogosParTerritoire(data.parTerritoire);
+        } else if (Array.isArray(data.logoIds)) {
+          const territoiresConnus = snapTerritoires.exists() && Array.isArray(snapTerritoires.data().liste) && snapTerritoires.data().liste.length > 0
+            ? snapTerritoires.data().liste
+            : TERRITOIRES_DEFAUT;
+          setLogosParTerritoire(Object.fromEntries(territoiresConnus.map((t: string) => [t, data.logoIds])));
+        }
+      }
+      if (snapProgrammes.exists()) {
+        setProgrammes(snapProgrammes.data().parParcours || {});
+      }
+      const parcoursCharges = snapParcours.exists() && Array.isArray(snapParcours.data().liste) && snapParcours.data().liste.length > 0
+        ? snapParcours.data().liste
+        : PARCOURS_DEFAUT;
+      // Toujours synchronisé sur le premier parkours connu (par défaut ou
+      // chargé) — pas seulement quand le document Firestore existe, sinon la
+      // sélection reste bloquée sur une valeur vide/obsolète tant que
+      // personne n'a jamais explicitement sauvegardé la liste des parkours
+      // (cas des parkours par défaut jamais modifiés), et les sessions créées
+      // atterrissent sous un identifiant de parkours qui n'existe nulle part.
+      setParcoursListe(parcoursCharges);
+      setNouvelleSessionParcours(parcoursCharges[0].id);
+      if (snapSessions.exists()) {
+        const sessionsChargees: Record<string, Record<string, string[]>> = snapSessions.data().parTerritoire || {};
+        const codesCharges: Record<string, string> = snapSessions.data().codes || {};
+        // Nettoie les sessions orphelines d'un parkours déjà supprimé, puis
+        // les codes qui ne correspondent plus à aucune session existante
+        // (parkours supprimé, ou simplement session supprimée entre-temps —
+        // les deux cas laissaient un code fantôme avant la correction du
+        // merge Firestore).
+        const parcoursIdsValides = parcoursCharges.map((p: Parcours) => p.id);
+        const sessionsNettoyees = Object.fromEntries(Object.entries(sessionsChargees).filter(([id]) => parcoursIdsValides.includes(id)));
+        const codesNettoyes = Object.fromEntries(
+          Object.entries(codesCharges).filter(([cle]) => {
+            const [parcoursId, territoire, date] = (cle as string).split("|");
+            return (sessionsNettoyees[parcoursId]?.[territoire] || []).includes(date);
+          })
+        );
+        setSessions(sessionsNettoyees);
+        setCodes(codesNettoyes);
+        if (Object.keys(sessionsNettoyees).length !== Object.keys(sessionsChargees).length || Object.keys(codesNettoyes).length !== Object.keys(codesCharges).length) {
+          await sauvegarderSessions(sessionsNettoyees, codesNettoyes);
+        }
+      }
+      const territoiresCharges = snapTerritoires.exists() && Array.isArray(snapTerritoires.data().liste) && snapTerritoires.data().liste.length > 0
+        ? snapTerritoires.data().liste
+        : TERRITOIRES_DEFAUT;
+      setTerritoiresListe(territoiresCharges);
+      setNouvelleSessionTerritoire(territoiresCharges[0]);
+      setTerritoireLogosActif(territoiresCharges[0]);
+      setLoading(false);
+    };
+    charger();
+  }, []);
+
+  // --- CATÉGORIES D'ÉVOLUTION (catégories ACTIVITÉ de la grille de suivi de
+  // présence, voir reponses/digital-up-pro/[id]/evolution) — modifiables
+  // depuis cette page, contrairement aux 4 codes structurels fixes (Absence
+  // justifiée/non justifiée, Férié, Abandon), gérés par le moteur.
+  const luminanceTexte = (bg: string): string => {
+    const hex = bg.replace("#", "");
+    if (hex.length !== 6) return "#FFFFFF";
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.6 ? "#111111" : "#FFFFFF";
+  };
+  const sauvegarderCategoriesEvolution = async (liste: CategorieEvolution[]) => {
+    setCategoriesEvolution(liste);
+    await setDoc(doc(db, "configuration_digitaluppro", "evolutionCategories"), { liste });
+  };
+  const ajouterCategorieEvolution = () => {
+    const nouvelle: CategorieEvolution = { code: `C${categoriesEvolution.length + 1}`, label: "Nouvelle catégorie", bg: "#3B82F6", text: "#FFFFFF" };
+    sauvegarderCategoriesEvolution([...categoriesEvolution, nouvelle]);
+  };
+  const modifierCategorieEvolution = (index: number, patch: Partial<CategorieEvolution>) => {
+    sauvegarderCategoriesEvolution(categoriesEvolution.map((c, i) => (i === index ? { ...c, ...patch } : c)));
+  };
+  const supprimerCategorieEvolution = (index: number) => {
+    sauvegarderCategoriesEvolution(categoriesEvolution.filter((_, i) => i !== index));
+  };
+
+  // Écrit tout le document "sessions" en une fois (jamais de merge partiel) :
+  // { merge: true } fusionne les maps en profondeur au lieu de les remplacer,
+  // donc une clé supprimée localement (session, code) réapparaîtrait après
+  // rechargement si on l'utilisait ici.
+  const sauvegarderSessions = async (parTerritoire: Record<string, Record<string, string[]>>, codesActuels: Record<string, string>) => {
+    await setDoc(doc(db, "configuration_digitaluppro", "sessions"), { parTerritoire, codes: codesActuels });
+  };
+
+  const basculerLogo = async (territoire: string, logoId: string) => {
+    const pourTerritoire = logosParTerritoire[territoire] || [];
+    const misesAJour = {
+      ...logosParTerritoire,
+      [territoire]: pourTerritoire.includes(logoId) ? pourTerritoire.filter((id) => id !== logoId) : [...pourTerritoire, logoId],
+    };
+    setLogosParTerritoire(misesAJour);
+    await setDoc(doc(db, "configuration_digitaluppro", "logosFormulaire"), { parTerritoire: misesAJour });
+  };
+
+  const sauvegarderProgrammes = async (parParcours: Record<string, { storagePath: string; url: string }[]>) => {
+    setProgrammes(parParcours);
+    await setDoc(doc(db, "configuration_digitaluppro", "programmes"), { parParcours });
+  };
+
+  const televerserProgramme = async (parcoursId: string, fichier: File) => {
+    if (fichier.size > 3 * 1024 * 1024) {
+      alert("Cette image est trop lourde. Merci de choisir un fichier de moins de 3 Mo.");
+      return;
+    }
+    setTeleversementProgrammeEnCours(parcoursId);
+    try {
+      const storagePath = `programmes_inscription/digital-up-pro/${parcoursId}/${Date.now()}_${fichier.name}`;
+      const ref = storageRef(storage, storagePath);
+      await uploadBytes(ref, fichier);
+      const url = await getDownloadURL(ref);
+      const pourParcours = programmes[parcoursId] || [];
+      await sauvegarderProgrammes({ ...programmes, [parcoursId]: [...pourParcours, { storagePath, url }] });
+    } catch (e) {
+      console.error(e);
+      alert("Erreur lors du téléversement de l'image.");
+    } finally {
+      setTeleversementProgrammeEnCours(null);
+    }
+  };
+
+  const supprimerProgramme = async (parcoursId: string, image: { storagePath: string; url: string }) => {
+    const pourParcours = (programmes[parcoursId] || []).filter((img) => img.storagePath !== image.storagePath);
+    await sauvegarderProgrammes({ ...programmes, [parcoursId]: pourParcours });
+    await deleteObject(storageRef(storage, image.storagePath)).catch(() => {});
+  };
+
+  const ajouterParcours = async () => {
+    const label = nouveauParcoursLabel.trim();
+    if (!label) return;
+    const id = slugifier(label, parcoursListe.map((p) => p.id));
+    const misesAJour = [...parcoursListe, { id, label }];
+    setParcoursListe(misesAJour);
+    setNouveauParcoursLabel("");
+    await setDoc(doc(db, "configuration_digitaluppro", "parcours"), { liste: misesAJour });
+  };
+
+  const supprimerParcours = async (id: string) => {
+    const misesAJour = parcoursListe.filter((p) => p.id !== id);
+    setParcoursListe(misesAJour);
+    await setDoc(doc(db, "configuration_digitaluppro", "parcours"), { liste: misesAJour });
+
+    // Purge les sessions et codes internes rattachés à ce parkours, sinon ils
+    // restent orphelins (le libellé du parkours ne se résout plus nulle part).
+    const sessionsMisesAJour = { ...sessions };
+    delete sessionsMisesAJour[id];
+    setSessions(sessionsMisesAJour);
+    const codesMisAJour = Object.fromEntries(Object.entries(codes).filter(([cle]) => cle.split("|")[0] !== id));
+    setCodes(codesMisAJour);
+    await sauvegarderSessions(sessionsMisesAJour, codesMisAJour);
+  };
+
+  const ajouterTerritoire = async () => {
+    const valeur = nouveauTerritoire.trim();
+    if (!valeur || territoiresListe.includes(valeur)) return;
+    const misesAJour = [...territoiresListe, valeur];
+    setTerritoiresListe(misesAJour);
+    setNouveauTerritoire("");
+    await setDoc(doc(db, "configuration_digitaluppro", "territoires"), { liste: misesAJour });
+  };
+
+  const supprimerTerritoire = async (valeur: string) => {
+    const misesAJour = territoiresListe.filter((t) => t !== valeur);
+    setTerritoiresListe(misesAJour);
+    await setDoc(doc(db, "configuration_digitaluppro", "territoires"), { liste: misesAJour });
+  };
+
+  const ajouterSession = async () => {
+    const debut = parseDateInput(nouvelleSessionDebut);
+    const fin = parseDateInput(nouvelleSessionFin);
+    if (!debut || !fin) return;
+    const valeur = formaterLibelleSession(debut, fin, nouvelleSessionCreneau);
+    // Le libellé de la session sert d'identifiant partout ailleurs (champ
+    // Session sur les inscriptions, URL...) : deux sessions différentes (même
+    // parkours ou non, même territoire ou non) ne doivent jamais partager le
+    // même libellé, sinon impossible de les distinguer une fois affectées.
+    const dejaExistant = Object.values(sessions).some((parTerritoire) => Object.values(parTerritoire).some((dates) => dates.includes(valeur)));
+    if (dejaExistant) {
+      alert("Une session existe déjà avec exactement les mêmes dates et le même créneau (même sur un autre parkours/territoire) — change le créneau ou les dates pour la distinguer.");
+      return;
+    }
+    const pourParcours = sessions[nouvelleSessionParcours] || {};
+    const misesAJour = {
+      ...sessions,
+      [nouvelleSessionParcours]: { ...pourParcours, [nouvelleSessionTerritoire]: [...(pourParcours[nouvelleSessionTerritoire] || []), valeur] },
+    };
+    setSessions(misesAJour);
+    setNouvelleSessionDebut("");
+    setNouvelleSessionFin("");
+    await sauvegarderSessions(misesAJour, codes);
+  };
+
+  const supprimerSession = async (parcours: string, territoire: string, valeur: string) => {
+    const pourParcours = sessions[parcours] || {};
+    const misesAJour = {
+      ...sessions,
+      [parcours]: { ...pourParcours, [territoire]: (pourParcours[territoire] || []).filter((s) => s !== valeur) },
+    };
+    setSessions(misesAJour);
+    const cle = `${parcours}|${territoire}|${valeur}`;
+    const codesMisAJour = { ...codes };
+    delete codesMisAJour[cle];
+    setCodes(codesMisAJour);
+    await sauvegarderSessions(misesAJour, codesMisAJour);
+  };
+
+  // Code interne "MN{AA}_DUPPRO-{territoire}_{NN}" — jamais affiché sur le
+  // formulaire public, numéroté séquentiellement par territoire.
+  const genererCode = async (ligne: { parcoursId: string; territoire: string; date: string }) => {
+    const cle = `${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`;
+    if (codes[cle]) return;
+    const anneeMatch = ligne.date.match(/(\d{4})/);
+    const annee = anneeMatch ? anneeMatch[1].slice(-2) : String(new Date().getFullYear()).slice(-2);
+    const nombreExistant = Object.keys(codes).filter((c) => c.split("|")[1] === ligne.territoire).length;
+    const numero = String(nombreExistant + 1).padStart(2, "0");
+    const code = `MN${annee}_DUPPRO-${ligne.territoire}_${numero}`;
+    const misesAJour = { ...codes, [cle]: code };
+    setCodes(misesAJour);
+    await sauvegarderSessions(sessions, misesAJour);
+  };
+
+  // Le code auto-généré reste librement modifiable (ex. pour aligner avec une
+  // convention déjà utilisée ailleurs, comme dans le suivi des absences).
+  const modifierCode = async (cle: string, valeur: string) => {
+    const misesAJour = { ...codes, [cle]: valeur };
+    setCodes(misesAJour);
+    await sauvegarderSessions(sessions, misesAJour);
+  };
+
+  // Table à plat de toutes les sessions, tous parkours/territoires
+  // confondus, triée par territoire puis par date.
+  const lignesSessions = parcoursListe
+    .flatMap((p) =>
+      territoiresListe.flatMap((t) =>
+        (sessions[p.id]?.[t] || []).map((date) => ({ parcoursId: p.id, parcoursLabel: p.label, territoire: t, date }))
+      )
+    )
+    .sort((a, b) => {
+      const territoireDiff = a.territoire.localeCompare(b.territoire, "fr", { numeric: true });
+      if (territoireDiff !== 0) return territoireDiff;
+      const dateA = extraireDatePourTri(a.date);
+      const dateB = extraireDatePourTri(b.date);
+      if (dateA !== null && dateB !== null && dateA !== dateB) return dateA - dateB;
+      if (dateA !== null && dateB === null) return -1;
+      if (dateA === null && dateB !== null) return 1;
+      return a.date.localeCompare(b.date, "fr", { numeric: true });
+    });
+
+  if (loading || loadingPermissions) {
+    return (
+      <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex items-center justify-center text-[#005259] font-bold animate-pulse tracking-widest text-xs uppercase antialiased`}>
+        Chargement...
+      </div>
+    );
+  }
+
+  if (role !== "admin") {
+    return (
+      <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex flex-col items-center justify-center gap-4 text-center p-8 antialiased`}>
+        <p className="text-xs font-bold uppercase tracking-widest text-[#EF736A]">Page réservée à l'administrateur</p>
+        <Link
+          href="/mediation/actions-collectives/inscription/digital-up-pro"
+          className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+        >
+          <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
+          <span>Retour au formulaire</span>
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <PageGuard pageId="page_access_actions_collectives_accueil">
+    <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] p-4 md:p-8 font-medium antialiased relative overflow-hidden`}>
+
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#005259]/5 blur-[120px] rounded-full pointer-events-none"></div>
+
+      <div className="max-w-5xl mx-auto relative z-10 space-y-6">
+
+        {/* EN-TÊTE & NAVIGATION */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center pb-4 border-b border-[#404040]/10 gap-4">
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
+            <div>
+              <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
+                Gérer <span className="text-[#EA601F] font-semibold">DIGITAL UP 96H</span>
+              </h1>
+              <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
+                Parkours, territoires et sessions du formulaire d'inscription
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+            <Link
+              href="/mediation/actions-collectives/inscription/digital-up-pro"
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+            >
+              <ArrowLeftIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Formulaire DIGITAL UP 96H</span>
+            </Link>
+            <Link
+              href="/"
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+            >
+              <HomeIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Accueil</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* LOGOS DU FORMULAIRE PUBLIC */}
+        <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-3">
+          <div className="flex items-center gap-2">
+            <PhotoIcon className="w-4 h-4 text-[#EA601F]" />
+            <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Logos du formulaire public</h2>
+          </div>
+          <p className="text-[10px] text-[#404040]/50">
+            Choisis parmi la <Link href="/mediation/bibliotheque-logos" className="underline hover:text-[#005259]">bibliothèque de logos</Link> — affichés dans l'en-tête de{" "}
+            <a href="/inscription/digital-up-pro" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#005259]">la version publique du formulaire</a>. Un partenaire ne finance pas forcément l'action sur tous les territoires : la sélection se fait territoire par territoire.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {territoiresListe.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTerritoireLogosActif(t)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                  territoireLogosActif === t ? "bg-[#005259] text-white border-[#005259]" : "bg-[#F3F3F2] text-[#404040] border-[#404040]/10 hover:border-[#005259]/40"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          {logosDisponibles.length === 0 ? (
+            <p className="text-xs text-[#404040]/50 italic">Aucun logo dans la bibliothèque pour le moment.</p>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-3">
+              {logosDisponibles.map((logo) => {
+                const selectionne = (logosParTerritoire[territoireLogosActif] || []).includes(logo.id);
+                return (
+                  <button
+                    key={logo.id}
+                    type="button"
+                    onClick={() => basculerLogo(territoireLogosActif, logo.id)}
+                    title={logo.nom}
+                    className={`p-2 rounded-xl border-2 transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                      selectionne ? "border-[#005259] bg-[#005259]/5" : "border-[#404040]/10 hover:border-[#404040]/25"
+                    }`}
+                  >
+                    <div className="w-full h-12 flex items-center justify-center">
+                      <img src={logo.url} alt={logo.nom} className="max-h-full max-w-full object-contain" />
+                    </div>
+                    <span className="text-[9px] font-bold uppercase text-[#404040]/60 truncate w-full text-center">{logo.nom}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* PROGRAMME PAR PARCOURS */}
+        <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center gap-2">
+            <PhotoIcon className="w-4 h-4 text-[#EA601F]" />
+            <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Programme par parcours</h2>
+          </div>
+          <p className="text-[10px] text-[#404040]/50">
+            Une ou plusieurs images (affiche, déroulé de session...) affichées dans un bloc dépliable sous le choix de session du formulaire public, une fois le parcours correspondant sélectionné.
+          </p>
+          <div className="space-y-4">
+            {parcoursListe.map((p) => (
+              <div key={p.id} className="border border-[#404040]/10 rounded-xl p-3 space-y-2">
+                <span className="text-xs font-bold text-[#005259]">{p.label}</span>
+                <div className="flex flex-wrap gap-3">
+                  {(programmes[p.id] || []).map((img) => (
+                    <div key={img.storagePath} className="relative w-20 h-20 rounded-lg border border-[#404040]/10 overflow-hidden group bg-[#F3F3F2]">
+                      <img src={img.url} alt="" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => supprimerProgramme(p.id, img)}
+                        className="absolute top-1 right-1 p-1 bg-white/90 text-[#EF736A] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        <TrashIcon className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  <label className={`w-20 h-20 rounded-lg border-2 border-dashed flex items-center justify-center cursor-pointer transition-colors ${televersementProgrammeEnCours === p.id ? "border-[#404040]/20 text-[#404040]/30" : "border-[#404040]/20 hover:border-[#005259]/40 text-[#404040]/40 hover:text-[#005259]"}`}>
+                    {televersementProgrammeEnCours === p.id ? (
+                      <span className="text-[9px] font-bold uppercase">...</span>
+                    ) : (
+                      <PlusIcon className="w-5 h-5" />
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={televersementProgrammeEnCours === p.id}
+                      onChange={(e) => {
+                        const fichier = e.target.files?.[0];
+                        if (fichier) televerserProgramme(p.id, fichier);
+                        e.target.value = "";
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* PARKOURS */}
+        <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-3">
+          <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Parkours</h2>
+          <div className="flex flex-wrap gap-1.5">
+            {parcoursListe.map((p) => (
+              <span key={p.id} className="inline-flex items-center gap-1.5 bg-[#F3F3F2] border border-[#404040]/10 rounded-lg px-2.5 py-1.5 text-xs text-[#404040]">
+                {p.label}
+                <button type="button" onClick={() => supprimerParcours(p.id)} className="text-[#EF736A] hover:text-[#EF736A]/70 cursor-pointer">
+                  <XMarkIcon className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2 pt-1">
+            <input
+              type="text"
+              value={nouveauParcoursLabel}
+              onChange={(e) => setNouveauParcoursLabel(e.target.value)}
+              placeholder="Intitulé du nouveau parkours"
+              className={inputClass}
+            />
+            <button type="button" onClick={ajouterParcours} className="shrink-0 px-3 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-xl transition-colors cursor-pointer">
+              <PlusIcon className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* TERRITOIRES */}
+        <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-3">
+          <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Territoires</h2>
+          <div className="flex flex-wrap gap-1.5">
+            {territoiresListe.map((t) => (
+              <span key={t} className="inline-flex items-center gap-1.5 bg-[#F3F3F2] border border-[#404040]/10 rounded-lg px-2.5 py-1.5 text-xs text-[#404040]">
+                {t}
+                <button type="button" onClick={() => supprimerTerritoire(t)} className="text-[#EF736A] hover:text-[#EF736A]/70 cursor-pointer">
+                  <XMarkIcon className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2 pt-1">
+            <input
+              type="text"
+              value={nouveauTerritoire}
+              onChange={(e) => setNouveauTerritoire(e.target.value)}
+              placeholder="Ex : 75, 78, Autres..."
+              className={inputClass}
+            />
+            <button type="button" onClick={ajouterTerritoire} className="shrink-0 px-3 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-xl transition-colors cursor-pointer">
+              <PlusIcon className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* SESSIONS */}
+        <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-4">
+          <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Sessions ({lignesSessions.length})</h2>
+
+          {/* Ajout d'une nouvelle session */}
+          <div className="grid grid-cols-1 sm:grid-cols-6 gap-2 items-end">
+            <div>
+              <label className={labelClass}>Parkours</label>
+              <select value={nouvelleSessionParcours} onChange={(e) => setNouvelleSessionParcours(e.target.value)} className={inputClass}>
+                {parcoursListe.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Territoire</label>
+              <select value={nouvelleSessionTerritoire} onChange={(e) => setNouvelleSessionTerritoire(e.target.value)} className={inputClass}>
+                {territoiresListe.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Date de début</label>
+              <input
+                type="date"
+                value={nouvelleSessionDebut}
+                onChange={(e) => setNouvelleSessionDebut(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Date de fin</label>
+              <input
+                type="date"
+                value={nouvelleSessionFin}
+                onChange={(e) => setNouvelleSessionFin(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Créneau</label>
+              <select value={nouvelleSessionCreneau} onChange={(e) => setNouvelleSessionCreneau(e.target.value)} className={inputClass}>
+                <option value="Matin">Matin</option>
+                <option value="Après-midi">Après-midi</option>
+              </select>
+            </div>
+            <div className="flex">
+              <button type="button" onClick={ajouterSession} className="w-full self-end px-3 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-xl transition-colors cursor-pointer flex items-center justify-center">
+                <PlusIcon className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Tableau des sessions existantes */}
+          <div className="overflow-x-auto border border-[#404040]/10 rounded-xl">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
+                  <th className="px-4 py-3">Parkours</th>
+                  <th className="px-4 py-3">Territoire</th>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#404040]/5">
+                {lignesSessions.length > 0 ? (
+                  lignesSessions.map((ligne, index) => {
+                    const changementTerritoire = index > 0 && lignesSessions[index - 1].territoire !== ligne.territoire;
+                    return (
+                    <tr key={`${ligne.parcoursId}-${ligne.territoire}-${index}`} className={`hover:bg-[#F3F3F2]/60 transition-colors ${changementTerritoire ? "border-t-2 border-t-[#005259]/30" : ""}`}>
+                      <td className="px-4 py-2.5 font-bold text-[#005259]">{ligne.parcoursLabel}</td>
+                      <td className="px-4 py-2.5">{ligne.territoire}</td>
+                      <td className="px-4 py-2.5">{ligne.date}</td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center justify-end gap-2">
+                          {codes[`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`] ? (
+                            <input
+                              key={`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}|${codes[`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`]}`}
+                              type="text"
+                              defaultValue={codes[`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`]}
+                              onBlur={(e) => modifierCode(`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`, e.target.value)}
+                              className="font-mono text-[10px] font-bold text-[#005259] bg-[#005259]/5 border border-[#005259]/15 focus:border-[#005259] focus:bg-white rounded px-1.5 py-1 w-32 outline-none"
+                            />
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => genererCode(ligne)}
+                              className="p-1.5 bg-[#005259]/10 hover:bg-[#005259] text-[#005259] hover:text-white border border-[#005259]/30 rounded-lg transition-colors cursor-pointer"
+                              title="Générer un code interne (non visible sur le formulaire)"
+                            >
+                              <PlusIcon className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => supprimerSession(ligne.parcoursId, ligne.territoire, ligne.date)}
+                            className="p-1.5 bg-[#EF736A]/10 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/30 rounded-lg transition-colors cursor-pointer"
+                            title="Supprimer cette session"
+                          >
+                            <TrashIcon className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-10 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
+                      Aucune session enregistrée.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* CATÉGORIES D'ÉVOLUTION */}
+        <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <TagIcon className="w-4 h-4 text-[#EA601F]" />
+              <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Catégories d'évolution ({categoriesEvolution.length})</h2>
+            </div>
+            <button type="button" onClick={ajouterCategorieEvolution} className="flex items-center gap-1.5 px-3 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-xl text-xs font-bold uppercase tracking-wide transition-colors cursor-pointer">
+              <PlusIcon className="w-4 h-4" /> Catégorie
+            </button>
+          </div>
+          <p className="text-[10px] text-[#404040]/50">
+            Les catégories "activité" affichées sur la grille de suivi de présence (page Évolution d'une session) — par ex. les modules ou ateliers couverts au jour le jour. Les 4 codes de statut (Absence justifiée/non justifiée, Férié, Abandon) restent fixes et ne sont pas modifiables ici.
+          </p>
+          <div className="space-y-2">
+            {categoriesEvolution.map((c, index) => (
+              <div key={index} className="flex items-center gap-2 border border-[#404040]/10 rounded-xl p-2.5">
+                <input
+                  type="text"
+                  defaultValue={c.code}
+                  onBlur={(e) => modifierCategorieEvolution(index, { code: e.target.value.trim() })}
+                  placeholder="Code"
+                  maxLength={6}
+                  className="w-20 px-2 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-lg text-xs font-bold text-center text-[#005259] outline-none transition-colors uppercase"
+                />
+                <input
+                  type="text"
+                  defaultValue={c.label}
+                  onBlur={(e) => modifierCategorieEvolution(index, { label: e.target.value })}
+                  placeholder="Intitulé"
+                  className="flex-1 px-2 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-lg text-xs text-[#404040] outline-none transition-colors"
+                />
+                <input
+                  type="color"
+                  value={c.bg}
+                  onChange={(e) => modifierCategorieEvolution(index, { bg: e.target.value, text: luminanceTexte(e.target.value) })}
+                  title="Couleur de la catégorie"
+                  className="w-9 h-9 rounded-lg border border-[#404040]/15 cursor-pointer shrink-0"
+                />
+                <span className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider shrink-0" style={{ backgroundColor: c.bg, color: c.text }}>
+                  {c.code || "—"}
+                </span>
+                <button type="button" onClick={() => supprimerCategorieEvolution(index)} className="p-1.5 bg-[#EF736A]/10 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/30 rounded-lg transition-colors cursor-pointer shrink-0">
+                  <TrashIcon className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+            {categoriesEvolution.length === 0 && <p className="text-xs text-[#404040]/50 italic text-center py-4">Aucune catégorie d'évolution pour le moment.</p>}
+          </div>
+        </div>
+
+        {/* CODES INTERNES */}
+        {Object.keys(codes).length > 0 && (
+          <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-3">
+            <div className="flex items-center gap-2">
+              <TagIcon className="w-4 h-4 text-[#EA601F]" />
+              <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Codes internes</h2>
+            </div>
+            <p className="text-[10px] text-[#404040]/50">Non visibles sur le formulaire d'inscription — pour usage interne (suivi, Drive partagé...).</p>
+            <div className="border border-[#404040]/10 rounded-xl overflow-hidden">
+              <div className="grid grid-cols-[1fr_2fr_1fr_1fr] gap-3 px-4 py-2 bg-[#F3F3F2] border-b border-[#404040]/10 text-[10px] font-bold uppercase tracking-widest text-[#005259]">
+                <span>Code</span>
+                <span>Parkours</span>
+                <span>Début</span>
+                <span>Fin</span>
+              </div>
+              <div className="divide-y divide-[#404040]/5">
+                {Object.entries(codes)
+                  .sort(([, a], [, b]) => a.localeCompare(b))
+                  .map(([cle, code]) => {
+                    const [parcoursId, , date] = cle.split("|");
+                    const parcoursLabel = parcoursListe.find((p) => p.id === parcoursId)?.label || parcoursId;
+                    const debutFin = extraireDebutFin(date);
+                    return (
+                      <div key={`${cle}|${code}`} className="grid grid-cols-[1fr_2fr_1fr_1fr] items-center gap-3 px-4 py-2.5 text-xs">
+                        <input
+                          type="text"
+                          defaultValue={code}
+                          onBlur={(e) => modifierCode(cle, e.target.value)}
+                          className="font-mono font-bold text-[#005259] bg-transparent border border-transparent hover:border-[#404040]/15 focus:border-[#005259] focus:bg-[#F3F3F2] rounded px-1.5 py-1 outline-none transition-colors"
+                        />
+                        <span className="text-[#404040]/70">{parcoursLabel}</span>
+                        <span className="text-[#404040]/70">{debutFin?.debut || "—"}</span>
+                        <span className="text-[#404040]/70">{debutFin?.fin || "—"}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </main>
+    </PageGuard>
+  );
+}
