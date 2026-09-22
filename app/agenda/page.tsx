@@ -2273,7 +2273,7 @@ export default function PlanningExpertMix() {
                 <div className="flex-1 min-w-[260px] bg-white border border-[#404040]/10 rounded-xl px-3 py-2 shadow-sm text-xs">
                   <div className="flex items-center gap-1.5 text-[#EF736A] font-extrabold uppercase text-[10px] tracking-wide mb-1.5">
                     <ExclamationTriangleIcon className="w-3.5 h-3.5 shrink-0" />
-                    Jours ouvrés sans rien — {mediateurGanttSelectionne.prenom} {mediateurGanttSelectionne.nom}
+                    Jours ouvrés sans activité — {mediateurGanttSelectionne.prenom} {mediateurGanttSelectionne.nom}
                   </div>
                   {joursSansRienParMois.length === 0 ? (
                     <p className="text-[#404040]/50 italic">Aucun jour ouvré sans action sur cette période.</p>
@@ -2293,7 +2293,13 @@ export default function PlanningExpertMix() {
           )}
 
           {vueAgenda === "gantt-activite" && premierJourGantt && dernierJourGantt && (
-            <GanttActiviteContinu actions={actionsGanttFiltrees} premierJour={premierJourGantt} dernierJour={dernierJourGantt} afficherHeures={!!mediateurGanttSelectionne} joursFeries={joursFeriesGantt} />
+            <GanttActiviteContinu
+              actions={actionsGanttFiltrees}
+              premierJour={premierJourGantt}
+              dernierJour={dernierJourGantt}
+              mediateurLabel={mediateurGanttSelectionne ? `${mediateurGanttSelectionne.prenom || ""} ${mediateurGanttSelectionne.nom || ""}`.trim() : undefined}
+              joursFeries={joursFeriesGantt}
+            />
           )}
         </div>
       </div>
@@ -3159,11 +3165,175 @@ interface DetailBarreGantt {
   heures: number;
 }
 
-function GanttActiviteContinu({ actions, premierJour, dernierJour, afficherHeures, joursFeries }: { actions: ActionPlanning[]; premierJour: Date; dernierJour: Date; afficherHeures: boolean; joursFeries: Set<string> }) {
+function GanttActiviteContinu({ actions, premierJour, dernierJour, mediateurLabel, joursFeries }: { actions: ActionPlanning[]; premierJour: Date; dernierJour: Date; mediateurLabel?: string; joursFeries: Set<string> }) {
   const [detailBarre, setDetailBarre] = useState<DetailBarreGantt | null>(null);
+  const [detailJour, setDetailJour] = useState<{ date: Date; actions: ActionPlanning[] } | null>(null);
   const totalJours = joursEntre(premierJour, dernierJour) + 1;
   const px = (date: Date) => joursEntre(premierJour, date) * LARGEUR_JOUR;
   const largeurTimeline = totalJours * LARGEUR_JOUR;
+
+  const mois: { debut: Date; label: string }[] = [];
+  let curseurMois = new Date(premierJour.getFullYear(), premierJour.getMonth(), 1);
+  while (curseurMois <= dernierJour) {
+    mois.push({ debut: new Date(curseurMois), label: curseurMois.toLocaleDateString('fr-FR', { month: 'short' }) });
+    curseurMois = new Date(curseurMois.getFullYear(), curseurMois.getMonth() + 1, 1);
+  }
+
+  // Une case par jour (voir LARGEUR_JOUR) plutôt qu'un seul bloc par mois —
+  // le quadrillage journalier sert de repère pour lire la position exacte
+  // des barres, avec le numéro du jour en en-tête.
+  const jours: Date[] = [];
+  let curseurJour = new Date(premierJour);
+  while (curseurJour <= dernierJour) {
+    jours.push(new Date(curseurJour));
+    curseurJour = new Date(curseurJour);
+    curseurJour.setDate(curseurJour.getDate() + 1);
+  }
+  // Quadrillage journalier dessiné en un seul dégradé répété par ligne
+  // (plutôt qu'une div par jour et par ligne, ~180 jours × N lignes) — bien
+  // moins de nœuds DOM pour le même rendu visuel.
+  const grilleJournaliere = `repeating-linear-gradient(to right, #F3F3F2 0px, #F3F3F2 1px, transparent 1px, transparent ${LARGEUR_JOUR}px)`;
+
+  const estJourOff = (j: Date) => {
+    const jourSemaine = j.getDay();
+    return jourSemaine === 0 || jourSemaine === 6 || joursFeries.has(j.toLocaleDateString('en-CA'));
+  };
+  // Grisé week-ends/fériés : un unique dégradé à paliers nets (calculé une
+  // fois, réutilisé pour toutes les lignes) plutôt qu'une div par jour off
+  // et par ligne — même logique d'économie de nœuds DOM que grilleJournaliere.
+  const ombreJoursOff = `linear-gradient(to right, ${jours
+    .map((j, i) => {
+      const couleur = estJourOff(j) ? "rgba(64,64,64,0.07)" : "transparent";
+      return `${couleur} ${i * LARGEUR_JOUR}px, ${couleur} ${(i + 1) * LARGEUR_JOUR}px`;
+    })
+    .join(", ")})`;
+
+  const enTeteMoisEtJours = (
+    <>
+      <div className="flex">
+        <div className="w-[200px] shrink-0" />
+        <div className="relative h-4" style={{ width: `${largeurTimeline}px` }}>
+          {mois.map(mo => (
+            <span key={mo.debut.toISOString()} className="absolute text-[10px] font-extrabold uppercase text-[#005259]" style={{ left: `${px(mo.debut)}px` }}>
+              {mo.label}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="flex mb-2">
+        <div className="w-[200px] shrink-0" />
+        <div className="relative h-3" style={{ width: `${largeurTimeline}px`, backgroundImage: ombreJoursOff }}>
+          {jours.map(j => {
+            const dateStr = j.toLocaleDateString('en-CA');
+            const estFerie = joursFeries.has(dateStr);
+            const estWeekend = !estFerie && estJourOff(j);
+            return (
+              <span
+                key={j.toISOString()}
+                className={`absolute text-[8px] font-bold text-center ${estFerie ? "text-[#EF736A]" : estWeekend ? "text-[#404040]/50" : "text-[#404040]/40"}`}
+                style={{ left: `${px(j)}px`, width: `${LARGEUR_JOUR}px` }}
+              >
+                {j.getDate()}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+
+  // Vue par médiateur·rice (voir le sélecteur au-dessus) : une seule ligne
+  // pour la personne, une case par jour où elle a au moins une action — une
+  // sous-ligne par action supplémentaire le même jour, plutôt que d'essayer
+  // de tout résumer dans une seule case. Clic sur une case : le détail des
+  // actions de ce jour (voir detailJour), pas juste un survol.
+  if (mediateurLabel) {
+    const parDate = new Map<string, ActionPlanning[]>();
+    for (const a of actions) {
+      if (!a.date) continue;
+      if (!parDate.has(a.date)) parDate.set(a.date, []);
+      parDate.get(a.date)!.push(a);
+    }
+    const nbLanes = Math.max(1, ...Array.from(parDate.values(), acts => acts.length));
+
+    return (
+      <div className="bg-white border border-[#404040]/10 rounded-xl p-4 overflow-x-auto overflow-y-visible shadow-sm">
+        <div style={{ width: `${200 + largeurTimeline}px` }}>
+          {enTeteMoisEtJours}
+          <div className="flex border-b border-[#F3F3F2]">
+            <div className="w-[200px] shrink-0 pr-2 py-2 sticky left-0 z-10 bg-white flex items-center">
+              <span className="font-bold text-[#005259] text-xs">{mediateurLabel}</span>
+            </div>
+            <div
+              className="relative"
+              style={{ width: `${largeurTimeline}px`, minHeight: `${nbLanes * 24 + 8}px`, backgroundImage: `${grilleJournaliere}, ${ombreJoursOff}` }}
+            >
+              {mois.map(mo => (
+                <div key={mo.debut.toISOString()} className="absolute top-0 bottom-0 border-l border-[#404040]/20" style={{ left: `${px(mo.debut)}px` }} />
+              ))}
+              {jours.flatMap(j => {
+                const dateStr = j.toLocaleDateString('en-CA');
+                const actsJour = [...(parDate.get(dateStr) || [])].sort((a, b) => (a.debut || "").localeCompare(b.debut || "") || (a.ordre ?? 0) - (b.ordre ?? 0));
+                return actsJour.map((a, lane) => {
+                  const alerte = !(a.mediateurNom || "").trim();
+                  return (
+                    <button
+                      key={`${dateStr}-${lane}`}
+                      type="button"
+                      onClick={() => setDetailJour({ date: j, actions: actsJour })}
+                      title={`${a.lieu || "?"}${a.debut && a.fin ? ` · ${a.debut}-${a.fin}` : ""}${alerte ? " · ⚠️ sans médiateur" : ""}`}
+                      className={`absolute rounded shadow-sm cursor-pointer hover:brightness-110 ${alerte ? "ring-2 ring-[#EF736A] ring-offset-1" : ""}`}
+                      style={{
+                        top: `${lane * 24 + 4}px`,
+                        left: `${px(j) + 1}px`,
+                        width: `${LARGEUR_JOUR - 2}px`,
+                        height: "20px",
+                        backgroundColor: a.couleur || "#005259",
+                      }}
+                    />
+                  );
+                });
+              })}
+            </div>
+          </div>
+        </div>
+
+        {detailJour && (
+          <div
+            className="fixed inset-0 bg-[#005259]/40 backdrop-blur-xs flex items-center justify-center z-[140] p-4"
+            onClick={() => setDetailJour(null)}
+          >
+            <div
+              className="bg-white border border-[#404040]/10 p-5 rounded-xl w-full max-w-sm space-y-3 shadow-2xl text-[#404040] animate-in fade-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="font-bold text-sm text-[#005259] capitalize">{detailJour.date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
+                <button type="button" onClick={() => setDetailJour(null)} className="text-[#404040]/40 hover:text-[#005259] shrink-0">
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
+              </div>
+              <ul className="space-y-1.5">
+                {detailJour.actions.map((a, i) => {
+                  const sansMediateur = !(a.mediateurNom || "").trim();
+                  return (
+                    <li key={i} className="text-xs bg-[#F3F3F2] rounded-lg px-3 py-2 flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: a.couleur || "#005259" }} />
+                      <span className="flex-1">
+                        <span className="font-bold text-[#404040]">{a.lieu || "?"}</span>
+                        {a.debut && a.fin && <span className="text-[#404040]/60"> · {a.debut}-{a.fin}</span>}
+                      </span>
+                      {sansMediateur && <ExclamationTriangleIcon className="w-4 h-4 text-[#EF736A] shrink-0" />}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const groupes = new Map<string, { label: string; frequence: Map<string, number>; variantes: Map<string, ActionPlanning[]> }>();
   for (const a of actions) {
@@ -3264,74 +3434,10 @@ function GanttActiviteContinu({ actions, premierJour, dernierJour, afficherHeure
     return <p className="text-xs italic text-[#404040]/40 py-6 text-center bg-white border border-[#404040]/10 rounded-xl shadow-sm">Aucune activité posée sur cette période.</p>;
   }
 
-  const mois: { debut: Date; label: string }[] = [];
-  let curseurMois = new Date(premierJour.getFullYear(), premierJour.getMonth(), 1);
-  while (curseurMois <= dernierJour) {
-    mois.push({ debut: new Date(curseurMois), label: curseurMois.toLocaleDateString('fr-FR', { month: 'short' }) });
-    curseurMois = new Date(curseurMois.getFullYear(), curseurMois.getMonth() + 1, 1);
-  }
-
-  // Une case par jour (voir LARGEUR_JOUR) plutôt qu'un seul bloc par mois —
-  // le quadrillage journalier sert de repère pour lire la position exacte
-  // des barres, avec le numéro du jour en en-tête.
-  const jours: Date[] = [];
-  let curseurJour = new Date(premierJour);
-  while (curseurJour <= dernierJour) {
-    jours.push(new Date(curseurJour));
-    curseurJour = new Date(curseurJour);
-    curseurJour.setDate(curseurJour.getDate() + 1);
-  }
-  // Quadrillage journalier dessiné en un seul dégradé répété par ligne
-  // (plutôt qu'une div par jour et par ligne, ~180 jours × N lignes) — bien
-  // moins de nœuds DOM pour le même rendu visuel.
-  const grilleJournaliere = `repeating-linear-gradient(to right, #F3F3F2 0px, #F3F3F2 1px, transparent 1px, transparent ${LARGEUR_JOUR}px)`;
-
-  const estJourOff = (j: Date) => {
-    const jourSemaine = j.getDay();
-    return jourSemaine === 0 || jourSemaine === 6 || joursFeries.has(j.toLocaleDateString('en-CA'));
-  };
-  // Grisé week-ends/fériés : un unique dégradé à paliers nets (calculé une
-  // fois, réutilisé pour toutes les lignes) plutôt qu'une div par jour off
-  // et par ligne — même logique d'économie de nœuds DOM que grilleJournaliere.
-  const ombreJoursOff = `linear-gradient(to right, ${jours
-    .map((j, i) => {
-      const couleur = estJourOff(j) ? "rgba(64,64,64,0.07)" : "transparent";
-      return `${couleur} ${i * LARGEUR_JOUR}px, ${couleur} ${(i + 1) * LARGEUR_JOUR}px`;
-    })
-    .join(", ")})`;
-
   return (
     <div className="bg-white border border-[#404040]/10 rounded-xl p-4 overflow-x-auto overflow-y-visible shadow-sm">
       <div style={{ width: `${200 + largeurTimeline}px` }}>
-        <div className="flex">
-          <div className="w-[200px] shrink-0" />
-          <div className="relative h-4" style={{ width: `${largeurTimeline}px` }}>
-            {mois.map(mo => (
-              <span key={mo.debut.toISOString()} className="absolute text-[10px] font-extrabold uppercase text-[#005259]" style={{ left: `${px(mo.debut)}px` }}>
-                {mo.label}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className="flex mb-2">
-          <div className="w-[200px] shrink-0" />
-          <div className="relative h-3" style={{ width: `${largeurTimeline}px`, backgroundImage: ombreJoursOff }}>
-            {jours.map(j => {
-              const dateStr = j.toLocaleDateString('en-CA');
-              const estFerie = joursFeries.has(dateStr);
-              const estWeekend = !estFerie && estJourOff(j);
-              return (
-                <span
-                  key={j.toISOString()}
-                  className={`absolute text-[8px] font-bold text-center ${estFerie ? "text-[#EF736A]" : estWeekend ? "text-[#404040]/50" : "text-[#404040]/40"}`}
-                  style={{ left: `${px(j)}px`, width: `${LARGEUR_JOUR}px` }}
-                >
-                  {j.getDate()}
-                </span>
-              );
-            })}
-          </div>
-        </div>
+        {enTeteMoisEtJours}
         {lignes.map((ligne, idx) => {
           const rowBg = idx % 2 === 0 ? "bg-white" : "bg-[#F3F3F2]/40";
           return (
@@ -3348,7 +3454,6 @@ function GanttActiviteContinu({ actions, premierJour, dernierJour, afficherHeure
                 ))}
                 {ligne.barres.map(v => {
                   const largeur = Math.max(px(v.fin) - px(v.debut) + LARGEUR_JOUR, LARGEUR_JOUR);
-                  const heuresTexte = `${Number.isInteger(v.heures) ? v.heures : v.heures.toFixed(1)}h`;
                   const effectifTexte = `${v.medDistincts.length} médiateur${v.medDistincts.length > 1 ? "s" : ""}`;
                   const alerte = v.nbSansMediateur > 0;
                   return (
@@ -3356,7 +3461,7 @@ function GanttActiviteContinu({ actions, premierJour, dernierJour, afficherHeure
                       key={`${v.texte}-${v.debut.toISOString()}`}
                       type="button"
                       onClick={() => setDetailBarre({ ligneLabel: ligne.label, texte: v.texte, debut: v.debut, fin: v.fin, medDistincts: v.medDistincts, nbSansMediateur: v.nbSansMediateur, heures: v.heures })}
-                      title={`${v.texte} · ${v.debut.toLocaleDateString('fr-FR')} - ${v.fin.toLocaleDateString('fr-FR')} · ${afficherHeures ? heuresTexte : v.medDistincts.join(", ")}${alerte ? ` · ⚠️ ${v.nbSansMediateur} sans médiateur` : ""}`}
+                      title={`${v.texte} · ${v.debut.toLocaleDateString('fr-FR')} - ${v.fin.toLocaleDateString('fr-FR')} · ${v.medDistincts.join(", ")}${alerte ? ` · ⚠️ ${v.nbSansMediateur} sans médiateur` : ""}`}
                       className={`absolute h-5 rounded px-1.5 flex items-center gap-1 text-[10px] font-bold truncate shadow-sm cursor-pointer hover:brightness-110 ${alerte ? "ring-2 ring-[#EF736A] ring-offset-1" : ""}`}
                       style={{
                         top: `${v.lane * 24 + 4}px`,
@@ -3367,7 +3472,7 @@ function GanttActiviteContinu({ actions, premierJour, dernierJour, afficherHeure
                       }}
                     >
                       {alerte && <ExclamationTriangleIcon className="w-3 h-3 shrink-0 text-[#EF736A]" />}
-                      {ligne.nbLanes > 1 ? `${v.lane + 1} · ` : ""}{afficherHeures ? heuresTexte : effectifTexte}
+                      {ligne.nbLanes > 1 ? `${v.lane + 1} · ` : ""}{effectifTexte}
                     </button>
                   );
                 })}

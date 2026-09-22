@@ -976,10 +976,10 @@ export default function FicheApprenantNumerikUpPage() {
           </Section>
 
           <div className="lg:col-span-2">
-            <Section icon={ClipboardDocumentCheckIcon} titre="Bilan de formation">
+            <Section icon={ClipboardDocumentCheckIcon} titre="Bilan de parcours">
               <div className="grid grid-cols-2 gap-4">
-                <Champ label="Date d'entrée en formation" valeur={datesFormation.debut} />
-                <Champ label="Date de fin de formation" valeur={datesFormation.fin} />
+                <Champ label="Date d'entrée en parcours" valeur={datesFormation.debut} />
+                <Champ label="Date de fin de parcours" valeur={datesFormation.fin} />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
                 {([1, 2, 3] as const).map((n) => (
@@ -1004,7 +1004,7 @@ export default function FicheApprenantNumerikUpPage() {
                   </div>
                 ))}
               </div>
-              <ChampEditable label="Adaptation en cours de formation" valeur={inscription?.Bilan_Adaptation} onValide={(v) => mettreAJourChamp("Bilan_Adaptation", v)} />
+              <ChampEditable label="Adaptation en cours de parcours" valeur={inscription?.Bilan_Adaptation} onValide={(v) => mettreAJourChamp("Bilan_Adaptation", v)} />
               <ChampEditable label="Commentaire général" valeur={inscription?.Bilan_CommentaireGeneral} onValide={(v) => mettreAJourChamp("Bilan_CommentaireGeneral", v)} rows={3} />
               <ChampEditable label="Compétences transversales" valeur={inscription?.Bilan_CompetencesTransversales} onValide={(v) => mettreAJourChamp("Bilan_CompetencesTransversales", v)} rows={3} />
 
@@ -1064,7 +1064,7 @@ export default function FicheApprenantNumerikUpPage() {
               </div>
 
               <div className="pt-2">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-2">Retours sur la formation</div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-2">Retours sur le parcours</div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <ChampEditable label="Module Pix" valeur={inscription?.Entretien_RetoursPix} onValide={(v) => mettreAJourChamp("Entretien_RetoursPix", v)} rows={3} />
                   <ChampEditable label="Développement & Cybersécurité" valeur={inscription?.Entretien_RetoursDevCyber} onValide={(v) => mettreAJourChamp("Entretien_RetoursDevCyber", v)} rows={3} />
