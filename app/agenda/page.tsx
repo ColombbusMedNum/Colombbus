@@ -2425,7 +2425,7 @@ export default function PlanningExpertMix() {
               dernierJour={dernierJourGantt}
               mediateurLabel={mediateurGanttSelectionne ? `${mediateurGanttSelectionne.prenom || ""} ${mediateurGanttSelectionne.nom || ""}`.trim() : undefined}
               joursFeries={joursFeriesGantt}
-              estLieuAbsence={estLieuAbsence}
+              estLieuAbsence={ganttFiltreAbsences === "isoler" ? estLieuAbsence : undefined}
             />
           )}
         </div>
@@ -3602,12 +3602,15 @@ function GanttActiviteContinu({ actions, premierJour, dernierJour, mediateurLabe
 
     return { label, barres, nbLanes: variantesEntrees.length, estAbsences: g.estAbsences };
   }).sort((a, b) => {
-    // La ligne "Absences" (voir estAbsences) remonte en haut de la liste —
-    // le reste (les actions des personnes concernées, gardées pour repérer
-    // un chevauchement) suit ensuite, alphabétique comme d'habitude.
-    const aAbsence = a.estAbsences ? 0 : 1;
-    const bAbsence = b.estAbsences ? 0 : 1;
-    if (aAbsence !== bAbsence) return aAbsence - bAbsence;
+    // La ligne "Absences" (voir estLieuAbsence — non fourni hors mode
+    // "Isoler absences", donc estAbsences toujours faux) ne remonte en haut
+    // qu'en mode isolé ; en affichage normal elle reste triée
+    // alphabétiquement comme les autres.
+    if (estLieuAbsence) {
+      const aAbsence = a.estAbsences ? 0 : 1;
+      const bAbsence = b.estAbsences ? 0 : 1;
+      if (aAbsence !== bAbsence) return aAbsence - bAbsence;
+    }
     return a.label.localeCompare(b.label, "fr");
   });
 
