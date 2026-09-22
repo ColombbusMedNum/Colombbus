@@ -9,7 +9,7 @@ import { usePermissions } from "@/lib/PermissionsProvider";
 import PageGuard from "@/components/PageGuard";
 import { useToast } from "@/components/ToastProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
-import { estBetaGoogleAgenda } from "@/lib/googleCalendarBeta";
+import { peutConnecterGoogleAgenda, estAdminGoogleAgenda } from "@/lib/googleCalendarBeta";
 import { quicksand } from "@/lib/fonts";
 import {
   HomeIcon,
@@ -36,7 +36,7 @@ export default function MonComptePage() {
 }
 
 function MonCompteContenu() {
-  const { user, statut, loading } = usePermissions();
+  const { user, loading } = usePermissions();
   const { showToast } = useToast();
   const confirm = useConfirm();
   const searchParams = useSearchParams();
@@ -195,11 +195,9 @@ function MonCompteContenu() {
             ) : (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F3F3F2] border border-[#404040]/10 rounded-xl p-3.5">
                 <span className="text-xs font-bold text-[#404040]/70 uppercase tracking-wide">Non connecté</span>
-                {/* Fonctionnalité en cours de validation — réservée aux
-                    comptes de test pour le moment (voir
-                    lib/googleCalendarBeta.ts). Retirer cette condition pour
-                    l'ouvrir à tout le staff. */}
-                {estBetaGoogleAgenda(user?.email, statut) && (
+                {/* Ouvert à tout le personnel Colombbus (adresse
+                    @colombbus.org) — voir lib/googleCalendarBeta.ts. */}
+                {peutConnecterGoogleAgenda(user?.email) && (
                   <button
                     onClick={connecterGoogle}
                     disabled={enCours}
@@ -214,8 +212,9 @@ function MonCompteContenu() {
           </div>
 
           {/* Rattrapage à usage unique — voir rattraperNotifications ci-dessus.
-              À retirer une fois exécuté pour tout le monde. */}
-          {estBetaGoogleAgenda(user?.email, statut) && (
+              Action globale (agit sur les jetons de tout le monde), réservée
+              aux comptes admin plutôt qu'ouverte à tout le staff. */}
+          {estAdminGoogleAgenda(user?.email) && (
             <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-2">
               <p className="text-[11px] text-[#404040]/60 leading-relaxed">
                 Action ponctuelle : active les notifications email de Google Agenda sur le calendrier

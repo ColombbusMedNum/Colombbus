@@ -3,15 +3,14 @@ import { google } from "googleapis";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { resoudreUidDepuisRequete } from "@/lib/verifierAuthRequete";
 import { creerClientOAuth, obtenirOrigineExterne } from "@/lib/googleCalendarClient";
-import { estBetaGoogleAgenda } from "@/lib/googleCalendarBeta";
+import { estAdminGoogleAgenda } from "@/lib/googleCalendarBeta";
 
 // Action de rattrapage à usage unique : active les notifications email de
 // Google Agenda (création/modification/annulation) sur le calendrier
 // secondaire de TOUTES les personnes déjà connectées avant que
 // app/api/google-calendar/callback/route.ts ne le fasse automatiquement à la
-// connexion. Réservée aux comptes de test/Permanents (voir
-// lib/googleCalendarBeta.ts) — agit sur les jetons Google de tout le monde,
-// pas seulement de l'appelant.
+// connexion. Réservée aux comptes admin (voir lib/googleCalendarBeta.ts) —
+// agit sur les jetons Google de tout le monde, pas seulement de l'appelant.
 export async function POST(request: NextRequest) {
   const uid = await resoudreUidDepuisRequete(request);
   if (!uid) {
@@ -19,8 +18,8 @@ export async function POST(request: NextRequest) {
   }
 
   const medSnap = await adminDb.collection("liste_mediateurs").doc(uid).get();
-  const med = medSnap.data() as { email?: string; statut?: string } | undefined;
-  if (!estBetaGoogleAgenda(med?.email, med?.statut)) {
+  const med = medSnap.data() as { email?: string } | undefined;
+  if (!estAdminGoogleAgenda(med?.email)) {
     return NextResponse.json({ erreur: "Non autorisé." }, { status: 403 });
   }
 

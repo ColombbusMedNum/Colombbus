@@ -10,7 +10,7 @@ import { usePermissions } from "@/lib/PermissionsProvider";
 import PageGuard from "@/components/PageGuard";
 import { ActionSchema } from "@/lib/dynamicActions/types";
 import { ecouterActionsDynamiques } from "@/lib/dynamicActions/store";
-import { estBetaGoogleAgenda } from "@/lib/googleCalendarBeta";
+import { peutConnecterGoogleAgenda } from "@/lib/googleCalendarBeta";
 import {
   UserCircleIcon,
   HomeModernIcon,
@@ -512,12 +512,9 @@ export default function HomePage() {
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#005259]/5 blur-[140px] rounded-full pointer-events-none"></div>
 
       <div className="absolute top-4 right-4 md:top-8 md:right-8 z-20 flex items-center gap-2">
-        {/* Fonctionnalité Google Agenda en cours de validation — réservée aux
-            comptes de test pour le moment, y compris en production
-            (identifiants Cloud Run valides côté serveur, contrairement au
-            dev local — voir lib/firebaseAdmin.ts et lib/googleCalendarBeta.ts).
-            Retirer cette condition pour l'ouvrir à tout le staff. */}
-        {estBetaGoogleAgenda(user?.email, statut) && (
+        {/* Synchronisation Google Agenda ouverte à tout le personnel
+            Colombbus (adresse @colombbus.org) — voir lib/googleCalendarBeta.ts. */}
+        {peutConnecterGoogleAgenda(user?.email) && (
           <Link
             href="/mon-compte"
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/15 rounded-xl text-[#005259] text-xs font-bold uppercase tracking-wider transition-all shadow-sm active:scale-95 group cursor-pointer"

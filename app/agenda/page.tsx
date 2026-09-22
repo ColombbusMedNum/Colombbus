@@ -34,7 +34,7 @@ import {
   horairesSuresnesPourSite,
 } from "../../lib/activitesTypes";
 import { regrouperParCategorie } from "../../lib/equipeCategories";
-import { estBetaGoogleAgenda } from "../../lib/googleCalendarBeta";
+import { estAdminGoogleAgenda } from "../../lib/googleCalendarBeta";
 import { estActionDuMediateur } from "../../lib/matchMediateur";
 
 interface NotificationItem {
@@ -107,6 +107,19 @@ function getWeekIdentifier(date: Date) {
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
   return `${d.getUTCFullYear()}-W${weekNo}`;
+}
+
+// Noms de médiateur à rechercher dans planning_suresnes pour UN lieu RN
+// donné : les créneaux y sont enregistrés avec le nom suffixé selon le
+// département ("(RN91)" pour 91, "(RN)"/"(RND)" pour Suresnes 92 — RND
+// n'étant que la variante "à domicile" du même département). Sans ce
+// cloisonnement, un lieu "91 - RNUM" retrouvait aussi les inscriptions du 92
+// (et inversement), bloquant/purgeant à tort une suppression ou un
+// déplacement à cause d'usagers inscrits sur un tout autre département.
+function variantesMediateurSuresnes(lieu: string, nomComplet: string): string[] {
+  const upperLieu = (lieu || "").toUpperCase();
+  if (upperLieu.includes("91")) return [nomComplet, `${nomComplet} (RN91)`];
+  return [nomComplet, `${nomComplet} (RN)`, `${nomComplet} (RND)`];
 }
 
 const ACTIVITE_VIDE: ActiviteType = {
@@ -602,6 +615,49 @@ export default function PlanningExpertMix() {
     }
   };
 
+  // Même principe que forcerSyncGoogleAgendaGlobale, mais limité à un seul
+  // mois (requête filtrée sur "date", au format YYYY-MM-DD) — permet de
+  // rattraper progressivement plutôt que de forcer toute la collection d'un
+  // coup, plus facile à vérifier mois par mois si des créneaux restent
+  // absents de Google Agenda après coup.
+  const [moisResync, setMoisResync] = useState(() => currentDate.toLocaleDateString('en-CA').slice(0, 7));
+  const [resyncMoisEnCours, setResyncMoisEnCours] = useState(false);
+  const forcerSyncGoogleAgendaMois = async () => {
+    if (!moisResync) return;
+    const [an, mois] = moisResync.split("-").map(Number);
+    if (!an || !mois) return;
+    const debutMoisStr = `${moisResync}-01`;
+    const dernierJour = new Date(an, mois, 0).getDate();
+    const finMoisStr = `${moisResync}-${String(dernierJour).padStart(2, "0")}`;
+    if (!(await confirm(`Forcer la resynchronisation de l'agenda des médiateurs de ${moisResync} avec Google Agenda ?`))) return;
+    setResyncMoisEnCours(true);
+    try {
+      const snapActions = await getDocs(query(
+        collection(db, "planning_mediateurs"),
+        where("date", ">=", debutMoisStr),
+        where("date", "<=", finMoisStr)
+      ));
+      let batch = writeBatch(db);
+      let opsDansBatch = 0;
+      for (const actionDoc of snapActions.docs) {
+        batch.update(actionDoc.ref, { resyncGoogleDemande: Date.now() });
+        opsDansBatch++;
+        if (opsDansBatch >= 450) {
+          await batch.commit();
+          batch = writeBatch(db);
+          opsDansBatch = 0;
+        }
+      }
+      if (opsDansBatch > 0) await batch.commit();
+      showToast(`Resynchronisation demandée pour ${snapActions.size} créneau(x) de ${moisResync}.`);
+    } catch (error) {
+      console.error("Erreur lors de la resynchronisation mensuelle Google Agenda :", error);
+      showToast("Erreur lors de la resynchronisation.", "error");
+    } finally {
+      setResyncMoisEnCours(false);
+    }
+  };
+
   const handleOpenEditActivite = (type: ActiviteType, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingActivite(type);
@@ -942,11 +998,8 @@ export default function PlanningExpertMix() {
       if (estActionSuresnes) {
         const qSuresnesSource = query(collection(db, "planning_suresnes"), where("date", "==", action.date), where("moment", "==", action.moment));
         const snapSuresnesSource = await getDocs(qSuresnesSource);
-        docsDuMediateurSource = snapSuresnesSource.docs.filter((d) => {
-          const mNom = d.data().mediateurNom || "";
-          const cible = action.mediateurNom || "";
-          return mNom === cible || mNom === `${cible} (RN)` || mNom === `${cible} (RND)` || mNom === `${cible} (RN91)`;
-        });
+        const variantesSource = variantesMediateurSuresnes(action.lieu || "", action.mediateurNom || "");
+        docsDuMediateurSource = snapSuresnesSource.docs.filter((d) => variantesSource.includes(d.data().mediateurNom || ""));
         if (docsDuMediateurSource.some((d) => d.data().usager && d.data().usager.trim() !== "")) {
           showToast("⚠️ Déplacement par glisser-déposer impossible : des bénéficiaires sont déjà inscrits sur ce créneau Suresnes. Utilisez \"Réaffecter médiateur\" depuis l'agenda Suresnes pour les conserver.", "error");
           return;
@@ -1068,8 +1121,9 @@ export default function PlanningExpertMix() {
         // Les créneaux Suresnes sont enregistrés avec le nom du médiateur
         // suffixé selon le type ("(RN)", "(RN91)", "(RND)") — jamais le nom
         // brut — donc une égalité stricte sur nomCompletLiaison ne trouverait
-        // jamais rien ; on teste les variantes possibles.
-        const variantesNom = [nomCompletLiaison, `${nomCompletLiaison} (RN)`, `${nomCompletLiaison} (RN91)`, `${nomCompletLiaison} (RND)`];
+        // jamais rien ; on teste les variantes possibles, scopées au lieu
+        // concerné (voir variantesMediateurSuresnes) pour ne jamais confondre
+        // le 91 et le 92.
 
         // Quitte Suresnes (RN -> autre chose) : vérifié AVANT de toucher au
         // lieu — sans quoi le changement était appliqué puis seulement
@@ -1082,7 +1136,7 @@ export default function PlanningExpertMix() {
             collection(db, "planning_suresnes"),
             where("date", "==", actionDoc.date),
             where("moment", "==", actionDoc.moment),
-            where("mediateurNom", "in", variantesNom)
+            where("mediateurNom", "in", variantesMediateurSuresnes(actionDoc.lieu || "", nomCompletLiaison))
           );
           const snapExistant = await getDocs(qExistant);
           const hasUsagers = snapExistant.docs.some(d => d.data().usager && d.data().usager.trim() !== "");
@@ -1102,7 +1156,7 @@ export default function PlanningExpertMix() {
             collection(db, "planning_suresnes"),
             where("date", "==", actionDoc.date),
             where("moment", "==", actionDoc.moment),
-            where("mediateurNom", "in", variantesNom)
+            where("mediateurNom", "in", variantesMediateurSuresnes(nouveauLieu, nomCompletLiaison))
           );
           const snapExistant = await getDocs(qExistant);
           if (snapExistant.empty) {
@@ -1210,11 +1264,8 @@ export default function PlanningExpertMix() {
     if (estActionSuresnes) {
       const qSuresnes = query(collection(db, "planning_suresnes"), where("date", "==", actionDoc.date), where("moment", "==", actionDoc.moment));
       const snapSuresnes = await getDocs(qSuresnes);
-      const docsDuMediateur = snapSuresnes.docs.filter(d => {
-        const mNom = d.data().mediateurNom || "";
-        const cible = actionDoc.mediateurNom || "";
-        return mNom === cible || mNom === `${cible} (RN)` || mNom === `${cible} (RND)` || mNom === `${cible} (RN91)`;
-      });
+      const variantes = variantesMediateurSuresnes(actionDoc.lieu || "", actionDoc.mediateurNom || "");
+      const docsDuMediateur = snapSuresnes.docs.filter(d => variantes.includes(d.data().mediateurNom || ""));
 
       if (docsDuMediateur.some(d => d.data().usager && d.data().usager.trim() !== "")) {
         showToast("⚠️ Suppression impossible : Des usagers sont inscrits à Suresnes.", "error");
@@ -1351,10 +1402,8 @@ export default function PlanningExpertMix() {
       if (estActionSuresnes) {
         const qSuresnes = query(collection(db, "planning_suresnes"), where("date", "==", actionDoc.date), where("moment", "==", actionDoc.moment));
         const snapSuresnes = await getDocs(qSuresnes);
-        const docsDuMediateur = snapSuresnes.docs.filter((d) => {
-          const mNom = d.data().mediateurNom || "";
-          return mNom === nomComplet || mNom === `${nomComplet} (RN)` || mNom === `${nomComplet} (RND)` || mNom === `${nomComplet} (RN91)`;
-        });
+        const variantes = variantesMediateurSuresnes(actionDoc.lieu || "", nomComplet);
+        const docsDuMediateur = snapSuresnes.docs.filter((d) => variantes.includes(d.data().mediateurNom || ""));
         if (docsDuMediateur.some((d) => d.data().usager && d.data().usager.trim() !== "")) {
           bloquees++;
           continue;
@@ -1465,18 +1514,40 @@ export default function PlanningExpertMix() {
 
         <div className="flex items-center gap-3">
 
-          {/* Fonctionnalité en cours de validation — réservée aux comptes de
-              test pour le moment (voir lib/googleCalendarBeta.ts). Retirer
-              cette condition pour la rouvrir à tout le monde. */}
-          {estBetaGoogleAgenda(user?.email, statut) && (
-            <button
-              onClick={forcerSyncGoogleAgendaGlobale}
-              disabled={resyncGlobalEnCours}
-              className="p-2 bg-[#003d42] border border-[#002b2f] hover:bg-[#002b2f] rounded-lg text-white cursor-pointer flex items-center justify-center min-w-[36px] h-9 disabled:cursor-not-allowed disabled:opacity-60"
-              title="Forcer la resynchronisation de tout l'agenda avec Google Agenda"
-            >
-              <ArrowPathIcon className={`w-5 h-5 text-white ${resyncGlobalEnCours ? "animate-spin" : ""}`} />
-            </button>
+          {/* Actions globales (agissent sur l'agenda de tout le monde)
+              réservées aux comptes admin, indépendamment de qui peut
+              connecter son propre agenda (voir lib/googleCalendarBeta.ts).
+              Resynchronisation mois par mois d'abord (plus rapide à vérifier,
+              moins de risque de timeout) avant de forcer tout d'un coup. */}
+          {estAdminGoogleAgenda(user?.email) && (
+            <div className="flex items-center gap-1">
+              <input
+                type="month"
+                value={moisResync}
+                onChange={(e) => setMoisResync(e.target.value)}
+                disabled={resyncMoisEnCours}
+                className="px-2 py-1.5 bg-[#003d42] border border-[#002b2f] rounded-lg text-white text-xs h-9 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                title="Mois à resynchroniser avec Google Agenda"
+              />
+              <button
+                onClick={forcerSyncGoogleAgendaMois}
+                disabled={resyncMoisEnCours || !moisResync}
+                className="h-9 px-3 rounded-lg text-xs font-bold whitespace-nowrap bg-[#003d42] border border-[#002b2f] hover:bg-[#002b2f] text-white cursor-pointer flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-60"
+                title="Forcer la resynchronisation de ce mois avec Google Agenda"
+              >
+                <ArrowPathIcon className={`w-4 h-4 text-white shrink-0 ${resyncMoisEnCours ? "animate-spin" : ""}`} />
+                Ce mois
+              </button>
+              <button
+                onClick={forcerSyncGoogleAgendaGlobale}
+                disabled={resyncGlobalEnCours}
+                className="h-9 px-3 rounded-lg text-xs font-bold whitespace-nowrap bg-[#EF736A]/15 border border-[#EF736A]/50 hover:bg-[#EF736A]/25 text-[#EF736A] cursor-pointer flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-60"
+                title="Forcer la resynchronisation de TOUT l'agenda avec Google Agenda"
+              >
+                <ArrowPathIcon className={`w-4 h-4 shrink-0 ${resyncGlobalEnCours ? "animate-spin" : ""}`} />
+                Tout
+              </button>
+            </div>
           )}
 
           {/* CLOCHE NOTIFICATION — un peu de marge à gauche pour ne pas coller
