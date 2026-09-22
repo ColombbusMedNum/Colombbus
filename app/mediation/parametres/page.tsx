@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { db } from "@/lib/firebase";
-import { doc, onSnapshot, setDoc, getDoc, deleteDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, getDoc, deleteDoc, collection, query, orderBy } from "firebase/firestore";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
 import {
@@ -12,6 +12,9 @@ import {
   HomeModernIcon,
   ChevronDownIcon,
   CheckCircleIcon,
+  CalendarDaysIcon,
+  XMarkIcon,
+  PlusIcon,
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { useToast } from "@/components/ToastProvider";
@@ -44,6 +47,16 @@ export default function ParametresPage() {
   const [seuilHeuresInput, setSeuilHeuresInput] = useState("0");
   const [seuilPourcentageInput, setSeuilPourcentageInput] = useState("0");
   const [quotaDomicileInput, setQuotaDomicileInput] = useState("4");
+  // Lieux considérés comme une absence (congés, RTT...) plutôt qu'une vraie
+  // activité — utilisé par le filtre "Masquer absences" du GANTT par
+  // activité (voir app/agenda/page.tsx), pour ne pas coder cette liste en
+  // dur (elle varie d'une équipe/année à l'autre).
+  const [lieuxAbsence, setLieuxAbsence] = useState<string[]>([]);
+  const [nouveauLieuAbsence, setNouveauLieuAbsence] = useState("");
+  // Lieux des fiches activités existantes (agenda des médiateurs) — le choix
+  // se fait parmi ces lieux réels plutôt qu'en texte libre, pour ne jamais
+  // désynchroniser la liste "Absence" d'un nom de lieu mal recopié.
+  const [lieuxFichesActivites, setLieuxFichesActivites] = useState<string[]>([]);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "configuration_equipe", "parametres_configuration"), (snap) => {
@@ -52,6 +65,14 @@ export default function ParametresPage() {
       setSeuilHeuresInput(String(Number(seuils.heures) || 0));
       setSeuilPourcentageInput(String(Number(seuils.pourcentage) || 0));
       setQuotaDomicileInput(String(Number(data?.quotaDomicileRND) || 4));
+      setLieuxAbsence(Array.isArray(data?.lieuxAbsence) ? data.lieuxAbsence : []);
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(query(collection(db, "activites_types"), orderBy("lieu", "asc")), (snap) => {
+      setLieuxFichesActivites(Array.from(new Set(snap.docs.map(d => d.data().lieu).filter(Boolean))) as string[]);
     });
     return () => unsub();
   }, []);
@@ -147,6 +168,31 @@ export default function ParametresPage() {
         seuilsComplementairesACI: { heures, pourcentage }
       }, { merge: true });
       showToast("Seuils d'alerte ACI enregistrés.", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors de l'enregistrement.", "error");
+    }
+  };
+
+  const ajouterLieuAbsence = async () => {
+    const valeur = nouveauLieuAbsence.trim();
+    if (!valeur || lieuxAbsence.some(l => l.toLowerCase() === valeur.toLowerCase())) return;
+    const misAJour = [...lieuxAbsence, valeur];
+    setLieuxAbsence(misAJour);
+    setNouveauLieuAbsence("");
+    try {
+      await setDoc(doc(db, "configuration_equipe", "parametres_configuration"), { lieuxAbsence: misAJour }, { merge: true });
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors de l'enregistrement.", "error");
+    }
+  };
+
+  const supprimerLieuAbsence = async (valeur: string) => {
+    const misAJour = lieuxAbsence.filter(l => l !== valeur);
+    setLieuxAbsence(misAJour);
+    try {
+      await setDoc(doc(db, "configuration_equipe", "parametres_configuration"), { lieuxAbsence: misAJour }, { merge: true });
     } catch (err) {
       console.error(err);
       showToast("Erreur lors de l'enregistrement.", "error");
@@ -278,6 +324,61 @@ export default function ParametresPage() {
               >
                 <Cog6ToothIcon className="w-4 h-4" />
                 <span>Enregistrer</span>
+              </button>
+            </div>
+          </div>
+
+          {/* LIEUX "ABSENCE" (congés, RTT...) */}
+          <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center gap-2 text-[#005259]">
+              <CalendarDaysIcon className="w-5 h-5 text-[#EA601F]" />
+              <h2 className="text-sm font-bold uppercase tracking-wide">Lieux "Absence" (congés, RTT...)</h2>
+            </div>
+            <p className="text-[11px] text-[#404040]/60 leading-relaxed">
+              Utilisé par le filtre <span className="font-bold">"Masquer absences"</span> de la vue{" "}
+              <span className="font-bold">GANTT par activité</span> (Agenda des médiateurs) : les lieux listés
+              ci-dessous (ex. "ABSENCE", "Congés", "RTT") sont écartés du GANTT quand ce filtre est activé, pour ne
+              garder que les vraies activités. La casse et les accents n'ont pas d'importance.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {lieuxAbsence.length === 0 && (
+                <p className="text-xs italic text-[#404040]/40">Aucun lieu configuré pour le moment.</p>
+              )}
+              {lieuxAbsence.map(lieu => (
+                <span
+                  key={lieu}
+                  className="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-xs font-bold text-[#404040]"
+                >
+                  {lieu}
+                  <button
+                    type="button"
+                    onClick={() => supprimerLieuAbsence(lieu)}
+                    className="text-[#404040]/40 hover:text-[#EF736A] cursor-pointer"
+                    title="Retirer"
+                  >
+                    <XMarkIcon className="w-3.5 h-3.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <select
+                value={nouveauLieuAbsence}
+                onChange={e => setNouveauLieuAbsence(e.target.value)}
+                className="flex-1 p-2 bg-[#F3F3F2] border border-[#404040]/15 text-[#404040] rounded-xl text-xs outline-none focus:border-[#005259] cursor-pointer"
+              >
+                <option value="">Choisir une fiche activité...</option>
+                {lieuxFichesActivites
+                  .filter(l => !lieuxAbsence.some(la => la.toLowerCase() === l.toLowerCase()))
+                  .map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+              <button
+                onClick={ajouterLieuAbsence}
+                disabled={!nouveauLieuAbsence.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#005259] hover:bg-[#EA601F] text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed w-fit shrink-0"
+              >
+                <PlusIcon className="w-4 h-4" />
+                <span>Ajouter</span>
               </button>
             </div>
           </div>

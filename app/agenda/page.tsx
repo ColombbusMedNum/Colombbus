@@ -19,7 +19,7 @@ import {
   CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon,
   LockClosedIcon, BellIcon,
   ChatBubbleLeftRightIcon, ExclamationTriangleIcon,
-  ChevronDownIcon, HomeIcon, ClockIcon, WrenchScrewdriverIcon, DevicePhoneMobileIcon, ArrowPathIcon
+  ChevronDownIcon, HomeIcon, ClockIcon, WrenchScrewdriverIcon, DevicePhoneMobileIcon, ArrowPathIcon, Cog6ToothIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
@@ -35,7 +35,7 @@ import {
 } from "../../lib/activitesTypes";
 import { regrouperParCategorie } from "../../lib/equipeCategories";
 import { estAdminGoogleAgenda } from "../../lib/googleCalendarBeta";
-import { estActionDuMediateur } from "../../lib/matchMediateur";
+import { estActionDuMediateur, identifiantMediateur } from "../../lib/matchMediateur";
 import { calculerDureeHeures } from "../../lib/planningHours";
 
 interface NotificationItem {
@@ -210,6 +210,24 @@ export default function PlanningExpertMix() {
   // chaque barre n'a plus de sens (toujours 1) : la vue affiche alors le
   // nombre d'heures qu'elle y passe (voir GanttActiviteContinu).
   const [ganttMediateurId, setGanttMediateurId] = useState<string>("");
+  // Filtre sur les lieux "Absence" (congés, RTT...) configurés dans
+  // Paramètres Généraux (configuration_equipe/parametres_configuration.
+  // lieuxAbsence), plutôt qu'une liste codée en dur — indépendant du
+  // distingo Tout/Production (une absence n'est ni l'un ni l'autre).
+  // "isoler" garde les absences ET toutes les actions des personnes qui en
+  // ont au moins une sur la période (pas les autres) : sert à comparer les
+  // congés qui se chevauchent entre plusieurs médiateur·rice·s ET à repérer
+  // une vraie action posée pendant le congé de l'une d'elles, sans avoir à
+  // choisir entre les deux.
+  const [ganttFiltreAbsences, setGanttFiltreAbsences] = useState<"tous" | "isoler">("tous");
+  const [lieuxAbsenceConfig, setLieuxAbsenceConfig] = useState<string[]>([]);
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "configuration_equipe", "parametres_configuration"), (snap) => {
+      const data = snap.data();
+      setLieuxAbsenceConfig(Array.isArray(data?.lieuxAbsence) ? data.lieuxAbsence : []);
+    });
+    return () => unsub();
+  }, []);
   const [openBlocs, setOpenBlocs] = useState<Record<string, boolean>>({ inclusion: false, decouverte: false, insertion: false, divers: false, "sans-bloc": false }); 
   // Par défaut, le samedi est affiché uniquement si la semaine affichée a
   // effectivement un créneau ce jour-là (ex. généré en masse sur une période
@@ -851,9 +869,21 @@ export default function PlanningExpertMix() {
   const premierJourGantt = (ganttAn && ganttMoisNum) ? new Date(ganttAn, ganttMoisNum - 1, 1) : null;
   const dernierJourGantt = (ganttAn && ganttMoisNum) ? new Date(ganttAn, ganttMoisNum - 1 + ganttNombreMois, 0) : null;
   const mediateurGanttSelectionne = ganttMediateurId ? mediateurs.find(m => m.id === ganttMediateurId) || null : null;
+  const normaliserPourComparaison = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+  const lieuxAbsenceNormalises = new Set(lieuxAbsenceConfig.map(normaliserPourComparaison));
+  const estLieuAbsence = (lieu?: string) => !!lieu && lieuxAbsenceNormalises.has(normaliserPourComparaison(lieu));
+  // "Isoler absences" : identifiants des personnes ayant au moins une
+  // absence sur toute la période GANTT (indépendamment du filtre médiateur
+  // ci-dessus, pour rester correct même filtré sur une seule personne).
+  const medIdsAvecAbsenceGantt = new Set(
+    ganttFiltreAbsences === "isoler"
+      ? actionsGantt.filter(a => estLieuAbsence(a.lieu)).map(identifiantMediateur)
+      : []
+  );
   const actionsGanttFiltrees = actionsGantt
     .filter(a => ganttFiltreProduction !== "production" || a.estProduction)
-    .filter(a => !mediateurGanttSelectionne || estActionDuMediateur(a, mediateurGanttSelectionne));
+    .filter(a => !mediateurGanttSelectionne || estActionDuMediateur(a, mediateurGanttSelectionne))
+    .filter(a => ganttFiltreAbsences === "tous" || medIdsAvecAbsenceGantt.has(identifiantMediateur(a)));
   // Jours fériés sur toute la période GANTT (potentiellement plusieurs
   // années, contrairement à joursFeries ci-dessus qui ne couvre que la
   // semaine éditée).
@@ -2327,6 +2357,40 @@ export default function PlanningExpertMix() {
                     <option key={m.id} value={m.id}>{m.prenom} {m.nom}</option>
                   ))}
                 </select>
+                {/* Liste des lieux "Absence" configurable dans Paramètres
+                    Généraux (page_access_parametres), pas codée en dur —
+                    voir lieuxAbsenceConfig. "Isoler" garde les absences ET
+                    toutes les actions des personnes qui en ont (pas les
+                    autres) : sert à la fois à comparer les congés qui se
+                    chevauchent entre médiateur·rice·s et à repérer une
+                    vraie action posée pendant le congé de l'une d'elles. */}
+                <div className="flex items-center gap-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-xl p-1">
+                  <button
+                    onClick={() => setGanttFiltreAbsences("tous")}
+                    title="N'applique aucun filtre sur les absences"
+                    className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                      ganttFiltreAbsences === "tous" ? "bg-[#005259] text-white" : "text-[#404040]/70 hover:text-[#005259]"
+                    }`}
+                  >
+                    Toutes activités
+                  </button>
+                  <button
+                    onClick={() => setGanttFiltreAbsences("isoler")}
+                    title={lieuxAbsenceConfig.length === 0 ? "Aucun lieu \"Absence\" configuré — voir Paramètres Généraux" : "Isole les personnes ayant au moins une absence, avec toutes leurs actions — pour repérer des congés qui se chevauchent ou une action posée pendant un congé"}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                      ganttFiltreAbsences === "isoler" ? "bg-[#EA601F] text-white" : "text-[#404040]/70 hover:text-[#EA601F]"
+                    }`}
+                  >
+                    Isoler absences
+                  </button>
+                </div>
+                <Link
+                  href="/mediation/parametres"
+                  title={'Configurer les lieux "Absence" dans Paramètres Généraux'}
+                  className="p-2 bg-[#F3F3F2] border border-[#404040]/15 hover:bg-[#005259] hover:text-white hover:border-[#005259] rounded-lg text-[#404040]/70 cursor-pointer flex items-center justify-center min-w-[36px] h-9 transition-colors"
+                >
+                  <Cog6ToothIcon className="w-4 h-4" />
+                </Link>
               </div>
 
               {/* Jours ouvrés sans aucune action, par mois — uniquement
@@ -2361,6 +2425,7 @@ export default function PlanningExpertMix() {
               dernierJour={dernierJourGantt}
               mediateurLabel={mediateurGanttSelectionne ? `${mediateurGanttSelectionne.prenom || ""} ${mediateurGanttSelectionne.nom || ""}`.trim() : undefined}
               joursFeries={joursFeriesGantt}
+              estLieuAbsence={estLieuAbsence}
             />
           )}
         </div>
@@ -3237,7 +3302,7 @@ interface DetailBarreGantt {
   heures: number;
 }
 
-function GanttActiviteContinu({ actions, premierJour, dernierJour, mediateurLabel, joursFeries }: { actions: ActionPlanning[]; premierJour: Date; dernierJour: Date; mediateurLabel?: string; joursFeries: Set<string> }) {
+function GanttActiviteContinu({ actions, premierJour, dernierJour, mediateurLabel, joursFeries, estLieuAbsence }: { actions: ActionPlanning[]; premierJour: Date; dernierJour: Date; mediateurLabel?: string; joursFeries: Set<string>; estLieuAbsence?: (lieu?: string) => boolean }) {
   const [detailBarre, setDetailBarre] = useState<DetailBarreGantt | null>(null);
   const [detailJour, setDetailJour] = useState<{ date: Date; actions: ActionPlanning[] } | null>(null);
   const totalJours = joursEntre(premierJour, dernierJour) + 1;
@@ -3326,7 +3391,15 @@ function GanttActiviteContinu({ actions, premierJour, dernierJour, mediateurLabe
       if (!parDate.has(a.date)) parDate.set(a.date, []);
       parDate.get(a.date)!.push(a);
     }
-    const nbLanes = Math.max(1, ...Array.from(parDate.values(), acts => acts.length));
+    // Les absences (voir estLieuAbsence) occupent une bande de lignes à part,
+    // toujours à la même hauteur d'un jour à l'autre — sans ça, leur lane
+    // dépendait du nombre d'actions ce jour-là précis et sautait d'une place
+    // à l'autre, rendant impossible de les repérer d'un coup d'œil au fil
+    // des jours. La bande démarre juste sous la plus grande pile d'activités
+    // réelles vue sur n'importe quel jour de la période.
+    const nbLanesActivites = Math.max(0, ...Array.from(parDate.values(), acts => acts.filter(a => !estLieuAbsence?.(a.lieu)).length));
+    const nbLanesAbsences = Math.max(0, ...Array.from(parDate.values(), acts => acts.filter(a => estLieuAbsence?.(a.lieu)).length));
+    const nbLanes = Math.max(1, nbLanesActivites + nbLanesAbsences);
 
     // Légende lieu → couleur : les cases sont trop étroites (voir
     // LARGEUR_JOUR) pour porter le nom de l'activité, la couleur seule ne
@@ -3356,18 +3429,34 @@ function GanttActiviteContinu({ actions, premierJour, dernierJour, mediateurLabe
                 {mois.map(mo => (
                   <div key={mo.debut.toISOString()} className="absolute top-0 bottom-0 border-l border-[#404040]/20" style={{ left: `${px(mo.debut)}px` }} />
                 ))}
+                {/* Démarcation nette entre activités et absences : un trait
+                    pointillé à la frontière des deux bandes, seulement si
+                    les deux existent réellement sur la période. */}
+                {nbLanesActivites > 0 && nbLanesAbsences > 0 && (
+                  <div
+                    className="absolute left-0 right-0 border-t-2 border-dashed border-[#EF736A]/40"
+                    style={{ top: `${nbLanesActivites * 24 + 2}px` }}
+                  />
+                )}
                 {jours.flatMap(j => {
                   const dateStr = j.toLocaleDateString('en-CA');
-                  const actsJour = [...(parDate.get(dateStr) || [])].sort((a, b) => (a.debut || "").localeCompare(b.debut || "") || (a.ordre ?? 0) - (b.ordre ?? 0));
-                  return actsJour.map((a, lane) => {
+                  const actsJourBrut = parDate.get(dateStr) || [];
+                  const activitesJour = actsJourBrut
+                    .filter(a => !estLieuAbsence?.(a.lieu))
+                    .sort((a, b) => (a.debut || "").localeCompare(b.debut || "") || (a.ordre ?? 0) - (b.ordre ?? 0));
+                  const absencesJour = actsJourBrut.filter(a => estLieuAbsence?.(a.lieu));
+                  const actsJour = [...activitesJour, ...absencesJour];
+                  return actsJour.map((a, i) => {
+                    const estAbsence = estLieuAbsence?.(a.lieu) ?? false;
+                    const lane = estAbsence ? nbLanesActivites + absencesJour.indexOf(a) : activitesJour.indexOf(a);
                     const alerte = !(a.mediateurNom || "").trim();
                     return (
                       <button
-                        key={`${dateStr}-${lane}`}
+                        key={`${dateStr}-${i}`}
                         type="button"
                         onClick={() => setDetailJour({ date: j, actions: actsJour })}
                         title={`${a.lieu || "?"}${a.debut && a.fin ? ` · ${a.debut}-${a.fin}` : ""}${alerte ? " · ⚠️ sans médiateur" : ""}`}
-                        className={`absolute rounded shadow-sm cursor-pointer hover:brightness-110 ${alerte ? "ring-2 ring-[#EF736A] ring-offset-1" : ""}`}
+                        className={`absolute rounded shadow-sm cursor-pointer hover:brightness-110 ${alerte ? "ring-2 ring-[#EF736A] ring-offset-1" : ""} ${estAbsence ? "border-2 border-dashed border-white/70" : ""}`}
                         style={{
                           top: `${lane * 24 + 4}px`,
                           left: `${px(j) + 1}px`,
@@ -3432,13 +3521,18 @@ function GanttActiviteContinu({ actions, premierJour, dernierJour, mediateurLabe
     );
   }
 
-  const groupes = new Map<string, { label: string; frequence: Map<string, number>; variantes: Map<string, ActionPlanning[]> }>();
+  const groupes = new Map<string, { label: string; estAbsences: boolean; frequence: Map<string, number>; variantes: Map<string, ActionPlanning[]> }>();
   for (const a of actions) {
     if (!a.lieu || !a.date) continue;
-    const cle = normaliserLieuGantt(a.lieu);
+    // Tous les lieux "Absence" (voir estLieuAbsence) partagent une seule et
+    // même ligne "Absences", quel que soit le type exact (congés, RTT...) —
+    // chaque type garde sa propre barre à l'intérieur de cette ligne (voir
+    // "variantes" plus bas, toujours indexées par texte de lieu réel).
+    const estAbsenceLigne = estLieuAbsence?.(a.lieu) ?? false;
+    const cle = estAbsenceLigne ? "__absences__" : normaliserLieuGantt(a.lieu);
     let g = groupes.get(cle);
     if (!g) {
-      g = { label: a.lieu, frequence: new Map(), variantes: new Map() };
+      g = { label: estAbsenceLigne ? "Absences" : a.lieu, estAbsences: estAbsenceLigne, frequence: new Map(), variantes: new Map() };
       groupes.set(cle, g);
     }
     g.frequence.set(a.lieu, (g.frequence.get(a.lieu) || 0) + 1);
@@ -3448,9 +3542,13 @@ function GanttActiviteContinu({ actions, premierJour, dernierJour, mediateurLabe
 
   const lignesBase = Array.from(groupes.values()).map(g => {
     // Libellé partagé de la ligne : la variante la plus fréquente, pas
-    // forcément la première rencontrée.
+    // forcément la première rencontrée — sauf la ligne "Absences" (voir
+    // estAbsences), qui garde toujours ce nom plutôt que celui du type
+    // d'absence le plus fréquent.
     let label = g.label, max = 0;
-    for (const [v, n] of g.frequence) if (n > max) { max = n; label = v; }
+    if (!g.estAbsences) {
+      for (const [v, n] of g.frequence) if (n > max) { max = n; label = v; }
+    }
 
     // Chaque variante de lieu peut elle-même produire PLUSIEURS barres : ses
     // occurrences ne sont pas forcément des jours calendaires consécutifs
@@ -3502,8 +3600,16 @@ function GanttActiviteContinu({ actions, premierJour, dernierJour, mediateurLabe
       clorreTroncon();
     });
 
-    return { label, barres, nbLanes: variantesEntrees.length };
-  }).sort((a, b) => a.label.localeCompare(b.label, "fr"));
+    return { label, barres, nbLanes: variantesEntrees.length, estAbsences: g.estAbsences };
+  }).sort((a, b) => {
+    // La ligne "Absences" (voir estAbsences) remonte en haut de la liste —
+    // le reste (les actions des personnes concernées, gardées pour repérer
+    // un chevauchement) suit ensuite, alphabétique comme d'habitude.
+    const aAbsence = a.estAbsences ? 0 : 1;
+    const bAbsence = b.estAbsences ? 0 : 1;
+    if (aAbsence !== bAbsence) return aAbsence - bAbsence;
+    return a.label.localeCompare(b.label, "fr");
+  });
 
   // Au sein d'un même territoire (voir territoireDeLigne), les activités
   // s'enchaînent souvent dans le temps plutôt que d'être indépendantes — les
@@ -3536,11 +3642,34 @@ function GanttActiviteContinu({ actions, premierJour, dernierJour, mediateurLabe
       <div style={{ width: `${200 + largeurTimeline}px` }}>
         {enTeteMoisEtJours}
         {lignes.map((ligne, idx) => {
-          const rowBg = idx % 2 === 0 ? "bg-white" : "bg-[#F3F3F2]/40";
+          // Ligne "Absences" nettement démarquée des vraies activités : fond
+          // teinté et trait épais dessous, plutôt que la simple alternance
+          // blanc/gris des autres lignes.
+          const rowBg = ligne.estAbsences ? "bg-[#EF736A]/10" : (idx % 2 === 0 ? "bg-white" : "bg-[#F3F3F2]/40");
+          // Sur la ligne "Absences", le type exact (Congés, RTT...) de
+          // chaque lane s'affiche dans la colonne d'en-tête, aligné avec sa
+          // barre — plutôt qu'un seul libellé générique "Absences" centré
+          // sur toute la hauteur, qui ne dit pas CE QUE c'est.
+          const typesParLane = ligne.estAbsences
+            ? Array.from(new Map(ligne.barres.map(v => [v.lane, v.texte])).entries()).sort(([a], [b]) => a - b)
+            : [];
           return (
-            <div key={ligne.label} className={`flex border-b border-[#F3F3F2] ${rowBg}`}>
-              <div className="w-[200px] shrink-0 pr-2 py-2 sticky left-0 z-10 flex items-center">
-                <span className={`font-bold text-[#005259] text-xs ${rowBg}`}>{ligne.label}</span>
+            <div key={ligne.label} className={`flex ${ligne.estAbsences ? "border-b-2 border-[#EF736A]/30" : "border-b border-[#F3F3F2]"} ${rowBg}`}>
+              <div className={`w-[200px] shrink-0 pr-2 py-2 sticky left-0 z-10 ${ligne.estAbsences ? "relative" : "flex items-center"}`} style={ligne.estAbsences ? { minHeight: `${ligne.nbLanes * 24 + 8}px` } : undefined}>
+                {ligne.estAbsences ? (
+                  typesParLane.map(([lane, texte]) => (
+                    <span
+                      key={lane}
+                      className="absolute left-0 right-2 h-5 flex items-center font-bold text-[11px] text-[#EF736A] truncate"
+                      style={{ top: `${lane * 24 + 4}px` }}
+                      title={texte}
+                    >
+                      {texte}
+                    </span>
+                  ))
+                ) : (
+                  <span className={`font-bold text-xs ${rowBg} text-[#005259]`}>{ligne.label}</span>
+                )}
               </div>
               <div
                 className="relative"
