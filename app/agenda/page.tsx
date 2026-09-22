@@ -36,6 +36,7 @@ import {
 import { regrouperParCategorie } from "../../lib/equipeCategories";
 import { estAdminGoogleAgenda } from "../../lib/googleCalendarBeta";
 import { estActionDuMediateur } from "../../lib/matchMediateur";
+import { calculerDureeHeures } from "../../lib/planningHours";
 
 interface NotificationItem {
   id: string;
@@ -189,6 +190,26 @@ export default function PlanningExpertMix() {
   // réordonner, géré localement dans DayCell).
   const [actionEnGlisse, setActionEnGlisse] = useState<ActionPlanning | null>(null);
   const [voirMasques, setVoirMasques] = useState(false);
+  // Bascule d'affichage en plus de la grille d'édition habituelle : deux
+  // vues GANTT en lecture seule (barres pleine largeur par demi-journée au
+  // lieu de cases), pour repérer d'un coup d'œil les trous/chevauchements —
+  // par activité (qui couvre quel lieu, quand) ou par médiateur·rice (mêmes
+  // lignes que l'édition, sans les actions d'édition).
+  const [vueAgenda, setVueAgenda] = useState<"edition" | "gantt-activite">("edition");
+  // Période affichée par la vue GANTT (indépendante de la navigation
+  // semaine par semaine ci-dessus, utilisée uniquement pour l'édition) —
+  // voir actionsGantt ci-dessous.
+  const [ganttMoisDebut, setGanttMoisDebut] = useState(() => new Date().toLocaleDateString('en-CA').slice(0, 7));
+  const [ganttNombreMois, setGanttNombreMois] = useState(2);
+  const [actionsGantt, setActionsGantt] = useState<ActionPlanning[]>([]);
+  // Même distingo Tout / Production que /mediation/volume-horaire (voir
+  // filtreProduction là-bas) — sur le champ estProduction (lib/types.ts).
+  const [ganttFiltreProduction, setGanttFiltreProduction] = useState<"tous" | "production">("tous");
+  // Filtre optionnel sur un·e seul·e médiateur·rice — vide = tout le monde.
+  // Une fois filtré sur une personne précise, le nombre de médiateurs sur
+  // chaque barre n'a plus de sens (toujours 1) : la vue affiche alors le
+  // nombre d'heures qu'elle y passe (voir GanttActiviteContinu).
+  const [ganttMediateurId, setGanttMediateurId] = useState<string>("");
   const [openBlocs, setOpenBlocs] = useState<Record<string, boolean>>({ inclusion: false, decouverte: false, insertion: false, divers: false, "sans-bloc": false }); 
   // Par défaut, le samedi est affiché uniquement si la semaine affichée a
   // effectivement un créneau ce jour-là (ex. généré en masse sur une période
@@ -355,6 +376,38 @@ export default function PlanningExpertMix() {
 
     return () => unsubActions();
   }, [currentDate, currentUserId]);
+
+  // Les vues GANTT couvrent plusieurs mois (voir ganttMoisDebut/ganttNombreMois
+  // plus bas), une période bien plus large que la semaine éditée — chargée à
+  // part, uniquement quand une vue GANTT est active, pour ne jamais peser sur
+  // le chargement de la grille d'édition. Même filet contre la course au
+  // démarrage Firebase Auth que l'effet ci-dessus (voir sa note).
+  useEffect(() => {
+    if (vueAgenda === "edition" || !currentUserId) return;
+    const [an, mois] = ganttMoisDebut.split("-").map(Number);
+    if (!an || !mois) return;
+    const debut = new Date(an, mois - 1, 1);
+    const fin = new Date(an, mois - 1 + ganttNombreMois, 0);
+    const debutStr = debut.toLocaleDateString('en-CA');
+    const finStr = fin.toLocaleDateString('en-CA');
+
+    const qGantt = query(
+      collection(db, "planning_mediateurs"),
+      where("date", ">=", debutStr),
+      where("date", "<=", finStr)
+    );
+    const unsubGantt = onSnapshot(
+      qGantt,
+      (snap) => {
+        setActionsGantt(snap.docs.map(d => ({ id: d.id, ...d.data() } as ActionPlanning)));
+      },
+      (err) => {
+        console.error("Erreur chargement GANTT planning_mediateurs :", err);
+      }
+    );
+
+    return () => unsubGantt();
+  }, [vueAgenda, ganttMoisDebut, ganttNombreMois, currentUserId]);
 
   useEffect(() => {
     const unsubSemaines = onSnapshot(collection(db, "semaines_validees"), (snap) => {
@@ -773,6 +826,25 @@ export default function PlanningExpertMix() {
   Array.from(new Set(weekDays.map(d => d.getFullYear()))).forEach(annee => {
     getJoursFeries(annee).forEach(dateStr => joursFeries.add(dateStr));
   });
+
+  // Période de la vue GANTT (distincte de la semaine éditée ci-dessus —
+  // voir ganttMoisDebut/ganttNombreMois et l'effet actionsGantt).
+  const [ganttAn, ganttMoisNum] = ganttMoisDebut.split("-").map(Number);
+  const premierJourGantt = (ganttAn && ganttMoisNum) ? new Date(ganttAn, ganttMoisNum - 1, 1) : null;
+  const dernierJourGantt = (ganttAn && ganttMoisNum) ? new Date(ganttAn, ganttMoisNum - 1 + ganttNombreMois, 0) : null;
+  const mediateurGanttSelectionne = ganttMediateurId ? mediateurs.find(m => m.id === ganttMediateurId) || null : null;
+  const actionsGanttFiltrees = actionsGantt
+    .filter(a => ganttFiltreProduction !== "production" || a.estProduction)
+    .filter(a => !mediateurGanttSelectionne || estActionDuMediateur(a, mediateurGanttSelectionne));
+  // Jours fériés sur toute la période GANTT (potentiellement plusieurs
+  // années, contrairement à joursFeries ci-dessus qui ne couvre que la
+  // semaine éditée).
+  const joursFeriesGantt = new Set<string>();
+  if (premierJourGantt && dernierJourGantt) {
+    for (let an = premierJourGantt.getFullYear(); an <= dernierJourGantt.getFullYear(); an++) {
+      getJoursFeries(an).forEach(dateStr => joursFeriesGantt.add(dateStr));
+    }
+  }
 
   // Médiateurs réellement affichés dans la grille cette semaine (actifs,
   // avec une identité, jamais les Formateurs — statut réservé à la page
@@ -1919,6 +1991,36 @@ export default function PlanningExpertMix() {
 
         {/* GRILLE DU TABLEAU DU PLANNING, PAR BLOCS RÉTRACTABLES */}
         <div className="flex-1 space-y-3">
+          {/* Bascule Édition / GANTT : la vue GANTT (voir GanttActiviteContinu
+              plus bas) est en lecture seule, juste pour repérer d'un coup
+              d'œil les trous/chevauchements — on continue d'éditer depuis la
+              grille habituelle. Pas de GANTT par médiateur : ça ferait
+              doublon avec cette grille d'édition, déjà organisée par
+              médiateur·rice. */}
+          <div className="flex items-center gap-1 bg-white border border-[#404040]/10 rounded-xl p-1.5 shadow-sm w-fit">
+            <button
+              onClick={() => setVueAgenda("edition")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all cursor-pointer ${
+                vueAgenda === "edition" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/60 hover:bg-[#F3F3F2]"
+              }`}
+            >
+              Édition
+            </button>
+            {/* Vue GANTT réservée aux administrateurs. */}
+            <PermissionGuard actionId="agenda_gantt_view">
+              <button
+                onClick={() => setVueAgenda("gantt-activite")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all cursor-pointer ${
+                  vueAgenda === "gantt-activite" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/60 hover:bg-[#F3F3F2]"
+                }`}
+              >
+                GANTT par activité
+              </button>
+            </PermissionGuard>
+          </div>
+
+          {vueAgenda === "edition" && (
+          <>
           {/* Barre des jours/dates unique, sortie des accordéons : sticky
               une seule fois pour toute la page au lieu d'une par catégorie
               (évite les répétitions et les chevauchements en défilant). */}
@@ -2082,6 +2184,67 @@ export default function PlanningExpertMix() {
               )}
             </Accordion>
           ))}
+          </>
+          )}
+
+          {vueAgenda === "gantt-activite" && (
+            <div className="flex flex-wrap items-center gap-3 bg-white border border-[#404040]/10 rounded-xl px-3 py-2 shadow-sm text-xs w-fit">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-extrabold uppercase text-[10px] text-[#404040]/50 tracking-wide">Période :</span>
+                <input
+                  type="month"
+                  value={ganttMoisDebut}
+                  onChange={(e) => setGanttMoisDebut(e.target.value)}
+                  className="px-2 py-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-[#404040] text-xs cursor-pointer"
+                />
+                <span className="text-[#404040]/50">sur</span>
+                <select
+                  value={ganttNombreMois}
+                  onChange={(e) => setGanttNombreMois(Number(e.target.value))}
+                  className="px-2 py-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-[#404040] text-xs cursor-pointer"
+                >
+                  {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} mois</option>)}
+                </select>
+              </div>
+              {/* Même distingo Tout / Production que /mediation/volume-horaire
+                  (filtreProduction), sur le champ estProduction. */}
+              <div className="flex items-center gap-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-xl p-1">
+                <button
+                  onClick={() => setGanttFiltreProduction("tous")}
+                  title="Affiche toutes les actions"
+                  className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                    ganttFiltreProduction === "tous" ? "bg-[#005259] text-white" : "text-[#404040]/70 hover:text-[#005259]"
+                  }`}
+                >
+                  Tout
+                </button>
+                <button
+                  onClick={() => setGanttFiltreProduction("production")}
+                  title="N'affiche que les actions marquées comme production Médiation Numérique"
+                  className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                    ganttFiltreProduction === "production" ? "bg-[#EA601F] text-white" : "text-[#404040]/70 hover:text-[#EA601F]"
+                  }`}
+                >
+                  Production
+                </button>
+              </div>
+              <select
+                value={ganttMediateurId}
+                onChange={(e) => setGanttMediateurId(e.target.value)}
+                title="Filtrer sur un·e seul·e médiateur·rice"
+                className="px-2 py-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-[#404040] text-xs cursor-pointer max-w-[200px]"
+              >
+                <option value="">Tous les médiateurs</option>
+                {mediateurs.filter(m => m.prenom || m.nom).map(m => (
+                  <option key={m.id} value={m.id}>{m.prenom} {m.nom}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {vueAgenda === "gantt-activite" && premierJourGantt && dernierJourGantt && (
+            <GanttActiviteContinu actions={actionsGanttFiltrees} premierJour={premierJourGantt} dernierJour={dernierJourGantt} afficherHeures={!!mediateurGanttSelectionne} joursFeries={joursFeriesGantt} />
+          )}
         </div>
       </div>
 
@@ -2900,6 +3063,315 @@ function DayCell({ actions, m, moment, date, onAdd, onDelete, onEditCommentaire,
           + Autre
         </button>
       ) : null}
+    </div>
+  );
+}
+
+// Regroupe les lieux dont le nom normalisé (espaces/casse ignorés) est
+// identique — ex. "91 - NK UP TECH" et "91 - NKUP TECH" — sous UN même
+// libellé, sans jamais fondre les variantes ensemble : chacune garde sa
+// propre ligne (voir le croquis fourni), avec sa propre barre continue sur
+// sa vraie période d'activité plutôt qu'un total hebdomadaire agrégé.
+function normaliserLieuGantt(lieu: string): string {
+  return lieu.toLowerCase().replace(/\s+/g, "");
+}
+
+// Territoire d'une ligne : le préfixe avant le premier " - " du libellé
+// (ex. "92" pour "92 - NK PRO TECH DEV", "ACI" pour "ACI - Attente avant A")
+// — sert à reclasser chronologiquement les activités d'un même territoire
+// entre elles (voir lignesBase plus bas), plutôt qu'à l'échelle de toute la
+// liste. Un libellé sans " - " (ex. "INFOCOLL PRFE") forme son propre
+// groupe à lui seul, sans effet.
+function territoireDeLigne(label: string): string {
+  const i = label.indexOf(" - ");
+  return i >= 0 ? label.slice(0, i).trim() : label.trim();
+}
+
+function joursEntre(a: Date, b: Date): number {
+  return Math.round((b.getTime() - a.getTime()) / 86400000);
+}
+
+// Vue GANTT en lecture seule, axée activité : chaque variante de lieu a une
+// seule barre positionnée et dimensionnée selon ses vraies dates de
+// première/dernière occurrence sur la période — un vrai diagramme de Gantt
+// plutôt qu'une grille de cases par semaine.
+// Largeur d'une colonne-jour sur la vue GANTT continue — assez large pour
+// afficher le numéro du jour en en-tête (voir jours/LARGEUR_JOUR plus bas).
+const LARGEUR_JOUR = 26;
+
+interface DetailBarreGantt {
+  ligneLabel: string;
+  texte: string;
+  debut: Date;
+  fin: Date;
+  medDistincts: string[];
+  nbSansMediateur: number;
+  heures: number;
+}
+
+function GanttActiviteContinu({ actions, premierJour, dernierJour, afficherHeures, joursFeries }: { actions: ActionPlanning[]; premierJour: Date; dernierJour: Date; afficherHeures: boolean; joursFeries: Set<string> }) {
+  const [detailBarre, setDetailBarre] = useState<DetailBarreGantt | null>(null);
+  const totalJours = joursEntre(premierJour, dernierJour) + 1;
+  const px = (date: Date) => joursEntre(premierJour, date) * LARGEUR_JOUR;
+  const largeurTimeline = totalJours * LARGEUR_JOUR;
+
+  const groupes = new Map<string, { label: string; frequence: Map<string, number>; variantes: Map<string, ActionPlanning[]> }>();
+  for (const a of actions) {
+    if (!a.lieu || !a.date) continue;
+    const cle = normaliserLieuGantt(a.lieu);
+    let g = groupes.get(cle);
+    if (!g) {
+      g = { label: a.lieu, frequence: new Map(), variantes: new Map() };
+      groupes.set(cle, g);
+    }
+    g.frequence.set(a.lieu, (g.frequence.get(a.lieu) || 0) + 1);
+    if (!g.variantes.has(a.lieu)) g.variantes.set(a.lieu, []);
+    g.variantes.get(a.lieu)!.push(a);
+  }
+
+  const lignesBase = Array.from(groupes.values()).map(g => {
+    // Libellé partagé de la ligne : la variante la plus fréquente, pas
+    // forcément la première rencontrée.
+    let label = g.label, max = 0;
+    for (const [v, n] of g.frequence) if (n > max) { max = n; label = v; }
+
+    // Chaque variante de lieu peut elle-même produire PLUSIEURS barres : ses
+    // occurrences ne sont pas forcément des jours calendaires consécutifs
+    // (ex. Résidences Autonomie — des dates ponctuelles précises, pas une
+    // présence continue). Une seule barre du premier au dernier jour aurait
+    // caché les vrais trous entre deux dates espacées ; on ne relie donc que
+    // des jours réellement à la suite, chaque rupture ouvrant une nouvelle
+    // barre — toutes les barres d'une même variante partagent la même
+    // ligne/lane pour rester groupées visuellement.
+    const variantesEntrees = Array.from(g.variantes.entries());
+    const barres: { texte: string; debut: Date; fin: Date; medDistincts: string[]; nbSansMediateur: number; heures: number; couleur?: string; lane: number }[] = [];
+    variantesEntrees.forEach(([texte, acts], lane) => {
+      const parDate = new Map<string, ActionPlanning[]>();
+      for (const a of acts) {
+        if (!parDate.has(a.date)) parDate.set(a.date, []);
+        parDate.get(a.date)!.push(a);
+      }
+      const datesTriees = Array.from(parDate.keys()).sort().map(d => new Date(`${d}T12:00:00`));
+      let debutTroncon = datesTriees[0];
+      let finTroncon = datesTriees[0];
+      const clorreTroncon = () => {
+        const actsTroncon = datesTriees
+          .filter(d => d.getTime() >= debutTroncon.getTime() && d.getTime() <= finTroncon.getTime())
+          .flatMap(d => parDate.get(d.toLocaleDateString('en-CA'))!);
+        // Une action sans médiateur assigné (mediateurNom vide) signale un
+        // créneau probablement mal renseigné — jamais comptée comme un nom
+        // dans medDistincts (voir l'alerte affichée dessus et dans la popup).
+        const avecMediateur = actsTroncon.filter(a => (a.mediateurNom || "").trim());
+        barres.push({
+          texte,
+          debut: debutTroncon,
+          fin: finTroncon,
+          medDistincts: Array.from(new Set(avecMediateur.map(a => a.mediateurNom as string))),
+          nbSansMediateur: actsTroncon.length - avecMediateur.length,
+          heures: actsTroncon.reduce((total, a) => total + calculerDureeHeures(a.debut || "", a.fin || "", a.lieu), 0),
+          couleur: actsTroncon[0]?.couleur,
+          lane,
+        });
+      };
+      for (let i = 1; i < datesTriees.length; i++) {
+        if (joursEntre(finTroncon, datesTriees[i]) === 1) {
+          finTroncon = datesTriees[i];
+        } else {
+          clorreTroncon();
+          debutTroncon = datesTriees[i];
+          finTroncon = datesTriees[i];
+        }
+      }
+      clorreTroncon();
+    });
+
+    return { label, barres, nbLanes: variantesEntrees.length };
+  }).sort((a, b) => a.label.localeCompare(b.label, "fr"));
+
+  // Au sein d'un même territoire (voir territoireDeLigne), les activités
+  // s'enchaînent souvent dans le temps plutôt que d'être indépendantes — les
+  // reclasser par date de début plutôt qu'alphabétiquement rend cet
+  // enchaînement visible d'un coup d'œil. Territoires eux-mêmes toujours
+  // dans leur ordre alphabétique habituel (75, 91, 92, ACI...) : seules les
+  // VALEURS occupant les positions déjà tenues par un même territoire sont
+  // réordonnées entre elles, sans déplacer les autres lignes.
+  const indicesParTerritoire = new Map<string, number[]>();
+  lignesBase.forEach((l, i) => {
+    const t = territoireDeLigne(l.label);
+    if (!indicesParTerritoire.has(t)) indicesParTerritoire.set(t, []);
+    indicesParTerritoire.get(t)!.push(i);
+  });
+  const lignes = [...lignesBase];
+  for (const indices of indicesParTerritoire.values()) {
+    if (indices.length < 2) continue;
+    const trieesParDate = indices
+      .map(i => lignesBase[i])
+      .sort((a, b) => Math.min(...a.barres.map(v => v.debut.getTime())) - Math.min(...b.barres.map(v => v.debut.getTime())));
+    indices.forEach((idx, k) => { lignes[idx] = trieesParDate[k]; });
+  }
+
+  if (lignes.length === 0) {
+    return <p className="text-xs italic text-[#404040]/40 py-6 text-center bg-white border border-[#404040]/10 rounded-xl shadow-sm">Aucune activité posée sur cette période.</p>;
+  }
+
+  const mois: { debut: Date; label: string }[] = [];
+  let curseurMois = new Date(premierJour.getFullYear(), premierJour.getMonth(), 1);
+  while (curseurMois <= dernierJour) {
+    mois.push({ debut: new Date(curseurMois), label: curseurMois.toLocaleDateString('fr-FR', { month: 'short' }) });
+    curseurMois = new Date(curseurMois.getFullYear(), curseurMois.getMonth() + 1, 1);
+  }
+
+  // Une case par jour (voir LARGEUR_JOUR) plutôt qu'un seul bloc par mois —
+  // le quadrillage journalier sert de repère pour lire la position exacte
+  // des barres, avec le numéro du jour en en-tête.
+  const jours: Date[] = [];
+  let curseurJour = new Date(premierJour);
+  while (curseurJour <= dernierJour) {
+    jours.push(new Date(curseurJour));
+    curseurJour = new Date(curseurJour);
+    curseurJour.setDate(curseurJour.getDate() + 1);
+  }
+  // Quadrillage journalier dessiné en un seul dégradé répété par ligne
+  // (plutôt qu'une div par jour et par ligne, ~180 jours × N lignes) — bien
+  // moins de nœuds DOM pour le même rendu visuel.
+  const grilleJournaliere = `repeating-linear-gradient(to right, #F3F3F2 0px, #F3F3F2 1px, transparent 1px, transparent ${LARGEUR_JOUR}px)`;
+
+  const estJourOff = (j: Date) => {
+    const jourSemaine = j.getDay();
+    return jourSemaine === 0 || jourSemaine === 6 || joursFeries.has(j.toLocaleDateString('en-CA'));
+  };
+  // Grisé week-ends/fériés : un unique dégradé à paliers nets (calculé une
+  // fois, réutilisé pour toutes les lignes) plutôt qu'une div par jour off
+  // et par ligne — même logique d'économie de nœuds DOM que grilleJournaliere.
+  const ombreJoursOff = `linear-gradient(to right, ${jours
+    .map((j, i) => {
+      const couleur = estJourOff(j) ? "rgba(64,64,64,0.07)" : "transparent";
+      return `${couleur} ${i * LARGEUR_JOUR}px, ${couleur} ${(i + 1) * LARGEUR_JOUR}px`;
+    })
+    .join(", ")})`;
+
+  return (
+    <div className="bg-white border border-[#404040]/10 rounded-xl p-4 overflow-x-auto overflow-y-visible shadow-sm">
+      <div style={{ width: `${200 + largeurTimeline}px` }}>
+        <div className="flex">
+          <div className="w-[200px] shrink-0" />
+          <div className="relative h-4" style={{ width: `${largeurTimeline}px` }}>
+            {mois.map(mo => (
+              <span key={mo.debut.toISOString()} className="absolute text-[10px] font-extrabold uppercase text-[#005259]" style={{ left: `${px(mo.debut)}px` }}>
+                {mo.label}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="flex mb-2">
+          <div className="w-[200px] shrink-0" />
+          <div className="relative h-3" style={{ width: `${largeurTimeline}px`, backgroundImage: ombreJoursOff }}>
+            {jours.map(j => {
+              const dateStr = j.toLocaleDateString('en-CA');
+              const estFerie = joursFeries.has(dateStr);
+              const estWeekend = !estFerie && estJourOff(j);
+              return (
+                <span
+                  key={j.toISOString()}
+                  className={`absolute text-[8px] font-bold text-center ${estFerie ? "text-[#EF736A]" : estWeekend ? "text-[#404040]/50" : "text-[#404040]/40"}`}
+                  style={{ left: `${px(j)}px`, width: `${LARGEUR_JOUR}px` }}
+                >
+                  {j.getDate()}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+        {lignes.map((ligne, idx) => {
+          const rowBg = idx % 2 === 0 ? "bg-white" : "bg-[#F3F3F2]/40";
+          return (
+            <div key={ligne.label} className={`flex border-b border-[#F3F3F2] ${rowBg}`}>
+              <div className="w-[200px] shrink-0 pr-2 py-2 sticky left-0 z-10 flex items-center">
+                <span className={`font-bold text-[#005259] text-xs ${rowBg}`}>{ligne.label}</span>
+              </div>
+              <div
+                className="relative"
+                style={{ width: `${largeurTimeline}px`, minHeight: `${ligne.nbLanes * 24 + 8}px`, backgroundImage: `${grilleJournaliere}, ${ombreJoursOff}` }}
+              >
+                {mois.map(mo => (
+                  <div key={mo.debut.toISOString()} className="absolute top-0 bottom-0 border-l border-[#404040]/20" style={{ left: `${px(mo.debut)}px` }} />
+                ))}
+                {ligne.barres.map(v => {
+                  const largeur = Math.max(px(v.fin) - px(v.debut) + LARGEUR_JOUR, LARGEUR_JOUR);
+                  const heuresTexte = `${Number.isInteger(v.heures) ? v.heures : v.heures.toFixed(1)}h`;
+                  const effectifTexte = `${v.medDistincts.length} médiateur${v.medDistincts.length > 1 ? "s" : ""}`;
+                  const alerte = v.nbSansMediateur > 0;
+                  return (
+                    <button
+                      key={`${v.texte}-${v.debut.toISOString()}`}
+                      type="button"
+                      onClick={() => setDetailBarre({ ligneLabel: ligne.label, texte: v.texte, debut: v.debut, fin: v.fin, medDistincts: v.medDistincts, nbSansMediateur: v.nbSansMediateur, heures: v.heures })}
+                      title={`${v.texte} · ${v.debut.toLocaleDateString('fr-FR')} - ${v.fin.toLocaleDateString('fr-FR')} · ${afficherHeures ? heuresTexte : v.medDistincts.join(", ")}${alerte ? ` · ⚠️ ${v.nbSansMediateur} sans médiateur` : ""}`}
+                      className={`absolute h-5 rounded px-1.5 flex items-center gap-1 text-[10px] font-bold truncate shadow-sm cursor-pointer hover:brightness-110 ${alerte ? "ring-2 ring-[#EF736A] ring-offset-1" : ""}`}
+                      style={{
+                        top: `${v.lane * 24 + 4}px`,
+                        left: `${px(v.debut)}px`,
+                        width: `${largeur}px`,
+                        backgroundColor: v.couleur || "#005259",
+                        color: isLightColor(v.couleur || "#005259") ? "#1A1A1A" : "#FFFFFF",
+                      }}
+                    >
+                      {alerte && <ExclamationTriangleIcon className="w-3 h-3 shrink-0 text-[#EF736A]" />}
+                      {ligne.nbLanes > 1 ? `${v.lane + 1} · ` : ""}{afficherHeures ? heuresTexte : effectifTexte}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {detailBarre && (
+        <div
+          className="fixed inset-0 bg-[#005259]/40 backdrop-blur-xs flex items-center justify-center z-[140] p-4"
+          onClick={() => setDetailBarre(null)}
+        >
+          <div
+            className="bg-white border border-[#404040]/10 p-5 rounded-xl w-full max-w-sm space-y-4 shadow-2xl text-[#404040] animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-sm text-[#005259]">{detailBarre.ligneLabel}</h3>
+                {detailBarre.texte !== detailBarre.ligneLabel && (
+                  <p className="text-[11px] text-[#404040]/60">{detailBarre.texte}</p>
+                )}
+                <p className="text-[11px] text-[#404040]/60 mt-0.5">
+                  {detailBarre.debut.toLocaleDateString('fr-FR')} - {detailBarre.fin.toLocaleDateString('fr-FR')} · {Number.isInteger(detailBarre.heures) ? detailBarre.heures : detailBarre.heures.toFixed(1)}h
+                </p>
+              </div>
+              <button type="button" onClick={() => setDetailBarre(null)} className="text-[#404040]/40 hover:text-[#005259] shrink-0">
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            {detailBarre.nbSansMediateur > 0 && (
+              <div className="flex items-center gap-2.5 bg-[#EF736A]/10 border border-[#EF736A]/30 rounded-xl p-3 text-[#EF736A] text-xs font-bold">
+                <ExclamationTriangleIcon className="w-5 h-5 shrink-0" />
+                {detailBarre.nbSansMediateur} créneau{detailBarre.nbSansMediateur > 1 ? "x" : ""} sans médiateur·rice assigné·e
+              </div>
+            )}
+
+            {detailBarre.medDistincts.length > 0 ? (
+              <ul className="space-y-1">
+                {detailBarre.medDistincts.map(nom => (
+                  <li key={nom} className="text-xs font-bold text-[#404040] bg-[#F3F3F2] rounded-lg px-3 py-1.5">
+                    {nom}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs italic text-[#404040]/40">Aucun médiateur nommé sur ce créneau.</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

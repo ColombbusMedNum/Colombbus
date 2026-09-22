@@ -229,6 +229,7 @@ const DETAILED_PAGES: PageEntry[] = [
       { id: "agenda_comment_view", nom: "Consulter une note/commentaire de créneau", type: "button", description: "Ouvre la note d'un créneau en lecture seule" },
       { id: "agenda_comment_edit", nom: "Ajouter/Modifier/Supprimer une note de créneau", type: "button", description: "Écrit ou efface le commentaire d'un créneau" },
       { id: "agenda_staff_mask", nom: "Bouton Masquer/Engrenage Staff", type: "button", description: "Masque un membre ou édite ses heures ACI" },
+      { id: "agenda_gantt_view", nom: "Onglet GANTT par activité", type: "button", description: "Bascule vers la vue GANTT en lecture seule sur plusieurs mois (admin uniquement)" },
     ],
   },
   {
