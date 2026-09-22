@@ -846,6 +846,31 @@ export default function PlanningExpertMix() {
     }
   }
 
+  // Jours ouvrés (ni week-end ni férié) de la période GANTT où le médiateur
+  // filtré (voir ganttMediateurId) n'a AUCUNE action — regroupés par mois,
+  // pour repérer d'un coup d'œil les trous de planning d'une personne sur
+  // plusieurs mois. N'a de sens qu'une fois filtré sur une seule personne.
+  const joursSansRienParMois: { cle: string; label: string; jours: number[] }[] = [];
+  if (mediateurGanttSelectionne && premierJourGantt && dernierJourGantt) {
+    const datesAvecAction = new Set(actionsGanttFiltrees.map(a => a.date));
+    const parMois = new Map<string, { label: string; jours: number[] }>();
+    const curseur = new Date(premierJourGantt);
+    while (curseur <= dernierJourGantt) {
+      const jourSemaine = curseur.getDay();
+      const dateStr = curseur.toLocaleDateString('en-CA');
+      const estOuvre = jourSemaine !== 0 && jourSemaine !== 6 && !joursFeriesGantt.has(dateStr);
+      if (estOuvre && !datesAvecAction.has(dateStr)) {
+        const cleMois = `${curseur.getFullYear()}-${String(curseur.getMonth() + 1).padStart(2, "0")}`;
+        if (!parMois.has(cleMois)) {
+          parMois.set(cleMois, { label: curseur.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }), jours: [] });
+        }
+        parMois.get(cleMois)!.jours.push(curseur.getDate());
+      }
+      curseur.setDate(curseur.getDate() + 1);
+    }
+    joursSansRienParMois.push(...Array.from(parMois.entries()).map(([cle, v]) => ({ cle, ...v })).sort((a, b) => a.cle.localeCompare(b.cle)));
+  }
+
   // Médiateurs réellement affichés dans la grille cette semaine (actifs,
   // avec une identité, jamais les Formateurs — statut réservé à la page
   // Équipe, sans créneaux à planifier ici — ni les fiches exclureAgenda
@@ -2188,57 +2213,82 @@ export default function PlanningExpertMix() {
           )}
 
           {vueAgenda === "gantt-activite" && (
-            <div className="flex flex-wrap items-center gap-3 bg-white border border-[#404040]/10 rounded-xl px-3 py-2 shadow-sm text-xs w-fit">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-extrabold uppercase text-[10px] text-[#404040]/50 tracking-wide">Période :</span>
-                <input
-                  type="month"
-                  value={ganttMoisDebut}
-                  onChange={(e) => setGanttMoisDebut(e.target.value)}
-                  className="px-2 py-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-[#404040] text-xs cursor-pointer"
-                />
-                <span className="text-[#404040]/50">sur</span>
+            <div className="flex flex-wrap items-start gap-3">
+              <div className="flex flex-wrap items-center gap-3 bg-white border border-[#404040]/10 rounded-xl px-3 py-2 shadow-sm text-xs w-fit">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-extrabold uppercase text-[10px] text-[#404040]/50 tracking-wide">Période :</span>
+                  <input
+                    type="month"
+                    value={ganttMoisDebut}
+                    onChange={(e) => setGanttMoisDebut(e.target.value)}
+                    className="px-2 py-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-[#404040] text-xs cursor-pointer"
+                  />
+                  <span className="text-[#404040]/50">sur</span>
+                  <select
+                    value={ganttNombreMois}
+                    onChange={(e) => setGanttNombreMois(Number(e.target.value))}
+                    className="px-2 py-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-[#404040] text-xs cursor-pointer"
+                  >
+                    {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} mois</option>)}
+                  </select>
+                </div>
+                {/* Même distingo Tout / Production que /mediation/volume-horaire
+                    (filtreProduction), sur le champ estProduction. */}
+                <div className="flex items-center gap-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-xl p-1">
+                  <button
+                    onClick={() => setGanttFiltreProduction("tous")}
+                    title="Affiche toutes les actions"
+                    className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                      ganttFiltreProduction === "tous" ? "bg-[#005259] text-white" : "text-[#404040]/70 hover:text-[#005259]"
+                    }`}
+                  >
+                    Tout
+                  </button>
+                  <button
+                    onClick={() => setGanttFiltreProduction("production")}
+                    title="N'affiche que les actions marquées comme production Médiation Numérique"
+                    className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                      ganttFiltreProduction === "production" ? "bg-[#EA601F] text-white" : "text-[#404040]/70 hover:text-[#EA601F]"
+                    }`}
+                  >
+                    Production
+                  </button>
+                </div>
                 <select
-                  value={ganttNombreMois}
-                  onChange={(e) => setGanttNombreMois(Number(e.target.value))}
-                  className="px-2 py-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-[#404040] text-xs cursor-pointer"
+                  value={ganttMediateurId}
+                  onChange={(e) => setGanttMediateurId(e.target.value)}
+                  title="Filtrer sur un·e seul·e médiateur·rice"
+                  className="px-2 py-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-[#404040] text-xs cursor-pointer max-w-[200px]"
                 >
-                  {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} mois</option>)}
+                  <option value="">Tous les médiateurs</option>
+                  {mediateurs.filter(m => m.prenom || m.nom).map(m => (
+                    <option key={m.id} value={m.id}>{m.prenom} {m.nom}</option>
+                  ))}
                 </select>
               </div>
-              {/* Même distingo Tout / Production que /mediation/volume-horaire
-                  (filtreProduction), sur le champ estProduction. */}
-              <div className="flex items-center gap-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-xl p-1">
-                <button
-                  onClick={() => setGanttFiltreProduction("tous")}
-                  title="Affiche toutes les actions"
-                  className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                    ganttFiltreProduction === "tous" ? "bg-[#005259] text-white" : "text-[#404040]/70 hover:text-[#005259]"
-                  }`}
-                >
-                  Tout
-                </button>
-                <button
-                  onClick={() => setGanttFiltreProduction("production")}
-                  title="N'affiche que les actions marquées comme production Médiation Numérique"
-                  className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                    ganttFiltreProduction === "production" ? "bg-[#EA601F] text-white" : "text-[#404040]/70 hover:text-[#EA601F]"
-                  }`}
-                >
-                  Production
-                </button>
-              </div>
-              <select
-                value={ganttMediateurId}
-                onChange={(e) => setGanttMediateurId(e.target.value)}
-                title="Filtrer sur un·e seul·e médiateur·rice"
-                className="px-2 py-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-[#404040] text-xs cursor-pointer max-w-[200px]"
-              >
-                <option value="">Tous les médiateurs</option>
-                {mediateurs.filter(m => m.prenom || m.nom).map(m => (
-                  <option key={m.id} value={m.id}>{m.prenom} {m.nom}</option>
-                ))}
-              </select>
+
+              {/* Jours ouvrés sans aucune action, par mois — uniquement
+                  pertinent une fois filtré sur une seule personne. */}
+              {mediateurGanttSelectionne && (
+                <div className="flex-1 min-w-[260px] bg-white border border-[#404040]/10 rounded-xl px-3 py-2 shadow-sm text-xs">
+                  <div className="flex items-center gap-1.5 text-[#EF736A] font-extrabold uppercase text-[10px] tracking-wide mb-1.5">
+                    <ExclamationTriangleIcon className="w-3.5 h-3.5 shrink-0" />
+                    Jours ouvrés sans rien — {mediateurGanttSelectionne.prenom} {mediateurGanttSelectionne.nom}
+                  </div>
+                  {joursSansRienParMois.length === 0 ? (
+                    <p className="text-[#404040]/50 italic">Aucun jour ouvré sans action sur cette période.</p>
+                  ) : (
+                    <div className="space-y-0.5">
+                      {joursSansRienParMois.map(m => (
+                        <div key={m.cle} className="flex flex-wrap gap-x-1.5">
+                          <span className="font-bold text-[#005259] capitalize shrink-0">{m.label} :</span>
+                          <span className="text-[#404040]/70">{m.jours.join(", ")}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
