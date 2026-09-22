@@ -1573,7 +1573,13 @@ export default function PlanningExpertMix() {
     <main className={`${quicksand.className} min-h-screen bg-[#F3F3F2] text-[#404040] pl-4 pt-[60px]`}>
 
       {/* HEADER */}
-      <header className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-5 py-2.5 border-b border-[#003d42] bg-[#005259] text-white shadow-md">
+      {/* items-end plutôt que items-center : quand la fenêtre est trop
+          étroite pour tenir "Agenda des médiateurs" sur une ligne, le fil
+          d'Ariane passe sur 2 lignes et grandit — les boutons doivent alors
+          suivre le bas de ce bloc plutôt que rester centrés (ce qui les
+          faisait paraître plaqués en haut). Sans effet quand tout tient sur
+          une seule ligne (tous les éléments ont alors la même hauteur). */}
+      <header className="fixed top-0 left-0 right-0 z-50 flex justify-between items-end px-5 py-2.5 border-b border-[#003d42] bg-[#005259] text-white shadow-md">
         <div className="flex items-center gap-3">
           {/* Le repli de la liste des modèles se fait désormais via la
               poignée ronde accolée à la barre elle-même (voir AGENCEMENT
