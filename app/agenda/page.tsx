@@ -273,6 +273,14 @@ export default function PlanningExpertMix() {
 
   const notifRef = useRef<HTMLDivElement>(null);
 
+  // Panneau de resynchronisation Google Agenda (admin) — replié dans un
+  // panneau (comme les notifications) plutôt qu'en ligne dans l'en-tête : ce
+  // bloc ajoutait à lui seul assez de largeur pour faire passer "Agenda des
+  // médiateurs" à la ligne et désaligner tous les boutons à sa droite sur
+  // une fenêtre pas assez large.
+  const [resyncPanelOuvert, setResyncPanelOuvert] = useState(false);
+  const resyncPanelRef = useRef<HTMLDivElement>(null);
+
   const [activeCommentModal, setActiveCommentModal] = useState<{
     actionId: string;
     currentText: string;
@@ -334,6 +342,16 @@ export default function PlanningExpertMix() {
     if (isNotifOpen) document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isNotifOpen]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (resyncPanelRef.current && !resyncPanelRef.current.contains(event.target as Node)) {
+        setResyncPanelOuvert(false);
+      }
+    }
+    if (resyncPanelOuvert) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [resyncPanelOuvert]);
 
   // Le planning n'affiche qu'une semaine à la fois : on ne charge que les
   // actions de cette semaine (lundi à dimanche, indépendamment du toggle
@@ -1579,8 +1597,18 @@ export default function PlanningExpertMix() {
           suivre le bas de ce bloc plutôt que rester centrés (ce qui les
           faisait paraître plaqués en haut). Sans effet quand tout tient sur
           une seule ligne (tous les éléments ont alors la même hauteur). */}
-      <header className="fixed top-0 left-0 right-0 z-50 flex justify-between items-end px-5 py-2.5 border-b border-[#003d42] bg-[#005259] text-white shadow-md">
-        <div className="flex items-center gap-3">
+      {/* gap-4 en plus de justify-between : sans lui, quand le contenu
+          remplit presque toute la largeur, justify-between n'a plus
+          d'espace à répartir et les deux groupes (gauche/droite) peuvent se
+          toucher ("Semaine validée" collé au bouton de resynchronisation) —
+          gap-4 garantit un écart minimal, que justify-between agrandit
+          ensuite s'il reste de la place. */}
+      <header className="fixed top-0 left-0 right-0 z-50 flex justify-between items-end gap-4 px-5 py-2.5 border-b border-[#003d42] bg-[#005259] text-white shadow-md">
+        {/* items-end ici aussi : sinon "Semaine validée" reste centré sur la
+            hauteur du titre passé à 2 lignes, donc plus haut que le bas du
+            groupe — désaligné par rapport aux boutons de droite, alignés
+            eux sur ce même bas via le header. */}
+        <div className="flex items-end gap-3">
           {/* Le repli de la liste des modèles se fait désormais via la
               poignée ronde accolée à la barre elle-même (voir AGENCEMENT
               PRINCIPAL plus bas) — plus visible qu'une icône perdue ici
@@ -1627,36 +1655,50 @@ export default function PlanningExpertMix() {
           {/* Actions globales (agissent sur l'agenda de tout le monde)
               réservées aux comptes admin, indépendamment de qui peut
               connecter son propre agenda (voir lib/googleCalendarBeta.ts).
-              Resynchronisation mois par mois d'abord (plus rapide à vérifier,
-              moins de risque de timeout) avant de forcer tout d'un coup. */}
+              Repliées dans un panneau (voir resyncPanelOuvert) plutôt qu'en
+              ligne dans l'en-tête. */}
           {estAdminGoogleAgenda(user?.email) && (
-            <div className="flex items-center gap-1">
-              <input
-                type="month"
-                value={moisResync}
-                onChange={(e) => setMoisResync(e.target.value)}
-                disabled={resyncMoisEnCours}
-                className="px-2 py-1.5 bg-[#003d42] border border-[#002b2f] rounded-lg text-white text-xs h-9 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
-                title="Mois à resynchroniser avec Google Agenda"
-              />
+            <div className="relative" ref={resyncPanelRef}>
               <button
-                onClick={forcerSyncGoogleAgendaMois}
-                disabled={resyncMoisEnCours || !moisResync}
-                className="h-9 px-3 rounded-lg text-xs font-bold whitespace-nowrap bg-[#003d42] border border-[#002b2f] hover:bg-[#002b2f] text-white cursor-pointer flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-60"
-                title="Forcer la resynchronisation de ce mois avec Google Agenda"
+                onClick={() => setResyncPanelOuvert(!resyncPanelOuvert)}
+                className="p-2 bg-[#003d42] border border-[#002b2f] hover:bg-[#002b2f] rounded-lg text-white cursor-pointer flex items-center justify-center min-w-[36px] h-9"
+                title="Resynchronisation Google Agenda (admin)"
               >
-                <ArrowPathIcon className={`w-4 h-4 text-white shrink-0 ${resyncMoisEnCours ? "animate-spin" : ""}`} />
-                Ce mois
+                <ArrowPathIcon className={`w-5 h-5 text-white ${resyncMoisEnCours || resyncGlobalEnCours ? "animate-spin" : ""}`} />
               </button>
-              <button
-                onClick={forcerSyncGoogleAgendaGlobale}
-                disabled={resyncGlobalEnCours}
-                className="h-9 px-3 rounded-lg text-xs font-bold whitespace-nowrap bg-[#EF736A]/15 border border-[#EF736A]/50 hover:bg-[#EF736A]/25 text-[#EF736A] cursor-pointer flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-60"
-                title="Forcer la resynchronisation de TOUT l'agenda avec Google Agenda"
-              >
-                <ArrowPathIcon className={`w-4 h-4 shrink-0 ${resyncGlobalEnCours ? "animate-spin" : ""}`} />
-                Tout
-              </button>
+              {resyncPanelOuvert && (
+                <div className="absolute right-0 mt-2 w-72 bg-white border border-[#404040]/10 rounded-xl shadow-xl z-50 p-3 space-y-2.5 text-[#404040]">
+                  <span className="text-xs font-bold text-[#005259] uppercase tracking-wide">Resynchronisation Google Agenda</span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="month"
+                      value={moisResync}
+                      onChange={(e) => setMoisResync(e.target.value)}
+                      disabled={resyncMoisEnCours}
+                      className="flex-1 min-w-0 px-2 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-[#404040] text-xs h-9 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                      title="Mois à resynchroniser avec Google Agenda"
+                    />
+                    <button
+                      onClick={forcerSyncGoogleAgendaMois}
+                      disabled={resyncMoisEnCours || !moisResync}
+                      className="h-9 px-3 rounded-lg text-xs font-bold whitespace-nowrap bg-[#005259] hover:bg-[#003d42] text-white cursor-pointer flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-60 shrink-0"
+                      title="Forcer la resynchronisation de ce mois avec Google Agenda"
+                    >
+                      <ArrowPathIcon className={`w-4 h-4 text-white shrink-0 ${resyncMoisEnCours ? "animate-spin" : ""}`} />
+                      Ce mois
+                    </button>
+                  </div>
+                  <button
+                    onClick={forcerSyncGoogleAgendaGlobale}
+                    disabled={resyncGlobalEnCours}
+                    className="w-full h-9 px-3 rounded-lg text-xs font-bold whitespace-nowrap bg-[#EF736A]/10 border border-[#EF736A]/30 hover:bg-[#EF736A]/20 text-[#EF736A] cursor-pointer flex items-center justify-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-60"
+                    title="Forcer la resynchronisation de TOUT l'agenda avec Google Agenda"
+                  >
+                    <ArrowPathIcon className={`w-4 h-4 shrink-0 ${resyncGlobalEnCours ? "animate-spin" : ""}`} />
+                    Tout resynchroniser
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
