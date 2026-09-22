@@ -852,7 +852,14 @@ export default function PlanningExpertMix() {
   // plusieurs mois. N'a de sens qu'une fois filtré sur une seule personne.
   const joursSansRienParMois: { cle: string; label: string; jours: number[] }[] = [];
   if (mediateurGanttSelectionne && premierJourGantt && dernierJourGantt) {
-    const datesAvecAction = new Set(actionsGanttFiltrees.map(a => a.date));
+    // Toujours basé sur TOUTES les actions de la personne, indépendamment du
+    // distingo Tout/Production affiché sur la grille : un jour où elle n'a
+    // qu'une action hors production (ex. congé, formation) n'est pas un
+    // vrai jour vide, il ne doit jamais apparaître ici même filtré sur
+    // "Production" seule.
+    const datesAvecAction = new Set(
+      actionsGantt.filter(a => estActionDuMediateur(a, mediateurGanttSelectionne)).map(a => a.date)
+    );
     const parMois = new Map<string, { label: string; jours: number[] }>();
     const curseur = new Date(premierJourGantt);
     while (curseur <= dernierJourGantt) {
@@ -2015,7 +2022,14 @@ export default function PlanningExpertMix() {
         </aside>
 
         {/* GRILLE DU TABLEAU DU PLANNING, PAR BLOCS RÉTRACTABLES */}
-        <div className="flex-1 space-y-3">
+        {/* min-w-0 : sans ça, cet enfant flex ne se laisse jamais rétrécir
+            en dessous de la largeur intrinsèque de son contenu le plus
+            large (le quadrillage GANTT, ~4680px sur 6 mois) — même avec un
+            overflow-x-auto interne sur ce dernier, toute LA COLONNE (donc
+            aussi la légende, censée tenir sur l'écran) hérite de cette
+            largeur et pousse un scroll horizontal sur toute la page plutôt
+            que de laisser flex-wrap faire son travail. */}
+        <div className="flex-1 min-w-0 space-y-3">
           {/* Bascule Édition / GANTT : la vue GANTT (voir GanttActiviteContinu
               plus bas) est en lecture seule, juste pour repérer d'un coup
               d'œil les trous/chevauchements — on continue d'éditer depuis la
@@ -3143,6 +3157,16 @@ function territoireDeLigne(label: string): string {
   return i >= 0 ? label.slice(0, i).trim() : label.trim();
 }
 
+// Regroupement d'affichage pour la légende de la vue GANTT par médiateur :
+// les lieux du 75 sont soit des écoles, soit des résidences autonomie — trop
+// nombreux pour lister chaque site un par un dans une légende, alors que
+// leur famille (pas le site précis) est ce qui compte pour s'y retrouver.
+// Les autres territoires (91, 92...) gardent leur libellé exact.
+function etiquetteLegendeGantt(lieu: string): string {
+  if (territoireDeLigne(lieu) !== "75") return lieu;
+  return /[ée]cole/i.test(lieu) ? "Écoles" : "Résidence Autonomie";
+}
+
 function joursEntre(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / 86400000);
 }
@@ -3256,47 +3280,72 @@ function GanttActiviteContinu({ actions, premierJour, dernierJour, mediateurLabe
     }
     const nbLanes = Math.max(1, ...Array.from(parDate.values(), acts => acts.length));
 
+    // Légende lieu → couleur : les cases sont trop étroites (voir
+    // LARGEUR_JOUR) pour porter le nom de l'activité, la couleur seule ne
+    // suffit pas à s'y retrouver sans elle. Par lieu et non par couleur —
+    // plusieurs lieux distincts peuvent partager la même couleur de modèle.
+    const legende = new Map<string, string>();
+    for (const a of actions) {
+      if (!a.lieu) continue;
+      const etiquette = etiquetteLegendeGantt(a.lieu);
+      if (!legende.has(etiquette)) legende.set(etiquette, a.couleur || "#005259");
+    }
+    const legendeTriee = Array.from(legende.entries()).sort((a, b) => a[0].localeCompare(b[0], "fr"));
+
     return (
-      <div className="bg-white border border-[#404040]/10 rounded-xl p-4 overflow-x-auto overflow-y-visible shadow-sm">
-        <div style={{ width: `${200 + largeurTimeline}px` }}>
-          {enTeteMoisEtJours}
-          <div className="flex border-b border-[#F3F3F2]">
-            <div className="w-[200px] shrink-0 pr-2 py-2 sticky left-0 z-10 bg-white flex items-center">
-              <span className="font-bold text-[#005259] text-xs">{mediateurLabel}</span>
-            </div>
-            <div
-              className="relative"
-              style={{ width: `${largeurTimeline}px`, minHeight: `${nbLanes * 24 + 8}px`, backgroundImage: `${grilleJournaliere}, ${ombreJoursOff}` }}
-            >
-              {mois.map(mo => (
-                <div key={mo.debut.toISOString()} className="absolute top-0 bottom-0 border-l border-[#404040]/20" style={{ left: `${px(mo.debut)}px` }} />
-              ))}
-              {jours.flatMap(j => {
-                const dateStr = j.toLocaleDateString('en-CA');
-                const actsJour = [...(parDate.get(dateStr) || [])].sort((a, b) => (a.debut || "").localeCompare(b.debut || "") || (a.ordre ?? 0) - (b.ordre ?? 0));
-                return actsJour.map((a, lane) => {
-                  const alerte = !(a.mediateurNom || "").trim();
-                  return (
-                    <button
-                      key={`${dateStr}-${lane}`}
-                      type="button"
-                      onClick={() => setDetailJour({ date: j, actions: actsJour })}
-                      title={`${a.lieu || "?"}${a.debut && a.fin ? ` · ${a.debut}-${a.fin}` : ""}${alerte ? " · ⚠️ sans médiateur" : ""}`}
-                      className={`absolute rounded shadow-sm cursor-pointer hover:brightness-110 ${alerte ? "ring-2 ring-[#EF736A] ring-offset-1" : ""}`}
-                      style={{
-                        top: `${lane * 24 + 4}px`,
-                        left: `${px(j) + 1}px`,
-                        width: `${LARGEUR_JOUR - 2}px`,
-                        height: "20px",
-                        backgroundColor: a.couleur || "#005259",
-                      }}
-                    />
-                  );
-                });
-              })}
+      <div className="bg-white border border-[#404040]/10 rounded-xl p-4 shadow-sm">
+        <div className="overflow-x-auto overflow-y-visible">
+          <div style={{ width: `${200 + largeurTimeline}px` }}>
+            {enTeteMoisEtJours}
+            <div className="flex border-b border-[#F3F3F2]">
+              <div className="w-[200px] shrink-0 pr-2 py-2 sticky left-0 z-10 bg-white flex items-center">
+                <span className="font-bold text-[#005259] text-xs">{mediateurLabel}</span>
+              </div>
+              <div
+                className="relative"
+                style={{ width: `${largeurTimeline}px`, minHeight: `${nbLanes * 24 + 8}px`, backgroundImage: `${grilleJournaliere}, ${ombreJoursOff}` }}
+              >
+                {mois.map(mo => (
+                  <div key={mo.debut.toISOString()} className="absolute top-0 bottom-0 border-l border-[#404040]/20" style={{ left: `${px(mo.debut)}px` }} />
+                ))}
+                {jours.flatMap(j => {
+                  const dateStr = j.toLocaleDateString('en-CA');
+                  const actsJour = [...(parDate.get(dateStr) || [])].sort((a, b) => (a.debut || "").localeCompare(b.debut || "") || (a.ordre ?? 0) - (b.ordre ?? 0));
+                  return actsJour.map((a, lane) => {
+                    const alerte = !(a.mediateurNom || "").trim();
+                    return (
+                      <button
+                        key={`${dateStr}-${lane}`}
+                        type="button"
+                        onClick={() => setDetailJour({ date: j, actions: actsJour })}
+                        title={`${a.lieu || "?"}${a.debut && a.fin ? ` · ${a.debut}-${a.fin}` : ""}${alerte ? " · ⚠️ sans médiateur" : ""}`}
+                        className={`absolute rounded shadow-sm cursor-pointer hover:brightness-110 ${alerte ? "ring-2 ring-[#EF736A] ring-offset-1" : ""}`}
+                        style={{
+                          top: `${lane * 24 + 4}px`,
+                          left: `${px(j) + 1}px`,
+                          width: `${LARGEUR_JOUR - 2}px`,
+                          height: "20px",
+                          backgroundColor: a.couleur || "#005259",
+                        }}
+                      />
+                    );
+                  });
+                })}
+              </div>
             </div>
           </div>
         </div>
+
+        {legendeTriee.length > 0 && (
+          <div className="sticky top-[60px] z-20 mt-3 bg-white border border-[#404040]/10 rounded-xl p-3 shadow-sm flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+            {legendeTriee.map(([lieu, couleur]) => (
+              <div key={lieu} className="flex items-center gap-1.5">
+                <span className="rounded shrink-0" style={{ width: `${LARGEUR_JOUR - 2}px`, height: "20px", backgroundColor: couleur }} />
+                <span className="text-[#404040]/70 font-medium">{lieu}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {detailJour && (
           <div
