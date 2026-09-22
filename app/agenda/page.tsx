@@ -205,11 +205,13 @@ export default function PlanningExpertMix() {
   // Même distingo Tout / Production que /mediation/volume-horaire (voir
   // filtreProduction là-bas) — sur le champ estProduction (lib/types.ts).
   const [ganttFiltreProduction, setGanttFiltreProduction] = useState<"tous" | "production">("tous");
-  // Filtre optionnel sur un·e seul·e médiateur·rice — vide = tout le monde.
-  // Une fois filtré sur une personne précise, le nombre de médiateurs sur
-  // chaque barre n'a plus de sens (toujours 1) : la vue affiche alors le
-  // nombre d'heures qu'elle y passe (voir GanttActiviteContinu).
-  const [ganttMediateurId, setGanttMediateurId] = useState<string>("");
+  // Filtre optionnel sur une ou plusieurs médiateur·rice·s — vide = tout le
+  // monde. Une fois filtré sur au moins une personne, chacune obtient sa
+  // propre ligne journalière (voir GanttActiviteContinu, une instance par
+  // personne sélectionnée) plutôt que des lignes par activité.
+  const [ganttMediateurIds, setGanttMediateurIds] = useState<string[]>([]);
+  const [medSelectPanelOuvert, setMedSelectPanelOuvert] = useState(false);
+  const medSelectPanelRef = useRef<HTMLDivElement>(null);
   // Filtre sur les lieux "Absence" (congés, RTT...) configurés dans
   // Paramètres Généraux (configuration_equipe/parametres_configuration.
   // lieuxAbsence), plutôt qu'une liste codée en dur — indépendant du
@@ -370,6 +372,16 @@ export default function PlanningExpertMix() {
     if (resyncPanelOuvert) document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [resyncPanelOuvert]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (medSelectPanelRef.current && !medSelectPanelRef.current.contains(event.target as Node)) {
+        setMedSelectPanelOuvert(false);
+      }
+    }
+    if (medSelectPanelOuvert) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [medSelectPanelOuvert]);
 
   // Le planning n'affiche qu'une semaine à la fois : on ne charge que les
   // actions de cette semaine (lundi à dimanche, indépendamment du toggle
@@ -868,7 +880,7 @@ export default function PlanningExpertMix() {
   const [ganttAn, ganttMoisNum] = ganttMoisDebut.split("-").map(Number);
   const premierJourGantt = (ganttAn && ganttMoisNum) ? new Date(ganttAn, ganttMoisNum - 1, 1) : null;
   const dernierJourGantt = (ganttAn && ganttMoisNum) ? new Date(ganttAn, ganttMoisNum - 1 + ganttNombreMois, 0) : null;
-  const mediateurGanttSelectionne = ganttMediateurId ? mediateurs.find(m => m.id === ganttMediateurId) || null : null;
+  const mediateursGanttSelectionnes = mediateurs.filter(m => ganttMediateurIds.includes(m.id));
   const normaliserPourComparaison = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
   const lieuxAbsenceNormalises = new Set(lieuxAbsenceConfig.map(normaliserPourComparaison));
   const estLieuAbsence = (lieu?: string) => !!lieu && lieuxAbsenceNormalises.has(normaliserPourComparaison(lieu));
@@ -882,7 +894,7 @@ export default function PlanningExpertMix() {
   );
   const actionsGanttFiltrees = actionsGantt
     .filter(a => ganttFiltreProduction !== "production" || a.estProduction)
-    .filter(a => !mediateurGanttSelectionne || estActionDuMediateur(a, mediateurGanttSelectionne))
+    .filter(a => mediateursGanttSelectionnes.length === 0 || mediateursGanttSelectionnes.some(m => estActionDuMediateur(a, m)))
     .filter(a => ganttFiltreAbsences === "tous" || medIdsAvecAbsenceGantt.has(identifiantMediateur(a)));
   // Jours fériés sur toute la période GANTT (potentiellement plusieurs
   // années, contrairement à joursFeries ci-dessus qui ne couvre que la
@@ -894,36 +906,42 @@ export default function PlanningExpertMix() {
     }
   }
 
-  // Jours ouvrés (ni week-end ni férié) de la période GANTT où le médiateur
-  // filtré (voir ganttMediateurId) n'a AUCUNE action — regroupés par mois,
-  // pour repérer d'un coup d'œil les trous de planning d'une personne sur
-  // plusieurs mois. N'a de sens qu'une fois filtré sur une seule personne.
-  const joursSansRienParMois: { cle: string; label: string; jours: number[] }[] = [];
-  if (mediateurGanttSelectionne && premierJourGantt && dernierJourGantt) {
-    // Toujours basé sur TOUTES les actions de la personne, indépendamment du
-    // distingo Tout/Production affiché sur la grille : un jour où elle n'a
-    // qu'une action hors production (ex. congé, formation) n'est pas un
-    // vrai jour vide, il ne doit jamais apparaître ici même filtré sur
-    // "Production" seule.
-    const datesAvecAction = new Set(
-      actionsGantt.filter(a => estActionDuMediateur(a, mediateurGanttSelectionne)).map(a => a.date)
-    );
-    const parMois = new Map<string, { label: string; jours: number[] }>();
-    const curseur = new Date(premierJourGantt);
-    while (curseur <= dernierJourGantt) {
-      const jourSemaine = curseur.getDay();
-      const dateStr = curseur.toLocaleDateString('en-CA');
-      const estOuvre = jourSemaine !== 0 && jourSemaine !== 6 && !joursFeriesGantt.has(dateStr);
-      if (estOuvre && !datesAvecAction.has(dateStr)) {
-        const cleMois = `${curseur.getFullYear()}-${String(curseur.getMonth() + 1).padStart(2, "0")}`;
-        if (!parMois.has(cleMois)) {
-          parMois.set(cleMois, { label: curseur.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }), jours: [] });
+  // Jours ouvrés (ni week-end ni férié) de la période GANTT où chaque
+  // médiateur·rice filtré·e (voir ganttMediateurIds) n'a AUCUNE action —
+  // regroupés par mois, pour repérer d'un coup d'œil les trous de planning
+  // sur plusieurs mois. Une entrée par personne sélectionnée.
+  const joursSansRienParMediateur: { medId: string; medLabel: string; mois: { cle: string; label: string; jours: number[] }[] }[] = [];
+  if (mediateursGanttSelectionnes.length > 0 && premierJourGantt && dernierJourGantt) {
+    for (const m of mediateursGanttSelectionnes) {
+      // Toujours basé sur TOUTES les actions de la personne, indépendamment
+      // du distingo Tout/Production affiché sur la grille : un jour où elle
+      // n'a qu'une action hors production (ex. congé, formation) n'est pas
+      // un vrai jour vide, il ne doit jamais apparaître ici même filtré sur
+      // "Production" seule.
+      const datesAvecAction = new Set(
+        actionsGantt.filter(a => estActionDuMediateur(a, m)).map(a => a.date)
+      );
+      const parMois = new Map<string, { label: string; jours: number[] }>();
+      const curseur = new Date(premierJourGantt);
+      while (curseur <= dernierJourGantt) {
+        const jourSemaine = curseur.getDay();
+        const dateStr = curseur.toLocaleDateString('en-CA');
+        const estOuvre = jourSemaine !== 0 && jourSemaine !== 6 && !joursFeriesGantt.has(dateStr);
+        if (estOuvre && !datesAvecAction.has(dateStr)) {
+          const cleMois = `${curseur.getFullYear()}-${String(curseur.getMonth() + 1).padStart(2, "0")}`;
+          if (!parMois.has(cleMois)) {
+            parMois.set(cleMois, { label: curseur.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }), jours: [] });
+          }
+          parMois.get(cleMois)!.jours.push(curseur.getDate());
         }
-        parMois.get(cleMois)!.jours.push(curseur.getDate());
+        curseur.setDate(curseur.getDate() + 1);
       }
-      curseur.setDate(curseur.getDate() + 1);
+      joursSansRienParMediateur.push({
+        medId: m.id,
+        medLabel: `${m.prenom || ""} ${m.nom || ""}`.trim(),
+        mois: Array.from(parMois.entries()).map(([cle, v]) => ({ cle, ...v })).sort((a, b) => a.cle.localeCompare(b.cle)),
+      });
     }
-    joursSansRienParMois.push(...Array.from(parMois.entries()).map(([cle, v]) => ({ cle, ...v })).sort((a, b) => a.cle.localeCompare(b.cle)));
   }
 
   // Médiateurs réellement affichés dans la grille cette semaine (actifs,
@@ -2346,17 +2364,42 @@ export default function PlanningExpertMix() {
                     Production
                   </button>
                 </div>
-                <select
-                  value={ganttMediateurId}
-                  onChange={(e) => setGanttMediateurId(e.target.value)}
-                  title="Filtrer sur un·e seul·e médiateur·rice"
-                  className="px-2 py-1 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-[#404040] text-xs cursor-pointer max-w-[200px]"
-                >
-                  <option value="">Tous les médiateurs</option>
-                  {mediateurs.filter(m => m.prenom || m.nom).map(m => (
-                    <option key={m.id} value={m.id}>{m.prenom} {m.nom}</option>
-                  ))}
-                </select>
+                <div className="relative" ref={medSelectPanelRef}>
+                  <button
+                    onClick={() => setMedSelectPanelOuvert(!medSelectPanelOuvert)}
+                    title="Filtrer sur une ou plusieurs médiateur·rice·s"
+                    className="px-3 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-[#404040] text-xs font-bold cursor-pointer max-w-[220px] truncate text-left"
+                  >
+                    {mediateursGanttSelectionnes.length === 0
+                      ? "Tous les médiateurs"
+                      : mediateursGanttSelectionnes.length === 1
+                        ? `${mediateursGanttSelectionnes[0].prenom || ""} ${mediateursGanttSelectionnes[0].nom || ""}`.trim()
+                        : `${mediateursGanttSelectionnes.length} médiateurs sélectionnés`}
+                  </button>
+                  {medSelectPanelOuvert && (
+                    <div className="absolute left-0 mt-2 w-64 max-h-80 overflow-y-auto bg-white border border-[#404040]/10 rounded-xl shadow-xl z-50 p-2 space-y-0.5 text-[#404040]">
+                      {ganttMediateurIds.length > 0 && (
+                        <button
+                          onClick={() => setGanttMediateurIds([])}
+                          className="w-full text-left px-2 py-1.5 rounded-lg text-xs font-bold text-[#EF736A] hover:bg-[#EF736A]/10 cursor-pointer"
+                        >
+                          Tout désélectionner
+                        </button>
+                      )}
+                      {mediateurs.filter(m => m.prenom || m.nom).map(m => (
+                        <label key={m.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-bold hover:bg-[#F3F3F2] cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={ganttMediateurIds.includes(m.id)}
+                            onChange={() => setGanttMediateurIds(prev => prev.includes(m.id) ? prev.filter(id => id !== m.id) : [...prev, m.id])}
+                            className="cursor-pointer"
+                          />
+                          {m.prenom} {m.nom}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {/* Liste des lieux "Absence" configurable dans Paramètres
                     Généraux (page_access_parametres), pas codée en dur —
                     voir lieuxAbsenceConfig. "Isoler" garde les absences ET
@@ -2393,19 +2436,19 @@ export default function PlanningExpertMix() {
                 </Link>
               </div>
 
-              {/* Jours ouvrés sans aucune action, par mois — uniquement
-                  pertinent une fois filtré sur une seule personne. */}
-              {mediateurGanttSelectionne && (
-                <div className="flex-1 min-w-[260px] bg-white border border-[#404040]/10 rounded-xl px-3 py-2 shadow-sm text-xs">
+              {/* Jours ouvrés sans aucune action, par mois — une carte par
+                  personne sélectionnée. */}
+              {joursSansRienParMediateur.map(j => (
+                <div key={j.medId} className="flex-1 min-w-[260px] bg-white border border-[#404040]/10 rounded-xl px-3 py-2 shadow-sm text-xs">
                   <div className="flex items-center gap-1.5 text-[#EF736A] font-extrabold uppercase text-[10px] tracking-wide mb-1.5">
                     <ExclamationTriangleIcon className="w-3.5 h-3.5 shrink-0" />
-                    Jours ouvrés sans activité — {mediateurGanttSelectionne.prenom} {mediateurGanttSelectionne.nom}
+                    Jours ouvrés sans activité — {j.medLabel}
                   </div>
-                  {joursSansRienParMois.length === 0 ? (
+                  {j.mois.length === 0 ? (
                     <p className="text-[#404040]/50 italic">Aucun jour ouvré sans action sur cette période.</p>
                   ) : (
                     <div className="space-y-0.5">
-                      {joursSansRienParMois.map(m => (
+                      {j.mois.map(m => (
                         <div key={m.cle} className="flex flex-wrap gap-x-1.5">
                           <span className="font-bold text-[#005259] capitalize shrink-0">{m.label} :</span>
                           <span className="text-[#404040]/70">{m.jours.join(", ")}</span>
@@ -2414,19 +2457,37 @@ export default function PlanningExpertMix() {
                     </div>
                   )}
                 </div>
-              )}
+              ))}
             </div>
           )}
 
+          {/* Une instance par médiateur·rice sélectionné·e (chacune sa
+              propre ligne journalière), ou une seule vue par activité
+              (lignes = lieux) si personne n'est filtré. */}
           {vueAgenda === "gantt-activite" && premierJourGantt && dernierJourGantt && (
-            <GanttActiviteContinu
-              actions={actionsGanttFiltrees}
-              premierJour={premierJourGantt}
-              dernierJour={dernierJourGantt}
-              mediateurLabel={mediateurGanttSelectionne ? `${mediateurGanttSelectionne.prenom || ""} ${mediateurGanttSelectionne.nom || ""}`.trim() : undefined}
-              joursFeries={joursFeriesGantt}
-              estLieuAbsence={ganttFiltreAbsences === "isoler" ? estLieuAbsence : undefined}
-            />
+            mediateursGanttSelectionnes.length > 0 ? (
+              <div className="space-y-3">
+                {mediateursGanttSelectionnes.map(m => (
+                  <GanttActiviteContinu
+                    key={m.id}
+                    actions={actionsGanttFiltrees.filter(a => estActionDuMediateur(a, m))}
+                    premierJour={premierJourGantt}
+                    dernierJour={dernierJourGantt}
+                    mediateurLabel={`${m.prenom || ""} ${m.nom || ""}`.trim()}
+                    joursFeries={joursFeriesGantt}
+                    estLieuAbsence={ganttFiltreAbsences === "isoler" ? estLieuAbsence : undefined}
+                  />
+                ))}
+              </div>
+            ) : (
+              <GanttActiviteContinu
+                actions={actionsGanttFiltrees}
+                premierJour={premierJourGantt}
+                dernierJour={dernierJourGantt}
+                joursFeries={joursFeriesGantt}
+                estLieuAbsence={ganttFiltreAbsences === "isoler" ? estLieuAbsence : undefined}
+              />
+            )
           )}
         </div>
       </div>
