@@ -682,6 +682,61 @@ export default function PlanningSuresnes() {
     await deleteDoc(doc(db, "planning_suresnes", id));
   };
 
+  // Supprime le créneau de STAFFING du médiateur dans l'agenda des
+  // médiateurs (planning_mediateurs) — pas le créneau planning_suresnes
+  // lui-même. Sert au cas où toutes les visites du créneau ont été
+  // reportées (usagers repassés "Absent" après la collecte) : le médiateur
+  // n'a alors plus lieu d'être positionné sur ce créneau RN, mais rien ne
+  // le retire automatiquement de son agenda côté /agenda. Même garde-fou
+  // que confirmDeleteAction dans app/agenda/page.tsx, mais assoupli : un
+  // usager encore inscrit ne bloque PAS la suppression si sa visite est
+  // déjà marquée "Absent" (voir statutsVisitesRealtime) — c'est justement
+  // ce cas-là qui motive ce bouton (visites reportées après la collecte,
+  // médiateur plus utile sur ce créneau). Seul un usager qui n'est ni
+  // absent ni retiré (encore "Non suivi"/"Présent") bloque.
+  const supprimerCreneauAgendaMediateur = async (c: any) => {
+    if (siteActif !== "suresnes" && siteActif !== "rn91") return;
+    const nomNettoye = (c.mediateurNom || "").replace(" (RND)", "").replace(" (RN91)", "").replace(" (RN)", "").trim();
+    if (!nomNettoye) return;
+
+    const usagersEncoreInscrits = creneaux.some(cc => {
+      if (cc.date !== c.date || cc.moment !== c.moment) return false;
+      const nomCc = (cc.mediateurNom || "").replace(" (RND)", "").replace(" (RN91)", "").replace(" (RN)", "").trim().toLowerCase();
+      if (nomCc !== nomNettoye.toLowerCase()) return false;
+      if (!(cc.usager || "").trim()) return false;
+      const statut = statutsVisitesRealtime[`${cc.id}_${cc.date}`] || "Non suivi";
+      return statut !== "Absent";
+    });
+    if (usagersEncoreInscrits) {
+      showToast("Impossible de supprimer : au moins un usager encore inscrit n'est pas marqué \"Absent\". Reportez d'abord ses rendez-vous.", "error");
+      return;
+    }
+
+    if (!confirm(`Supprimer le créneau RN de ${nomNettoye} du ${c.date} (${c.moment}) dans l'agenda des médiateurs ?`)) return;
+
+    const snap = await getDocs(query(
+      collection(db, "planning_mediateurs"),
+      where("date", "==", c.date),
+      where("moment", "==", c.moment)
+    ));
+    const departement91 = siteActif === "rn91";
+    const docsAsupprimer = snap.docs.filter(d => {
+      const data = d.data() as any;
+      const nomDoc = (data.mediateurNom || data.mediateur || "").trim().toLowerCase();
+      if (nomDoc !== nomNettoye.toLowerCase()) return false;
+      const upperLieu = (data.lieu || "").toUpperCase();
+      if (!upperLieu.includes("RN")) return false;
+      const estLieu91 = upperLieu.includes("91");
+      return departement91 ? estLieu91 : !estLieu91;
+    });
+    if (docsAsupprimer.length === 0) {
+      showToast("Aucun créneau correspondant trouvé dans l'agenda des médiateurs.", "error");
+      return;
+    }
+    await Promise.all(docsAsupprimer.map(d => deleteDoc(doc(db, "planning_mediateurs", d.id))));
+    showToast("Créneau retiré de l'agenda des médiateurs.");
+  };
+
   // Bascule RND (visite à domicile) / RN (sur place) d'un créneau déjà
   // affecté, sans passer par "Réaffecter médiateur" — ne change que le
   // suffixe du nom, jamais la personne elle-même. Réservé au site Suresnes,
@@ -1288,6 +1343,16 @@ export default function PlanningSuresnes() {
                                               Retirer RND
                                             </button>
                                           </PermissionGuard>
+                                        )}
+                                        {(siteActif === "suresnes" || siteActif === "rn91") && !isOrphan && role === "admin" && (
+                                          <button
+                                            onClick={() => supprimerCreneauAgendaMediateur(c)}
+                                            title="Retirer ce médiateur du créneau RN dans l'agenda des médiateurs (ex : rendez-vous reportés après collecte)"
+                                            className="px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wide transition-colors cursor-pointer bg-[#EF736A]/10 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/30 flex items-center gap-1"
+                                          >
+                                            <CalendarDaysIcon className="w-3 h-3" />
+                                            Retirer de l'agenda
+                                          </button>
                                         )}
                                         <PermissionGuard actionId="suresnes_reassign">
                                           <button
