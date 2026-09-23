@@ -92,6 +92,12 @@ function calculerTrigramme(nomComplet?: string): string {
   return `${simplifier(prenom).slice(0, 1)}${simplifier(nom).slice(0, 2)}`;
 }
 
+// Types de "visites" qui ne sont pas des rendez-vous en tant que tels, mais
+// un diagnostic/questionnaire complémentaire à un rendez-vous existant —
+// même liste que "Suivi des rendez-vous" sur la fiche bénéficiaire
+// (rencontresStandards, app/mediation/rencontres-numeriques/liste-beneficiaires/[id]/page.tsx).
+const MOMENTS_HORS_RDV = new Set(["Diagnostic Initial", "Diagnostic Final", "Questionnaire de satisfaction", "Collecte Tech"]);
+
 // Le champ "site" d'un créneau peut avoir été saisi à la main dans Firebase
 // (ex "RN - 91" au lieu de la clé interne "rn91") : on canonicalise ici selon
 // la même règle que liste-beneficiaires → "Mettre à jour l'agenda", pour
@@ -284,7 +290,12 @@ export default function PlanningSuresnes() {
           lieu: data.lieu || ""
         });
 
-        if (data.statut === "Présent") {
+        // Même filtre que "Suivi des rendez-vous" sur la fiche bénéficiaire
+        // (rencontresStandards) : un diagnostic/questionnaire de
+        // satisfaction n'est pas un rendez-vous à part entière, juste un
+        // complément à la visite qu'il concerne — sinon le badge "N"
+        // comptait deux fois la même venue quand les deux partagent la date.
+        if (data.statut === "Présent" && !MOMENTS_HORS_RDV.has(data.moment)) {
           totauxPresents[userId] = (totauxPresents[userId] || 0) + 1;
         }
 

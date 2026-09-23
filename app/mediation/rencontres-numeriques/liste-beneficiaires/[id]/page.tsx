@@ -1153,6 +1153,18 @@ export default function FicheBeneficiaire() {
                               </Link>
                             </PermissionGuard>
                           )}
+
+                          {(diag.moment === "Questionnaire de satisfaction" || diag.moment === "Diagnostic Final") && (
+                            <PermissionGuard actionId="fiche_action_delete_rdv">
+                              <button
+                                onClick={() => handleDeleteRDV(diag.id)}
+                                title={diag.moment === "Diagnostic Final" ? "Supprimer ce diagnostic final" : "Supprimer ce questionnaire de satisfaction"}
+                                className="p-1.5 bg-[#EF736A]/10 border border-[#EF736A]/30 hover:bg-[#EF736A] hover:text-white text-[#EF736A] rounded-lg transition-colors shrink-0"
+                              >
+                                <TrashIcon className="w-4 h-4" />
+                              </button>
+                            </PermissionGuard>
+                          )}
                         </div>
 
                         {diag.thematique && (

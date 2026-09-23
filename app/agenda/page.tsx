@@ -357,7 +357,7 @@ export default function PlanningExpertMix() {
   const estSemaineValidee = !!semainesValidees[currentWeekId];
   const nonLuesCount = notifications.filter(n => !n.lue).length;
 
-  const { can, user, statut } = usePermissions();
+  const { can, user, statut, role } = usePermissions();
   // La collection "notifications" cible chaque destinataire par son UID
   // Firebase Auth (voir destinataireId posé dans processActionCreation et
   // lib/activitesTypes.ts) : longtemps codé en dur sur un texte de
@@ -2205,14 +2205,16 @@ export default function PlanningExpertMix() {
               doublon avec cette grille d'édition, déjà organisée par
               médiateur·rice. */}
           <div className="flex items-center gap-1 bg-white border border-[#404040]/10 rounded-xl p-1.5 shadow-sm w-fit">
-            <button
-              onClick={() => setVueAgenda("edition")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all cursor-pointer ${
-                vueAgenda === "edition" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/60 hover:bg-[#F3F3F2]"
-              }`}
-            >
-              Édition
-            </button>
+            {role === "admin" && (
+              <button
+                onClick={() => setVueAgenda("edition")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all cursor-pointer ${
+                  vueAgenda === "edition" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/60 hover:bg-[#F3F3F2]"
+                }`}
+              >
+                Édition
+              </button>
+            )}
             {/* Vue GANTT réservée aux administrateurs. */}
             <PermissionGuard actionId="agenda_gantt_view">
               <button
