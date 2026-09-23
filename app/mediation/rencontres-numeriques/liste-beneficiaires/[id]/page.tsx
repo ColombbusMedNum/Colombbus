@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { db } from "@/lib/firebase";
 import { useMediateurs } from "@/lib/MediateursProvider";
-import { 
-  doc, 
-  collection, 
+import {
+  doc,
+  collection,
   setDoc,
-  query, 
-  orderBy, 
-  serverTimestamp, 
-  updateDoc, 
+  query,
+  orderBy,
+  serverTimestamp,
+  updateDoc,
   onSnapshot,
   addDoc,
   deleteDoc
@@ -32,6 +32,7 @@ import {
   CalendarDaysIcon,
   AcademicCapIcon,
   ClipboardDocumentCheckIcon,
+  DocumentTextIcon,
   ExclamationTriangleIcon,
   TrashIcon,
   NoSymbolIcon,
@@ -172,7 +173,7 @@ export default function FicheBeneficiaire() {
   const [rdvs, setRdvs] = useState<Visite[]>([]);
   const [loading, setLoading] = useState(true);
   const [userExists, setUserExists] = useState(true);
-  
+
   const { mediateurs: mediateursBruts } = useMediateurs();
   const [lieuxGlobaux, setLieuxGlobaux] = useState<LieuGlobal[]>([]);
 
@@ -716,6 +717,30 @@ export default function FicheBeneficiaire() {
                 <span>Agenda RN</span>
               </Link>
             </PermissionGuard>
+            {/* "Bilan" (fiches-bilans, pour noter les incohérences) — même
+                lien que le bouton "Bilan" déjà présent sur la page RN
+                Suresnes pour un onglet résidence autonomie (voir
+                estSiteResidenceAutonomie dans suresnes/page.tsx), mais
+                déclenché ici directement depuis le lieu de RDV de LA
+                personne plutôt que depuis l'onglet actif de l'agenda. */}
+            {(() => {
+              // La fiche ne stocke que le nom RACCOURCI du lieu (nomCourt,
+              // ex "ARBUSTES") — "Résidence Autonomie" n'apparaît que dans
+              // le nom COMPLET du lieu correspondant dans lieuxGlobaux (même
+              // recherche que lieuRattachementSelectionne/estResidenceAutonomie
+              // plus haut, utilisés pour le formulaire d'édition du profil).
+              const lieuRdv = user?.lieuRDV || user?.Lieu_RDV || "";
+              const lieuTrouve = lieuxGlobaux.find(l => l.nomCourt === lieuRdv);
+              const estRA = /r[ée]sidence autonomie/i.test(lieuTrouve?.nomComplet || lieuRdv);
+              return estRA && (
+                <PermissionGuard actionId="fiche_nav_agenda_suresnes">
+                  <Link href={`/mediation/rencontres-numeriques/fiches-bilans?lieu=${encodeURIComponent(lieuRdv)}`} className="inline-flex items-center gap-2 bg-white border border-[#404040]/10 hover:border-[#005259] hover:bg-[#005259] hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-[#005259] transition-all shadow-sm">
+                    <DocumentTextIcon className="w-4 h-4 text-[#EA601F]" />
+                    <span>Bilan</span>
+                  </Link>
+                </PermissionGuard>
+              );
+            })()}
             {(user?.Lieu_RDV === "92 - Collecte Tech" || user?.lieuRDV === "92 - Collecte Tech") && (
               <>
                 <PermissionGuard actionId="fiche_nav_suivi_collecte">
