@@ -108,9 +108,17 @@ export default function AgendaMobilePage() {
   function familleSitePourEquipe(lieu: string): string {
     const normalise = lieu.normalize("NFD").replace(/\p{Diacritic}/gu, "").toUpperCase();
     const estRND = normalise.includes("RND");
-    if (estRND || !normalise.includes("RN")) return lieu;
-    const departement = lieu.match(/^(\d{2})\s*-/)?.[1] || "";
-    return `RN_${departement}`;
+    if (!estRND && normalise.includes("RN")) {
+      const departement = lieu.match(/^(\d{2})\s*-/)?.[1] || "";
+      return `RN_${departement}`;
+    }
+    // Même chose pour "X Observation" (ex "92 - NKUP TECH OBSERVATION") :
+    // ne désigne pas un site à part, seulement la variante ACI-en-observation
+    // de la même action que "X" (voir observationACI dans
+    // lib/activitesTypes.ts) — sans ce regroupement, la personne en
+    // observation et celle en production sur le même créneau n'apparaissent
+    // jamais dans l'équipe l'une de l'autre.
+    return lieu.replace(/\s*observation\s*$/i, "").trim() || lieu;
   }
 
   // Qui est positionné sur le même lieu/jour/demi-journée (utile notamment
