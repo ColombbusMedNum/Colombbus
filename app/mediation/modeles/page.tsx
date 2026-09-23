@@ -60,6 +60,11 @@ export default function ModelesPage() {
   const [search, setSearch] = useState("");
   const [currentTab, setCurrentTab] = useState<"actifs" | "archives">("actifs");
   const [vueGroupement, setVueGroupement] = useState<"production" | "codeInterne" | "alphabetique">("production");
+  // Une activité sans dateDebut ni dateFin n'est pas juste "sans période
+  // renseignée" — elle est permanente/récurrente par nature (ex ERP,
+  // Suresnes...), jamais concernée par l'archivage automatique
+  // (estModeleExpire) puisqu'elle n'a pas de date de fin à dépasser.
+  const [permanentesUniquement, setPermanentesUniquement] = useState(false);
 
   // "Voir les dates" : liste des jours où ce modèle a déjà des créneaux
   // posés dans planning_mediateurs, avec un lien direct vers la case
@@ -182,8 +187,9 @@ export default function ModelesPage() {
     const q = search.trim().toLowerCase();
     return activitesTypes
       .filter(a => (currentTab === "archives") === !!a.archive)
-      .filter(a => !q || (a.lieu || "").toLowerCase().includes(q));
-  }, [activitesTypes, search, currentTab]);
+      .filter(a => !q || (a.lieu || "").toLowerCase().includes(q))
+      .filter(a => !permanentesUniquement || (!a.dateDebut && !a.dateFin));
+  }, [activitesTypes, search, currentTab, permanentesUniquement]);
 
   // Séparation visuelle production / hors production (voir le badge sur
   // chaque carte) — sert notamment à repérer d'un coup d'œil les modèles
@@ -650,6 +656,16 @@ export default function ModelesPage() {
           >
             Alphabétique
           </button>
+
+          <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider text-[#404040]/70 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={permanentesUniquement}
+              onChange={e => setPermanentesUniquement(e.target.checked)}
+              className="accent-[#005259] cursor-pointer"
+            />
+            Permanentes (sans dates)
+          </label>
         </div>
 
         {loading ? (
