@@ -46,6 +46,11 @@ export interface ActiviteType {
   // dans functions/src/index.ts) — sert à catégoriser l'action pour les
   // besoins d'intégration aux agendas ACI, indépendamment du lieu affiché.
   codeACI?: string;
+  // Code interne Colombbus (ex. "REC", "MEDNUM"...) — sert uniquement à
+  // regrouper les heures dans Volume Horaire par grande catégorie interne,
+  // indépendamment du lieu/de l'activité précise (voir
+  // app/mediation/volume-horaire/page.tsx, "Regroupement par code interne").
+  codeInterne?: string;
   adresse: string;
   territoire: string;
   couleur: string;
@@ -443,6 +448,7 @@ export async function genererCreneauxPourModele(
           ...(modele.territoire ? { territoire: modele.territoire } : {}),
           ...(modele.codeAnalytique ? { codeAnalytique: modele.codeAnalytique } : {}),
           ...(modele.codeACI ? { codeACI: modele.codeACI } : {}),
+          ...(modele.codeInterne ? { codeInterne: modele.codeInterne } : {}),
           ...(modele.observationACI ? { observationACI: true } : {}),
           ...(modele.observationACI && modele.observationACIDateFin
             ? { observationACIDateFin: modele.observationACIDateFin }

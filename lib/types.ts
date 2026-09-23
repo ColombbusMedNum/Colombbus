@@ -84,4 +84,8 @@ export interface ActionPlanning {
   // créé pour ce créneau (voir construireEvenement dans
   // functions/src/index.ts), pour l'intégration aux agendas ACI.
   codeACI?: string;
+  // Copié depuis le modèle d'activité (voir ActiviteType) — code interne
+  // Colombbus servant à regrouper les heures dans Volume Horaire par grande
+  // catégorie interne, indépendamment du lieu/de l'activité précise.
+  codeInterne?: string;
 }

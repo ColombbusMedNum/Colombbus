@@ -105,6 +105,11 @@ export default function VolumeHoraireComplet() {
   const [statsMediateurs, setStatsMediateurs] = useState<any[]>([]);
   const [statsActions, setStatsActions] = useState<any[]>([]);
   const [statsTerritoires, setStatsTerritoires] = useState<any[]>([]);
+  // Regroupement par code interne Colombbus (voir ActiviteType.codeInterne
+  // dans lib/activitesTypes.ts, réglé depuis le modèle d'activité) — comme
+  // pour statsActions, mais uniquement les actions dont un code a été
+  // renseigné (la plupart n'en ont pas).
+  const [statsCodesInternes, setStatsCodesInternes] = useState<any[]>([]);
   const [totalGeneral, setTotalGeneral] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -257,6 +262,9 @@ export default function VolumeHoraireComplet() {
     // sidebar de l'agenda), pas sur les sites affectés à la fiche du
     // médiateur (Équipe) — les deux notions ne coïncident pas forcément.
     const tStats: Record<string, { territoire: string; h: number; cout: number }> = Object.create(null);
+    // Regroupement par code interne Colombbus (voir ActiviteType.codeInterne) —
+    // seulement les actions qui en ont un renseigné, la plupart n'en ont pas.
+    const cStats: Record<string, any> = Object.create(null);
     let grandTotal = 0;
 
     // Regroupe par (médiateur, jour) avant tout calcul : un modèle "journée
@@ -339,6 +347,22 @@ export default function VolumeHoraireComplet() {
         if (!tStats[territoire]) tStats[territoire] = { territoire, h: 0, cout: 0 };
         tStats[territoire].h += total;
         tStats[territoire].cout += cout;
+
+        // Aggregations par code interne Colombbus — uniquement si renseigné,
+        // pas de catégorie fourre-tout "sans code" (la plupart des actions
+        // n'en ont pas, ce serait juste bruyant).
+        if (action.codeInterne) {
+          const code = action.codeInterne;
+          if (!cStats[code]) {
+            cStats[code] = { code, h: 0, cout: 0, details: Object.create(null) };
+          }
+          cStats[code].h += total;
+          cStats[code].cout += cout;
+          if (!cStats[code].details[nomAffichage]) {
+            cStats[code].details[nomAffichage] = { h: 0 };
+          }
+          cStats[code].details[nomAffichage].h += total;
+        }
       });
     });
 
@@ -350,6 +374,7 @@ export default function VolumeHoraireComplet() {
     setStatsMediateurs(Object.values(mStats).sort((a: any, b: any) => b.h - a.h));
     setStatsActions(Object.values(aStats).sort((a: any, b: any) => b.h - a.h));
     setStatsTerritoires(Object.values(tStats).sort((a: any, b: any) => b.h - a.h));
+    setStatsCodesInternes(Object.values(cStats).sort((a: any, b: any) => b.h - a.h));
   }, [planningFiltre, mediateursRaw, statutFiltre, grillesHorairesACI]);
 
   // % de dépassement = heures complémentaires rapportées aux heures
@@ -849,6 +874,47 @@ export default function VolumeHoraireComplet() {
             ))}
           </div>
         </div>
+
+        {/* CARTES PAR CODE INTERNE COLOMBBUS — seulement si au moins un
+            modèle d'activité en a un (voir ActiviteType.codeInterne),
+            n'affiche rien sinon plutôt qu'une section vide inutile. */}
+        {statsCodesInternes.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-[#005259] text-white">
+                <Cog6ToothIcon className="w-4 h-4" />
+              </div>
+              <h2 className="font-bold text-xs uppercase tracking-wider text-[#005259]">
+                Regroupement par Code Interne Colombbus
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {statsCodesInternes.map((c, i) => (
+                <div key={i} className="bg-white border border-[#404040]/10 p-5 rounded-2xl flex flex-col justify-between hover:border-[#EA601F]/40 transition-all shadow-sm">
+                  <div className="flex justify-between items-start mb-4 border-b border-[#404040]/10 pb-3">
+                    <div>
+                      <div className="font-bold uppercase text-[#005259] tracking-tight text-xs">{c.code}</div>
+                      <div className="text-[11px] text-[#404040]/70 font-mono mt-0.5">Volume Global : {c.h.toFixed(1)}h</div>
+                    </div>
+                    <div className="font-mono font-bold text-[#EA601F] bg-[#EA601F]/10 border border-[#EA601F]/20 px-2.5 py-1 rounded-lg text-xs">
+                      {c.cout.toFixed(2)}€
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(c.details).map(([nom, d]: any) => (
+                      <span key={nom} className="bg-[#F3F3F2] border border-[#404040]/10 px-2.5 py-1 rounded-lg text-xs font-bold text-[#404040] flex items-center gap-1.5">
+                        <span className="text-[#005259] uppercase text-[10px]">{nom}</span>
+                        <span className="text-[#EA601F] font-mono">{d.h.toFixed(1)}h</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
       </div>
     </main>

@@ -127,7 +127,7 @@ const ACTIVITE_VIDE: ActiviteType = {
   lieu: "", debutMatin: "09:00", finMatin: "12:00", debutApresMidi: "14:00", finApresMidi: "17:30",
   journeeComplete: false,
   adresse: "", territoire: "",
-  couleur: "#005259", codeAnalytique: "", codeACI: "", dateDebut: "", dateFin: "",
+  couleur: "#005259", codeAnalytique: "", codeACI: "", codeInterne: "", dateDebut: "", dateFin: "",
   blocs: [], mediateursIds: [], generationMoment: "Les deux", datesActives: [],
   estProduction: false, observationACI: false, observationACIDateFin: "",
 };
@@ -605,6 +605,7 @@ export default function PlanningExpertMix() {
         couleur: newActivite.couleur,
         codeAnalytique: newActivite.codeAnalytique.trim(),
         codeACI: (newActivite.codeACI || "").trim(),
+        codeInterne: (newActivite.codeInterne || "").trim(),
         dateDebut: newActivite.dateDebut,
         dateFin: newActivite.dateFin,
         blocs: newActivite.blocs || [],
@@ -644,6 +645,7 @@ export default function PlanningExpertMix() {
           return updateDoc(doc(db, "planning_mediateurs", actionDoc.id), {
             codeAnalytique: newActivite.codeAnalytique.trim(),
             codeACI: (newActivite.codeACI || "").trim(),
+            codeInterne: (newActivite.codeInterne || "").trim(),
             couleur: newActivite.couleur,
             lieu: newActivite.lieu.trim(),
             ...(horaire ? { debut: horaire.debut, fin: horaire.fin } : {}),
@@ -781,6 +783,7 @@ export default function PlanningExpertMix() {
       couleur: type.couleur || "#005259",
       codeAnalytique: type.codeAnalytique || "",
       codeACI: type.codeACI || "",
+      codeInterne: type.codeInterne || "",
       dateDebut: type.dateDebut || "",
       dateFin: type.dateFin || "",
       blocs: type.blocs || [],
@@ -1067,6 +1070,7 @@ export default function PlanningExpertMix() {
     const territoireFinal = actionSource?.territoire || selectedModel?.territoire;
     const codeAnalytiqueFinal = actionSource?.codeAnalytique || selectedModel?.codeAnalytique;
     const codeACIFinal = actionSource?.codeACI || selectedModel?.codeACI;
+    const codeInterneFinal = actionSource?.codeInterne || selectedModel?.codeInterne;
     const estProductionFinal = actionSource?.estProduction ?? selectedModel?.estProduction ?? false;
     const observationACIFinal = actionSource?.observationACI ?? selectedModel?.observationACI ?? false;
     const observationACIDateFinFinal = actionSource?.observationACIDateFin ?? selectedModel?.observationACIDateFin;
@@ -1087,6 +1091,7 @@ export default function PlanningExpertMix() {
       ...(territoireFinal ? { territoire: territoireFinal } : {}),
       ...(codeAnalytiqueFinal ? { codeAnalytique: codeAnalytiqueFinal } : {}),
       ...(codeACIFinal ? { codeACI: codeACIFinal } : {}),
+      ...(codeInterneFinal ? { codeInterne: codeInterneFinal } : {}),
       ...(observationACIFinal ? { observationACI: true } : {}),
       ...(observationACIFinal && observationACIDateFinFinal ? { observationACIDateFin: observationACIDateFinFinal } : {})
     });
@@ -2928,6 +2933,18 @@ export default function PlanningExpertMix() {
               />
             </div>
 
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] text-[#404040]/70 font-semibold">
+                Code interne Colombbus (Optionnel — sert à regrouper les heures dans Volume Horaire)
+              </label>
+              <input
+                placeholder="Ex: REC"
+                value={newActivite.codeInterne || ""}
+                className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none"
+                onChange={e => setNewActivite({...newActivite, codeInterne: e.target.value})}
+              />
+            </div>
+
             <label className="flex items-center gap-2 text-xs text-[#404040] font-semibold cursor-pointer">
               <input
                 type="checkbox"
@@ -3331,6 +3348,11 @@ function territoireDeLigne(label: string): string {
   return i >= 0 ? label.slice(0, i).trim() : label.trim();
 }
 
+// Libellé de groupe pour une ligne sans territoire renseigné (voir
+// lignesBase/groupesTerritoire plus bas) — le champ territoire d'une action
+// est le badge du modèle (ex. "75"), pas un texte extrait du lieu.
+const SANS_TERRITOIRE = "Sans territoire";
+
 // Regroupement d'affichage pour la légende de la vue GANTT par médiateur :
 // les lieux du 75 sont soit des écoles, soit des résidences autonomie — trop
 // nombreux pour lister chaque site un par un dans une légende, alors que
@@ -3366,9 +3388,50 @@ interface DetailBarreGantt {
 function GanttActiviteContinu({ actions, premierJour, dernierJour, mediateurLabel, joursFeries, estLieuAbsence }: { actions: ActionPlanning[]; premierJour: Date; dernierJour: Date; mediateurLabel?: string; joursFeries: Set<string>; estLieuAbsence?: (lieu?: string) => boolean }) {
   const [detailBarre, setDetailBarre] = useState<DetailBarreGantt | null>(null);
   const [detailJour, setDetailJour] = useState<{ date: Date; actions: ActionPlanning[] } | null>(null);
+  // Territoires repliés dans la vue "par activité" (voir plus bas) : un Set
+  // de clés, chacune togglée indépendamment des autres — pas un seul état
+  // "territoire actif" façon accordéon classique, qui refermerait les autres
+  // en ouvrant un nouveau (comportement explicitement rejeté par l'utilisateur).
+  const [territoiresReplies, setTerritoiresReplies] = useState<Set<string>>(new Set());
+  const toggleTerritoire = (territoire: string) => {
+    setTerritoiresReplies(prev => {
+      const suivant = new Set(prev);
+      if (suivant.has(territoire)) suivant.delete(territoire); else suivant.add(territoire);
+      return suivant;
+    });
+  };
   const totalJours = joursEntre(premierJour, dernierJour) + 1;
   const px = (date: Date) => joursEntre(premierJour, date) * LARGEUR_JOUR;
   const largeurTimeline = totalJours * LARGEUR_JOUR;
+
+  // Barre de défilement horizontal dupliquée en haut, synchronisée avec le
+  // défilement réel du corps — sinon, sur une période large (plusieurs
+  // mois), la seule barre de défilement se trouve tout en bas de la page,
+  // loin de l'en-tête des mois/jours (même mécanisme que les pages Réponses
+  // à colonnes figées). La largeur exacte du contenu est déjà connue
+  // (200 + largeurTimeline), pas besoin de la mesurer dans le DOM.
+  const scrollHautRef = useRef<HTMLDivElement>(null);
+  const scrollCorpsRef = useRef<HTMLDivElement>(null);
+  const synchroniseEnCours = useRef(false);
+  const surScrollHaut = () => {
+    if (synchroniseEnCours.current) { synchroniseEnCours.current = false; return; }
+    if (scrollHautRef.current && scrollCorpsRef.current) {
+      synchroniseEnCours.current = true;
+      scrollCorpsRef.current.scrollLeft = scrollHautRef.current.scrollLeft;
+    }
+  };
+  const surScrollCorps = () => {
+    if (synchroniseEnCours.current) { synchroniseEnCours.current = false; return; }
+    if (scrollHautRef.current && scrollCorpsRef.current) {
+      synchroniseEnCours.current = true;
+      scrollHautRef.current.scrollLeft = scrollCorpsRef.current.scrollLeft;
+    }
+  };
+  const barreScrollHaut = (
+    <div ref={scrollHautRef} onScroll={surScrollHaut} className="sticky top-[60px] z-20 bg-white border-b border-[#404040]/10 overflow-x-auto overflow-y-hidden py-2 mb-2">
+      <div style={{ width: `${200 + largeurTimeline}px`, height: 1 }} />
+    </div>
+  );
 
   const mois: { debut: Date; label: string }[] = [];
   let curseurMois = new Date(premierJour.getFullYear(), premierJour.getMonth(), 1);
@@ -3476,7 +3539,8 @@ function GanttActiviteContinu({ actions, premierJour, dernierJour, mediateurLabe
 
     return (
       <div className="bg-white border border-[#404040]/10 rounded-xl p-4 shadow-sm">
-        <div className="overflow-x-auto overflow-y-visible">
+        {barreScrollHaut}
+        <div ref={scrollCorpsRef} onScroll={surScrollCorps} className="overflow-x-auto overflow-y-visible">
           <div style={{ width: `${200 + largeurTimeline}px` }}>
             {enTeteMoisEtJours}
             <div className="flex border-b border-[#F3F3F2]">
@@ -3582,7 +3646,7 @@ function GanttActiviteContinu({ actions, premierJour, dernierJour, mediateurLabe
     );
   }
 
-  const groupes = new Map<string, { label: string; estAbsences: boolean; frequence: Map<string, number>; variantes: Map<string, ActionPlanning[]> }>();
+  const groupes = new Map<string, { label: string; estAbsences: boolean; frequence: Map<string, number>; territoireFrequence: Map<string, number>; variantes: Map<string, ActionPlanning[]> }>();
   for (const a of actions) {
     if (!a.lieu || !a.date) continue;
     // Tous les lieux "Absence" (voir estLieuAbsence) partagent une seule et
@@ -3593,10 +3657,18 @@ function GanttActiviteContinu({ actions, premierJour, dernierJour, mediateurLabe
     const cle = estAbsenceLigne ? "__absences__" : normaliserLieuGantt(a.lieu);
     let g = groupes.get(cle);
     if (!g) {
-      g = { label: estAbsenceLigne ? "Absences" : a.lieu, estAbsences: estAbsenceLigne, frequence: new Map(), variantes: new Map() };
+      g = { label: estAbsenceLigne ? "Absences" : a.lieu, estAbsences: estAbsenceLigne, frequence: new Map(), territoireFrequence: new Map(), variantes: new Map() };
       groupes.set(cle, g);
     }
     g.frequence.set(a.lieu, (g.frequence.get(a.lieu) || 0) + 1);
+    // Territoire réel du modèle/action (le petit badge affiché sur les
+    // fiches modèle, ex. "75", "91"), PAS un préfixe extrait du libellé —
+    // la plupart des lieux (ABSENCE, ACI, ERP, EVRY...) n'ont pas de "XX - "
+    // dans leur nom alors qu'ils ont bien un territoire renseigné à part.
+    // Recadré (espaces superflus) pour éviter que deux saisies équivalentes
+    // ("75" et " 75 ") ne forment deux groupes distincts.
+    const territoireAction = (a.territoire || "").trim();
+    if (territoireAction) g.territoireFrequence.set(territoireAction, (g.territoireFrequence.get(territoireAction) || 0) + 1);
     if (!g.variantes.has(a.lieu)) g.variantes.set(a.lieu, []);
     g.variantes.get(a.lieu)!.push(a);
   }
@@ -3661,30 +3733,48 @@ function GanttActiviteContinu({ actions, premierJour, dernierJour, mediateurLabe
       clorreTroncon();
     });
 
-    return { label, barres, nbLanes: variantesEntrees.length, estAbsences: g.estAbsences };
+    // Territoire de la ligne : la valeur la plus fréquente parmi ses
+    // actions (le badge de territoire du modèle, pas un texte extrait du
+    // libellé) — "Sans territoire" quand aucune action de ce groupe n'en a
+    // un renseigné. La ligne "Absences" garde son propre groupe à part
+    // (elle peut mélanger des absences de plusieurs territoires).
+    let territoire = SANS_TERRITOIRE, maxTerritoire = 0;
+    if (g.estAbsences) {
+      territoire = "Absences";
+    } else {
+      for (const [v, n] of g.territoireFrequence) if (n > maxTerritoire) { maxTerritoire = n; territoire = v; }
+    }
+
+    return { label, territoire, barres, nbLanes: variantesEntrees.length, estAbsences: g.estAbsences };
   }).sort((a, b) => {
     // La ligne "Absences" (voir estLieuAbsence — non fourni hors mode
     // "Isoler absences", donc estAbsences toujours faux) ne remonte en haut
-    // qu'en mode isolé ; en affichage normal elle reste triée
-    // alphabétiquement comme les autres.
+    // qu'en mode isolé ; en affichage normal elle reste triée par territoire
+    // comme les autres.
     if (estLieuAbsence) {
       const aAbsence = a.estAbsences ? 0 : 1;
       const bAbsence = b.estAbsences ? 0 : 1;
       if (aAbsence !== bAbsence) return aAbsence - bAbsence;
     }
+    // "Sans territoire" toujours en dernier plutôt que mélangé
+    // alphabétiquement au milieu des vrais codes territoire.
+    const aVide = a.territoire === SANS_TERRITOIRE ? 1 : 0;
+    const bVide = b.territoire === SANS_TERRITOIRE ? 1 : 0;
+    if (aVide !== bVide) return aVide - bVide;
+    if (a.territoire !== b.territoire) return a.territoire.localeCompare(b.territoire, "fr");
     return a.label.localeCompare(b.label, "fr");
   });
 
-  // Au sein d'un même territoire (voir territoireDeLigne), les activités
-  // s'enchaînent souvent dans le temps plutôt que d'être indépendantes — les
-  // reclasser par date de début plutôt qu'alphabétiquement rend cet
-  // enchaînement visible d'un coup d'œil. Territoires eux-mêmes toujours
-  // dans leur ordre alphabétique habituel (75, 91, 92, ACI...) : seules les
-  // VALEURS occupant les positions déjà tenues par un même territoire sont
-  // réordonnées entre elles, sans déplacer les autres lignes.
+  // Au sein d'un même territoire, les activités s'enchaînent souvent dans le
+  // temps plutôt que d'être indépendantes — les reclasser par date de début
+  // plutôt qu'alphabétiquement rend cet enchaînement visible d'un coup
+  // d'œil. Territoires eux-mêmes toujours dans leur ordre habituel (voir le
+  // tri ci-dessus) : seules les VALEURS occupant les positions déjà tenues
+  // par un même territoire sont réordonnées entre elles, sans déplacer les
+  // autres lignes.
   const indicesParTerritoire = new Map<string, number[]>();
   lignesBase.forEach((l, i) => {
-    const t = territoireDeLigne(l.label);
+    const t = l.territoire;
     if (!indicesParTerritoire.has(t)) indicesParTerritoire.set(t, []);
     indicesParTerritoire.get(t)!.push(i);
   });
@@ -3701,75 +3791,130 @@ function GanttActiviteContinu({ actions, premierJour, dernierJour, mediateurLabe
     return <p className="text-xs italic text-[#404040]/40 py-6 text-center bg-white border border-[#404040]/10 rounded-xl shadow-sm">Aucune activité posée sur cette période.</p>;
   }
 
+  // Regroupement par territoire réel (voir ligne.territoire) pour
+  // l'accordéon — les lignes étant déjà triées par territoire, un même
+  // territoire est toujours contigu dans "lignes", pas besoin de les re-trier.
+  const groupesTerritoire: { territoire: string; lignes: typeof lignes }[] = [];
+  for (const ligne of lignes) {
+    const t = ligne.territoire;
+    const dernier = groupesTerritoire[groupesTerritoire.length - 1];
+    if (dernier && dernier.territoire === t) dernier.lignes.push(ligne);
+    else groupesTerritoire.push({ territoire: t, lignes: [ligne] });
+  }
+
+  const renderLigneGantt = (ligne: typeof lignes[number], idx: number) => {
+    // Ligne "Absences" nettement démarquée des vraies activités : fond
+    // teinté et trait épais dessous, plutôt que la simple alternance
+    // blanc/gris des autres lignes.
+    const rowBg = ligne.estAbsences ? "bg-[#EF736A]/10" : (idx % 2 === 0 ? "bg-white" : "bg-[#F3F3F2]/40");
+    // Équivalent opaque de rowBg, réservé à la colonne figée (voir plus
+    // bas) : les teintes ci-dessus sont volontairement translucides pour la
+    // ligne elle-même (posées sur le quadrillage), mais une colonne sticky
+    // AVEC de la transparence laisse voir par transparence les barres de la
+    // même ligne qui défilent en-dessous une fois détachée au scroll — il
+    // lui faut la couleur "à plat", sans alpha.
+    const rowBgSolide = ligne.estAbsences ? "bg-[#FDF1F0]" : (idx % 2 === 0 ? "bg-white" : "bg-[#FAFAFA]");
+    // Sur la ligne "Absences", le type exact (Congés, RTT...) de chaque lane
+    // s'affiche dans la colonne d'en-tête, aligné avec sa barre — plutôt
+    // qu'un seul libellé générique "Absences" centré sur toute la hauteur,
+    // qui ne dit pas CE QUE c'est.
+    const typesParLane = ligne.estAbsences
+      ? Array.from(new Map(ligne.barres.map(v => [v.lane, v.texte])).entries()).sort(([a], [b]) => a - b)
+      : [];
+    return (
+      <div key={ligne.label} className={`flex ${ligne.estAbsences ? "border-b-2 border-[#EF736A]/30" : "border-b border-[#F3F3F2]"} ${rowBg}`}>
+        {/* Fond opaque obligatoire sur la colonne figée elle-même (pas
+            seulement sur la ligne parente) : en position sticky, elle se
+            détache visuellement du reste de la ligne au défilement
+            horizontal — sans son propre fond, les barres de CETTE ligne
+            qui défilent sous elle se voyaient par transparence. */}
+        <div className={`w-[200px] shrink-0 pr-2 py-2 sticky left-0 z-10 ${rowBgSolide} ${ligne.estAbsences ? "relative" : "flex items-center"}`} style={ligne.estAbsences ? { minHeight: `${ligne.nbLanes * 24 + 8}px` } : undefined}>
+          {ligne.estAbsences ? (
+            typesParLane.map(([lane, texte]) => (
+              <span
+                key={lane}
+                className="absolute left-0 right-2 h-5 flex items-center font-bold text-[11px] text-[#EF736A] truncate"
+                style={{ top: `${lane * 24 + 4}px` }}
+                title={texte}
+              >
+                {texte}
+              </span>
+            ))
+          ) : (
+            <span className={`font-bold text-xs ${rowBg} text-[#005259]`}>{ligne.label}</span>
+          )}
+        </div>
+        <div
+          className="relative"
+          style={{ width: `${largeurTimeline}px`, minHeight: `${ligne.nbLanes * 24 + 8}px`, backgroundImage: `${grilleJournaliere}, ${ombreJoursOff}` }}
+        >
+          {mois.map(mo => (
+            <div key={mo.debut.toISOString()} className="absolute top-0 bottom-0 border-l border-[#404040]/20" style={{ left: `${px(mo.debut)}px` }} />
+          ))}
+          {ligne.barres.map(v => {
+            const largeur = Math.max(px(v.fin) - px(v.debut) + LARGEUR_JOUR, LARGEUR_JOUR);
+            const effectifTexte = `${v.medDistincts.length} médiateur${v.medDistincts.length > 1 ? "s" : ""}`;
+            const alerte = v.nbSansMediateur > 0;
+            return (
+              <button
+                key={`${v.texte}-${v.debut.toISOString()}`}
+                type="button"
+                onClick={() => setDetailBarre({ ligneLabel: ligne.label, texte: v.texte, debut: v.debut, fin: v.fin, medDistincts: v.medDistincts, nbSansMediateur: v.nbSansMediateur, heures: v.heures })}
+                title={`${v.texte} · ${v.debut.toLocaleDateString('fr-FR')} - ${v.fin.toLocaleDateString('fr-FR')} · ${v.medDistincts.join(", ")}${alerte ? ` · ⚠️ ${v.nbSansMediateur} sans médiateur` : ""}`}
+                className={`absolute h-5 rounded px-1.5 flex items-center gap-1 text-[10px] font-bold truncate shadow-sm cursor-pointer hover:brightness-110 ${alerte ? "ring-2 ring-[#EF736A] ring-offset-1" : ""}`}
+                style={{
+                  top: `${v.lane * 24 + 4}px`,
+                  left: `${px(v.debut)}px`,
+                  width: `${largeur}px`,
+                  backgroundColor: v.couleur || "#005259",
+                  color: isLightColor(v.couleur || "#005259") ? "#1A1A1A" : "#FFFFFF",
+                }}
+              >
+                {alerte && <ExclamationTriangleIcon className="w-3 h-3 shrink-0 text-[#EF736A]" />}
+                {ligne.nbLanes > 1 ? `${v.lane + 1} · ` : ""}{effectifTexte}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="bg-white border border-[#404040]/10 rounded-xl p-4 overflow-x-auto overflow-y-visible shadow-sm">
+    <div className="bg-white border border-[#404040]/10 rounded-xl p-4 shadow-sm">
+      {barreScrollHaut}
+      <div ref={scrollCorpsRef} onScroll={surScrollCorps} className="overflow-x-auto overflow-y-visible">
       <div style={{ width: `${200 + largeurTimeline}px` }}>
         {enTeteMoisEtJours}
-        {lignes.map((ligne, idx) => {
-          // Ligne "Absences" nettement démarquée des vraies activités : fond
-          // teinté et trait épais dessous, plutôt que la simple alternance
-          // blanc/gris des autres lignes.
-          const rowBg = ligne.estAbsences ? "bg-[#EF736A]/10" : (idx % 2 === 0 ? "bg-white" : "bg-[#F3F3F2]/40");
-          // Sur la ligne "Absences", le type exact (Congés, RTT...) de
-          // chaque lane s'affiche dans la colonne d'en-tête, aligné avec sa
-          // barre — plutôt qu'un seul libellé générique "Absences" centré
-          // sur toute la hauteur, qui ne dit pas CE QUE c'est.
-          const typesParLane = ligne.estAbsences
-            ? Array.from(new Map(ligne.barres.map(v => [v.lane, v.texte])).entries()).sort(([a], [b]) => a - b)
-            : [];
+        {groupesTerritoire.map((groupe, gi) => {
+          const replie = territoiresReplies.has(groupe.territoire);
           return (
-            <div key={ligne.label} className={`flex ${ligne.estAbsences ? "border-b-2 border-[#EF736A]/30" : "border-b border-[#F3F3F2]"} ${rowBg}`}>
-              <div className={`w-[200px] shrink-0 pr-2 py-2 sticky left-0 z-10 ${ligne.estAbsences ? "relative" : "flex items-center"}`} style={ligne.estAbsences ? { minHeight: `${ligne.nbLanes * 24 + 8}px` } : undefined}>
-                {ligne.estAbsences ? (
-                  typesParLane.map(([lane, texte]) => (
-                    <span
-                      key={lane}
-                      className="absolute left-0 right-2 h-5 flex items-center font-bold text-[11px] text-[#EF736A] truncate"
-                      style={{ top: `${lane * 24 + 4}px` }}
-                      title={texte}
-                    >
-                      {texte}
-                    </span>
-                  ))
-                ) : (
-                  <span className={`font-bold text-xs ${rowBg} text-[#005259]`}>{ligne.label}</span>
-                )}
+            <div key={`${groupe.territoire}-${gi}`}>
+              {/* Comme les lignes (voir renderLigneGantt), seule la colonne
+                  de 200px est figée au défilement horizontal — un en-tête
+                  "sticky" sur toute la largeur resterait figé en permanence
+                  au lieu de défiler avec le reste, et son fond translucide
+                  laissait voir les barres défiler derrière lui. */}
+              <div className="flex border-b border-[#404040]/10">
+                <button
+                  type="button"
+                  onClick={() => toggleTerritoire(groupe.territoire)}
+                  className="w-[200px] shrink-0 flex items-center gap-1.5 py-1.5 pr-2 sticky left-0 z-10 bg-[#EAF1F1] hover:bg-[#DCEBEB] text-left"
+                >
+                  {replie ? <ChevronRightIcon className="w-3.5 h-3.5 text-[#005259] shrink-0" /> : <ChevronDownIcon className="w-3.5 h-3.5 text-[#005259] shrink-0" />}
+                  <span className="font-extrabold text-[10px] uppercase tracking-wider text-[#005259] truncate">{groupe.territoire}</span>
+                  <span className="text-[10px] text-[#404040]/50 shrink-0">({groupe.lignes.length})</span>
+                </button>
+                <div className="bg-[#EAF1F1]" style={{ width: `${largeurTimeline}px` }} />
               </div>
-              <div
-                className="relative"
-                style={{ width: `${largeurTimeline}px`, minHeight: `${ligne.nbLanes * 24 + 8}px`, backgroundImage: `${grilleJournaliere}, ${ombreJoursOff}` }}
-              >
-                {mois.map(mo => (
-                  <div key={mo.debut.toISOString()} className="absolute top-0 bottom-0 border-l border-[#404040]/20" style={{ left: `${px(mo.debut)}px` }} />
-                ))}
-                {ligne.barres.map(v => {
-                  const largeur = Math.max(px(v.fin) - px(v.debut) + LARGEUR_JOUR, LARGEUR_JOUR);
-                  const effectifTexte = `${v.medDistincts.length} médiateur${v.medDistincts.length > 1 ? "s" : ""}`;
-                  const alerte = v.nbSansMediateur > 0;
-                  return (
-                    <button
-                      key={`${v.texte}-${v.debut.toISOString()}`}
-                      type="button"
-                      onClick={() => setDetailBarre({ ligneLabel: ligne.label, texte: v.texte, debut: v.debut, fin: v.fin, medDistincts: v.medDistincts, nbSansMediateur: v.nbSansMediateur, heures: v.heures })}
-                      title={`${v.texte} · ${v.debut.toLocaleDateString('fr-FR')} - ${v.fin.toLocaleDateString('fr-FR')} · ${v.medDistincts.join(", ")}${alerte ? ` · ⚠️ ${v.nbSansMediateur} sans médiateur` : ""}`}
-                      className={`absolute h-5 rounded px-1.5 flex items-center gap-1 text-[10px] font-bold truncate shadow-sm cursor-pointer hover:brightness-110 ${alerte ? "ring-2 ring-[#EF736A] ring-offset-1" : ""}`}
-                      style={{
-                        top: `${v.lane * 24 + 4}px`,
-                        left: `${px(v.debut)}px`,
-                        width: `${largeur}px`,
-                        backgroundColor: v.couleur || "#005259",
-                        color: isLightColor(v.couleur || "#005259") ? "#1A1A1A" : "#FFFFFF",
-                      }}
-                    >
-                      {alerte && <ExclamationTriangleIcon className="w-3 h-3 shrink-0 text-[#EF736A]" />}
-                      {ligne.nbLanes > 1 ? `${v.lane + 1} · ` : ""}{effectifTexte}
-                    </button>
-                  );
-                })}
-              </div>
+              {!replie && groupe.lignes.map((ligne) => {
+                const idx = lignes.indexOf(ligne);
+                return renderLigneGantt(ligne, idx);
+              })}
             </div>
           );
         })}
+      </div>
       </div>
 
       {detailBarre && (

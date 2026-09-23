@@ -28,7 +28,7 @@ const ACTIVITE_VIDE: ActiviteType = {
   lieu: "", debutMatin: "09:00", finMatin: "12:00", debutApresMidi: "14:00", finApresMidi: "17:30",
   journeeComplete: false,
   adresse: "", territoire: "",
-  couleur: "#005259", codeAnalytique: "", codeACI: "", dateDebut: "", dateFin: "",
+  couleur: "#005259", codeAnalytique: "", codeACI: "", codeInterne: "", dateDebut: "", dateFin: "",
   blocs: [], mediateursIds: [], generationMoment: "Les deux", datesActives: [],
 };
 
@@ -329,6 +329,7 @@ export default function ModelesPage() {
       couleur: type.couleur || "#005259",
       codeAnalytique: type.codeAnalytique || "",
       codeACI: type.codeACI || "",
+      codeInterne: type.codeInterne || "",
       dateDebut: type.dateDebut || "",
       dateFin: type.dateFin || "",
       blocs: type.blocs || [],
@@ -378,6 +379,7 @@ export default function ModelesPage() {
         couleur: newActivite.couleur,
         codeAnalytique: newActivite.codeAnalytique.trim(),
         codeACI: (newActivite.codeACI || "").trim(),
+        codeInterne: (newActivite.codeInterne || "").trim(),
         dateDebut: newActivite.dateDebut,
         dateFin: newActivite.dateFin,
         blocs: newActivite.blocs || [],
@@ -417,6 +419,7 @@ export default function ModelesPage() {
           return updateDoc(doc(db, "planning_mediateurs", actionDoc.id), {
             codeAnalytique: newActivite.codeAnalytique.trim(),
             codeACI: (newActivite.codeACI || "").trim(),
+            codeInterne: (newActivite.codeInterne || "").trim(),
             couleur: newActivite.couleur,
             lieu: newActivite.lieu.trim(),
             ...(horaire ? { debut: horaire.debut, fin: horaire.fin } : {}),
@@ -688,6 +691,18 @@ export default function ModelesPage() {
                 value={newActivite.codeACI || ""}
                 className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none"
                 onChange={e => setNewActivite({...newActivite, codeACI: e.target.value})}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] text-[#404040]/70 font-semibold">
+                Code interne Colombbus (Optionnel — sert à regrouper les heures dans Volume Horaire)
+              </label>
+              <input
+                placeholder="Ex: REC"
+                value={newActivite.codeInterne || ""}
+                className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/20 rounded-md text-xs text-[#404040] outline-none"
+                onChange={e => setNewActivite({...newActivite, codeInterne: e.target.value})}
               />
             </div>
 
