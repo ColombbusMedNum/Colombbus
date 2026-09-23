@@ -28,6 +28,16 @@ const NOMS_MOIS = [
   "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
 ];
 
+// Les résidences autonomie du 75 (Vaugelas, Remouleur, Oscar Roty, Ave
+// Maria, Arbustes...) sont trop nombreuses et individuellement trop peu
+// d'heures chacune pour rester des lignes séparées — regroupées sous une
+// seule entrée, comme la légende du GANTT (etiquetteLegendeGantt dans
+// app/agenda/page.tsx). Les écoles du 75 restent distinctes.
+function etiquetteRegroupementLieu(lieu: string): string {
+  if (!/^75\s*-/.test(lieu) || /[ée]cole/i.test(lieu)) return lieu;
+  return "75 - Résidence Autonomie";
+}
+
 // Liste chronologique brute des actions (pas juste l'agrégat par code
 // analytique de MediateurAnalyticsPanel), groupées par mois et repliables —
 // pour répondre à "qui a fait quoi, quand" plutôt que juste "combien d'heures".
@@ -73,7 +83,7 @@ export default function MediateurActionsParMois({ actions, emptyMessage = "Aucun
         // combien d'heures sur CETTE activité ce mois-ci".
         const parIntitule: Record<string, OccurrenceAffichee[]> = Object.create(null);
         occurrences.forEach((o) => {
-          const titre = o.lieu || "Activité non spécifiée";
+          const titre = etiquetteRegroupementLieu(o.lieu || "Activité non spécifiée");
           if (!parIntitule[titre]) parIntitule[titre] = [];
           parIntitule[titre].push(o);
         });

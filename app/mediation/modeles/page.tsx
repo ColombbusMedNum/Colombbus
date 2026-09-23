@@ -11,6 +11,7 @@ import {
   PlusIcon, PencilSquareIcon, TrashIcon, HomeIcon,
   CalendarDaysIcon, ClockIcon, UsersIcon, LockClosedIcon,
   DocumentDuplicateIcon, CheckCircleIcon, EyeIcon,
+  ArchiveBoxIcon, ArchiveBoxXMarkIcon,
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import PageGuard from "@/components/PageGuard";
@@ -21,7 +22,7 @@ import Accordion from "@/components/Accordion";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import {
   type ActiviteType, BLOCS_THEMATIQUES, resoudreHoraireModele, resoudreHoraireAffichage, resoudreHoraireGrilleACI,
-  genererCreneauxPourModele, estimerNombreCreneaux, formatDateFrCourt, formatDateFr, estModeleProtege,
+  genererCreneauxPourModele, estimerNombreCreneaux, formatDateFrCourt, formatDateFr, estModeleProtege, estModeleExpire,
 } from "@/lib/activitesTypes";
 
 const ACTIVITE_VIDE: ActiviteType = {
@@ -57,6 +58,8 @@ export default function ModelesPage() {
   const [localisations, setLocalisations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [currentTab, setCurrentTab] = useState<"actifs" | "archives">("actifs");
+  const [vueGroupement, setVueGroupement] = useState<"production" | "codeInterne" | "alphabetique">("production");
 
   // "Voir les dates" : liste des jours où ce modèle a déjà des créneaux
   // posés dans planning_mediateurs, avec un lien direct vers la case
@@ -146,8 +149,19 @@ export default function ModelesPage() {
 
   useEffect(() => {
     const unsubActs = onSnapshot(query(collection(db, "activites_types"), orderBy("lieu", "asc")), (snap) => {
-      setActivitesTypes(snap.docs.map(d => ({ id: d.id, ...d.data() } as ActiviteType)));
+      const modeles = snap.docs.map(d => ({ id: d.id, ...d.data() } as ActiviteType));
+      setActivitesTypes(modeles);
       setLoading(false);
+
+      // Archivage automatique dès que dateFin est dépassée (voir
+      // estModeleExpire) — écrit une seule fois par modèle (le check
+      // !m.archive empêche une boucle infinie une fois le champ posé, le
+      // prochain snapshot le reverra déjà à true et ne le réécrira pas).
+      modeles.forEach(m => {
+        if (m.id && estModeleExpire(m) && !m.archive) {
+          updateDoc(doc(db, "activites_types", m.id), { archive: true }).catch(console.error);
+        }
+      });
     });
     const unsubLocs = onSnapshot(collection(db, "liste_lieux"), (snap) => {
       setLocalisations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -155,11 +169,21 @@ export default function ModelesPage() {
     return () => { unsubActs(); unsubLocs(); };
   }, []);
 
+  const toggleArchive = async (type: ActiviteType) => {
+    if (!type.id) return;
+    await updateDoc(doc(db, "activites_types", type.id), { archive: !type.archive });
+    showToast(type.archive ? `"${type.lieu}" désarchivé.` : `"${type.lieu}" archivé.`);
+  };
+
+  const nbActifs = React.useMemo(() => activitesTypes.filter(a => !a.archive).length, [activitesTypes]);
+  const nbArchives = React.useMemo(() => activitesTypes.filter(a => a.archive).length, [activitesTypes]);
+
   const modelesFiltres = React.useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return activitesTypes;
-    return activitesTypes.filter(a => (a.lieu || "").toLowerCase().includes(q));
-  }, [activitesTypes, search]);
+    return activitesTypes
+      .filter(a => (currentTab === "archives") === !!a.archive)
+      .filter(a => !q || (a.lieu || "").toLowerCase().includes(q));
+  }, [activitesTypes, search, currentTab]);
 
   // Séparation visuelle production / hors production (voir le badge sur
   // chaque carte) — sert notamment à repérer d'un coup d'œil les modèles
@@ -175,6 +199,36 @@ export default function ModelesPage() {
   const modelesProduction = React.useMemo(() => modelesFiltres.filter(m => m.estProduction).sort(parTerritoirePuisNom), [modelesFiltres]);
   const modelesHorsProduction = React.useMemo(() => modelesFiltres.filter(m => !m.estProduction).sort(parTerritoirePuisNom), [modelesFiltres]);
 
+  // Vue alternative "par code interne" (voir le sélecteur de vue) : pour
+  // repérer d'un coup d'œil tous les modèles qui alimentent la même
+  // catégorie de Volume Horaire (voir "Regroupement par code interne" dans
+  // app/mediation/volume-horaire/page.tsx), plutôt que de les chercher un
+  // par un dans la vue par production. "Sans code" toujours en dernier.
+  const SANS_CODE_INTERNE = "Sans code";
+  const modelesParCodeInterne = React.useMemo(() => {
+    const map: Record<string, ActiviteType[]> = Object.create(null);
+    modelesFiltres.forEach(m => {
+      const cle = (m.codeInterne || "").trim() || SANS_CODE_INTERNE;
+      if (!map[cle]) map[cle] = [];
+      map[cle].push(m);
+    });
+    return Object.entries(map)
+      .map(([code, liste]) => ({ code, liste: liste.sort(parTerritoirePuisNom) }))
+      .sort((a, b) => {
+        if (a.code === SANS_CODE_INTERNE) return 1;
+        if (b.code === SANS_CODE_INTERNE) return -1;
+        return a.code.localeCompare(b.code, "fr");
+      });
+  }, [modelesFiltres]);
+
+  // Vue alternative "alphabétique" : une seule liste à plat, triée sur le
+  // nom du lieu — pour retrouver un modèle précis sans avoir à savoir s'il
+  // est en production ni quel code interne il porte.
+  const modelesAlphabetique = React.useMemo(
+    () => [...modelesFiltres].sort((a, b) => (a.lieu || "").localeCompare(b.lieu || "", "fr")),
+    [modelesFiltres]
+  );
+
   const renderCarteModele = (type: ActiviteType) => {
     const isProtege = estModeleProtege(type.lieu);
     const mediateursConcernes = mediateurs.filter((m: any) => (type.mediateursIds || []).includes(m.id));
@@ -185,7 +239,7 @@ export default function ModelesPage() {
         key={type.id}
         onClick={(e) => ouvrirDatesModele(type, e)}
         title="Voir les dates où ce modèle est positionné dans l'agenda"
-        className="bg-white border border-[#404040]/10 rounded-2xl p-4 shadow-sm flex flex-col gap-3 cursor-pointer hover:border-[#005259]/40 transition-colors"
+        className={`bg-white border border-[#404040]/10 rounded-2xl p-4 shadow-sm flex flex-col gap-3 cursor-pointer hover:border-[#005259]/40 transition-colors ${type.archive ? "opacity-60" : ""}`}
         style={{ borderTopColor: type.couleur || "#005259", borderTopWidth: 3 }}
       >
         <div className="flex items-start justify-between gap-2">
@@ -194,10 +248,19 @@ export default function ModelesPage() {
               <span className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10" style={{ backgroundColor: type.couleur || "#005259" }}></span>
               {type.lieu}
             </h3>
-            {type.territoire && (
-              <span className="inline-block mt-1 text-[9px] font-bold bg-[#F3F3F2] border border-[#404040]/10 px-1.5 py-0.5 rounded text-[#404040]/70">
-                dept {type.territoire}
-              </span>
+            {(type.territoire || type.codeInterne) && (
+              <div className="flex flex-wrap items-center gap-1 mt-1">
+                {type.territoire && (
+                  <span className="inline-block text-[9px] font-bold bg-[#F3F3F2] border border-[#404040]/10 px-1.5 py-0.5 rounded text-[#404040]/70">
+                    dept {type.territoire}
+                  </span>
+                )}
+                {type.codeInterne && (
+                  <span className="inline-block text-[9px] font-bold bg-[#F3F3F2] border border-[#404040]/10 px-1.5 py-0.5 rounded text-[#404040]/70">
+                    {type.codeInterne}
+                  </span>
+                )}
+              </div>
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -209,6 +272,15 @@ export default function ModelesPage() {
             <PermissionGuard actionId="modeles_edit">
               <button onClick={() => openEdit(type)} className="p-1.5 text-[#404040]/60 hover:text-[#005259] cursor-pointer">
                 <PencilSquareIcon className="w-4 h-4" />
+              </button>
+            </PermissionGuard>
+            <PermissionGuard actionId="modeles_edit">
+              <button
+                onClick={() => toggleArchive(type)}
+                title={type.archive ? "Désarchiver" : "Archiver"}
+                className="p-1.5 text-[#404040]/60 hover:text-[#EA601F] cursor-pointer"
+              >
+                {type.archive ? <ArchiveBoxXMarkIcon className="w-4 h-4" /> : <ArchiveBoxIcon className="w-4 h-4" />}
               </button>
             </PermissionGuard>
             <PermissionGuard actionId="modeles_delete">
@@ -248,7 +320,7 @@ export default function ModelesPage() {
           {aPeriode && (
             <span className="inline-flex items-center gap-1 bg-[#F3F3F2] border border-[#404040]/10 px-2 py-0.5 rounded-lg font-bold">
               <CalendarDaysIcon className="w-3 h-3 text-[#EA601F]" />
-              {type.dateDebut || "…"} → {type.dateFin || "…"}
+              {type.dateDebut ? formatDateFr(type.dateDebut) : "…"} → {type.dateFin ? formatDateFr(type.dateFin) : "…"}
             </span>
           )}
           {type.estProduction && (
@@ -525,13 +597,60 @@ export default function ModelesPage() {
           </div>
         </div>
 
-        <input
-          type="text"
-          placeholder="Rechercher un modèle par nom..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="w-full max-w-sm px-3.5 py-2 bg-white border border-[#404040]/10 rounded-xl text-xs text-[#404040] outline-none focus:border-[#005259] shadow-sm"
-        />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <input
+            type="text"
+            placeholder="Rechercher un modèle par nom..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full max-w-sm px-3.5 py-2 bg-white border border-[#404040]/10 rounded-xl text-xs text-[#404040] outline-none focus:border-[#005259] shadow-sm"
+          />
+          <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-[#404040]/10 shadow-sm">
+            <button
+              onClick={() => setCurrentTab("actifs")}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                currentTab === "actifs" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/70 hover:text-[#005259] hover:bg-[#F3F3F2]"
+              }`}
+            >
+              Actifs ({nbActifs})
+            </button>
+            <button
+              onClick={() => setCurrentTab("archives")}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                currentTab === "archives" ? "bg-[#EF736A] text-white shadow-sm" : "text-[#404040]/70 hover:text-[#EF736A] hover:bg-[#F3F3F2]"
+              }`}
+            >
+              Archivés ({nbArchives})
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-[#404040]/10 shadow-sm w-fit">
+          <button
+            onClick={() => setVueGroupement("production")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+              vueGroupement === "production" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/70 hover:text-[#005259] hover:bg-[#F3F3F2]"
+            }`}
+          >
+            Par production
+          </button>
+          <button
+            onClick={() => setVueGroupement("codeInterne")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+              vueGroupement === "codeInterne" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/70 hover:text-[#005259] hover:bg-[#F3F3F2]"
+            }`}
+          >
+            Par code interne
+          </button>
+          <button
+            onClick={() => setVueGroupement("alphabetique")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+              vueGroupement === "alphabetique" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/70 hover:text-[#005259] hover:bg-[#F3F3F2]"
+            }`}
+          >
+            Alphabétique
+          </button>
+        </div>
 
         {loading ? (
           <div className="text-center py-16 text-[#EA601F] font-bold text-xs animate-pulse uppercase tracking-widest">
@@ -542,7 +661,7 @@ export default function ModelesPage() {
             <DocumentDuplicateIcon className="w-6 h-6 mx-auto mb-2 text-[#404040]/30" />
             Aucun modèle {search ? "ne correspond à cette recherche" : "pour l'instant"}.
           </div>
-        ) : (
+        ) : vueGroupement === "production" ? (
           <div className="space-y-8">
             <div className="space-y-3">
               <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest text-[#005259]">
@@ -570,6 +689,23 @@ export default function ModelesPage() {
                 </div>
               )}
             </div>
+          </div>
+        ) : vueGroupement === "codeInterne" ? (
+          <div className="space-y-8">
+            {modelesParCodeInterne.map(groupe => (
+              <div key={groupe.code} className="space-y-3">
+                <h2 className={`flex items-center gap-2 text-xs font-extrabold uppercase tracking-widest ${groupe.code === SANS_CODE_INTERNE ? "text-[#404040]/60" : "text-[#005259]"}`}>
+                  {groupe.code} ({groupe.liste.length})
+                </h2>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {groupe.liste.map(renderCarteModele)}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {modelesAlphabetique.map(renderCarteModele)}
           </div>
         )}
       </div>

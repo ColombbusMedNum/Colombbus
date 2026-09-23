@@ -29,7 +29,7 @@ import Accordion from "../../components/Accordion";
 import ScrollToTopButton from "../../components/ScrollToTopButton";
 import {
   type ActiviteType, BLOCS_THEMATIQUES, getJoursFeries,
-  genererCreneauxPourModele, estimerNombreCreneaux, estVisibleCetteSemaine,
+  genererCreneauxPourModele, estimerNombreCreneaux, estVisibleCetteSemaine, estModeleExpire,
   formatDateFrCourt, estModeleProtege, resoudreHoraireModele, resoudreHoraireAffichage, resoudreHoraireGrilleACI,
   horairesSuresnesPourSite,
 } from "../../lib/activitesTypes";
@@ -496,6 +496,15 @@ export default function PlanningExpertMix() {
         initiales.forEach(act => addDoc(collection(db, "activites_types"), act));
       } else {
         setActivitesTypes(docs);
+        // Archivage automatique dès que dateFin est dépassée (voir
+        // estModeleExpire) — même logique qu'app/mediation/modeles/page.tsx,
+        // dupliquée ici pour que ça se déclenche même si personne ne visite
+        // la page Modèles (l'agenda est ouvert bien plus souvent).
+        docs.forEach(m => {
+          if (m.id && estModeleExpire(m) && !m.archive) {
+            updateDoc(doc(db, "activites_types", m.id), { archive: true }).catch(console.error);
+          }
+        });
       }
     });
 
@@ -1987,7 +1996,7 @@ export default function PlanningExpertMix() {
 
           <div className="space-y-2">
             {(() => {
-              const modelesSemaine = activitesTypes.filter(type => estVisibleCetteSemaine(type, startOfWeekStr, endOfWeekStr));
+              const modelesSemaine = activitesTypes.filter(type => !type.archive && estVisibleCetteSemaine(type, startOfWeekStr, endOfWeekStr));
 
               // Rendu d'un modèle dans la liste. Dans un bloc thématique, la
               // couleur du bloc prime sur la couleur propre du modèle pour

@@ -89,6 +89,21 @@ export interface ActiviteType {
   // sans date, elle s'applique indéfiniment.
   observationACI?: boolean;
   observationACIDateFin?: string;
+  // Archivé manuellement (page Modèles) ou automatiquement dès que dateFin
+  // est dépassée (voir estModeleExpire, appliqué au chargement dans
+  // app/mediation/modeles/page.tsx et app/agenda/page.tsx) — un modèle
+  // archivé disparaît des listes par défaut mais reste consultable dans
+  // l'onglet "Archivés" ; les créneaux déjà posés depuis ce modèle ne sont
+  // jamais affectés.
+  archive?: boolean;
+}
+
+// Un modèle à date de fin dépassée n'a plus lieu d'être proposé pour de
+// nouveaux créneaux — sert à l'archivage automatique (voir ci-dessus). Un
+// modèle sans dateFin (récurrent/permanent) n'expire jamais tout seul.
+export function estModeleExpire(modele: ActiviteType): boolean {
+  if (!modele.dateFin) return false;
+  return modele.dateFin < new Date().toLocaleDateString('en-CA');
 }
 
 // Horaires des créneaux "Suresnes" (consultations individuelles de 1h30)
