@@ -387,6 +387,20 @@ export default function PlanningSuresnes() {
     return etatsVisites;
   }, [creneaux, beneficiaires, rawVisites]);
 
+  // Créneaux du site actif, usager assigné, date déjà passée, et jamais
+  // suivis (ni "Présent" ni "Absent" enregistré) — sert à l'alerte visible
+  // en haut de page ci-dessous, complémentaire à la notification "du jour
+  // même" ci-dessous qui ne couvre qu'aujourd'hui.
+  const collectesNonFaitesPassees = React.useMemo(() => {
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    return creneauxDuSite
+      .filter(c => c.usager && c.usager.trim() && c.date && c.date < todayStr)
+      .map(c => ({ c, statut: statutsVisitesRealtime[`${c.id}_${c.date}`] }))
+      .filter(({ statut }) => !statut || statut === "Non suivi")
+      .map(({ c }) => c)
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [creneauxDuSite, statutsVisitesRealtime]);
+
   // --- DÉCLENCHEMENT D'ALERTE POUR LES COLLECTES MANQUANTES DU JOUR MÊME ---
   useEffect(() => {
     const testerEtEnvoyerAlerteJourMeme = async () => {
@@ -629,6 +643,20 @@ export default function PlanningSuresnes() {
   const allerAuJourMoisSuivant = (dateStr: string) => {
     setViewDate(new Date(yearSuivant, moisSuivant, 1));
     setTimeout(() => allerAuJour(dateStr), 100);
+  };
+
+  // Même principe qu'allerAuJourMoisSuivant, mais vers un mois quelconque
+  // (généralement dans le passé) — sert à l'alerte "collectes non faites"
+  // ci-dessous, dont les dates peuvent appartenir à n'importe quel mois déjà
+  // affiché ou non.
+  const allerADateQuelconque = (dateStr: string) => {
+    const [y, m] = dateStr.split("-").map(Number);
+    if (y === year && (m - 1) === month) {
+      allerAuJour(dateStr);
+    } else {
+      setViewDate(new Date(y, m - 1, 1));
+      setTimeout(() => allerAuJour(dateStr), 150);
+    }
   };
 
   const handleThematiqueChange = async (creneauId: string, nouvelleThematique: string) => {
@@ -1059,6 +1087,36 @@ export default function PlanningSuresnes() {
         </div>
         ) : (
         <>
+
+        {/* Alerte visible : collectes jamais suivies (ni Présent ni Absent)
+            sur des créneaux déjà passés — la notification "du jour même"
+            plus haut (testerEtEnvoyerAlerteJourMeme) ne couvre qu'aujourd'hui,
+            celle-ci rattrape tout le retard accumulé avant. */}
+        {collectesNonFaitesPassees.length > 0 && (
+          <div className="bg-[#EF736A]/10 border border-[#EF736A]/30 rounded-2xl p-4 space-y-2.5">
+            <div className="flex items-center gap-2 text-[#C0392B] font-bold text-sm">
+              <ExclamationTriangleIcon className="w-5 h-5 shrink-0" />
+              {collectesNonFaitesPassees.length} collecte{collectesNonFaitesPassees.length > 1 ? "s" : ""} non faite{collectesNonFaitesPassees.length > 1 ? "s" : ""} avant aujourd'hui
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {collectesNonFaitesPassees.map((c) => {
+                const nomAffiche = c.mediateurNom?.replace(" (RND)", "").replace(" (RN91)", "").replace(" (RN)", "") || "?";
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => allerADateQuelconque(c.date)}
+                    title="Aller à ce créneau dans l'agenda"
+                    className="inline-flex items-center bg-white border border-[#EF736A]/30 hover:bg-[#EF736A] hover:text-white text-[#C0392B] px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
+                  >
+                    <span className="font-mono">{new Date(`${c.date}T12:00:00`).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}</span>
+                    {" · "}{nomAffiche}{" · "}{c.usager}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* MINI VUE MOIS — repère rapide des jours avec/sans disponibilité,
             pour éviter de dérouler toute la liste ci-dessous. Un clic sur un
