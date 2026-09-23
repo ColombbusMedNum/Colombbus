@@ -124,6 +124,22 @@ function variantesMediateurSuresnes(lieu: string, nomComplet: string): string[] 
   return [nomComplet, `${nomComplet} (RN)`, `${nomComplet} (RND)`];
 }
 
+// Regroupe deux lieux qui désignent en réalité la MÊME action (voir le
+// filtre "Avec moi" plus bas, et le même besoin déjà résolu côté Agenda
+// Mobile, familleSitePourEquipe) : "RN Observation" rejoint la permanence RN
+// du même département, et "X Observation" (ACI en observation) rejoint "X"
+// — sans ça, la personne en observation et celle en production sur le même
+// créneau ne semblent jamais "ensemble".
+function familleSitePourAvecMoi(lieu: string): string {
+  const normalise = lieu.normalize("NFD").replace(/\p{Diacritic}/gu, "").toUpperCase();
+  const estRND = normalise.includes("RND");
+  if (!estRND && normalise.includes("RN")) {
+    const departement = lieu.match(/^(\d{2})\s*-/)?.[1] || "";
+    return `RN_${departement}`;
+  }
+  return lieu.replace(/\s*observation\s*$/i, "").trim() || lieu;
+}
+
 const ACTIVITE_VIDE: ActiviteType = {
   lieu: "", debutMatin: "09:00", finMatin: "12:00", debutApresMidi: "14:00", finApresMidi: "17:30",
   journeeComplete: false,
@@ -191,6 +207,16 @@ export default function PlanningExpertMix() {
   // réordonner, géré localement dans DayCell).
   const [actionEnGlisse, setActionEnGlisse] = useState<ActionPlanning | null>(null);
   const [voirMasques, setVoirMasques] = useState(false);
+  // "Avec moi" : ne garde que soi-même et les médiateur·rice·s qui
+  // partagent au moins un créneau (même lieu/jour/demi-journée, voir
+  // familleSitePourAvecMoi) avec le compte connecté cette semaine — pour
+  // repérer d'un coup d'œil son équipe du jour sans chercher dans toute la
+  // grille.
+  const [avecMoiUniquement, setAvecMoiUniquement] = useState(false);
+  // Jour précis (YYYY-MM-DD) sur lequel restreindre "Avec moi" — vide =
+  // toute la semaine. Réinitialisé à chaque changement de semaine pour ne
+  // pas garder une date qui n'appartient plus à la semaine affichée.
+  const [jourAvecMoi, setJourAvecMoi] = useState("");
   // Bascule d'affichage en plus de la grille d'édition habituelle : deux
   // vues GANTT en lecture seule (barres pleine largeur par demi-journée au
   // lieu de cases), pour repérer d'un coup d'œil les trous/chevauchements —
@@ -254,6 +280,7 @@ export default function PlanningExpertMix() {
   // semaine plutôt que de garder un choix devenu obsolète.
   const [samediChoixManuel, setSamediChoixManuel] = useState<boolean | null>(null);
   useEffect(() => { setSamediChoixManuel(null); }, [currentDate]);
+  useEffect(() => { setJourAvecMoi(""); }, [currentDate]);
 
   const voirSamedi = samediChoixManuel ?? samediADesActions;
 
@@ -963,6 +990,19 @@ export default function PlanningExpertMix() {
   // (comptes génériques non individuels) — et masqués uniquement s'ils
   // n'ont aucune action cette semaine ou si "voir les masqués" est activé)
   // — base commune du tri par catégorie ci-dessous.
+  // Créneaux (jour + demi-journée + site) du compte connecté cette semaine —
+  // sert au filtre "Avec moi" ci-dessous.
+  const creneauxAvecMoi = new Set<string>();
+  if (avecMoiUniquement && currentUserMed) {
+    actions.forEach(a => {
+      if (!a.lieu || !a.date) return;
+      if (!weekDays.some(day => day.toLocaleDateString('en-CA') === a.date)) return;
+      if (jourAvecMoi && a.date !== jourAvecMoi) return;
+      if (!estActionDuMediateur(a, currentUserMed)) return;
+      creneauxAvecMoi.add(`${a.date}_${a.moment || ""}_${familleSitePourAvecMoi(a.lieu)}`);
+    });
+  }
+
   const mediateursAffiches = mediateurs
     .filter(m => m.actif !== false && (m.prenom || m.nom) && m.statut !== "Formateur" && !m.exclureAgenda)
     .filter(m => {
@@ -972,6 +1012,14 @@ export default function PlanningExpertMix() {
       return actions.some((action) => {
         const estCetteSemaine = weekDays.some(day => day.toLocaleDateString('en-CA') === action.date);
         return estActionDuMediateur(action, m) && estCetteSemaine;
+      });
+    })
+    .filter(m => {
+      if (!avecMoiUniquement || !currentUserMed) return true;
+      if (m.id === currentUserMed.id) return true;
+      return actions.some(a => {
+        if (!a.lieu || !a.date || !estActionDuMediateur(a, m)) return false;
+        return creneauxAvecMoi.has(`${a.date}_${a.moment || ""}_${familleSitePourAvecMoi(a.lieu)}`);
       });
     });
 
@@ -2215,7 +2263,7 @@ export default function PlanningExpertMix() {
               replier le contenu en laissant l'en-tête visible. */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 bg-white border border-[#404040]/10 rounded-xl px-4 py-2 shadow-sm text-xs">
             <span className="font-extrabold uppercase text-[10px] text-[#404040]/50 tracking-wide">Afficher :</span>
-            {groupesMediateursAgenda.map(groupe => (
+            {groupesMediateursAgenda.filter(groupe => groupe.membres.length > 0).map(groupe => (
               <label key={groupe.key} className="flex items-center gap-1.5 font-bold text-[#404040] cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -2226,9 +2274,36 @@ export default function PlanningExpertMix() {
                 {groupe.label}
               </label>
             ))}
+            {currentUserMed && (
+              <div className="flex items-center gap-2 border-l border-[#404040]/10 pl-4">
+                <label className="flex items-center gap-1.5 font-bold text-[#EA601F] cursor-pointer select-none" title="N'affiche que vous et les médiateur·rice·s positionné·e·s avec vous sur un même créneau">
+                  <input
+                    type="checkbox"
+                    checked={avecMoiUniquement}
+                    onChange={() => setAvecMoiUniquement(prev => !prev)}
+                    className="cursor-pointer"
+                  />
+                  Avec moi uniquement
+                </label>
+                {avecMoiUniquement && (
+                  <select
+                    value={jourAvecMoi}
+                    onChange={e => setJourAvecMoi(e.target.value)}
+                    className="text-[10px] font-bold uppercase text-[#EA601F] bg-[#EA601F]/10 border border-[#EA601F]/30 rounded-md px-1.5 py-1 cursor-pointer outline-none"
+                  >
+                    <option value="">Toute la semaine</option>
+                    {weekDays.map(d => (
+                      <option key={d.toString()} value={d.toLocaleDateString('en-CA')}>
+                        {d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
           </div>
 
-          {groupesMediateursAgenda.filter(groupe => categoriesVisibles[groupe.key] ?? true).map(groupe => (
+          {groupesMediateursAgenda.filter(groupe => groupe.membres.length > 0 && (categoriesVisibles[groupe.key] ?? true)).map(groupe => (
             <Accordion
               key={groupe.key}
               title={`${groupe.label} (${groupe.membres.length})`}
