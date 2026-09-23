@@ -215,7 +215,7 @@ export default function ModelesGantt({ modeles }: { modeles: ActiviteType[] }) {
   const mois: { debut: Date; label: string }[] = [];
   let curseurMois = new Date(premierJour.getFullYear(), premierJour.getMonth(), 1);
   while (curseurMois <= dernierJour) {
-    mois.push({ debut: new Date(curseurMois), label: curseurMois.toLocaleDateString('fr-FR', { month: 'short' }) });
+    mois.push({ debut: new Date(curseurMois), label: curseurMois.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }) });
     curseurMois = new Date(curseurMois.getFullYear(), curseurMois.getMonth() + 1, 1);
   }
 
