@@ -2026,9 +2026,9 @@ export default function PlanningExpertMix() {
                     </div>
                     <div className="w-full mt-1 pl-3.5">
                       <div className="flex items-center justify-between gap-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
                           {type.territoire && <span className="text-[9px] bg-white px-1 rounded border border-current shrink-0">{type.territoire}</span>}
-                          {hMatin && <span className="text-[8px] opacity-80 font-mono truncate">Matin {hMatin.debut}-{hMatin.fin}</span>}
+                          {type.codeInterne && <span className="text-[9px] bg-white px-1 rounded border border-current min-w-0 flex-1 break-words" title={type.codeInterne}>{type.codeInterne}</span>}
                         </div>
                         <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity">
                           <PermissionGuard actionId="agenda_model_actions">
@@ -2051,6 +2051,15 @@ export default function PlanningExpertMix() {
                           )}
                         </div>
                       </div>
+                      {/* Matin/après-midi toujours l'un sous l'autre, jamais
+                          à côté du badge territoire — sinon l'horaire du
+                          matin se fait tronquer par manque de place alors
+                          que celui de l'après-midi passait déjà à la ligne,
+                          rendant la mise en page incohérente d'une carte à
+                          l'autre. */}
+                      {hMatin && (
+                        <div className="text-[8px] opacity-80 font-mono truncate mt-0.5">Matin {hMatin.debut}-{hMatin.fin}</div>
+                      )}
                       {hApresMidi && (
                         <div className="text-[8px] opacity-80 font-mono truncate mt-0.5">Après-midi {hApresMidi.debut}-{hApresMidi.fin}</div>
                       )}
