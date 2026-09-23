@@ -27,6 +27,7 @@ import type { Mediateur, ActionPlanning } from "../../lib/types";
 import { useConfirm } from "../../components/ConfirmProvider";
 import Accordion from "../../components/Accordion";
 import ScrollToTopButton from "../../components/ScrollToTopButton";
+import ModelesGantt from "../../components/ModelesGantt";
 import {
   type ActiviteType, BLOCS_THEMATIQUES, getJoursFeries,
   genererCreneauxPourModele, estimerNombreCreneaux, estVisibleCetteSemaine, estModeleExpire,
@@ -195,7 +196,7 @@ export default function PlanningExpertMix() {
   // lieu de cases), pour repérer d'un coup d'œil les trous/chevauchements —
   // par activité (qui couvre quel lieu, quand) ou par médiateur·rice (mêmes
   // lignes que l'édition, sans les actions d'édition).
-  const [vueAgenda, setVueAgenda] = useState<"edition" | "gantt-activite">("edition");
+  const [vueAgenda, setVueAgenda] = useState<"edition" | "gantt-activite" | "gantt-detaille">("edition");
   // Période affichée par la vue GANTT (indépendante de la navigation
   // semaine par semaine ci-dessus, utilisée uniquement pour l'édition) —
   // voir actionsGantt ci-dessous.
@@ -2174,6 +2175,14 @@ export default function PlanningExpertMix() {
               >
                 GANTT par activité
               </button>
+              <button
+                onClick={() => setVueAgenda("gantt-detaille")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all cursor-pointer ${
+                  vueAgenda === "gantt-detaille" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/60 hover:bg-[#F3F3F2]"
+                }`}
+              >
+                GANTT détaillé
+              </button>
             </PermissionGuard>
           </div>
 
@@ -2511,6 +2520,17 @@ export default function PlanningExpertMix() {
                 estLieuAbsence={ganttFiltreAbsences === "isoler" ? estLieuAbsence : undefined}
               />
             )
+          )}
+
+          {/* GANTT "détaillé" (voir components/ModelesGantt.tsx, partagé
+              avec la page Modèles) : une ligne par action/session récurrente
+              basée sur les modèles (pas les créneaux posés), avec tronçons
+              de dates réelles pour les activités ponctuelles et détail
+              médiateurs/jours par ligne — vue plus proche du "programme"
+              que le GANTT par activité ci-dessus, qui lit directement les
+              créneaux posés dans la période choisie. */}
+          {vueAgenda === "gantt-detaille" && (
+            <ModelesGantt modeles={activitesTypes.filter(a => !a.archive)} />
           )}
         </div>
       </div>

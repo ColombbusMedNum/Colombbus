@@ -19,6 +19,7 @@ import { PermissionGuard } from "@/components/PermissionGuard";
 import { useToast } from "@/components/ToastProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
 import Accordion from "@/components/Accordion";
+import ModelesGantt from "@/components/ModelesGantt";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import {
   type ActiviteType, BLOCS_THEMATIQUES, resoudreHoraireModele, resoudreHoraireAffichage, resoudreHoraireGrilleACI,
@@ -59,7 +60,7 @@ export default function ModelesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [currentTab, setCurrentTab] = useState<"actifs" | "archives">("actifs");
-  const [vueGroupement, setVueGroupement] = useState<"production" | "codeInterne" | "alphabetique">("production");
+  const [vueGroupement, setVueGroupement] = useState<"production" | "codeInterne" | "alphabetique" | "gantt">("production");
   // Une activité sans dateDebut ni dateFin n'est pas juste "sans période
   // renseignée" — elle est permanente/récurrente par nature (ex ERP,
   // Suresnes...), jamais concernée par l'archivage automatique
@@ -656,6 +657,14 @@ export default function ModelesPage() {
           >
             Alphabétique
           </button>
+          <button
+            onClick={() => setVueGroupement("gantt")}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+              vueGroupement === "gantt" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/70 hover:text-[#005259] hover:bg-[#F3F3F2]"
+            }`}
+          >
+            Gantt
+          </button>
 
           <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider text-[#404040]/70 cursor-pointer select-none">
             <input
@@ -719,10 +728,12 @@ export default function ModelesPage() {
               </div>
             ))}
           </div>
-        ) : (
+        ) : vueGroupement === "alphabetique" ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {modelesAlphabetique.map(renderCarteModele)}
           </div>
+        ) : (
+          <ModelesGantt modeles={modelesFiltres} />
         )}
       </div>
 
