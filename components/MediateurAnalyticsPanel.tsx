@@ -9,6 +9,9 @@ interface MediateurAnalyticsPanelProps {
   totalHeuresGlobal: number;
   totalHeuresComplementaires?: number;
   emptyMessage: string;
+  // Personnalisable pour app/mediation/statistiques (sélecteur BluePowder /
+  // Colombbus) — app/mediation/mediateurs garde le texte par défaut.
+  titreSection?: string;
 }
 
 // Bloc "Fiche Médiateur" + "Total d'heures par code analytique", partagé
@@ -21,6 +24,7 @@ export default function MediateurAnalyticsPanel({
   totalHeuresGlobal,
   totalHeuresComplementaires = 0,
   emptyMessage,
+  titreSection = "Total d'heures par code analytique",
 }: MediateurAnalyticsPanelProps) {
   const totalHeuresNormales = totalHeuresGlobal - totalHeuresComplementaires;
   return (
@@ -76,7 +80,7 @@ export default function MediateurAnalyticsPanel({
       <div className="md:col-span-2 bg-white border border-[#404040]/10 rounded-2xl p-5 space-y-4 shadow-sm">
         <div className="flex items-center gap-2 pb-3 border-b border-[#404040]/10">
           <ChartBarIcon className="w-4 h-4 text-[#005259]" />
-          <h3 className="text-xs font-bold uppercase tracking-wider text-[#005259]">Total d'heures par code analytique</h3>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[#005259]">{titreSection}</h3>
         </div>
 
         {analyticsSummary.length === 0 ? (

@@ -65,6 +65,10 @@ export default function ModelesPage() {
   // Suresnes...), jamais concernée par l'archivage automatique
   // (estModeleExpire) puisqu'elle n'a pas de date de fin à dépasser.
   const [permanentesUniquement, setPermanentesUniquement] = useState(false);
+  // Filtre sur la présence du code analytique BluePowder — "avec" pour
+  // repérer ce qui est déjà rattaché à BluePowder, "sans" pour repérer ce
+  // qui reste à renseigner.
+  const [filtreCodeAnalytique, setFiltreCodeAnalytique] = useState<"tous" | "avec" | "sans">("tous");
 
   // "Voir les dates" : liste des jours où ce modèle a déjà des créneaux
   // posés dans planning_mediateurs, avec un lien direct vers la case
@@ -188,8 +192,13 @@ export default function ModelesPage() {
     return activitesTypes
       .filter(a => (currentTab === "archives") === !!a.archive)
       .filter(a => !q || (a.lieu || "").toLowerCase().includes(q))
-      .filter(a => !permanentesUniquement || (!a.dateDebut && !a.dateFin));
-  }, [activitesTypes, search, currentTab, permanentesUniquement]);
+      .filter(a => !permanentesUniquement || (!a.dateDebut && !a.dateFin))
+      .filter(a => {
+        if (filtreCodeAnalytique === "tous") return true;
+        const aCode = !!(a.codeAnalytique || "").trim();
+        return filtreCodeAnalytique === "avec" ? aCode : !aCode;
+      });
+  }, [activitesTypes, search, currentTab, permanentesUniquement, filtreCodeAnalytique]);
 
   // Séparation visuelle production / hors production (voir le badge sur
   // chaque carte) — sert notamment à repérer d'un coup d'œil les modèles
@@ -254,7 +263,7 @@ export default function ModelesPage() {
               <span className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10" style={{ backgroundColor: type.couleur || "#005259" }}></span>
               {type.lieu}
             </h3>
-            {(type.territoire || type.codeInterne) && (
+            {(type.territoire || type.codeInterne || type.codeAnalytique) && (
               <div className="flex flex-wrap items-center gap-1 mt-1">
                 {type.territoire && (
                   <span className="inline-block text-[9px] font-bold bg-[#F3F3F2] border border-[#404040]/10 px-1.5 py-0.5 rounded text-[#404040]/70">
@@ -264,6 +273,11 @@ export default function ModelesPage() {
                 {type.codeInterne && (
                   <span className="inline-block text-[9px] font-bold bg-[#F3F3F2] border border-[#404040]/10 px-1.5 py-0.5 rounded text-[#404040]/70">
                     {type.codeInterne}
+                  </span>
+                )}
+                {type.codeAnalytique && (
+                  <span className="inline-block text-[9px] font-bold bg-[#F3F3F2] border border-[#404040]/10 px-1.5 py-0.5 rounded text-[#404040]/70" title="Code Analytique BluePowder">
+                    {type.codeAnalytique}
                   </span>
                 )}
               </div>
@@ -666,6 +680,16 @@ export default function ModelesPage() {
             />
             Permanentes (sans dates)
           </label>
+
+          <select
+            value={filtreCodeAnalytique}
+            onChange={e => setFiltreCodeAnalytique(e.target.value as "tous" | "avec" | "sans")}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider text-[#404040]/70 bg-white border border-[#404040]/10 cursor-pointer outline-none"
+          >
+            <option value="tous">Code BluePowder : tous</option>
+            <option value="avec">Avec code BluePowder</option>
+            <option value="sans">Sans code BluePowder</option>
+          </select>
         </div>
 
         {loading ? (
@@ -825,7 +849,7 @@ export default function ModelesPage() {
             </Accordion>
 
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] text-[#404040]/70 font-semibold">Code Analytique (Optionnel)</label>
+              <label className="text-[10px] text-[#404040]/70 font-semibold">Code Analytique BluePowder (Optionnel)</label>
               <input
                 placeholder="Ex: 12345"
                 value={newActivite.codeAnalytique}
@@ -986,6 +1010,10 @@ export default function ModelesPage() {
               </div>
             </Accordion>
 
+            {/* Section "Médiateurs & génération automatique" désactivée
+                temporairement à la demande de l'utilisateur (2026-09-24) —
+                code conservé tel quel pour réactivation ultérieure, pas
+                supprimé.
             <Accordion title="Médiateurs & génération automatique" open={!!openSections.mediateurs} onToggle={() => toggleSection("mediateurs")}>
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] text-[#404040]/70 font-semibold">Médiateurs concernés (Optionnel — sinon, modèle générique pour tous)</label>
@@ -1038,6 +1066,7 @@ export default function ModelesPage() {
                 </div>
               )}
             </Accordion>
+            */}
 
             <div className="flex gap-2 pt-2">
               <button type="submit" className="flex-1 bg-[#005259] text-white py-1.5 rounded-md text-xs font-bold">Valider</button>

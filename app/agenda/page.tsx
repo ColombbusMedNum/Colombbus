@@ -140,6 +140,17 @@ function familleSitePourAvecMoi(lieu: string): string {
   return lieu.replace(/\s*observation\s*$/i, "").trim() || lieu;
 }
 
+// Lieux "grille horaire personnelle" (Terrage, Suresnes, Massy — voir
+// estModeleProtege) : présents chez énormément de monde en même temps par
+// construction, jamais un vrai "on travaille ensemble" au sens du filtre
+// "Avec moi" — les compter y ferait remonter presque tout le monde. Exact
+// (pas une inclusion) pour ne pas exclure au passage un vrai créneau RN
+// Suresnes précis (ex "92 - RN - Suresnes"), qui lui reste pertinent.
+function estLieuGeneriqueAvecMoi(lieu: string): boolean {
+  const norm = (lieu || "").trim().toUpperCase();
+  return norm === "TERRAGE" || norm === "SURESNES" || norm === "MASSY";
+}
+
 const ACTIVITE_VIDE: ActiviteType = {
   lieu: "", debutMatin: "09:00", finMatin: "12:00", debutApresMidi: "14:00", finApresMidi: "17:30",
   journeeComplete: false,
@@ -217,6 +228,13 @@ export default function PlanningExpertMix() {
   // toute la semaine. Réinitialisé à chaque changement de semaine pour ne
   // pas garder une date qui n'appartient plus à la semaine affichée.
   const [jourAvecMoi, setJourAvecMoi] = useState("");
+  // Pour les admins : mêmes filtre/case "Avec moi", mais avec un ou
+  // plusieurs autres médiateur·rice·s pris comme référence plutôt que
+  // (ou en plus de) soi-même — utile pour vérifier l'équipe de quelqu'un
+  // d'autre sans devoir se connecter avec son compte.
+  const [avecMediateursIds, setAvecMediateursIds] = useState<string[]>([]);
+  const [avecMediateursPanelOuvert, setAvecMediateursPanelOuvert] = useState(false);
+  const avecMediateursPanelRef = useRef<HTMLDivElement>(null);
   // Bascule d'affichage en plus de la grille d'édition habituelle : deux
   // vues GANTT en lecture seule (barres pleine largeur par demi-journée au
   // lieu de cases), pour repérer d'un coup d'œil les trous/chevauchements —
@@ -410,6 +428,16 @@ export default function PlanningExpertMix() {
     if (medSelectPanelOuvert) document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [medSelectPanelOuvert]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (avecMediateursPanelRef.current && !avecMediateursPanelRef.current.contains(event.target as Node)) {
+        setAvecMediateursPanelOuvert(false);
+      }
+    }
+    if (avecMediateursPanelOuvert) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [avecMediateursPanelOuvert]);
 
   // Le planning n'affiche qu'une semaine à la fois : on ne charge que les
   // actions de cette semaine (lundi à dimanche, indépendamment du toggle
@@ -991,17 +1019,23 @@ export default function PlanningExpertMix() {
   // n'ont aucune action cette semaine ou si "voir les masqués" est activé)
   // — base commune du tri par catégorie ci-dessous.
   // Créneaux (jour + demi-journée + site) du compte connecté cette semaine —
-  // sert au filtre "Avec moi" ci-dessous.
+  // sert au filtre "Avec moi" ci-dessous (expansion : soi-même + les
+  // médiateur·rice·s qui partagent un créneau avec soi).
   const creneauxAvecMoi = new Set<string>();
   if (avecMoiUniquement && currentUserMed) {
     actions.forEach(a => {
-      if (!a.lieu || !a.date) return;
+      if (!a.lieu || !a.date || estLieuGeneriqueAvecMoi(a.lieu)) return;
       if (!weekDays.some(day => day.toLocaleDateString('en-CA') === a.date)) return;
       if (jourAvecMoi && a.date !== jourAvecMoi) return;
       if (!estActionDuMediateur(a, currentUserMed)) return;
       creneauxAvecMoi.add(`${a.date}_${a.moment || ""}_${familleSitePourAvecMoi(a.lieu)}`);
     });
   }
+
+  // Réservé aux admins : sélection directe de médiateur·rice·s — masque
+  // toutes les AUTRES lignes, sans expansion aux personnes qui partagent
+  // leurs créneaux (contrairement à "Avec moi" ci-dessus).
+  const avecMediateursSelectionnes = mediateurs.filter(m => avecMediateursIds.includes(m.id));
 
   const mediateursAffiches = mediateurs
     .filter(m => m.actif !== false && (m.prenom || m.nom) && m.statut !== "Formateur" && !m.exclureAgenda)
@@ -1018,10 +1052,11 @@ export default function PlanningExpertMix() {
       if (!avecMoiUniquement || !currentUserMed) return true;
       if (m.id === currentUserMed.id) return true;
       return actions.some(a => {
-        if (!a.lieu || !a.date || !estActionDuMediateur(a, m)) return false;
+        if (!a.lieu || !a.date || estLieuGeneriqueAvecMoi(a.lieu) || !estActionDuMediateur(a, m)) return false;
         return creneauxAvecMoi.has(`${a.date}_${a.moment || ""}_${familleSitePourAvecMoi(a.lieu)}`);
       });
-    });
+    })
+    .filter(m => avecMediateursIds.length === 0 || avecMediateursIds.includes(m.id));
 
   // Tri par groupe ACI (les non-classés passent après), puis alphabétique par
   // nom de famille à l'intérieur d'un même groupe (ou entre non-classés) —
@@ -2276,17 +2311,61 @@ export default function PlanningExpertMix() {
                 {groupe.label}
               </label>
             ))}
-            {currentUserMed && (
-              <div className="flex items-center gap-2 border-l border-[#404040]/10 pl-4">
-                <label className="flex items-center gap-1.5 font-bold text-[#EA601F] cursor-pointer select-none" title="N'affiche que vous et les médiateur·rice·s positionné·e·s avec vous sur un même créneau">
-                  <input
-                    type="checkbox"
-                    checked={avecMoiUniquement}
-                    onChange={() => setAvecMoiUniquement(prev => !prev)}
-                    className="cursor-pointer"
-                  />
-                  Avec moi uniquement
-                </label>
+            {(currentUserMed || role === "admin") && (
+              <div className="flex items-center gap-2 border-l border-[#404040]/10 pl-4 flex-wrap">
+                {currentUserMed && (
+                  <label className="flex items-center gap-1.5 font-bold text-[#EA601F] cursor-pointer select-none" title="N'affiche que vous et les médiateur·rice·s positionné·e·s avec vous sur un même créneau">
+                    <input
+                      type="checkbox"
+                      checked={avecMoiUniquement}
+                      onChange={() => setAvecMoiUniquement(prev => !prev)}
+                      className="cursor-pointer"
+                    />
+                    Avec moi uniquement
+                  </label>
+                )}
+                {/* Réservé aux admins : sélection directe d'un ou plusieurs
+                    médiateur·rice·s — masque toutes les autres lignes, sans
+                    expansion aux personnes qui partagent leurs créneaux
+                    (contrairement à "Avec moi uniquement" ci-dessus). */}
+                {role === "admin" && (
+                  <div className="relative" ref={avecMediateursPanelRef}>
+                    <button
+                      onClick={() => setAvecMediateursPanelOuvert(prev => !prev)}
+                      title="N'affiche que les médiateur·rice·s sélectionné·e·s, masque tous les autres"
+                      className="px-2 py-1 bg-[#EA601F]/10 border border-[#EA601F]/30 rounded-md text-[10px] font-bold uppercase text-[#EA601F] cursor-pointer max-w-[200px] truncate"
+                    >
+                      {avecMediateursSelectionnes.length === 0
+                        ? "Afficher seulement..."
+                        : avecMediateursSelectionnes.length === 1
+                          ? `Seulement ${avecMediateursSelectionnes[0].prenom || ""} ${avecMediateursSelectionnes[0].nom || ""}`.trim()
+                          : `Seulement ${avecMediateursSelectionnes.length} médiateur·rice·s`}
+                    </button>
+                    {avecMediateursPanelOuvert && (
+                      <div className="absolute left-0 mt-2 w-64 max-h-80 overflow-y-auto bg-white border border-[#404040]/10 rounded-xl shadow-xl z-50 p-2 space-y-0.5 text-[#404040] normal-case">
+                        {avecMediateursIds.length > 0 && (
+                          <button
+                            onClick={() => setAvecMediateursIds([])}
+                            className="w-full text-left px-2 py-1.5 rounded-lg text-xs font-bold text-[#EF736A] hover:bg-[#EF736A]/10 cursor-pointer"
+                          >
+                            Tout désélectionner
+                          </button>
+                        )}
+                        {mediateurs.filter(m => m.prenom || m.nom).map(m => (
+                          <label key={m.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-bold hover:bg-[#F3F3F2] cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={avecMediateursIds.includes(m.id)}
+                              onChange={() => setAvecMediateursIds(prev => prev.includes(m.id) ? prev.filter(id => id !== m.id) : [...prev, m.id])}
+                              className="cursor-pointer"
+                            />
+                            {m.prenom} {m.nom}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {avecMoiUniquement && (
                   <select
                     value={jourAvecMoi}

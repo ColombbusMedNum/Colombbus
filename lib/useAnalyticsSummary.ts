@@ -24,7 +24,16 @@ export interface AnalyticsSummaryItem {
 // concerné (statut, horaires ACI) — indispensable pour la vue "Tous les
 // médiateurs" de statistiques où chaque action peut appartenir à une
 // personne différente de celle actuellement affichée.
-export function useAnalyticsSummary(currentMedActions: any[], mediateurs: any[] = [], grillesHorairesACI: GrillesHorairesACI = {}) {
+// groupBy : "codeAnalytique" (code BluePowder, comportement historique/par
+// défaut — inchangé pour app/mediation/mediateurs, qui n'a pas besoin de
+// choisir) ou "codeInterne" (code Colombbus) — voir le sélecteur de mode sur
+// app/mediation/statistiques.
+export function useAnalyticsSummary(
+  currentMedActions: any[],
+  mediateurs: any[] = [],
+  grillesHorairesACI: GrillesHorairesACI = {},
+  groupBy: "codeAnalytique" | "codeInterne" = "codeAnalytique"
+) {
   // Object.create(null) : clés indexées par du texte libre (nom complet,
   // code analytique) — sans prototype pour qu'une clé "__proto__" reste une
   // clé normale au lieu de polluer Object.prototype.
@@ -55,8 +64,10 @@ export function useAnalyticsSummary(currentMedActions: any[], mediateurs: any[] 
 
     Object.values(parJour).forEach((actionsDuJour) => {
       repartirHeuresSansChevauchement(actionsDuJour).forEach(({ occurrence: action, heuresContribuees, fragments }) => {
-        const code = (action.codeAnalytique || "").trim() || "SANS_CODE";
-        const label = action.codeAnalytique ? `Code ${action.codeAnalytique}` : "Sans code analytique / Non spécifié";
+        const valeurCode = groupBy === "codeInterne" ? action.codeInterne : action.codeAnalytique;
+        const nomChamp = groupBy === "codeInterne" ? "Code Colombbus" : "Code analytique";
+        const code = (valeurCode || "").trim() || "SANS_CODE";
+        const label = valeurCode ? `${nomChamp} ${valeurCode}` : `Sans ${nomChamp.toLowerCase()} / Non spécifié`;
 
         if (!summary[code]) {
           summary[code] = { code, label, totalHeures: 0, heuresComplementaires: 0, count: 0 };
@@ -83,7 +94,7 @@ export function useAnalyticsSummary(currentMedActions: any[], mediateurs: any[] 
         heuresComplementaires: Math.round(item.heuresComplementaires * 10) / 10,
       }))
       .sort((a, b) => b.totalHeures - a.totalHeures);
-  }, [currentMedActions, mediateursParId, grillesHorairesACI]);
+  }, [currentMedActions, mediateursParId, grillesHorairesACI, groupBy]);
 
   const totalHeuresGlobal = analyticsSummary.reduce((acc, curr) => acc + curr.totalHeures, 0);
   const totalHeuresComplementaires = analyticsSummary.reduce((acc, curr) => acc + curr.heuresComplementaires, 0);

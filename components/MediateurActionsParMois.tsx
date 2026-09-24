@@ -12,6 +12,7 @@ interface ActionAvecDate {
   lieu?: string;
   debut?: string;
   fin?: string;
+  codeAnalytique?: string;
 }
 
 interface OccurrenceAffichee extends ActionAvecDate {
@@ -90,6 +91,10 @@ export default function MediateurActionsParMois({ actions, emptyMessage = "Aucun
         const intitules = Object.entries(parIntitule)
           .map(([titre, occs]) => ({
             titre,
+            // Code analytique du lieu — normalement constant sur toutes ses
+            // occurrences (il vient du modèle, pas de l'occurrence précise),
+            // on prend simplement le premier renseigné.
+            codeAnalytique: occs.find(o => o.codeAnalytique)?.codeAnalytique,
             totalHeures: occs.reduce((acc, o) => acc + o.heures, 0),
             occurrences: [...occs].sort((a, b) => a.date.localeCompare(b.date)),
           }))
@@ -138,9 +143,17 @@ export default function MediateurActionsParMois({ actions, emptyMessage = "Aucun
                 {groupe.intitules.map((groupeIntitule) => (
                   <div key={groupeIntitule.titre} className="space-y-1">
                     <div className="flex items-center justify-between gap-3 px-2 py-1 border-b border-[#404040]/10">
-                      <span className="flex items-center gap-1.5 min-w-0 font-bold text-[#005259] text-xs uppercase tracking-wide truncate">
+                      <span className="flex items-center gap-1.5 min-w-0 font-bold text-[#005259] text-xs uppercase tracking-wide">
                         <MapPinIcon className="w-3 h-3 text-[#EA601F] shrink-0" />
                         <span className="truncate">{groupeIntitule.titre}</span>
+                        {groupeIntitule.codeAnalytique && (
+                          <span
+                            className="text-[9px] font-mono font-bold text-[#005259] bg-[#005259]/10 border border-[#005259]/20 px-1.5 py-0.5 rounded shrink-0 normal-case"
+                            title={`Code analytique BluePowder : ${groupeIntitule.codeAnalytique}`}
+                          >
+                            {groupeIntitule.codeAnalytique}
+                          </span>
+                        )}
                       </span>
                       <span className="font-mono font-bold text-[#EA601F] shrink-0 text-[11px]">
                         {groupeIntitule.occurrences.length}× — {groupeIntitule.totalHeures.toFixed(1)}h
@@ -157,9 +170,14 @@ export default function MediateurActionsParMois({ actions, emptyMessage = "Aucun
                             key={o.id}
                             className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-xs px-2 py-1 rounded-lg hover:bg-[#F3F3F2] transition-colors ${dejaCompte ? "opacity-50" : ""}`}
                           >
-                            <div className="flex items-center gap-2 min-w-0">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
                               <span className="font-mono font-bold text-[#005259] w-5 shrink-0">{jour}</span>
                               <span className="text-[9px] text-[#404040]/60 font-bold uppercase w-14 shrink-0">{o.moment || ""}</span>
+                              {o.lieu && (
+                                <span className="text-[#404040]/80 font-medium normal-case truncate" title={o.lieu}>
+                                  {o.lieu}
+                                </span>
+                              )}
                             </div>
                             <span className="font-mono font-bold text-[#404040]/70 shrink-0 text-[11px]">
                               {o.debut && o.fin && <span className="mr-1.5">{o.debut}–{o.fin}</span>}

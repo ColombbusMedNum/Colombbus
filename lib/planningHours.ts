@@ -79,14 +79,28 @@ export interface ContributionJournaliere<T> {
   fragments: FragmentHoraire[];
 }
 
+// Lieux "grille horaire personnelle"/générique (Terrage, Suresnes, Massy) —
+// pas une activité précise en soi, juste un remplissage de journée. En cas
+// de chevauchement avec une action précise le même jour, c'est TOUJOURS le
+// lieu générique qui doit perdre ses heures (voir la priorité de tri dans
+// repartirHeuresSansChevauchement ci-dessous), jamais l'inverse — se fier à
+// la seule durée ne suffit pas : un générique posé sur une plage courte ce
+// jour-là pouvait passer avant une action précise tout aussi courte, lui
+// volant ses heures. Même liste que estLieuGeneriqueAvecMoi dans
+// app/agenda/page.tsx.
+function estLieuGenerique(lieu?: string): boolean {
+  const norm = (lieu || "").trim().toUpperCase();
+  return norm === "TERRAGE" || norm === "SURESNES" || norm === "MASSY";
+}
+
 // Additionne les heures réellement travaillées sur une liste d'occurrences
 // d'UN SEUL médiateur pour UN SEUL jour, sans compter deux fois les plages
-// qui se chevauchent. Règle : une occurrence COURTE/spécifique (ex une
-// tâche ponctuelle "92 - CARON" 14:00-16:30) garde toujours l'intégralité
-// de ses heures ; c'est l'occurrence plus LONGUE qui l'englobe (ex une
-// permanence "journée complète" Suresnes 09:00-17:00) qui se voit réduite
-// d'autant — jamais l'inverse. Les occurrences sont donc traitées de la
-// plus courte à la plus longue, chacune "réservant" sa plage pour les
+// qui se chevauchent. Règle : une occurrence précise (pas un lieu générique,
+// voir estLieuGenerique) garde toujours l'intégralité de ses heures ; c'est
+// le lieu générique qui l'englobe (ex une permanence "journée complète"
+// Suresnes 09:00-17:00) qui se voit réduit d'autant — jamais l'inverse.
+// Entre deux occurrences de même statut (deux précises, ou deux génériques),
+// la plus COURTE est traitée en premier et réserve sa plage pour les
 // suivantes. Un doublon exact (même horaire répété sur Matin et Après-midi,
 // ex TERRAGE) est le cas particulier où les deux durées sont égales : la
 // seconde traitée n'apporte alors aucune heure nouvelle. La pause déjeuner
@@ -101,6 +115,9 @@ export function repartirHeuresSansChevauchement<T extends OccurrenceHoraire>(
   const sansHoraires = occurrences.filter((o) => !(o.debut && o.fin && timeToMinutes(o.fin) > timeToMinutes(o.debut)));
 
   const tries = [...avecHoraires].sort((a, b) => {
+    const genA = estLieuGenerique(a.o.lieu) ? 1 : 0;
+    const genB = estLieuGenerique(b.o.lieu) ? 1 : 0;
+    if (genA !== genB) return genA - genB;
     const dureeA = a.fin - a.debut;
     const dureeB = b.fin - b.debut;
     return dureeA !== dureeB ? dureeA - dureeB : a.debut - b.debut;

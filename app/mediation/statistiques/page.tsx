@@ -23,6 +23,11 @@ export default function StatsMediateursAnalytique() {
   const [actions, setActions] = useState<any[]>([]);
   const { mediateurs: mediateursBruts } = useMediateurs();
   const [selectedMedId, setSelectedMedId] = useState<string>("");
+  // Mode de regroupement de la synthèse : code analytique BluePowder
+  // (comportement historique) ou code interne Colombbus — voir
+  // useAnalyticsSummary, partagé avec app/mediation/mediateurs (qui garde
+  // le comportement par défaut, sans ce sélecteur).
+  const [modeGroupement, setModeGroupement] = useState<"codeAnalytique" | "codeInterne">("codeAnalytique");
   const [rechercheMed, setRechercheMed] = useState("");
   const [dropdownOuvert, setDropdownOuvert] = useState(false);
   const comboboxRef = React.useRef<HTMLDivElement>(null);
@@ -114,7 +119,7 @@ export default function StatsMediateursAnalytique() {
   });
 
   // 4. Synthèse analytique
-  const { analyticsSummary, totalHeuresGlobal, totalHeuresComplementaires } = useAnalyticsSummary(currentMedActions, mediateurs, grillesHorairesACI);
+  const { analyticsSummary, totalHeuresGlobal, totalHeuresComplementaires } = useAnalyticsSummary(currentMedActions, mediateurs, grillesHorairesACI, modeGroupement);
 
   return (
     <PageGuard pageId="page_access_statistiques">
@@ -134,7 +139,7 @@ export default function StatsMediateursAnalytique() {
                 Synthèse <span className="text-[#EA601F] font-semibold">analytique</span>
               </h1>
               <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
-                Suivi et audit du volume horaire par code analytique
+                Suivi et audit du volume horaire par {modeGroupement === "codeInterne" ? "code Colombbus" : "code analytique BluePowder"}
               </p>
             </div>
           </div>
@@ -214,6 +219,26 @@ export default function StatsMediateursAnalytique() {
           )}
         </div>
 
+        {/* MODE DE REGROUPEMENT : BluePowder (analytique) ou Colombbus (interne) */}
+        <div className="flex items-center gap-1 bg-white border border-[#404040]/10 rounded-xl p-1.5 shadow-sm w-fit">
+          <button
+            onClick={() => setModeGroupement("codeAnalytique")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all cursor-pointer ${
+              modeGroupement === "codeAnalytique" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/60 hover:bg-[#F3F3F2]"
+            }`}
+          >
+            Code BluePowder
+          </button>
+          <button
+            onClick={() => setModeGroupement("codeInterne")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all cursor-pointer ${
+              modeGroupement === "codeInterne" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/60 hover:bg-[#F3F3F2]"
+            }`}
+          >
+            Code Colombbus
+          </button>
+        </div>
+
         {currentMediateur ? (
           <>
             <MediateurAnalyticsPanel
@@ -222,6 +247,7 @@ export default function StatsMediateursAnalytique() {
               totalHeuresGlobal={totalHeuresGlobal}
               totalHeuresComplementaires={totalHeuresComplementaires}
               emptyMessage="Aucune mission ou activité enregistrée sur l'agenda."
+              titreSection={modeGroupement === "codeInterne" ? "Total d'heures par code Colombbus" : "Total d'heures par code analytique BluePowder"}
             />
             <MediateurActionsParMois
               actions={currentMedActions}
