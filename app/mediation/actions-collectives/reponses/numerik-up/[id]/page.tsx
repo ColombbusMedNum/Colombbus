@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
-import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, AcademicCapIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, EnvelopeIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, AcademicCapIcon, ChartPieIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, EnvelopeIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import SessionSelect from "@/components/SessionSelect";
 
@@ -103,7 +103,8 @@ export default function ReponsesNumerikUpSessionPage() {
   // de l'onglet "en attente" sans avoir à la supprimer.
   const [onglet, setOnglet] = useState<"en_attente" | "affectes">("en_attente");
   // Tri sur la colonne Nom — asc -> desc -> retour à l'ordre par défaut.
-  const [triNom, setTriNom] = useState<"asc" | "desc" | null>(null);
+  // Alphabétique ascendant par défaut (au lieu de l'ordre d'inscription).
+  const [triNom, setTriNom] = useState<"asc" | "desc" | null>("asc");
   const basculerTriNom = () => {
     setTriNom((prev) => (prev === "asc" ? "desc" : prev === "desc" ? null : "asc"));
   };
@@ -337,6 +338,13 @@ export default function ReponsesNumerikUpSessionPage() {
             >
               <AcademicCapIcon className="w-4 h-4" />
               <span>Apprenant·e·s</span>
+            </Link>
+            <Link
+              href={`/mediation/actions-collectives/reponses/numerik-up/${encodeURIComponent(sessionId)}/pix`}
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+            >
+              <ChartPieIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Résultats Pix</span>
             </Link>
             <Link
               href="/"

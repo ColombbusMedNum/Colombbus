@@ -29,6 +29,8 @@ import {
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { formatPhoneNumber } from "@/lib/formatPhone";
+import ResultatsPixFicheNkup from "@/components/ResultatsPixFicheNkup";
+import type { PixResultatNkup } from "@/lib/pixImportNkup";
 import FicheEntretienDiagnostic from "./FicheEntretienDiagnostic";
 
 interface AbsenceRecord {
@@ -97,6 +99,9 @@ export interface Inscription {
   Avis_Positif_Negatif?: string;
   A_Confirme?: string;
   OK_NOK?: string;
+  // Résultats du parcours diagnostic Pix — importés depuis .../[id]/pix (voir
+  // components/PixResultatsSessionNkup.tsx et lib/pixImportNkup.ts).
+  PixResultatsNkup?: PixResultatNkup[];
   // Suivi pédagogique (Apprenant·e·s) — parcours Tech.
   Ordinateur_Utilise?: string;
   Planning_Formation?: boolean;
@@ -687,6 +692,12 @@ export default function FicheApprenantPrfePage() {
     () => [...nomsStaff, ...suggestions.personnesExternes.filter((n) => !nomsStaff.includes(n))],
     [nomsStaff, suggestions.personnesExternes]
   );
+  // Même principe pour "Retours sur les formateur·rices" — les formateur·rices
+  // sont le plus souvent des médiateur·rices Colombbus.
+  const suggestionsFormateurs = useMemo(
+    () => [...nomsStaff, ...suggestions.formateurs.filter((n) => !nomsStaff.includes(n))],
+    [nomsStaff, suggestions.formateurs]
+  );
   const [brouillonPersonne, setBrouillonPersonne] = useState("");
   const ajouterPersonnePresente = () => {
     const nom = brouillonPersonne.trim();
@@ -968,6 +979,8 @@ export default function FicheApprenantPrfePage() {
             )}
           </Section>
 
+          <ResultatsPixFicheNkup historique={i.PixResultatsNkup} />
+
           <Section icon={CheckBadgeIcon} titre="Suivi pédagogique">
             <div className="space-y-3">
               <SousGroupe titre="Intégration">
@@ -1212,7 +1225,7 @@ export default function FicheApprenantPrfePage() {
                 onChangeBrouillon={(v) => setNouvelleAppreciation((prev) => ({ ...prev, Entretien_TableFormateurs: v }))}
                 onAjouter={() => ajouterAppreciation("Entretien_TableFormateurs")}
                 onSupprimer={(index) => supprimerAppreciation("Entretien_TableFormateurs", index)}
-                suggestions={suggestions.formateurs}
+                suggestions={suggestionsFormateurs}
                 datalistId="datalist-formateurs"
               />
 

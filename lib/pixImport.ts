@@ -51,9 +51,16 @@ export interface LignePixCsv {
   resultat: PixResultat;
 }
 
-function normaliser(s: string): string {
+// Exporté : réutilisé tel quel par lib/pixImportNkup.ts (accents/apostrophes/
+// casse ignorés), qui parse un export Pix au format différent (diagnostic
+// "Parkour Numérik'UP") mais avec les mêmes en-têtes à comparer.
+export function normaliser(s: string): string {
   return (s || "")
     .toLowerCase()
+    // Certains exports contiennent des entités HTML non décodées sur les
+    // apostrophes (ex. "J&#39;utilise..."), à traiter comme une apostrophe
+    // ordinaire avant l'unification ci-dessous.
+    .replace(/&#0?39;|&apos;/g, "'")
     .replace(/[’‘`]/g, "'")
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
@@ -65,7 +72,7 @@ function normaliser(s: string): string {
 // paramétrable — les exports Pix utilisent le point-virgule, contrairement
 // aux exports Google Forms (virgule) déjà gérés par parserCSV côté import
 // des préinscriptions (app/.../importer/page.tsx).
-function parserCsvDelimite(texte: string, delimiteur: string): string[][] {
+export function parserCsvDelimite(texte: string, delimiteur: string): string[][] {
   const lignes: string[][] = [];
   let ligne: string[] = [];
   let champ = "";
@@ -91,7 +98,7 @@ function parserCsvDelimite(texte: string, delimiteur: string): string[][] {
   return lignes.filter((l) => l.some((v) => v.trim() !== ""));
 }
 
-function trouverColonne(entetes: string[], motif: RegExp): number {
+export function trouverColonne(entetes: string[], motif: RegExp): number {
   return entetes.findIndex((e) => motif.test(normaliser(e)));
 }
 
@@ -105,7 +112,9 @@ function trouverCompetence(nomExtrait: string): string | null {
   return COMPETENCES_PIX.find((c) => normaliser(c) === n) || null;
 }
 
-function parseDateEnvoi(brut: string): string | null {
+// Exporté : le format diagnostic Numérik'UP (lib/pixImportNkup.ts) utilise le
+// même préfixe "JJ/MM/AAAA HH:MM" sur sa propre colonne de date.
+export function parseDateFr(brut: string): string | null {
   const m = (brut || "").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (!m) return null;
   return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
@@ -166,7 +175,7 @@ export function parserCsvPix(texte: string): ParsePixResultat {
         competences[competence][type] = valeur;
       });
 
-      const dateEnvoi = iDate >= 0 ? parseDateEnvoi(l[iDate]) : null;
+      const dateEnvoi = iDate >= 0 ? parseDateFr(l[iDate]) : null;
 
       const resultat: PixResultat = {
         date: dateEnvoi || new Date().toISOString().slice(0, 10),
@@ -208,8 +217,11 @@ export function trouverApprenantPourLigne<T extends { id: string; Nom?: string; 
 // toujours par date, jamais par ordre d'arrivée. Un ré-import à une date déjà
 // présente remplace l'entrée existante plutôt que de la dupliquer ; en cas de
 // doublon de date au sein du même lot, la dernière ligne rencontrée l'emporte.
-export function fusionnerResultats(historique: PixResultat[] | undefined, nouveaux: PixResultat[]): PixResultat[] {
-  const dernierParDate = new Map<string, PixResultat>();
+// Générique (pas seulement PixResultat) : réutilisé tel quel par
+// lib/pixImportNkup.ts pour fusionner l'historique du format diagnostic
+// Numérik'UP, qui suit exactement la même règle de dédoublonnage par date.
+export function fusionnerResultats<T extends { date: string }>(historique: T[] | undefined, nouveaux: T[]): T[] {
+  const dernierParDate = new Map<string, T>();
   nouveaux.forEach((r) => dernierParDate.set(r.date, r));
   const sansDoublon = (historique || []).filter((r) => !dernierParDate.has(r.date));
   return [...sansDoublon, ...Array.from(dernierParDate.values())].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));

@@ -29,6 +29,8 @@ import {
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { formatPhoneNumber } from "@/lib/formatPhone";
+import ResultatsPixFicheNkup from "@/components/ResultatsPixFicheNkup";
+import type { PixResultatNkup } from "@/lib/pixImportNkup";
 
 interface AbsenceRecord {
   date: string;
@@ -87,6 +89,9 @@ interface Inscription {
   CV_Recu?: string;
   OK_NOK?: string;
   Date_Mail_Parkour?: string;
+  // Résultats du parcours diagnostic Pix — importés depuis .../[id]/pix (voir
+  // components/PixResultatsSessionNkup.tsx et lib/pixImportNkup.ts).
+  PixResultatsNkup?: PixResultatNkup[];
   // Suivi pédagogique (Apprenant·e·s)
   E2C_CS?: boolean;
   E2C_FR?: boolean;
@@ -589,6 +594,12 @@ export default function FicheApprenantDigitalUpPage() {
     () => [...nomsStaff, ...suggestions.personnesExternes.filter((n) => !nomsStaff.includes(n))],
     [nomsStaff, suggestions.personnesExternes]
   );
+  // Même principe pour "Retours sur les formateur·rices" — les formateur·rices
+  // sont le plus souvent des médiateur·rices Colombbus.
+  const suggestionsFormateurs = useMemo(
+    () => [...nomsStaff, ...suggestions.formateurs.filter((n) => !nomsStaff.includes(n))],
+    [nomsStaff, suggestions.formateurs]
+  );
   const [brouillonPersonne, setBrouillonPersonne] = useState("");
   const ajouterPersonnePresente = () => {
     const nom = brouillonPersonne.trim();
@@ -842,6 +853,8 @@ export default function FicheApprenantDigitalUpPage() {
             )}
           </Section>
 
+          <ResultatsPixFicheNkup historique={i.PixResultatsNkup} />
+
           <Section icon={CheckBadgeIcon} titre="Suivi pédagogique">
             <div className="space-y-3">
               <div>
@@ -1054,7 +1067,7 @@ export default function FicheApprenantDigitalUpPage() {
                 onChangeBrouillon={(v) => setNouvelleAppreciation((prev) => ({ ...prev, Entretien_TableFormateurs: v }))}
                 onAjouter={() => ajouterAppreciation("Entretien_TableFormateurs")}
                 onSupprimer={(index) => supprimerAppreciation("Entretien_TableFormateurs", index)}
-                suggestions={suggestions.formateurs}
+                suggestions={suggestionsFormateurs}
                 datalistId="datalist-formateurs"
               />
 

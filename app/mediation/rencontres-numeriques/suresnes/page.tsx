@@ -287,7 +287,11 @@ export default function PlanningSuresnes() {
           moment: data.moment,
           statut: data.statut || "Présent",
           thematique: data.thematique,
-          lieu: data.lieu || ""
+          lieu: data.lieu || "",
+          // Qui est à l'origine d'une absence ("Bénéficiaire" = no-show,
+          // "Colombbus" = rendez-vous annulé/reporté par la structure) —
+          // voir joursAnnulesColombbus plus bas.
+          absencePar: data.absencePar || ""
         });
 
         // Même filtre que "Suivi des rendez-vous" sur la fiche bénéficiaire
@@ -386,6 +390,33 @@ export default function PlanningSuresnes() {
     }
     return etatsVisites;
   }, [creneaux, beneficiaires, rawVisites]);
+
+  // Jours (du site actif) où TOUTES les collectes ayant un usager assigné
+  // sont à la fois "Absent" ET annulées côté Colombbus (champ absencePar du
+  // compte rendu de visite, pas un simple no-show du bénéficiaire) —
+  // affiché "Annulé Colombbus" à côté de la date pour repérer d'un coup
+  // d'œil une journée entièrement recomposée par la structure. Un jour sans
+  // AUCUNE collecte avec usager (que des créneaux libres) ne compte pas.
+  const joursAnnulesColombbus = React.useMemo(() => {
+    const parJour = new Map<string, { total: number; absentColombbus: number }>();
+    creneauxDuSite.forEach(c => {
+      if (!c.usager || !c.usager.trim() || !c.date) return;
+      const bTrouve = beneficiaires.find(
+        b => `${b.prenom.trim()} ${b.nom.trim()}`.toLowerCase() === c.usager.trim().toLowerCase()
+      );
+      if (!bTrouve) return;
+      const visiteTrouvee = rawVisites.find(v =>
+        v.userId === bTrouve.id && v.date === c.date && v.moment === c.moment
+      );
+      const entry = parJour.get(c.date) || { total: 0, absentColombbus: 0 };
+      entry.total += 1;
+      if (visiteTrouvee?.statut === "Absent" && visiteTrouvee?.absencePar === "Colombbus") entry.absentColombbus += 1;
+      parJour.set(c.date, entry);
+    });
+    const jours = new Set<string>();
+    parJour.forEach((v, date) => { if (v.total > 0 && v.total === v.absentColombbus) jours.add(date); });
+    return jours;
+  }, [creneauxDuSite, beneficiaires, rawVisites]);
 
   // Créneaux du site actif, usager assigné, date déjà passée, et jamais
   // suivis (ni "Présent" ni "Absent" enregistré) — sert à l'alerte visible
@@ -1306,6 +1337,14 @@ export default function PlanningSuresnes() {
                       {day.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'short' })}
                       {dateStr === todayStr && " (Aujourd'hui)"}
                     </span>
+                    {joursAnnulesColombbus.has(dateStr) && (
+                      <span
+                        className="text-[9px] font-bold uppercase tracking-wider text-[#EF736A] bg-[#EF736A]/10 border border-[#EF736A]/30 px-2 py-0.5 rounded-lg"
+                        title="Toutes les collectes de ce jour sont marquées Absent avec le motif Colombbus dans le compte rendu de visite"
+                      >
+                        Annulé Colombbus
+                      </span>
+                    )}
                   </div>
                 </div>
                 

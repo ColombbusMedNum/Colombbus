@@ -32,6 +32,8 @@ import {
 import PageGuard from "@/components/PageGuard";
 import { formatPhoneNumber, formatPhoneForStorage } from "@/lib/formatPhone";
 import { formatNom, formatPrenom } from "@/lib/formatName";
+import ResultatsPixFicheNkup from "@/components/ResultatsPixFicheNkup";
+import type { PixResultatNkup } from "@/lib/pixImportNkup";
 
 interface AbsenceRecord {
   date: string;
@@ -88,6 +90,9 @@ interface Inscription {
   CV_Recu?: string;
   OK_NOK?: string;
   Date_Mail_Parkour?: string;
+  // Résultats du parcours diagnostic Pix — importés depuis .../[id]/pix (voir
+  // components/PixResultatsSessionNkup.tsx et lib/pixImportNkup.ts).
+  PixResultatsNkup?: PixResultatNkup[];
   // Suivi pédagogique (Apprenant·e·s)
   E2C_CS?: boolean;
   E2C_FR?: boolean;
@@ -120,9 +125,12 @@ interface Inscription {
   // sont conservées dans configuration_bilan_formation/suggestions pour
   // rester proposées ensuite (voir ajouterSuggestion).
   Entretien_PersonnesPresentes?: string[];
-  Entretien_RetoursPix?: string;
-  Entretien_RetoursDevCyber?: string;
-  Entretien_RetoursMaintenance?: string;
+  // 2 blocs génériques (au lieu d'un champ fixe par module) — l'intitulé est
+  // choisi au cas par cas selon le parcours suivi (Développement Web /
+  // Maintenance informatique / Game Design / Graphisme), tou·te·s les
+  // apprenant·e·s n'en suivant pas les mêmes.
+  Entretien_RetoursModuleA?: RetourModule;
+  Entretien_RetoursModuleB?: RetourModule;
   Entretien_InterventionsExterieures?: EntreeAppreciation[];
   Entretien_RetoursFormateurs?: string;
   Entretien_TableFormateurs?: EntreeAppreciation[];
@@ -142,6 +150,16 @@ interface EntreeJournal {
   module: string;
   commentaire: string;
 }
+
+interface RetourModule {
+  module?: string;
+  texte?: string;
+}
+
+// Les parcours NKUP ne suivent pas tou·te·s les mêmes modules — l'équipe
+// choisit l'intitulé de chaque bloc "Retours sur le parcours" au cas par cas
+// plutôt qu'un champ fixe par module (voir Entretien_RetoursModuleA/B).
+const MODULES_PARCOURS_NKUP = ["Développement Web", "Maintenance informatique", "Game Design", "Graphisme"];
 
 interface EntreeAppreciation {
   nom: string;
@@ -620,6 +638,12 @@ export default function FicheApprenantNumerikUpPage() {
     () => [...nomsStaff, ...suggestions.personnesExternes.filter((n) => !nomsStaff.includes(n))],
     [nomsStaff, suggestions.personnesExternes]
   );
+  // Même principe pour "Retours sur les formateur·rices" — les formateur·rices
+  // sont le plus souvent des médiateur·rices Colombbus.
+  const suggestionsFormateurs = useMemo(
+    () => [...nomsStaff, ...suggestions.formateurs.filter((n) => !nomsStaff.includes(n))],
+    [nomsStaff, suggestions.formateurs]
+  );
   const [brouillonPersonne, setBrouillonPersonne] = useState("");
   const ajouterPersonnePresente = () => {
     const nom = brouillonPersonne.trim();
@@ -644,6 +668,14 @@ export default function FicheApprenantNumerikUpPage() {
     } catch (error) {
       console.error(`Erreur lors de la mise à jour de ${champ} :`, error);
     }
+  };
+
+  // Fusionne le sous-champ modifié (module ou texte) dans l'objet existant du
+  // bloc concerné avant écriture — évite d'écraser l'autre sous-champ.
+  const mettreAJourRetourModule = (bloc: "A" | "B", sousChamp: keyof RetourModule, valeur: string) => {
+    const champ = bloc === "A" ? "Entretien_RetoursModuleA" : "Entretien_RetoursModuleB";
+    const actuel = inscription?.[champ] || {};
+    mettreAJourChamp(champ, { ...actuel, [sousChamp]: valeur });
   };
 
   // Signatures : image encodée en base64, gardée uniquement en état local le
@@ -886,6 +918,8 @@ export default function FicheApprenantNumerikUpPage() {
             )}
           </Section>
 
+          <ResultatsPixFicheNkup historique={i.PixResultatsNkup} />
+
           <Section icon={CheckBadgeIcon} titre="Suivi pédagogique">
             <div className="space-y-3">
               <div>
@@ -1065,10 +1099,30 @@ export default function FicheApprenantNumerikUpPage() {
 
               <div className="pt-2">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-2">Retours sur le parcours</div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <ChampEditable label="Module Pix" valeur={inscription?.Entretien_RetoursPix} onValide={(v) => mettreAJourChamp("Entretien_RetoursPix", v)} rows={3} />
-                  <ChampEditable label="Développement & Cybersécurité" valeur={inscription?.Entretien_RetoursDevCyber} onValide={(v) => mettreAJourChamp("Entretien_RetoursDevCyber", v)} rows={3} />
-                  <ChampEditable label="Maintenance informatique" valeur={inscription?.Entretien_RetoursMaintenance} onValide={(v) => mettreAJourChamp("Entretien_RetoursMaintenance", v)} rows={3} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {(["A", "B"] as const).map((bloc) => {
+                    const valeur = (bloc === "A" ? inscription?.Entretien_RetoursModuleA : inscription?.Entretien_RetoursModuleB) || {};
+                    return (
+                      <div key={bloc} className="space-y-1.5">
+                        <select
+                          value={valeur.module || ""}
+                          onChange={(e) => mettreAJourRetourModule(bloc, "module", e.target.value)}
+                          className={inputEditClass}
+                        >
+                          <option value="">— Choisir un module —</option>
+                          {MODULES_PARCOURS_NKUP.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                        <textarea
+                          defaultValue={valeur.texte || ""}
+                          onBlur={(e) => mettreAJourRetourModule(bloc, "texte", e.target.value)}
+                          rows={3}
+                          className={textareaEditClass}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1094,7 +1148,7 @@ export default function FicheApprenantNumerikUpPage() {
                 onChangeBrouillon={(v) => setNouvelleAppreciation((prev) => ({ ...prev, Entretien_TableFormateurs: v }))}
                 onAjouter={() => ajouterAppreciation("Entretien_TableFormateurs")}
                 onSupprimer={(index) => supprimerAppreciation("Entretien_TableFormateurs", index)}
-                suggestions={suggestions.formateurs}
+                suggestions={suggestionsFormateurs}
                 datalistId="datalist-formateurs"
               />
 
