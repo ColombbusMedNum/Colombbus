@@ -96,6 +96,12 @@ export interface ActiviteType {
   // l'onglet "Archivés" ; les créneaux déjà posés depuis ce modèle ne sont
   // jamais affectés.
   archive?: boolean;
+  // Clé "parcoursId|territoire|libelléSession" de la session Numérik'UP
+  // (configuration_numerikup/sessions) à l'origine de ce modèle, quand il a
+  // été créé automatiquement depuis .../inscription/numerik-up/parametres —
+  // sert à reporter le code interne une fois généré côté session (voir
+  // genererCode dans cette page). Absent pour un modèle créé à la main.
+  numerikupSessionCle?: string;
 }
 
 // Un modèle à date de fin dépassée n'a plus lieu d'être proposé pour de

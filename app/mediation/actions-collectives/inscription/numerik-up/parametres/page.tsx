@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { db, storage } from "@/lib/firebase";
-import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, query, setDoc, updateDoc, where } from "firebase/firestore";
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
-import { HomeIcon, ArrowLeftIcon, PlusIcon, XMarkIcon, TrashIcon, TagIcon, WrenchScrewdriverIcon, PhotoIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ArrowLeftIcon, PlusIcon, XMarkIcon, TrashIcon, TagIcon, WrenchScrewdriverIcon, PhotoIcon, PencilSquareIcon, CheckIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
 
@@ -106,6 +106,17 @@ function extraireDatePourTri(texte: string): number | null {
   return new Date(annee, mois, jour).getTime();
 }
 
+// "19 janvier 2026" → "2026-01-19" (valeur attendue par un <input
+// type="date">) — sert à préremplir l'édition d'une session existante à
+// partir de son libellé déjà formaté (voir extraireDebutFin).
+function convertirJourMoisAnneeEnIso(texte: string): string {
+  const m = texte.match(new RegExp(`(\\d{1,2})\\s+(${MOIS_FR.join("|")})\\s+(\\d{4})`, "i"));
+  if (!m) return "";
+  const jour = m[1].padStart(2, "0");
+  const mois = String(MOIS_FR.indexOf(m[2].toLowerCase()) + 1).padStart(2, "0");
+  return `${m[3]}-${mois}-${jour}`;
+}
+
 const inputClass = "w-full px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-sm text-[#404040] placeholder-[#404040]/40 outline-none font-medium transition-colors";
 const labelClass = "block text-[11px] font-bold text-[#404040]/70 uppercase tracking-wide mb-1";
 
@@ -128,6 +139,35 @@ export default function ParametresNumerikUpPage() {
   const [nouvelleSessionDebut, setNouvelleSessionDebut] = useState("");
   const [nouvelleSessionFin, setNouvelleSessionFin] = useState("");
   const [nouvelleSessionCreneau, setNouvelleSessionCreneau] = useState("Matin");
+  // Édition des dates d'une session déjà créée — les dates changent parfois
+  // au dernier moment, voir modifierSession.
+  const [sessionEnEdition, setSessionEnEdition] = useState<{ parcoursId: string; territoire: string; ancienLibelle: string; debut: string; fin: string; creneau: string } | null>(null);
+
+  // Modèles agenda (activites_types) liés à une session — indexés par
+  // numerikupSessionCle, pour permettre d'éditer la fiche modèle directement
+  // depuis le tableau "Codes internes" sans aller sur /mediation/modeles.
+  interface ModeleLie { id: string; lieu: string; territoire: string; couleur: string; codeAnalytique: string; dateDebut: string; dateFin: string }
+  const [modelesParCle, setModelesParCle] = useState<Record<string, ModeleLie>>({});
+  const [modeleEnEdition, setModeleEnEdition] = useState<(ModeleLie & { cle: string }) | null>(null);
+  useEffect(() => {
+    const desabonner = onSnapshot(query(collection(db, "activites_types"), where("numerikupSessionCle", "!=", "")), (snap) => {
+      const parCle: Record<string, ModeleLie> = {};
+      snap.docs.forEach((d) => {
+        const data = d.data();
+        parCle[data.numerikupSessionCle] = {
+          id: d.id,
+          lieu: data.lieu || "",
+          territoire: data.territoire || "",
+          couleur: data.couleur || "#005259",
+          codeAnalytique: data.codeAnalytique || "",
+          dateDebut: data.dateDebut || "",
+          dateFin: data.dateFin || "",
+        };
+      });
+      setModelesParCle(parCle);
+    });
+    return () => desabonner();
+  }, []);
 
   // Logos affichés dans l'en-tête du formulaire public (app/inscription/
   // numerik-up), choisis parmi la bibliothèque partagée (voir
@@ -336,6 +376,67 @@ export default function ParametresNumerikUpPage() {
     await setDoc(doc(db, "configuration_numerikup", "territoires"), { liste: misesAJour });
   };
 
+  // Crée automatiquement la fiche modèle correspondante sur /mediation/modeles
+  // (collection activites_types) dès qu'une session est ajoutée ci-dessous —
+  // évite d'avoir à la recréer à la main pour qu'elle apparaisse dans le
+  // Gantt médiateurs et le calcul d'heures. numerikupSessionCle permet de la
+  // retrouver ensuite (ex. pour y reporter le code interne, voir genererCode).
+  const creerModeleAgendaPourSession = async (cle: string, parcoursId: string, territoire: string, dateDebut: string, dateFin: string, creneau: string) => {
+    // Intitulé court "NKUP CREA (91)" plutôt que le libellé complet du
+    // parkours — demandé explicitement, plus lisible dans le Gantt médiateurs.
+    try {
+      await addDoc(collection(db, "activites_types"), {
+        lieu: `NKUP ${parcoursId.toUpperCase()} (${territoire})`,
+        debut: "",
+        fin: "",
+        debutMatin: "09:00",
+        finMatin: "12:00",
+        debutApresMidi: "14:00",
+        finApresMidi: "17:30",
+        journeeComplete: false,
+        adresse: "",
+        territoire,
+        couleur: "#005259",
+        codeAnalytique: "",
+        codeACI: "",
+        codeInterne: "",
+        dateDebut,
+        dateFin,
+        blocs: [],
+        mediateursIds: [],
+        generationMoment: creneau === "Après-midi" ? "Après-midi" : "Matin",
+        datesActives: [],
+        estProduction: false,
+        observationACI: false,
+        observationACIDateFin: "",
+        numerikupSessionCle: cle,
+      });
+    } catch (error) {
+      console.error("Erreur lors de la création automatique du modèle agenda pour cette session :", error);
+    }
+  };
+
+  // Crée rétroactivement le modèle agenda d'une session déjà existante avant
+  // l'introduction de creerModeleAgendaPourSession (donc sans modèle lié).
+  const creerModeleRetroactif = async (parcoursId: string, territoire: string, dateLabel: string) => {
+    const debutFin = extraireDebutFin(dateLabel);
+    const dateDebut = debutFin ? convertirJourMoisAnneeEnIso(debutFin.debut) : "";
+    const dateFin = debutFin ? convertirJourMoisAnneeEnIso(debutFin.fin) : "";
+    const creneau = dateLabel.includes("Après-midi") ? "Après-midi" : "Matin";
+    await creerModeleAgendaPourSession(`${parcoursId}|${territoire}|${dateLabel}`, parcoursId, territoire, dateDebut, dateFin, creneau);
+  };
+
+  const enregistrerModele = async () => {
+    if (!modeleEnEdition) return;
+    const { id, cle, ...donnees } = modeleEnEdition;
+    try {
+      await updateDoc(doc(db, "activites_types", id), donnees);
+      setModeleEnEdition(null);
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour du modèle agenda :", error);
+    }
+  };
+
   const ajouterSession = async () => {
     const debut = parseDateInput(nouvelleSessionDebut);
     const fin = parseDateInput(nouvelleSessionFin);
@@ -356,9 +457,12 @@ export default function ParametresNumerikUpPage() {
       [nouvelleSessionParcours]: { ...pourParcours, [nouvelleSessionTerritoire]: [...(pourParcours[nouvelleSessionTerritoire] || []), valeur] },
     };
     setSessions(misesAJour);
+    const dateDebutStr = nouvelleSessionDebut;
+    const dateFinStr = nouvelleSessionFin;
     setNouvelleSessionDebut("");
     setNouvelleSessionFin("");
     await sauvegarderSessions(misesAJour, codes);
+    await creerModeleAgendaPourSession(`${nouvelleSessionParcours}|${nouvelleSessionTerritoire}|${valeur}`, nouvelleSessionParcours, nouvelleSessionTerritoire, dateDebutStr, dateFinStr, nouvelleSessionCreneau);
   };
 
   // Corrige les libellés de session strictement identiques partagés par
@@ -442,6 +546,66 @@ export default function ParametresNumerikUpPage() {
     await sauvegarderSessions(misesAJour, codesMisAJour);
   };
 
+  // Change les dates/le créneau d'une session déjà créée — les dates
+  // changent parfois au dernier moment. Le libellé servant d'identifiant
+  // partout ailleurs (champ Session des inscriptions, code interne, modèle
+  // agenda lié), il faut le renommer PARTOUT plutôt que de simplement écraser
+  // les dates en place, sous peine d'orpheliner les inscriptions déjà
+  // affectées à l'ancien libellé (même logique que corrigerDoublons).
+  const modifierSession = async (parcours: string, territoire: string, ancienLibelle: string, nouveauDebut: string, nouveauFin: string, nouveauCreneau: string) => {
+    const debut = parseDateInput(nouveauDebut);
+    const fin = parseDateInput(nouveauFin);
+    if (!debut || !fin) return;
+    const nouveauLibelle = formaterLibelleSession(debut, fin, nouveauCreneau);
+    if (nouveauLibelle === ancienLibelle) {
+      setSessionEnEdition(null);
+      return;
+    }
+    const dejaExistant = Object.values(sessions).some((parTerritoire) => Object.values(parTerritoire).some((dates) => dates.includes(nouveauLibelle)));
+    if (dejaExistant) {
+      alert("Une session existe déjà avec exactement les mêmes dates et le même créneau (même sur un autre parkours/territoire) — change le créneau ou les dates pour la distinguer.");
+      return;
+    }
+
+    const pourParcours = sessions[parcours] || {};
+    const sessionsMaj = {
+      ...sessions,
+      [parcours]: { ...pourParcours, [territoire]: (pourParcours[territoire] || []).map((d) => (d === ancienLibelle ? nouveauLibelle : d)) },
+    };
+    const ancienneCle = `${parcours}|${territoire}|${ancienLibelle}`;
+    const nouvelleCle = `${parcours}|${territoire}|${nouveauLibelle}`;
+    let codesMaj = codes;
+    if (codes[ancienneCle]) {
+      const { [ancienneCle]: code, ...reste } = codes;
+      codesMaj = { ...reste, [nouvelleCle]: code };
+    }
+    setSessions(sessionsMaj);
+    setCodes(codesMaj);
+    setSessionEnEdition(null);
+    await sauvegarderSessions(sessionsMaj, codesMaj);
+
+    try {
+      const snapAReaffecter = await getDocs(
+        query(collection(db, "inscriptions_numerikup"), where("Session", "==", ancienLibelle), where("Territoire", "==", territoire))
+      );
+      await Promise.all(snapAReaffecter.docs.map((d) => updateDoc(doc(db, "inscriptions_numerikup", d.id), { Session: nouveauLibelle })));
+    } catch (error) {
+      console.error("Erreur lors de la réaffectation des inscriptions vers le nouveau libellé de session :", error);
+    }
+
+    try {
+      const snapModeles = await getDocs(query(collection(db, "activites_types"), where("numerikupSessionCle", "==", ancienneCle)));
+      await Promise.all(snapModeles.docs.map((d) => updateDoc(d.ref, {
+        numerikupSessionCle: nouvelleCle,
+        dateDebut: nouveauDebut,
+        dateFin: nouveauFin,
+        generationMoment: nouveauCreneau === "Après-midi" ? "Après-midi" : "Matin",
+      })));
+    } catch (error) {
+      console.error("Erreur lors du report des nouvelles dates sur le modèle agenda lié :", error);
+    }
+  };
+
   // Code interne "MN{AA}_NKUP-{territoire}_{NN}" — jamais affiché sur le
   // formulaire public, numéroté séquentiellement par territoire.
   const genererCode = async (ligne: { parcoursId: string; territoire: string; date: string }) => {
@@ -455,6 +619,15 @@ export default function ParametresNumerikUpPage() {
     const misesAJour = { ...codes, [cle]: code };
     setCodes(misesAJour);
     await sauvegarderSessions(sessions, misesAJour);
+    // Reporte le code sur le modèle agenda créé automatiquement pour cette
+    // session (voir creerModeleAgendaPourSession) — son codeInterne était
+    // encore vide à la création, faute de code disponible à ce moment-là.
+    try {
+      const snapModeles = await getDocs(query(collection(db, "activites_types"), where("numerikupSessionCle", "==", cle)));
+      await Promise.all(snapModeles.docs.map((d) => updateDoc(d.ref, { codeInterne: code })));
+    } catch (error) {
+      console.error("Erreur lors du report du code interne sur le modèle agenda :", error);
+    }
   };
 
   // Le code auto-généré reste librement modifiable (ex. pour aligner avec une
@@ -778,39 +951,94 @@ export default function ParametresNumerikUpPage() {
                 {lignesSessions.length > 0 ? (
                   lignesSessions.map((ligne, index) => {
                     const changementTerritoire = index > 0 && lignesSessions[index - 1].territoire !== ligne.territoire;
+                    const enEdition = sessionEnEdition && sessionEnEdition.parcoursId === ligne.parcoursId && sessionEnEdition.territoire === ligne.territoire && sessionEnEdition.ancienLibelle === ligne.date;
                     return (
                     <tr key={`${ligne.parcoursId}-${ligne.territoire}-${index}`} className={`hover:bg-[#F3F3F2]/60 transition-colors ${changementTerritoire ? "border-t-2 border-t-[#005259]/30" : ""}`}>
                       <td className="px-4 py-2.5 font-bold text-[#005259]">{ligne.parcoursLabel}</td>
                       <td className="px-4 py-2.5">{ligne.territoire}</td>
-                      <td className="px-4 py-2.5">{ligne.date}</td>
+                      <td className="px-4 py-2.5">
+                        {enEdition ? (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <input type="date" value={sessionEnEdition.debut} onChange={(e) => setSessionEnEdition({ ...sessionEnEdition, debut: e.target.value })} className="px-2 py-1 bg-white border border-[#404040]/15 rounded-lg text-[11px] outline-none focus:border-[#005259]" />
+                            <input type="date" value={sessionEnEdition.fin} onChange={(e) => setSessionEnEdition({ ...sessionEnEdition, fin: e.target.value })} className="px-2 py-1 bg-white border border-[#404040]/15 rounded-lg text-[11px] outline-none focus:border-[#005259]" />
+                            <select value={sessionEnEdition.creneau} onChange={(e) => setSessionEnEdition({ ...sessionEnEdition, creneau: e.target.value })} className="px-2 py-1 bg-white border border-[#404040]/15 rounded-lg text-[11px] outline-none focus:border-[#005259]">
+                              <option value="Matin">Matin</option>
+                              <option value="Après-midi">Après-midi</option>
+                            </select>
+                          </div>
+                        ) : (
+                          ligne.date
+                        )}
+                      </td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center justify-end gap-2">
-                          {codes[`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`] ? (
-                            <input
-                              key={`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}|${codes[`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`]}`}
-                              type="text"
-                              defaultValue={codes[`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`]}
-                              onBlur={(e) => modifierCode(`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`, e.target.value)}
-                              className="font-mono text-[10px] font-bold text-[#005259] bg-[#005259]/5 border border-[#005259]/15 focus:border-[#005259] focus:bg-white rounded px-1.5 py-1 w-32 outline-none"
-                            />
+                          {enEdition ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => modifierSession(sessionEnEdition.parcoursId, sessionEnEdition.territoire, sessionEnEdition.ancienLibelle, sessionEnEdition.debut, sessionEnEdition.fin, sessionEnEdition.creneau)}
+                                className="p-1.5 bg-[#005259]/10 hover:bg-[#005259] text-[#005259] hover:text-white border border-[#005259]/30 rounded-lg transition-colors cursor-pointer"
+                                title="Enregistrer les nouvelles dates"
+                              >
+                                <CheckIcon className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSessionEnEdition(null)}
+                                className="p-1.5 bg-[#404040]/5 hover:bg-[#404040]/15 text-[#404040]/60 border border-[#404040]/10 rounded-lg transition-colors cursor-pointer"
+                                title="Annuler"
+                              >
+                                <XMarkIcon className="w-3.5 h-3.5" />
+                              </button>
+                            </>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={() => genererCode(ligne)}
-                              className="p-1.5 bg-[#005259]/10 hover:bg-[#005259] text-[#005259] hover:text-white border border-[#005259]/30 rounded-lg transition-colors cursor-pointer"
-                              title="Générer un code interne (non visible sur le formulaire)"
-                            >
-                              <PlusIcon className="w-3.5 h-3.5" />
-                            </button>
+                            <>
+                              {codes[`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`] ? (
+                                <input
+                                  key={`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}|${codes[`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`]}`}
+                                  type="text"
+                                  defaultValue={codes[`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`]}
+                                  onBlur={(e) => modifierCode(`${ligne.parcoursId}|${ligne.territoire}|${ligne.date}`, e.target.value)}
+                                  className="font-mono text-[10px] font-bold text-[#005259] bg-[#005259]/5 border border-[#005259]/15 focus:border-[#005259] focus:bg-white rounded px-1.5 py-1 w-32 outline-none"
+                                />
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => genererCode(ligne)}
+                                  className="p-1.5 bg-[#005259]/10 hover:bg-[#005259] text-[#005259] hover:text-white border border-[#005259]/30 rounded-lg transition-colors cursor-pointer"
+                                  title="Générer un code interne (non visible sur le formulaire)"
+                                >
+                                  <PlusIcon className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const debutFin = extraireDebutFin(ligne.date);
+                                  setSessionEnEdition({
+                                    parcoursId: ligne.parcoursId,
+                                    territoire: ligne.territoire,
+                                    ancienLibelle: ligne.date,
+                                    debut: debutFin ? convertirJourMoisAnneeEnIso(debutFin.debut) : "",
+                                    fin: debutFin ? convertirJourMoisAnneeEnIso(debutFin.fin) : "",
+                                    creneau: ligne.date.includes("Après-midi") ? "Après-midi" : "Matin",
+                                  });
+                                }}
+                                className="p-1.5 bg-white hover:bg-[#005259] text-[#005259] hover:text-white border border-[#404040]/15 rounded-lg transition-colors cursor-pointer"
+                                title="Modifier les dates de cette session"
+                              >
+                                <PencilSquareIcon className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => supprimerSession(ligne.parcoursId, ligne.territoire, ligne.date)}
+                                className="p-1.5 bg-[#EF736A]/10 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/30 rounded-lg transition-colors cursor-pointer"
+                                title="Supprimer cette session"
+                              >
+                                <TrashIcon className="w-3.5 h-3.5" />
+                              </button>
+                            </>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => supprimerSession(ligne.parcoursId, ligne.territoire, ligne.date)}
-                            className="p-1.5 bg-[#EF736A]/10 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/30 rounded-lg transition-colors cursor-pointer"
-                            title="Supprimer cette session"
-                          >
-                            <TrashIcon className="w-3.5 h-3.5" />
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -888,21 +1116,23 @@ export default function ParametresNumerikUpPage() {
             </div>
             <p className="text-[10px] text-[#404040]/50">Non visibles sur le formulaire d'inscription — pour usage interne (suivi, Drive partagé...).</p>
             <div className="border border-[#404040]/10 rounded-xl overflow-hidden">
-              <div className="grid grid-cols-[1fr_2fr_1fr_1fr] gap-3 px-4 py-2 bg-[#F3F3F2] border-b border-[#404040]/10 text-[10px] font-bold uppercase tracking-widest text-[#005259]">
+              <div className="grid grid-cols-[1fr_2fr_1fr_1fr_auto] gap-3 px-4 py-2 bg-[#F3F3F2] border-b border-[#404040]/10 text-[10px] font-bold uppercase tracking-widest text-[#005259]">
                 <span>Code</span>
                 <span>Parkours</span>
                 <span>Début</span>
                 <span>Fin</span>
+                <span>Modèle</span>
               </div>
               <div className="divide-y divide-[#404040]/5">
                 {Object.entries(codes)
                   .sort(([, a], [, b]) => a.localeCompare(b))
                   .map(([cle, code]) => {
-                    const [parcoursId, , date] = cle.split("|");
+                    const [parcoursId, territoire, date] = cle.split("|");
                     const parcoursLabel = parcoursListe.find((p) => p.id === parcoursId)?.label || parcoursId;
                     const debutFin = extraireDebutFin(date);
+                    const modele = modelesParCle[cle];
                     return (
-                      <div key={`${cle}|${code}`} className="grid grid-cols-[1fr_2fr_1fr_1fr] items-center gap-3 px-4 py-2.5 text-xs">
+                      <div key={`${cle}|${code}`} className="grid grid-cols-[1fr_2fr_1fr_1fr_auto] items-center gap-3 px-4 py-2.5 text-xs">
                         <input
                           type="text"
                           defaultValue={code}
@@ -912,10 +1142,88 @@ export default function ParametresNumerikUpPage() {
                         <span className="text-[#404040]/70">{parcoursLabel}</span>
                         <span className="text-[#404040]/70">{debutFin?.debut || "—"}</span>
                         <span className="text-[#404040]/70">{debutFin?.fin || "—"}</span>
+                        {modele ? (
+                          <button
+                            type="button"
+                            onClick={() => setModeleEnEdition({ ...modele, cle })}
+                            className="p-1.5 bg-white hover:bg-[#005259] text-[#005259] hover:text-white border border-[#404040]/15 rounded-lg transition-colors cursor-pointer justify-self-end"
+                            title={`Éditer le modèle agenda "${modele.lieu}"`}
+                          >
+                            <PencilSquareIcon className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => creerModeleRetroactif(parcoursId, territoire, date)}
+                            className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-[#EA601F]/10 hover:bg-[#EA601F] text-[#EA601F] hover:text-white border border-[#EA601F]/30 rounded-lg transition-colors cursor-pointer justify-self-end whitespace-nowrap"
+                            title="Créer le modèle agenda correspondant"
+                          >
+                            Créer
+                          </button>
+                        )}
                       </div>
                     );
                   })}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ÉDITION RAPIDE DU MODÈLE AGENDA LIÉ À UNE SESSION */}
+        {modeleEnEdition && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={() => setModeleEnEdition(null)}>
+            <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md space-y-4" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Modèle agenda lié</h3>
+                <button type="button" onClick={() => setModeleEnEdition(null)} className="text-[#404040]/40 hover:text-[#EF736A] cursor-pointer">
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
+              </div>
+              <div>
+                <label className={labelClass}>Nom de l'activité</label>
+                <input type="text" value={modeleEnEdition.lieu} onChange={(e) => setModeleEnEdition({ ...modeleEnEdition, lieu: e.target.value })} className={inputClass} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Territoire</label>
+                  <select value={modeleEnEdition.territoire} onChange={(e) => setModeleEnEdition({ ...modeleEnEdition, territoire: e.target.value })} className={inputClass}>
+                    {territoiresListe.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Couleur</label>
+                  <input type="color" value={modeleEnEdition.couleur} onChange={(e) => setModeleEnEdition({ ...modeleEnEdition, couleur: e.target.value })} className="w-full h-[38px] bg-[#F3F3F2] border border-[#404040]/15 rounded-xl cursor-pointer" />
+                </div>
+              </div>
+              <div>
+                <label className={labelClass}>Code analytique BluePowder</label>
+                <input type="text" value={modeleEnEdition.codeAnalytique} onChange={(e) => setModeleEnEdition({ ...modeleEnEdition, codeAnalytique: e.target.value })} className={inputClass} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Date de début</label>
+                  <input type="date" value={modeleEnEdition.dateDebut} onChange={(e) => setModeleEnEdition({ ...modeleEnEdition, dateDebut: e.target.value })} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Date de fin</label>
+                  <input type="date" value={modeleEnEdition.dateFin} onChange={(e) => setModeleEnEdition({ ...modeleEnEdition, dateFin: e.target.value })} className={inputClass} />
+                </div>
+              </div>
+              <p className="text-[10px] text-[#404040]/50">
+                Pour les autres réglages (horaires, médiateurs, code ACI...), passe par{" "}
+                <Link href="/mediation/modeles" className="text-[#005259] font-bold underline hover:text-[#EA601F]">
+                  Modèles
+                </Link>.
+              </p>
+              <button
+                type="button"
+                onClick={enregistrerModele}
+                className="w-full px-4 py-2.5 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-xl transition-colors text-xs font-bold uppercase tracking-wider cursor-pointer"
+              >
+                Enregistrer
+              </button>
             </div>
           </div>
         )}

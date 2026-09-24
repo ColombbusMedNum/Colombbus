@@ -8,6 +8,7 @@ import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
 import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, ChartBarIcon, ChartPieIcon, DocumentPlusIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
+import { formatPhoneNumber } from "@/lib/formatPhone";
 
 // Champs issus du formulaire de pré-inscription (lecture seule ici) + champs
 // de suivi pédagogique/administratif renseignés une fois l'apprenant·e
@@ -37,10 +38,23 @@ interface Apprenant {
   // DI — Droit à l'Image.
   DI_Accord?: string;
   // Nombre de productions rendues (Créa/Tech).
-  Production_GR_Nombre?: string;
-  Production_GD_Nombre?: string;
-  Production_VSC_Nombre?: string;
+  // 2 productions génériques (au lieu d'un champ fixe par thématique) —
+  // l'équipe choisit la thématique au cas par cas selon le parcours suivi,
+  // tou·te·s les apprenant·e·s n'en produisant pas les mêmes.
+  Production_A?: Production;
+  Production_B?: Production;
 }
+
+interface Production {
+  module?: string;
+  nombre?: string;
+  lien?: string;
+}
+
+// Mêmes 4 thématiques que "Retours sur le parcours" sur la fiche individuelle
+// (voir [apprenantId]/page.tsx) — dupliqué ici volontairement, cette page
+// liste n'important pas ce fichier.
+const MODULES_PARCOURS_NKUP = ["Développement Web", "Maintenance informatique", "Game Design", "Graphisme"];
 
 const inputEditClass = "w-full min-w-[70px] px-1.5 py-1 bg-[#F3F3F2] border border-[#404040]/10 focus:border-[#005259] focus:bg-white rounded-md text-[11px] text-[#404040] outline-none font-medium transition-colors text-center";
 const checkboxClass = "w-4 h-4 accent-[#005259] cursor-pointer";
@@ -207,13 +221,21 @@ export default function ApprenantsSessionPage() {
     return apprenantsSession.filter((i) => `${i.Prénom || ""} ${i.Nom || ""}`.toLowerCase().includes(terme));
   }, [apprenantsSession, recherche]);
 
-  const mettreAJourChampTexte = async (id: string, champ: keyof Apprenant, valeur: string) => {
+  const mettreAJourChampTexte = async (id: string, champ: keyof Apprenant, valeur: string | Production) => {
     setInscriptions((prev) => prev.map((i) => (i.id === id ? { ...i, [champ]: valeur } : i)));
     try {
       await updateDoc(doc(db, "inscriptions_numerikup", id), { [champ]: valeur });
     } catch (error) {
       console.error(`Erreur lors de la mise à jour du champ ${champ} :`, error);
     }
+  };
+
+  // Fusionne le sous-champ modifié (module, nombre ou lien) dans l'objet
+  // existant du bloc concerné avant écriture — évite d'écraser les autres.
+  const mettreAJourProduction = (id: string, bloc: "A" | "B", sousChamp: keyof Production, valeur: string) => {
+    const champ = bloc === "A" ? "Production_A" : "Production_B";
+    const actuel = (inscriptions.find((i) => i.id === id)?.[champ] as Production) || {};
+    mettreAJourChampTexte(id, champ, { ...actuel, [sousChamp]: valeur });
   };
 
   const basculerChampBooleen = async (id: string, champ: keyof Apprenant, valeur: boolean) => {
@@ -376,14 +398,14 @@ export default function ApprenantsSessionPage() {
             <table className="border-collapse text-xs">
               <thead>
                 <tr className="bg-[#F3F3F2] text-[#005259] text-[10px] uppercase tracking-widest font-bold">
-                  <th className="px-3 py-2 border-b border-[#404040]/10" colSpan={10}>Apprenant·e·s</th>
-                  <th className="px-3 py-2 border-b border-l border-[#404040]/10" colSpan={8}>Administratif</th>
+                  <th className="px-3 py-2 border-b border-[#404040]/10" colSpan={11}>Apprenant·e·s</th>
+                  <th className="px-3 py-2 border-b border-l border-[#404040]/10" colSpan={7}>Administratif</th>
                 </tr>
                 <tr className="bg-[#005259]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
-                  <th className="px-3 py-1.5" colSpan={10}></th>
+                  <th className="px-3 py-1.5" colSpan={11}></th>
                   <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={4}>E2C</th>
                   <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={1}>DI</th>
-                  <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={3}>Productions</th>
+                  <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={2}>Productions</th>
                 </tr>
                 <tr className="bg-[#F3F3F2] border-b border-[#404040]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
                   <th className="px-3 py-3 text-center">#</th>
@@ -395,20 +417,22 @@ export default function ApprenantsSessionPage() {
                   <th className="px-3 py-3">Dpt.</th>
                   <th className="px-3 py-3">QPV</th>
                   <th className="px-3 py-3">Diplôme</th>
+                  <th className="px-3 py-3">Prescripteur</th>
                   <th className="px-3 py-3">Téléphone</th>
                   <th className="px-2 py-3 border-l border-[#404040]/10 text-center">CS</th>
                   <th className="px-2 py-3 text-center">FR</th>
                   <th className="px-2 py-3 text-center">CV</th>
                   <th className="px-2 py-3 text-center">CE</th>
                   <th className="px-2 py-3 border-l border-[#404040]/10 text-center">Droit Image</th>
-                  <th className="px-2 py-3 border-l border-[#404040]/10 text-center">GR (nb)</th>
-                  <th className="px-2 py-3 text-center">GD (nb)</th>
-                  <th className="px-2 py-3 text-center">VSC (nb)</th>
+                  <th className="px-2 py-3 border-l border-[#404040]/10 text-center">Production 1</th>
+                  <th className="px-2 py-3 text-center">Production 2</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#404040]/5">
                 {apprenantsFiltres.length > 0 ? (
                   apprenantsFiltres.map((i, index) => {
+                    const prescripteur = [...(i.Structures_Accompagnement || []), i.Structure_Autre].filter(Boolean).join(", ");
+                    const estE2C = prescripteur.toUpperCase().includes("E2C");
                     return (
                       <tr key={i.id} className="hover:bg-[#F3F3F2]/60 transition-colors align-top">
                         <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{index + 1}</td>
@@ -434,18 +458,19 @@ export default function ApprenantsSessionPage() {
                         <td className="px-3 py-2 text-center">{i.Territoire || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.QPV || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Niveau_Etudes || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{i.Téléphone || "—"}</td>
+                        <td className="px-3 py-2 max-w-[160px] truncate" title={prescripteur}>{prescripteur || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{formatPhoneNumber(i.Téléphone)}</td>
                         <td className="px-2 py-2 border-l border-[#404040]/10 text-center">
-                          <input type="checkbox" checked={i.E2C_CS || false} onChange={(e) => basculerChampBooleen(i.id, "E2C_CS", e.target.checked)} className={checkboxClass} />
+                          <input type="checkbox" checked={i.E2C_CS || false} disabled={!estE2C} onChange={(e) => basculerChampBooleen(i.id, "E2C_CS", e.target.checked)} className={`${checkboxClass} ${!estE2C ? "opacity-30 cursor-not-allowed" : ""}`} />
                         </td>
                         <td className="px-2 py-2 text-center">
-                          <input type="checkbox" checked={i.E2C_FR || false} onChange={(e) => basculerChampBooleen(i.id, "E2C_FR", e.target.checked)} className={checkboxClass} />
+                          <input type="checkbox" checked={i.E2C_FR || false} disabled={!estE2C} onChange={(e) => basculerChampBooleen(i.id, "E2C_FR", e.target.checked)} className={`${checkboxClass} ${!estE2C ? "opacity-30 cursor-not-allowed" : ""}`} />
                         </td>
                         <td className="px-2 py-2 text-center">
-                          <input type="checkbox" checked={i.E2C_CV || false} onChange={(e) => basculerChampBooleen(i.id, "E2C_CV", e.target.checked)} className={checkboxClass} />
+                          <input type="checkbox" checked={i.E2C_CV || false} disabled={!estE2C} onChange={(e) => basculerChampBooleen(i.id, "E2C_CV", e.target.checked)} className={`${checkboxClass} ${!estE2C ? "opacity-30 cursor-not-allowed" : ""}`} />
                         </td>
                         <td className="px-2 py-2 text-center">
-                          <input type="checkbox" checked={i.E2C_CE || false} onChange={(e) => basculerChampBooleen(i.id, "E2C_CE", e.target.checked)} className={checkboxClass} />
+                          <input type="checkbox" checked={i.E2C_CE || false} disabled={!estE2C} onChange={(e) => basculerChampBooleen(i.id, "E2C_CE", e.target.checked)} className={`${checkboxClass} ${!estE2C ? "opacity-30 cursor-not-allowed" : ""}`} />
                         </td>
                         <td className="px-2 py-2 border-l border-[#404040]/10 text-center">
                           <select value={i.DI_Accord || ""} onChange={(e) => mettreAJourChampTexte(i.id, "DI_Accord", e.target.value)} className={inputEditClass}>
@@ -454,15 +479,23 @@ export default function ApprenantsSessionPage() {
                             <option value="Non">Non</option>
                           </select>
                         </td>
-                        <td className="px-2 py-2 border-l border-[#404040]/10">
-                          <input type="text" defaultValue={i.Production_GR_Nombre || ""} onBlur={(e) => mettreAJourChampTexte(i.id, "Production_GR_Nombre", e.target.value)} className={inputEditClass} />
-                        </td>
-                        <td className="px-2 py-2">
-                          <input type="text" defaultValue={i.Production_GD_Nombre || ""} onBlur={(e) => mettreAJourChampTexte(i.id, "Production_GD_Nombre", e.target.value)} className={inputEditClass} />
-                        </td>
-                        <td className="px-2 py-2">
-                          <input type="text" defaultValue={i.Production_VSC_Nombre || ""} onBlur={(e) => mettreAJourChampTexte(i.id, "Production_VSC_Nombre", e.target.value)} className={inputEditClass} />
-                        </td>
+                        {(["A", "B"] as const).map((bloc, blocIndex) => {
+                          const valeur = (bloc === "A" ? i.Production_A : i.Production_B) || {};
+                          return (
+                            <td key={bloc} className={`px-2 py-2 align-top ${blocIndex === 0 ? "border-l border-[#404040]/10" : ""}`}>
+                              <div className="space-y-1 min-w-[150px]">
+                                <select value={valeur.module || ""} onChange={(e) => mettreAJourProduction(i.id, bloc, "module", e.target.value)} className={inputEditClass}>
+                                  <option value="">— Thématique —</option>
+                                  {MODULES_PARCOURS_NKUP.map((m) => (
+                                    <option key={m} value={m}>{m}</option>
+                                  ))}
+                                </select>
+                                <input type="text" placeholder="Nb" defaultValue={valeur.nombre || ""} onBlur={(e) => mettreAJourProduction(i.id, bloc, "nombre", e.target.value)} className={inputEditClass} />
+                                <input type="url" placeholder="Lien Drive" defaultValue={valeur.lien || ""} onBlur={(e) => mettreAJourProduction(i.id, bloc, "lien", e.target.value)} className={inputEditClass} />
+                              </div>
+                            </td>
+                          );
+                        })}
                       </tr>
                     );
                   })
