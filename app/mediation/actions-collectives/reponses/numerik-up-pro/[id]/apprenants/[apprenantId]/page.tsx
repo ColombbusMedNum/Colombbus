@@ -286,7 +286,7 @@ const CODES_STRUCTURELS: Record<string, { label: string; bg: string }> = {
   F: { label: "Férié / Off", bg: "#6B7280" },
   AB: { label: "Abandon", bg: "#22C55E" },
 };
-const HEURES_PAR_JOUR = 3;
+const HEURES_PAR_JOUR = 4;
 
 const sexeDeCivilite = (civilite?: string) => (civilite === "Mme" ? "Femme" : civilite === "M." ? "Homme" : "—");
 
@@ -962,11 +962,13 @@ export default function FicheApprenantNumerikUpProPage() {
           <Section icon={UserGroupIcon} titre="Accompagnement & projet">
             <div className="grid grid-cols-2 gap-4">
               <Champ label="Prescripteur / structure d'accompagnement" valeur={i.Structure_Accompagnement || i.Structure_Autre} />
-              <Champ label="Intérêt pour la formation" valeur={i.Projet_Professionnel} />
-              <Champ label="Comment a-t-il·elle accédé à la formation ?" valeur={i.Formation_Acces} />
               <Champ label="Référent·e" valeur={referent} />
               <Champ label="Tél. référent·e" valeur={formatPhoneNumber(i.Conseiller_Telephone)} />
               <Champ label="Mail référent·e" valeur={i.Conseiller_Email} />
+            </div>
+            <div className="grid grid-cols-1 gap-4 pt-3 border-t border-[#404040]/10">
+              <Champ label="Intérêt pour la formation" valeur={i.Projet_Professionnel} />
+              <Champ label="Comment a-t-il·elle accédé à la formation ?" valeur={i.Formation_Acces} />
             </div>
           </Section>
 

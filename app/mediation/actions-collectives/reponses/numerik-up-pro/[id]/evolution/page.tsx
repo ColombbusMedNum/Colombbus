@@ -75,7 +75,7 @@ const CODES_STRUCTURELS: CategorieEvolution[] = [
   { code: "F", label: "Férié / Off", bg: "#9CA3AF", text: "#111111" },
   { code: "AB", label: "Abandon", bg: "#22C55E", text: "#FFFFFF" },
 ];
-const HEURES_PAR_JOUR = 3;
+const HEURES_PAR_JOUR = 4;
 
 // Reporte automatiquement un code "A"/"ANJ" posé dans la grille dans le
 // journal des absences (page Absences), pour ne pas avoir à ressaisir le

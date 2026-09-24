@@ -37,6 +37,10 @@ interface AbsenceRecord {
 
 const TYPES_JUSTIFICATIF = ["Email", "SMS", "Téléphone", "Autre"];
 
+// Valeurs par défaut d'une absence NON justifiée (ANJ) — pas de justificatif
+// à collecter, donc pas de champ à laisser vide/tirets sur ce type de ligne.
+const DEFAUTS_ANJ = { type: "Aucun", raison: "Aucune", reference: "✗", lien: "" };
+
 // Total d'heures manquées pour retard sur la session (même champ que la
 // grille Évolution) — cumulé toutes dates confondues, pas seulement les
 // jours renseignés dans le journal d'absences.
@@ -101,14 +105,23 @@ export default function AbsencesNumerikUpProSessionPage() {
   const ajouterAbsence = async () => {
     const apprenant = apprenantsSession.find((a) => a.id === nouvelleAbsence.apprenantId);
     if (!apprenant || !nouvelleAbsence.date) return;
-    const enregistrement: AbsenceRecord = {
-      date: nouvelleAbsence.date,
-      justifiee: nouvelleAbsence.justifiee,
-      type: nouvelleAbsence.type,
-      raison: nouvelleAbsence.raison,
-      reference: nouvelleAbsence.reference,
-      lien: nouvelleAbsence.lien,
-    };
+    const enregistrement: AbsenceRecord = nouvelleAbsence.justifiee
+      ? {
+          date: nouvelleAbsence.date,
+          justifiee: true,
+          type: nouvelleAbsence.type,
+          raison: nouvelleAbsence.raison,
+          reference: nouvelleAbsence.reference,
+          lien: nouvelleAbsence.lien,
+        }
+      : {
+          date: nouvelleAbsence.date,
+          justifiee: false,
+          type: nouvelleAbsence.type || DEFAUTS_ANJ.type,
+          raison: nouvelleAbsence.raison || DEFAUTS_ANJ.raison,
+          reference: nouvelleAbsence.reference || DEFAUTS_ANJ.reference,
+          lien: nouvelleAbsence.lien,
+        };
     const nouvelleListe = [...(apprenant.Absences || []), enregistrement];
     setApprenants((prev) => prev.map((a) => (a.id === apprenant.id ? { ...a, Absences: nouvelleListe } : a)));
     try {
@@ -170,7 +183,11 @@ export default function AbsencesNumerikUpProSessionPage() {
         const aAjouter: AbsenceRecord[] = [];
         Object.entries(apprenant.Evolution || {}).forEach(([date, code]) => {
           if ((code === "A" || code === "ANJ") && !dejaConnues.has(date)) {
-            aAjouter.push({ date, justifiee: code === "A", type: "", raison: "", reference: "", lien: "" });
+            aAjouter.push(
+              code === "A"
+                ? { date, justifiee: true, type: "", raison: "", reference: "", lien: "" }
+                : { date, justifiee: false, ...DEFAUTS_ANJ }
+            );
           }
         });
         if (aAjouter.length === 0) continue;
@@ -190,6 +207,32 @@ export default function AbsencesNumerikUpProSessionPage() {
       setMessageRattrapage("Une erreur est survenue pendant le rattrapage.");
     } finally {
       setRattrapageEnCours(false);
+    }
+  };
+
+  // Complète rétroactivement les absences NON justifiées déjà présentes dans
+  // le journal (ex. posées avant l'ajout de DEFAUTS_ANJ) mais encore vides —
+  // ne touche jamais une ligne déjà renseignée à la main.
+  const completerAnjExistantes = async () => {
+    let nbCompletees = 0;
+    try {
+      for (const apprenant of apprenantsSession) {
+        const absences = apprenant.Absences || [];
+        let modifie = false;
+        const nouvelleListe = absences.map((rec) => {
+          if (rec.justifiee || (rec.type && rec.raison && rec.reference)) return rec;
+          modifie = true;
+          nbCompletees++;
+          return { ...rec, type: rec.type || DEFAUTS_ANJ.type, raison: rec.raison || DEFAUTS_ANJ.raison, reference: rec.reference || DEFAUTS_ANJ.reference };
+        });
+        if (!modifie) continue;
+        await updateDoc(doc(db, "inscriptions_numerikuppro", apprenant.id), { Absences: nouvelleListe });
+        setApprenants((prev) => prev.map((a) => (a.id === apprenant.id ? { ...a, Absences: nouvelleListe } : a)));
+      }
+      setMessageRattrapage(nbCompletees > 0 ? `${nbCompletees} absence(s) non justifiée(s) complétée(s) (Aucun / Aucune / ✗).` : "Rien à compléter.");
+    } catch (error) {
+      console.error("Erreur lors de la complétion des absences non justifiées :", error);
+      setMessageRattrapage("Une erreur est survenue pendant la complétion.");
     }
   };
 
@@ -231,6 +274,13 @@ export default function AbsencesNumerikUpProSessionPage() {
               className="flex items-center gap-2 bg-white hover:bg-[#EA601F] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#EA601F] transition-all text-xs font-bold uppercase tracking-wider shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span>{rattrapageEnCours ? "Rattrapage..." : "Rattraper depuis Évolution"}</span>
+            </button>
+            <button
+              onClick={completerAnjExistantes}
+              title="Complète les absences non justifiées déjà présentes mais encore vides (Type justificatif : Aucun, Raison : Aucune, N° enregistrement : ✗)"
+              className="flex items-center gap-2 bg-white hover:bg-[#EA601F] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#EA601F] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+            >
+              <span>Compléter les non justifiées</span>
             </button>
             <Link
               href={`/mediation/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(sessionId)}/evolution`}

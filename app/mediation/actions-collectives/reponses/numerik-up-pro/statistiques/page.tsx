@@ -29,7 +29,7 @@ interface Apprenant {
 const MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 const TERRITOIRES_DEFAUT = ["91", "92", "Autres"];
 const CODES_PRESENCE = ["G", "D", "GR", "SK"];
-const HEURES_PAR_JOUR = 3;
+const HEURES_PAR_JOUR = 4;
 
 // Présence d'un·e apprenant·e sur l'ensemble des jours renseignés dans sa
 // feuille Évolution, en heures — les cases Férié ou non renseignées sont
