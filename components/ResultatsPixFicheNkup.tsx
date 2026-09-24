@@ -1,7 +1,7 @@
 "use client";
 
 import { ChartPieIcon } from "@heroicons/react/24/outline";
-import { COMPETENCES_PIX } from "@/lib/pixImport";
+import { COMPETENCES_PIX, PALETTE_COURBES } from "@/lib/pixImport";
 import { BADGES_NKUP, DOMAINES_NKUP, PixResultatNkup } from "@/lib/pixImportNkup";
 
 // Même remarque que ResultatsPixFiche.tsx (année incluse dans le format
@@ -22,16 +22,34 @@ function formaterPct(v: number | null): string {
 // différent du format pix/niveau par compétence pour partager le même
 // composant (voir lib/pixImportNkup.ts). Lecture seule : l'import se fait
 // depuis la page Pix de la session (components/PixResultatsSessionNkup.tsx).
+// Même principe que ResultatsPixFiche.tsx : petit graphique d'évolution (%
+// de maîtrise globale) sous le tableau détaillé, seulement quand au moins 2
+// tests PARTAGÉS existent (maitriseGlobale peut être null si non partagé).
+const GRAPHE_LARGEUR = 400;
+const GRAPHE_HAUTEUR = 90;
+const GRAPHE_PAD_X = 8;
+const GRAPHE_PAD_Y = 14;
+
 export default function ResultatsPixFicheNkup({ historique }: { historique?: PixResultatNkup[] }) {
   const trie = (historique || []).slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   const dernier = trie[trie.length - 1] || null;
   const nbBadgesObtenus = dernier ? BADGES_NKUP.filter((b) => dernier.badges[b]).length : 0;
 
+  const avecMaitrise = trie.filter((r): r is typeof trie[number] & { maitriseGlobale: number } => r.maitriseGlobale !== null);
+  const xPourIndex = (i: number) => GRAPHE_PAD_X + (avecMaitrise.length <= 1 ? 0 : (i / (avecMaitrise.length - 1)) * (GRAPHE_LARGEUR - GRAPHE_PAD_X * 2));
+  const yPourValeur = (v: number) => GRAPHE_HAUTEUR - GRAPHE_PAD_Y - (v / 100) * (GRAPHE_HAUTEUR - GRAPHE_PAD_Y * 2);
+  const pointsGraphe = avecMaitrise.map((r, i) => `${xPourIndex(i)},${yPourValeur(r.maitriseGlobale * 100)}`).join(" ");
+
+  // Une courbe par compétence (% de maîtrise), même positions X que le
+  // graphique de maîtrise globale — les tests non partagés (NA) n'ont pas de
+  // détail par compétence non plus.
+  const competencesPresentes = COMPETENCES_PIX.filter((c) => avecMaitrise.some((r) => r.competences[c]));
+
   return (
     <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm p-5 space-y-4 print:shadow-none print:border-black print:break-inside-avoid-page">
       <div className="flex items-center gap-2.5">
         <ChartPieIcon className="w-4 h-4 text-[#EA601F]" />
-        <h2 className="text-xs font-extrabold uppercase tracking-widest text-[#005259] print:text-black">Résultats Pix</h2>
+        <h2 className="text-xs font-extrabold uppercase tracking-widest text-[#005259] print:text-black">Résultats Pix Préinscription</h2>
       </div>
 
       {!dernier ? (
@@ -117,6 +135,54 @@ export default function ResultatsPixFicheNkup({ historique }: { historique?: Pix
               </tbody>
             </table>
           </div>
+
+          {avecMaitrise.length > 1 && (
+            <div className="pt-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1.5">Évolution (maîtrise globale)</div>
+              <svg viewBox={`0 0 ${GRAPHE_LARGEUR} ${GRAPHE_HAUTEUR}`} className="w-full" style={{ height: GRAPHE_HAUTEUR }}>
+                <polyline points={pointsGraphe} fill="none" stroke="#EA601F" strokeWidth={2} />
+                {avecMaitrise.map((r, i) => (
+                  <circle key={r.date} cx={xPourIndex(i)} cy={yPourValeur(r.maitriseGlobale * 100)} r={3} fill="#005259" />
+                ))}
+              </svg>
+              <div className="flex justify-between text-[9px] text-[#404040]/50 font-medium">
+                <span>{formaterDateFr(avecMaitrise[0].date)}</span>
+                <span>{formaterDateFr(avecMaitrise[avecMaitrise.length - 1].date)}</span>
+              </div>
+            </div>
+          )}
+
+          {avecMaitrise.length > 1 && competencesPresentes.length > 0 && (
+            <div className="pt-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1.5">Évolution par compétence</div>
+              <svg viewBox={`0 0 ${GRAPHE_LARGEUR} ${GRAPHE_HAUTEUR}`} className="w-full" style={{ height: GRAPHE_HAUTEUR }}>
+                {competencesPresentes.map((c, ci) => {
+                  const couleur = PALETTE_COURBES[ci % PALETTE_COURBES.length];
+                  const points = avecMaitrise.map((r, i) => `${xPourIndex(i)},${yPourValeur((r.competences[c]?.pct || 0) * 100)}`).join(" ");
+                  return (
+                    <g key={c}>
+                      <polyline points={points} fill="none" stroke={couleur} strokeWidth={1.5} />
+                      {avecMaitrise.map((r, i) => (
+                        <circle key={r.date} cx={xPourIndex(i)} cy={yPourValeur((r.competences[c]?.pct || 0) * 100)} r={2} fill={couleur} />
+                      ))}
+                    </g>
+                  );
+                })}
+              </svg>
+              <div className="flex justify-between text-[9px] text-[#404040]/50 font-medium mb-1.5">
+                <span>{formaterDateFr(avecMaitrise[0].date)}</span>
+                <span>{formaterDateFr(avecMaitrise[avecMaitrise.length - 1].date)}</span>
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {competencesPresentes.map((c, ci) => (
+                  <div key={c} className="flex items-center gap-1 text-[9px] text-[#404040]/70 font-medium">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: PALETTE_COURBES[ci % PALETTE_COURBES.length] }}></span>
+                    <span>{c}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

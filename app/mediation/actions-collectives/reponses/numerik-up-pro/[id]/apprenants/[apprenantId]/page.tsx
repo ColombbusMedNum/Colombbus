@@ -32,6 +32,8 @@ import PageGuard from "@/components/PageGuard";
 import { formatPhoneNumber } from "@/lib/formatPhone";
 import FicheEntretienDiagnostic from "./FicheEntretienDiagnostic";
 import ResultatsPixFiche from "@/components/ResultatsPixFiche";
+import ResultatsPixFicheNkup from "@/components/ResultatsPixFicheNkup";
+import type { PixResultatNkup } from "@/lib/pixImportNkup";
 import type { PixResultat } from "@/lib/pixImport";
 
 interface AbsenceRecord {
@@ -146,6 +148,10 @@ export interface Inscription {
   // Résultats Pix — historique importé depuis la page Pix de la session
   // (voir components/PixResultatsSession.tsx).
   PixResultats?: PixResultat[];
+  // Diagnostic Pix fait en préinscription — importé depuis
+  // .../[id]/pix-preinscription (voir components/PixResultatsSessionNkup.tsx
+  // et lib/pixImportNkup.ts), distinct du suivi Pix du parcours pro ci-dessus.
+  PixResultatsNkup?: PixResultatNkup[];
   // Bilan de formation — dates d'entrée/fin calculées depuis Session,
   // le reste est renseigné à la main par l'équipe pédagogique.
   Bilan_DateEvaluation1?: string;
@@ -1085,6 +1091,8 @@ export default function FicheApprenantNumerikUpProPage() {
           </Section>
 
           <ResultatsPixFiche historique={i.PixResultats} />
+
+          <ResultatsPixFicheNkup historique={i.PixResultatsNkup} />
 
           <Section icon={ExclamationTriangleIcon} titre="Absences">
             {absencesTriees.length === 0 ? (

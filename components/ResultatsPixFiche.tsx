@@ -1,7 +1,7 @@
 "use client";
 
 import { ChartPieIcon, CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/outline";
-import { COMPETENCES_PIX, PixResultat } from "@/lib/pixImport";
+import { COMPETENCES_PIX, PALETTE_COURBES, PixResultat } from "@/lib/pixImport";
 
 // Année incluse : voir la même remarque dans PixResultatsSession.tsx — sans
 // elle, deux tests à cheval sur deux années civiles semblent mal triés.
@@ -16,11 +16,31 @@ function formaterDateFr(iso: string): string {
 // chaque page) pour rester partagé entre les deux modules. Lecture seule :
 // l'import se fait depuis la page Pix de la session (voir
 // components/PixResultatsSession.tsx).
+// Petit graphique d'évolution (Total Pix par test) sous le tableau détaillé —
+// n'a de sens qu'à partir de 2 tests, sinon une seule valeur ne trace rien.
+const GRAPHE_LARGEUR = 400;
+const GRAPHE_HAUTEUR = 90;
+const GRAPHE_PAD_X = 8;
+const GRAPHE_PAD_Y = 14;
+
 export default function ResultatsPixFiche({ historique }: { historique?: PixResultat[] }) {
   const trie = (historique || []).slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   const dernier = trie[trie.length - 1] || null;
   const premier = trie[0] || null;
   const delta = dernier && premier && trie.length > 1 ? dernier.totalPix - premier.totalPix : null;
+
+  const valeursGraphe = trie.map((r) => r.totalPix);
+  const maxGraphe = Math.max(1, ...valeursGraphe);
+  const minGraphe = Math.min(0, ...valeursGraphe);
+  const xPourIndex = (i: number) => GRAPHE_PAD_X + (trie.length <= 1 ? 0 : (i / (trie.length - 1)) * (GRAPHE_LARGEUR - GRAPHE_PAD_X * 2));
+  const yPourValeur = (v: number) => GRAPHE_HAUTEUR - GRAPHE_PAD_Y - ((v - minGraphe) / (maxGraphe - minGraphe || 1)) * (GRAPHE_HAUTEUR - GRAPHE_PAD_Y * 2);
+  const pointsGraphe = trie.map((r, i) => `${xPourIndex(i)},${yPourValeur(r.totalPix)}`).join(" ");
+
+  // Même principe, une courbe par compétence (celles ayant au moins un
+  // résultat dans l'historique) plutôt qu'une seule courbe globale.
+  const competencesPresentes = COMPETENCES_PIX.filter((c) => trie.some((r) => r.competences[c]));
+  const maxPixCompetence = Math.max(1, ...trie.flatMap((r) => competencesPresentes.map((c) => r.competences[c]?.pix || 0)));
+  const yPourPixCompetence = (v: number) => GRAPHE_HAUTEUR - GRAPHE_PAD_Y - (v / maxPixCompetence) * (GRAPHE_HAUTEUR - GRAPHE_PAD_Y * 2);
 
   return (
     <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm p-5 space-y-4 print:shadow-none print:border-black print:break-inside-avoid-page">
@@ -86,6 +106,54 @@ export default function ResultatsPixFiche({ historique }: { historique?: PixResu
               </tbody>
             </table>
           </div>
+
+          {trie.length > 1 && (
+            <div className="pt-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1.5">Évolution (Total Pix)</div>
+              <svg viewBox={`0 0 ${GRAPHE_LARGEUR} ${GRAPHE_HAUTEUR}`} className="w-full" style={{ height: GRAPHE_HAUTEUR }}>
+                <polyline points={pointsGraphe} fill="none" stroke="#EA601F" strokeWidth={2} />
+                {trie.map((r, i) => (
+                  <circle key={r.date} cx={xPourIndex(i)} cy={yPourValeur(r.totalPix)} r={3} fill="#005259" />
+                ))}
+              </svg>
+              <div className="flex justify-between text-[9px] text-[#404040]/50 font-medium">
+                <span>{formaterDateFr(trie[0].date)}</span>
+                <span>{formaterDateFr(trie[trie.length - 1].date)}</span>
+              </div>
+            </div>
+          )}
+
+          {trie.length > 1 && competencesPresentes.length > 0 && (
+            <div className="pt-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1.5">Évolution par compétence</div>
+              <svg viewBox={`0 0 ${GRAPHE_LARGEUR} ${GRAPHE_HAUTEUR}`} className="w-full" style={{ height: GRAPHE_HAUTEUR }}>
+                {competencesPresentes.map((c, ci) => {
+                  const couleur = PALETTE_COURBES[ci % PALETTE_COURBES.length];
+                  const points = trie.map((r, i) => `${xPourIndex(i)},${yPourPixCompetence(r.competences[c]?.pix || 0)}`).join(" ");
+                  return (
+                    <g key={c}>
+                      <polyline points={points} fill="none" stroke={couleur} strokeWidth={1.5} />
+                      {trie.map((r, i) => (
+                        <circle key={r.date} cx={xPourIndex(i)} cy={yPourPixCompetence(r.competences[c]?.pix || 0)} r={2} fill={couleur} />
+                      ))}
+                    </g>
+                  );
+                })}
+              </svg>
+              <div className="flex justify-between text-[9px] text-[#404040]/50 font-medium mb-1.5">
+                <span>{formaterDateFr(trie[0].date)}</span>
+                <span>{formaterDateFr(trie[trie.length - 1].date)}</span>
+              </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {competencesPresentes.map((c, ci) => (
+                  <div key={c} className="flex items-center gap-1 text-[9px] text-[#404040]/70 font-medium">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: PALETTE_COURBES[ci % PALETTE_COURBES.length] }}></span>
+                    <span>{c}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

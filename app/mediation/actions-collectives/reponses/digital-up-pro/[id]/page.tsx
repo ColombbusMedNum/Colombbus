@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, updateDoc } from "firebase/firestore";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
-import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, AcademicCapIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, IdentificationIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, AcademicCapIcon, ChartPieIcon, ClipboardDocumentCheckIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, IdentificationIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { useToast } from "@/components/ToastProvider";
 import { usePermissions } from "@/lib/PermissionsProvider";
@@ -533,6 +533,20 @@ export default function ReponsesDigitalUpProSessionPage() {
             >
               <AcademicCapIcon className="w-4 h-4" />
               <span>Apprenant·e·s</span>
+            </Link>
+            <Link
+              href={`/mediation/actions-collectives/reponses/digital-up-pro/${encodeURIComponent(sessionId)}/pix`}
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+            >
+              <ChartPieIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Résultats Pix</span>
+            </Link>
+            <Link
+              href={`/mediation/actions-collectives/reponses/digital-up-pro/${encodeURIComponent(sessionId)}/pix-preinscription`}
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+            >
+              <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Pix Préinscription</span>
             </Link>
             <Link
               href="/"

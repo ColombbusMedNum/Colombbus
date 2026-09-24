@@ -321,6 +321,13 @@ export default function ApprenantsDigitalUpProSessionPage() {
               <span>Résultats Pix</span>
             </Link>
             <Link
+              href={`/mediation/actions-collectives/reponses/digital-up-pro/${encodeURIComponent(sessionId)}/pix-preinscription`}
+              className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
+            >
+              <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Pix Préinscription</span>
+            </Link>
+            <Link
               href={`/mediation/actions-collectives/reponses/digital-up-pro/${encodeURIComponent(sessionId)}/suivi-administratif`}
               className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm"
             >

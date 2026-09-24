@@ -33,6 +33,8 @@ import { formatPhoneNumber } from "@/lib/formatPhone";
 import FicheEntretienDiagnostic from "./FicheEntretienDiagnostic";
 import FicheDiagnosticEquipement from "./FicheDiagnosticEquipement";
 import ResultatsPixFiche from "@/components/ResultatsPixFiche";
+import ResultatsPixFicheNkup from "@/components/ResultatsPixFicheNkup";
+import type { PixResultatNkup } from "@/lib/pixImportNkup";
 import ResultatsTestLangueFiche from "@/components/ResultatsTestLangueFiche";
 import ResultatsCollecteTechFiche from "@/components/ResultatsCollecteTechFiche";
 import type { PixResultat } from "@/lib/pixImport";
@@ -150,6 +152,10 @@ export interface Inscription {
   // Résultats Pix — historique importé depuis la page Pix de la session
   // (voir components/PixResultatsSession.tsx).
   PixResultats?: PixResultat[];
+  // Diagnostic Pix fait en préinscription — importé depuis
+  // .../[id]/pix-preinscription (voir components/PixResultatsSessionNkup.tsx
+  // et lib/pixImportNkup.ts), distinct du suivi Pix du parcours pro ci-dessus.
+  PixResultatsNkup?: PixResultatNkup[];
   // Bilan de formation — dates d'entrée/fin calculées depuis Session,
   // le reste est renseigné à la main par l'équipe pédagogique.
   Bilan_DateEvaluation1?: string;
@@ -1135,6 +1141,8 @@ export default function FicheApprenantDigitalUpProPage() {
           </Section>
 
           <ResultatsPixFiche historique={i.PixResultats} />
+
+          <ResultatsPixFicheNkup historique={i.PixResultatsNkup} />
 
           <ResultatsTestLangueFiche nom={i.Nom} prenom={i.Prénom} email={i.Email} />
 

@@ -217,7 +217,7 @@ export default function PixResultatsSessionNkup({ collectionInscriptions, basePa
               <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
               <div>
                 <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
-                  Résultats <span className="text-[#EA601F] font-normal">Pix</span>
+                  Résultats <span className="text-[#EA601F] font-normal">Pix Préinscription</span>
                 </h1>
                 <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
                   Session : {sessionId || "—"} — {apprenantsSession.length} apprenant{apprenantsSession.length > 1 ? "s" : ""}
