@@ -311,7 +311,20 @@ function FichesBilansContent() {
     }
   };
 
+  // La plupart des navigateurs proposent le titre du document comme nom de
+  // fichier par défaut dans "Imprimer > Enregistrer en PDF" — on le bascule
+  // donc temporairement sur "Bilan_Site_Année_Mois" le temps de l'impression,
+  // puis on le restaure (afterprint) pour ne pas affecter le reste de la page.
   const handlePrint = () => {
+    const [annee, mois] = moisSelectionne.split("-");
+    const nomFichier = `Bilan_${lieuSelectionne}_${annee}_${mois}`.replace(/[\\/:*?"<>|]/g, "_");
+    const titreOriginal = document.title;
+    document.title = nomFichier;
+    const restaurerTitre = () => {
+      document.title = titreOriginal;
+      window.removeEventListener("afterprint", restaurerTitre);
+    };
+    window.addEventListener("afterprint", restaurerTitre);
     window.print();
   };
 
