@@ -203,15 +203,16 @@ export type GrillesHorairesACI = Record<string, GrilleHoraireACI>;
 // d'entrée dans la grille (jours non couverts, voir résolution ci-dessous).
 const CLE_JOUR_PAR_INDEX = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
-// Un créneau "Congés" (ou variante orthographique) n'est pas du temps de
-// travail réel : la personne est absente, donc ses horaires (souvent posés
-// en journée complète, ex 09:00-17:30) ne doivent jamais être comparés à sa
-// grille de contrat pour en déduire des heures complémentaires. Détection
-// par nom de lieu, comme les autres cas particuliers de ce fichier
-// (estModeleProtege dans lib/activitesTypes.ts).
+// Un créneau "Congés" ou "Absence" (ou variante orthographique) n'est pas du
+// temps de travail réel : la personne est absente, donc ses horaires
+// (souvent posés en journée complète, ex 09:00-17:30) ne doivent jamais être
+// comparés à sa grille de contrat pour en déduire des heures complémentaires
+// — une absence ne peut jamais, à elle seule, générer des heures
+// complémentaires. Détection par nom de lieu, comme les autres cas
+// particuliers de ce fichier (estModeleProtege dans lib/activitesTypes.ts).
 function estActiviteDeConge(lieu?: string): boolean {
   const normalise = (lieu || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toUpperCase();
-  return normalise.includes("CONGE");
+  return normalise.includes("CONGE") || normalise.includes("ABSENCE");
 }
 
 // Heures complémentaires pour le personnel ACI : au-delà de ses horaires de
