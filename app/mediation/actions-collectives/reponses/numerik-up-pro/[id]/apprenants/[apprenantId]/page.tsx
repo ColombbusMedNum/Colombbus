@@ -27,9 +27,11 @@ import {
   XMarkIcon,
   ChevronDownIcon,
   PrinterIcon,
+  PencilSquareIcon,
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
-import { formatPhoneNumber } from "@/lib/formatPhone";
+import { formatPhoneNumber, formatPhoneForStorage } from "@/lib/formatPhone";
+import { formatNom, formatPrenom } from "@/lib/formatName";
 import FicheEntretienDiagnostic from "./FicheEntretienDiagnostic";
 import ResultatsPixFiche from "@/components/ResultatsPixFiche";
 import ResultatsPixFicheNkup from "@/components/ResultatsPixFicheNkup";
@@ -90,7 +92,6 @@ export interface Inscription {
   Presence_Test_Langue?: string;
   A_Un_Ordinateur?: string;
   Attribution_PC_Colombbus?: string;
-  Competences_Numeriques?: string;
   Notes_Tests_FR?: string;
   Niveau_B1_Francais?: string;
   Recuperation_CV?: string;
@@ -613,6 +614,37 @@ export default function FicheApprenantNumerikUpProPage() {
   const [introuvable, setIntrouvable] = useState(false);
   const [ongletActif, setOngletActif] = useState<"fiche" | "diagnostic">("fiche");
   const { mediateurs } = useMediateurs();
+  // Édition inline de la fiche — un brouillon local, écrit d'un bloc sur le
+  // même document que les autres pages (Réponses, Apprenant·e·s...), rien
+  // n'est perdu tant que "Enregistrer" n'est pas cliqué. Corrige les erreurs
+  // de frappe sans repasser par la page Réponses.
+  const [edition, setEdition] = useState<Inscription | null>(null);
+  const [enregistrementEnCours, setEnregistrementEnCours] = useState(false);
+
+  const ouvrirEdition = () => { if (inscription) setEdition({ ...inscription }); };
+  const fermerEdition = () => setEdition(null);
+  const majEdition = <K extends keyof Inscription>(champ: K, valeur: Inscription[K]) => {
+    setEdition((prev) => (prev ? { ...prev, [champ]: valeur } : prev));
+  };
+  const enregistrerEdition = async () => {
+    if (!edition) return;
+    setEnregistrementEnCours(true);
+    const { id, ...donnees } = {
+      ...edition,
+      Nom: formatNom(edition.Nom),
+      Prénom: formatPrenom(edition.Prénom),
+      Téléphone: formatPhoneForStorage(edition.Téléphone),
+    };
+    try {
+      await updateDoc(doc(db, "inscriptions_numerikuppro", id), donnees);
+      setInscription((prev) => (prev ? { ...prev, ...donnees } : prev));
+      setEdition(null);
+    } catch (error) {
+      console.error("Erreur lors de l'enregistrement de la fiche :", error);
+    } finally {
+      setEnregistrementEnCours(false);
+    }
+  };
 
   useEffect(() => {
     const charger = async () => {
@@ -898,14 +930,24 @@ export default function FicheApprenantNumerikUpProPage() {
             </div>
 
             {ongletActif === "fiche" && (
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="flex items-center gap-2 bg-[#EA601F] hover:bg-[#005259] text-white px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
-              >
-                <PrinterIcon className="w-4 h-4" />
-                <span>Imprimer</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={ouvrirEdition}
+                  className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm cursor-pointer"
+                >
+                  <PencilSquareIcon className="w-4 h-4 text-[#EA601F]" />
+                  <span>Modifier</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex items-center gap-2 bg-[#EA601F] hover:bg-[#005259] text-white px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                >
+                  <PrinterIcon className="w-4 h-4" />
+                  <span>Imprimer</span>
+                </button>
+              </>
             )}
 
             <Link
@@ -982,7 +1024,6 @@ export default function FicheApprenantNumerikUpProPage() {
               <Champ label="Présence test langue" valeur={i.Presence_Test_Langue} />
               <Champ label="Ont-ils un ordi ?" valeur={i.A_Un_Ordinateur} />
               <Champ label="Attribution PC Colombbus" valeur={i.Attribution_PC_Colombbus} />
-              <Champ label="Compétences numériques" valeur={i.Competences_Numeriques} />
               <Champ label="Notes tests FR" valeur={i.Notes_Tests_FR} />
               <Champ label="Niveau B1 Français ?" valeur={i.Niveau_B1_Francais} />
               <Champ label="Récupération CV" valeur={i.Recuperation_CV} />
@@ -1297,6 +1338,203 @@ export default function FicheApprenantNumerikUpProPage() {
         )}
 
       </div>
+
+      {/* MODALE D'ÉDITION — corrige les erreurs de frappe directement depuis
+          la fiche, sans repasser par la page Réponses. Ne couvre pas les
+          champs "Suivi de recrutement"/"Suivi pédagogique" (déjà éditables
+          en ligne sur leurs pages respectives). */}
+      {edition && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#404040]/40 backdrop-blur-sm print:hidden" onClick={fermerEdition}>
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-[#404040]/10">
+              <h2 className="text-sm font-extrabold uppercase tracking-wide text-[#005259]">
+                Modifier la fiche de {edition.Prénom || ""} {edition.Nom || ""}
+              </h2>
+              <button type="button" onClick={fermerEdition} className="p-1.5 rounded-lg text-[#404040]/50 hover:bg-[#F3F3F2] cursor-pointer">
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Civilité</label>
+                <select value={edition.Civilité || ""} onChange={(e) => majEdition("Civilité", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="M.">M.</option>
+                  <option value="Mme">Mme</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Prénom</label>
+                <input type="text" value={edition.Prénom || ""} onChange={(e) => majEdition("Prénom", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Nom</label>
+                <input type="text" value={edition.Nom || ""} onChange={(e) => majEdition("Nom", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Téléphone</label>
+                <input type="text" value={edition.Téléphone || ""} onChange={(e) => majEdition("Téléphone", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Âge</label>
+                <input type="text" value={edition.Age || ""} onChange={(e) => majEdition("Age", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Email</label>
+                <input type="text" value={edition.Email || ""} onChange={(e) => majEdition("Email", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Niveau d'études</label>
+                <input type="text" value={edition.Niveau_Etudes || ""} onChange={(e) => majEdition("Niveau_Etudes", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Code postal</label>
+                <input type="text" value={edition.Code_Postal || ""} onChange={(e) => majEdition("Code_Postal", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Ville</label>
+                <input type="text" value={edition.Ville || ""} onChange={(e) => majEdition("Ville", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Territoire</label>
+                <input type="text" value={edition.Territoire || ""} onChange={(e) => majEdition("Territoire", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Parcours</label>
+                <input type="text" value={edition.Parcours || ""} onChange={(e) => majEdition("Parcours", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">QPV</label>
+                <select value={edition.QPV || ""} onChange={(e) => majEdition("QPV", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                  <option value="Je ne sais pas">Je ne sais pas</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Situation handicap ?</label>
+                <select value={edition.Situation_Handicap || ""} onChange={(e) => majEdition("Situation_Handicap", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">RQTH ?</label>
+                <select value={edition.RQTH || ""} onChange={(e) => majEdition("RQTH", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">NEET ?</label>
+                <select value={edition.NEET || ""} onChange={(e) => majEdition("NEET", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">CEJ ?</label>
+                <select value={edition.CEJ || ""} onChange={(e) => majEdition("CEJ", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">RSA ?</label>
+                <select value={edition.RSA || ""} onChange={(e) => majEdition("RSA", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Inscrit·e France Travail ?</label>
+                <select value={edition.France_Travail || ""} onChange={(e) => majEdition("France_Travail", e.target.value)} className={inputEditClass}>
+                  <option value="">—</option>
+                  <option value="Oui">Oui</option>
+                  <option value="Non">Non</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Identifiant France Travail</label>
+                <input type="text" value={edition.Identifiant_France_Travail || ""} onChange={(e) => majEdition("Identifiant_France_Travail", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Comment connu·e</label>
+                <input type="text" value={edition.Comment_Connu || ""} onChange={(e) => majEdition("Comment_Connu", e.target.value)} className={inputEditClass} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Prescripteur / structure d'accompagnement</label>
+                <input type="text" value={edition.Structure_Accompagnement || ""} onChange={(e) => majEdition("Structure_Accompagnement", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Autre structure (texte libre)</label>
+                <input type="text" value={edition.Structure_Autre || ""} onChange={(e) => majEdition("Structure_Autre", e.target.value)} className={inputEditClass} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Intérêt pour la formation</label>
+                <textarea value={edition.Projet_Professionnel || ""} onChange={(e) => majEdition("Projet_Professionnel", e.target.value)} rows={3} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Comment a-t-il·elle accédé à la formation ?</label>
+                <textarea value={edition.Formation_Acces || ""} onChange={(e) => majEdition("Formation_Acces", e.target.value)} rows={3} className={inputEditClass} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Prénom référent</label>
+                <input type="text" value={edition.Conseiller_Prenom || ""} onChange={(e) => majEdition("Conseiller_Prenom", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Nom référent</label>
+                <input type="text" value={edition.Conseiller_Nom || ""} onChange={(e) => majEdition("Conseiller_Nom", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Téléphone référent</label>
+                <input type="text" value={edition.Conseiller_Telephone || ""} onChange={(e) => majEdition("Conseiller_Telephone", e.target.value)} className={inputEditClass} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mb-1">Email référent</label>
+                <input type="text" value={edition.Conseiller_Email || ""} onChange={(e) => majEdition("Conseiller_Email", e.target.value)} className={inputEditClass} />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#404040]/10">
+              <button
+                type="button"
+                onClick={fermerEdition}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-[#404040]/60 hover:bg-[#F3F3F2] transition-colors cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={enregistrerEdition}
+                disabled={enregistrementEnCours}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#005259] hover:bg-[#003d42] text-white transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {enregistrementEnCours ? "Enregistrement..." : "Enregistrer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx global>{`
         @media print {

@@ -10,6 +10,7 @@ import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, AcademicCapIcon, ChartPie
 import { formatPhoneNumber } from "@/lib/formatPhone";
 import PageGuard from "@/components/PageGuard";
 import { useToast } from "@/components/ToastProvider";
+import type { PixResultatNkup } from "@/lib/pixImportNkup";
 
 // Champs issus du formulaire de pré-inscription (lecture seule ici — ce sont
 // les réponses telles que soumises), puis champs de suivi de recrutement
@@ -43,6 +44,9 @@ interface Inscription {
   // Coché sur /reponses/numerik-up-pro : détermine si la personne apparaît
   // ici, sur la page de suivi détaillé de sa session.
   Suivi_Recrutement?: boolean;
+  // Diagnostic Pix fait en préinscription — importé depuis
+  // .../pix-preinscription (voir components/PixResultatsSessionNkup.tsx).
+  PixResultatsNkup?: PixResultatNkup[];
   // Champs de suivi de recrutement propres à NUMERIK PRO, absents du
   // formulaire d'origine, renseignés à la main par l'équipe directement ici
   // — reprennent la feuille "Suivi_Candidatures" réelle (session Paris 9h-13h).
@@ -54,7 +58,6 @@ interface Inscription {
   Presence_Test_Langue?: string;
   A_Un_Ordinateur?: string;
   Attribution_PC_Colombbus?: string;
-  Competences_Numeriques?: string;
   Notes_Tests_FR?: string;
   Niveau_B1_Francais?: string;
   Recuperation_CV?: string;
@@ -476,10 +479,10 @@ export default function ReponsesNumerikUpProSessionPage() {
                   <th className="px-3 py-3">Présence info collective</th>
                   <th className="px-3 py-3">Convocation test langue</th>
                   <th className="px-3 py-3">Convocation test Pix/Langue</th>
+                  <th className="px-3 py-3">% Pix (préinscription)</th>
                   <th className="px-3 py-3">Présence test langue</th>
                   <th className="px-3 py-3">Ont-ils un ordi ?</th>
                   <th className="px-3 py-3">Attribution PC Colombbus</th>
-                  <th className="px-3 py-3">Compétences numériques</th>
                   <th className="px-3 py-3">Notes tests FR</th>
                   <th className="px-3 py-3">Niveau B1 Français ?</th>
                   <th className="px-3 py-3">Récupération CV</th>
@@ -497,6 +500,7 @@ export default function ReponsesNumerikUpProSessionPage() {
                 {inscriptionsFiltrees.length > 0 ? (
                   inscriptionsFiltrees.map((i, index) => {
                     const prescripteur = i.Structure_Accompagnement === "Autre" ? (i.Structure_Autre || "Autre") : (i.Structure_Accompagnement || "");
+                    const dernierResultatPix = (i.PixResultatsNkup || []).slice().sort((a, b) => (a.date < b.date ? -1 : 1)).pop();
                     // Repère visuellement les candidat·e·s orienté·e·s par
                     // l'E2C — y compris les colonnes figées, qui portent leur
                     // propre fond opaque pour masquer le contenu défilant en
@@ -507,8 +511,16 @@ export default function ReponsesNumerikUpProSessionPage() {
                       <tr key={i.id} className={`group transition-colors align-top ${estE2C ? "bg-[#7C1FD1]/5 hover:bg-[#7C1FD1]/10" : "hover:bg-[#F3F3F2]/60"}`}>
                         <td className={`${classeFigee} px-3 py-2 text-center text-[#404040]/50 font-bold ${fondFigee}`} style={{ left: decalages.num }}>{index + 1}</td>
                         <td className={`${classeFigee} px-3 py-2 whitespace-nowrap ${fondFigee}`} style={{ left: decalages.civilite }}>{i.Civilité || "—"}</td>
-                        <td className={`${classeFigee} px-3 py-2 whitespace-nowrap font-bold text-[#005259] ${fondFigee}`} style={{ left: decalages.prenom }}>{i.Prénom || "—"}</td>
-                        <td className={`${classeFigee} px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase ${fondFigee}`} style={{ left: decalages.nom }}>{i.Nom || "—"}</td>
+                        <td className={`${classeFigee} px-3 py-2 whitespace-nowrap font-bold text-[#005259] ${fondFigee}`} style={{ left: decalages.prenom }}>
+                          <Link href={`/mediation/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(sessionId)}/apprenants/${i.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
+                            {i.Prénom || "—"}
+                          </Link>
+                        </td>
+                        <td className={`${classeFigee} px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase ${fondFigee}`} style={{ left: decalages.nom }}>
+                          <Link href={`/mediation/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(sessionId)}/apprenants/${i.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
+                            {i.Nom || "—"}
+                          </Link>
+                        </td>
                         <td className={`${classeFigee} ${ombreDerniereFigee} px-3 py-2 whitespace-nowrap ${fondFigee}`} style={{ left: decalages.telephone }}>{formatPhoneNumber(i.Téléphone)}</td>
                         <td className="px-3 py-2 text-center whitespace-nowrap">
                           {i.Age ? (
@@ -562,6 +574,13 @@ export default function ReponsesNumerikUpProSessionPage() {
                         <td className="px-3 py-2">
                           <input type="text" defaultValue={i.Date_Test_Pix_Langue || ""} onBlur={(e) => mettreAJourChamp(i.id, "Date_Test_Pix_Langue", e.target.value)} placeholder="Date, lieu" className={inputEditClass} />
                         </td>
+                        <td className="px-3 py-2 text-center whitespace-nowrap">
+                          {dernierResultatPix && dernierResultatPix.maitriseGlobale !== null ? (
+                            <span className="inline-block px-2 py-0.5 rounded-lg bg-[#005259]/10 text-[#005259] border border-[#005259]/20 text-[11px] font-bold" title={`Palier ${dernierResultatPix.palier ?? "—"}/3`}>
+                              {Math.round(dernierResultatPix.maitriseGlobale * 100)}%
+                            </span>
+                          ) : "—"}
+                        </td>
                         <td className="px-3 py-2">
                           <select defaultValue={i.Presence_Test_Langue || ""} onChange={(e) => mettreAJourChamp(i.id, "Presence_Test_Langue", e.target.value)} className={inputEditClass}>
                             <option value="">—</option>
@@ -582,9 +601,6 @@ export default function ReponsesNumerikUpProSessionPage() {
                             <option value="Oui">Oui</option>
                             <option value="Non">Non</option>
                           </select>
-                        </td>
-                        <td className="px-3 py-2">
-                          <input type="text" defaultValue={i.Competences_Numeriques || ""} onBlur={(e) => mettreAJourChamp(i.id, "Competences_Numeriques", e.target.value)} placeholder="Ex : 97%" className={inputEditClass} />
                         </td>
                         <td className="px-3 py-2">
                           <input type="text" defaultValue={i.Notes_Tests_FR || ""} onBlur={(e) => mettreAJourChamp(i.id, "Notes_Tests_FR", e.target.value)} placeholder="Ex : 18/20" className={inputEditClass} />

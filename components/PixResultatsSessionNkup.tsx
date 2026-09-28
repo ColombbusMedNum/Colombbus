@@ -85,14 +85,15 @@ export default function PixResultatsSessionNkup({ collectionInscriptions, basePa
     charger();
   }, [collectionInscriptions]);
 
-  // Tou·te·s les apprenant·e·s affecté·e·s à la session (case "Suivi
-  // recrutement" cochée) — pas seulement retenu·e·s (OK_NOK), contrairement à
-  // components/PixResultatsSession.tsx : le questionnaire diagnostic Pix se
-  // fait avant la décision d'admission.
+  // Toutes les PRÉINSCRIPTIONS affectées à la session (même pool que la page
+  // Réponses) — pas seulement celles déjà promues "apprenant·e·s" (case
+  // "Suivi recrutement" cochée), et pas seulement retenues (OK_NOK),
+  // contrairement à components/PixResultatsSession.tsx : le questionnaire
+  // diagnostic Pix se fait avant même la décision d'admission.
   const apprenantsSession = useMemo(
     () =>
       apprenants
-        .filter((a) => a.Session === sessionId && a.Suivi_Recrutement)
+        .filter((a) => a.Session === sessionId)
         .sort((a, b) => (a.Nom || "").localeCompare(b.Nom || "", "fr")),
     [apprenants, sessionId]
   );
@@ -330,7 +331,7 @@ export default function PixResultatsSessionNkup({ collectionInscriptions, basePa
           {/* TABLEAU + DÉTAIL PAR APPRENANT·E */}
           {apprenantsSession.length === 0 ? (
             <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm p-16 text-center text-xs font-bold uppercase tracking-wider text-[#404040]/60">
-              Aucun·e apprenant·e affecté·e à cette session pour le moment.
+              Aucune préinscription affectée à cette session pour le moment.
             </div>
           ) : (
             <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm overflow-hidden">
