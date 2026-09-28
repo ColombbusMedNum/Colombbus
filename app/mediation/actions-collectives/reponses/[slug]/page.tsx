@@ -12,7 +12,7 @@ import SessionSelect from "@/components/SessionSelect";
 import { usePermissions } from "@/lib/PermissionsProvider";
 import { useToast } from "@/components/ToastProvider";
 import { formatNom, formatPrenom } from "@/lib/formatName";
-import { formatPhoneForStorage } from "@/lib/formatPhone";
+import { formatPhoneForStorage, formatPhoneNumber } from "@/lib/formatPhone";
 import { calculerAge } from "@/lib/dateNaissance";
 import { ActionSchema, InscriptionActionDynamique, QuestionDef } from "@/lib/dynamicActions/types";
 import { chargerSchema, chargerConfiguration, inscriptionsCollection, inscriptionDoc, ConfigurationChargee } from "@/lib/dynamicActions/store";
@@ -427,7 +427,7 @@ export default function ReponsesActionDynamiquePage() {
                       {i.Nom || "—"}
                       {infosDoublons.has(i.id!) && <span title="Fait partie d'un groupe de doublons probable" className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded bg-[#EA601F]/15 text-[#EA601F] text-[9px] font-bold normal-case align-middle">×{infosDoublons.get(i.id!)?.taille}</span>}
                     </td>
-                    <td className="px-3 py-2 whitespace-nowrap">{i.Téléphone || "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{formatPhoneNumber(i.Téléphone)}</td>
                     <td className="px-3 py-2 text-center whitespace-nowrap">
                       {i.Age !== "" && i.Age !== undefined ? (estMineur(i.Age) ? <span className="inline-block px-2 py-0.5 rounded bg-[#F9C44E]/20 text-[#005259] border border-[#F9C44E] text-[10px] font-bold">{i.Age}</span> : i.Age) : "—"}
                     </td>

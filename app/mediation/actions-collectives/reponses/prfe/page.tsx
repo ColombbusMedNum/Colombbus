@@ -11,7 +11,7 @@ import PageGuard from "@/components/PageGuard";
 import SessionSelect from "@/components/SessionSelect";
 import { usePermissions } from "@/lib/PermissionsProvider";
 import { formatNom, formatPrenom } from "@/lib/formatName";
-import { formatPhoneForStorage } from "@/lib/formatPhone";
+import { formatPhoneForStorage, formatPhoneNumber } from "@/lib/formatPhone";
 import { calculerAge } from "@/lib/dateNaissance";
 
 // Champs personnels copiés lors d'une duplication vers une autre session (un
@@ -772,7 +772,7 @@ export default function ReponsesPrfePage() {
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-2 whitespace-nowrap">{i.Téléphone || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{formatPhoneNumber(i.Téléphone)}</td>
                         <td className="px-3 py-2 text-center whitespace-nowrap">
                           {i.Age ? (
                             estMineur(i.Age) ? (

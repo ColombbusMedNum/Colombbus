@@ -7,6 +7,7 @@ import { collection, doc, getDoc, getDocs, orderBy, query, updateDoc } from "fir
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
 import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, AcademicCapIcon, ChartPieIcon, ClipboardDocumentCheckIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon } from "@heroicons/react/24/outline";
+import { formatPhoneNumber } from "@/lib/formatPhone";
 import PageGuard from "@/components/PageGuard";
 import { useToast } from "@/components/ToastProvider";
 
@@ -508,7 +509,7 @@ export default function ReponsesNumerikUpProSessionPage() {
                         <td className={`${classeFigee} px-3 py-2 whitespace-nowrap ${fondFigee}`} style={{ left: decalages.civilite }}>{i.Civilité || "—"}</td>
                         <td className={`${classeFigee} px-3 py-2 whitespace-nowrap font-bold text-[#005259] ${fondFigee}`} style={{ left: decalages.prenom }}>{i.Prénom || "—"}</td>
                         <td className={`${classeFigee} px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase ${fondFigee}`} style={{ left: decalages.nom }}>{i.Nom || "—"}</td>
-                        <td className={`${classeFigee} ${ombreDerniereFigee} px-3 py-2 whitespace-nowrap ${fondFigee}`} style={{ left: decalages.telephone }}>{i.Téléphone || "—"}</td>
+                        <td className={`${classeFigee} ${ombreDerniereFigee} px-3 py-2 whitespace-nowrap ${fondFigee}`} style={{ left: decalages.telephone }}>{formatPhoneNumber(i.Téléphone)}</td>
                         <td className="px-3 py-2 text-center whitespace-nowrap">
                           {i.Age ? (
                             estMineur(i.Age) ? (

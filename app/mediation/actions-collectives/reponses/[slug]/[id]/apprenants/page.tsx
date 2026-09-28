@@ -6,6 +6,7 @@ import { getDocs, orderBy, query } from "firebase/firestore";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
 import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, ChartBarIcon, DocumentPlusIcon } from "@heroicons/react/24/outline";
+import { formatPhoneNumber } from "@/lib/formatPhone";
 import PageGuard from "@/components/PageGuard";
 import { ActionSchema, InscriptionActionDynamique, QuestionDef } from "@/lib/dynamicActions/types";
 import { chargerSchema, chargerConfiguration, inscriptionsCollection, ConfigurationChargee } from "@/lib/dynamicActions/store";
@@ -272,7 +273,7 @@ export default function ApprenantsSessionPage() {
                       <td className="px-3 py-2 text-center">{i.Territoire || "—"}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{i.QPV || "—"}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{i.Niveau_Etudes || "—"}</td>
-                      <td className="px-3 py-2 whitespace-nowrap">{i.Téléphone || "—"}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{formatPhoneNumber(i.Téléphone)}</td>
                       <td className="px-3 py-2 max-w-[180px] truncate">{i.Email || "—"}</td>
                       {questionsTriees.map((q) => (
                         <td key={q.id} className="px-3 py-2 max-w-[180px] truncate" title={valeurCustom(i, q)}>{valeurCustom(i, q) || "—"}</td>

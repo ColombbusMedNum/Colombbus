@@ -7,6 +7,7 @@ import { collection, doc, getDoc, getDocs, orderBy, query, updateDoc } from "fir
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
 import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, ChartBarIcon, ChartPieIcon, DocumentPlusIcon } from "@heroicons/react/24/outline";
+import { formatPhoneNumber } from "@/lib/formatPhone";
 import PageGuard from "@/components/PageGuard";
 
 // Champs issus du formulaire de pré-inscription (lecture seule ici) + champs
@@ -434,7 +435,7 @@ export default function ApprenantsDigitalUpSessionPage() {
                         <td className="px-3 py-2 text-center">{i.Territoire || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.QPV || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Niveau_Etudes || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{i.Téléphone || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{formatPhoneNumber(i.Téléphone)}</td>
                         <td className="px-2 py-2 border-l border-[#404040]/10 text-center">
                           <input type="checkbox" checked={i.E2C_CS || false} onChange={(e) => basculerChampBooleen(i.id, "E2C_CS", e.target.checked)} className={checkboxClass} />
                         </td>

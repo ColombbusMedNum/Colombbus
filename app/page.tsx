@@ -38,7 +38,6 @@ import {
   AcademicCapIcon,
   RocketLaunchIcon,
   LanguageIcon,
-  FolderOpenIcon,
   BriefcaseIcon,
   ChevronLeftIcon,
   Cog6ToothIcon,
@@ -121,16 +120,9 @@ const NAV_TREE: NavNode[] = [
         title: "DIGITAL UP 96H", subtitle: "Préinscriptions, apprenant·e·s et suivi DIGITAL UP 96H",
         actionId: "home_nav_duppro_tech",
         children: [
-          {
-            id: "duppro-formulaires", kind: "folder", accent: "orange", icon: FolderOpenIcon,
-            title: "Formulaires", subtitle: "Inscription, test de langue et diagnostic Collecte Tech",
-            actionId: "home_nav_duppro_formulaires",
-            children: [
-              { id: "duppro-inscription", kind: "leaf", accent: "orange", icon: DocumentPlusIcon, title: "Formulaire d'inscription DIGITAL UP 96H", subtitle: "Inscription au programme DIGITAL UP 96H", actionId: "home_nav_duppro_inscription", href: "/mediation/actions-collectives/inscription/digital-up-pro" },
-              { id: "duppro-test-langue", kind: "leaf", accent: "teal", icon: LanguageIcon, title: "Test de langue DIGITAL UP 96H", subtitle: "Test B1 auto-corrigé, lien public et résultats", actionId: "home_nav_duppro_test_langue", href: "/mediation/actions-collectives/reponses/digital-up-pro/test-langue" },
-              { id: "duppro-collecte-tech", kind: "leaf", accent: "teal", icon: WrenchScrewdriverIcon, title: "Diagnostic Collecte Tech DIGITAL UP 96H", subtitle: "Diagnostic public auto-corrigé, lien public et résultats", actionId: "home_nav_duppro_collecte_tech", href: "/mediation/actions-collectives/reponses/digital-up-pro/collecte-tech" },
-            ],
-          },
+          { id: "duppro-inscription", kind: "leaf", accent: "orange", icon: DocumentPlusIcon, title: "Formulaire d'inscription DIGITAL UP 96H", subtitle: "Inscription au programme DIGITAL UP 96H", actionId: "home_nav_duppro_inscription", href: "/mediation/actions-collectives/inscription/digital-up-pro" },
+          { id: "duppro-test-langue", kind: "leaf", accent: "teal", icon: LanguageIcon, title: "Test de langue DIGITAL UP 96H", subtitle: "Test B1 auto-corrigé, lien public et résultats", actionId: "home_nav_duppro_test_langue", href: "/mediation/actions-collectives/reponses/digital-up-pro/test-langue" },
+          { id: "duppro-collecte-tech", kind: "leaf", accent: "teal", icon: WrenchScrewdriverIcon, title: "Diagnostic Collecte Tech DIGITAL UP 96H", subtitle: "Diagnostic public auto-corrigé, lien public et résultats", actionId: "home_nav_duppro_collecte_tech", href: "/mediation/actions-collectives/reponses/digital-up-pro/collecte-tech" },
           { id: "duppro-reponses", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Réponses au formulaire DIGITAL UP 96H", subtitle: "Préinscriptions reçues au programme DIGITAL UP 96H", actionId: "home_nav_duppro_reponses", href: "/mediation/actions-collectives/reponses/digital-up-pro" },
           { id: "duppro-suivi", kind: "leaf", accent: "teal", icon: UsersIcon, title: "Suivi de recrutement", subtitle: "Apprenant·e·s retenu·e·s, session par session", actionId: "home_nav_duppro_suivi", href: "/mediation/actions-collectives/reponses/digital-up-pro/suivi-recrutement" },
           { id: "duppro-apprenants", kind: "leaf", accent: "teal", icon: UserGroupIcon, title: "Apprenant·e·s", subtitle: "Suivi pédagogique et administratif, session par session", actionId: "home_nav_duppro_apprenants", href: "/mediation/actions-collectives/reponses/digital-up-pro/apprenants" },
@@ -172,6 +164,7 @@ const NAV_TREE: NavNode[] = [
         actionId: "home_nav_nkpro_tech",
         children: [
           { id: "nkpro-inscription", kind: "leaf", accent: "orange", icon: DocumentPlusIcon, title: "Formulaire d'inscription NUMERIK PRO", subtitle: "Inscription au programme NUMERIK PRO", actionId: "home_nav_nkpro_inscription", href: "/mediation/actions-collectives/inscription/numerik-up-pro" },
+          { id: "nkpro-test-langue", kind: "leaf", accent: "teal", icon: LanguageIcon, title: "Test de langue NUMERIK PRO", subtitle: "Test B1 auto-corrigé, lien public et résultats", actionId: "home_nav_nkpro_test_langue", href: "/mediation/actions-collectives/reponses/numerik-up-pro/test-langue" },
           { id: "nkpro-reponses", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Réponses au formulaire NUMERIK PRO", subtitle: "Préinscriptions reçues au programme NUMERIK PRO", actionId: "home_nav_nkpro_reponses", href: "/mediation/actions-collectives/reponses/numerik-up-pro" },
           { id: "nkpro-suivi", kind: "leaf", accent: "teal", icon: UsersIcon, title: "Suivi de recrutement", subtitle: "Apprenant·e·s retenu·e·s, session par session", actionId: "home_nav_nkpro_suivi", href: "/mediation/actions-collectives/reponses/numerik-up-pro/suivi-recrutement" },
           { id: "nkpro-apprenants", kind: "leaf", accent: "teal", icon: UserGroupIcon, title: "Apprenant·e·s", subtitle: "Suivi pédagogique et administratif, session par session", actionId: "home_nav_nkpro_apprenants", href: "/mediation/actions-collectives/reponses/numerik-up-pro/apprenants" },
