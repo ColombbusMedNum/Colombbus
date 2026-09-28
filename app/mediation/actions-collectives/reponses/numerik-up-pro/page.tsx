@@ -764,9 +764,23 @@ export default function ReponsesNumerikUpProPage() {
                         </td>
                         <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{index + 1}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Civilité || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{i.Prénom || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">
+                          {i.Session ? (
+                            <Link href={`/mediation/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(i.Session)}/apprenants/${i.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
+                              {i.Prénom || "—"}
+                            </Link>
+                          ) : (
+                            i.Prénom || "—"
+                          )}
+                        </td>
                         <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">
-                          {i.Nom || "—"}
+                          {i.Session ? (
+                            <Link href={`/mediation/actions-collectives/reponses/numerik-up-pro/${encodeURIComponent(i.Session)}/apprenants/${i.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
+                              {i.Nom || "—"}
+                            </Link>
+                          ) : (
+                            i.Nom || "—"
+                          )}
                           {infosDoublons.has(i.id) && (
                             <span
                               title="Fait partie d'un groupe de doublons probable (même email, ou même nom+prénom+téléphone)"

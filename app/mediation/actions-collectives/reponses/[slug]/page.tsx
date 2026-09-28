@@ -422,9 +422,23 @@ export default function ReponsesActionDynamiquePage() {
                     </td>
                     <td className="px-3 py-2 text-center text-[#404040]/50 font-bold">{index + 1}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{i.Civilité || "—"}</td>
-                    <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">{i.Prénom || "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259]">
+                      {i.Session ? (
+                        <Link href={`/mediation/actions-collectives/reponses/${slug}/${encodeURIComponent(i.Session)}/apprenants/${i.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
+                          {i.Prénom || "—"}
+                        </Link>
+                      ) : (
+                        i.Prénom || "—"
+                      )}
+                    </td>
                     <td className="px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase">
-                      {i.Nom || "—"}
+                      {i.Session ? (
+                        <Link href={`/mediation/actions-collectives/reponses/${slug}/${encodeURIComponent(i.Session)}/apprenants/${i.id}`} className="hover:text-[#EA601F] hover:underline transition-colors">
+                          {i.Nom || "—"}
+                        </Link>
+                      ) : (
+                        i.Nom || "—"
+                      )}
                       {infosDoublons.has(i.id!) && <span title="Fait partie d'un groupe de doublons probable" className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded bg-[#EA601F]/15 text-[#EA601F] text-[9px] font-bold normal-case align-middle">×{infosDoublons.get(i.id!)?.taille}</span>}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">{formatPhoneNumber(i.Téléphone)}</td>
