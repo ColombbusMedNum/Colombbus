@@ -1361,7 +1361,14 @@ export default function PlanningSuresnes() {
                         </div>
                         
                         <div className="space-y-2">
-                          {sessionEntries.map(c => {
+                          {sessionEntries
+                            .slice()
+                            .sort((a, b) => {
+                              const aAbsent = statutsVisitesRealtime[`${a.id}_${a.date}`] === "Absent" ? 1 : 0;
+                              const bAbsent = statutsVisitesRealtime[`${b.id}_${b.date}`] === "Absent" ? 1 : 0;
+                              return aAbsent - bAbsent;
+                            })
+                            .map(c => {
                             const nomNettoye = (c.mediateurNom || "").replace(" (RND)", "").replace(" (RN91)", "").replace(" (RN)", "").trim().toLowerCase();
                             // Un créneau historique sans médiateur assigné (ancien ajout
                             // manuel) n'a volontairement aucun médiateur — à distinguer d'un
@@ -1389,7 +1396,7 @@ export default function PlanningSuresnes() {
                             const trendBesoinDiagnostic = bTrouve && thématiqueMatériel && !aDejaFaitCetteThematique;
 
                             return (
-                              <div key={c.id} className={`rounded-xl border p-3 transition-all ${isOrphan ? 'bg-[#EF736A]/10 border-[#EF736A]/30' : estDomicile ? 'bg-[#F9C44E]/[0.12] border-[#F9C44E]/40 hover:border-[#F9C44E]' : isRND ? 'bg-[#EA601F]/5 border-[#EA601F]/20 hover:border-[#EA601F]/40' : 'bg-[#F3F3F2]/50 border-[#404040]/10 hover:border-[#005259]/30 hover:bg-[#F3F3F2]'}`}>
+                              <div key={c.id} className={`rounded-xl border p-3 transition-all ${currentStatutFiche === 'Absent' ? 'bg-[#EF736A]/15 border-[#EF736A]/50 hover:border-[#EF736A]' : isOrphan ? 'bg-[#EF736A]/10 border-[#EF736A]/30' : estDomicile ? 'bg-[#F9C44E]/[0.12] border-[#F9C44E]/40 hover:border-[#F9C44E]' : isRND ? 'bg-[#EA601F]/5 border-[#EA601F]/20 hover:border-[#EA601F]/40' : 'bg-[#F3F3F2]/50 border-[#404040]/10 hover:border-[#005259]/30 hover:bg-[#F3F3F2]'}`}>
                               <div className="grid grid-cols-1 xl:grid-cols-12 items-center gap-4">
 
                                 <div className="xl:col-span-3 flex items-center gap-3 min-w-0">
