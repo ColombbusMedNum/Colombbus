@@ -35,6 +35,13 @@ export default function ResultatsPixFicheNkup({ historique }: { historique?: Pix
   const dernier = trie[trie.length - 1] || null;
   const nbBadgesObtenus = dernier ? BADGES_NKUP.filter((b) => dernier.badges[b]).length : 0;
 
+  // Certaines campagnes (ex. "Entrée en parcours") n'ont ni palier ni badges
+  // dans leur export — on masque ces blocs plutôt que d'afficher des "—"
+  // partout, au lieu de supposer qu'ils s'appliquent toujours.
+  const palierApplicable = trie.some((r) => r.palier !== null);
+  const badgesApplicable = trie.some((r) => BADGES_NKUP.some((b) => r.badges[b] !== null && r.badges[b] !== undefined));
+  const nbTuiles = 1 + (palierApplicable ? 1 : 0) + (badgesApplicable ? 1 : 0);
+
   const avecMaitrise = trie.filter((r): r is typeof trie[number] & { maitriseGlobale: number } => r.maitriseGlobale !== null);
   const xPourIndex = (i: number) => GRAPHE_PAD_X + (avecMaitrise.length <= 1 ? 0 : (i / (avecMaitrise.length - 1)) * (GRAPHE_LARGEUR - GRAPHE_PAD_X * 2));
   const yPourValeur = (v: number) => GRAPHE_HAUTEUR - GRAPHE_PAD_Y - (v / 100) * (GRAPHE_HAUTEUR - GRAPHE_PAD_Y * 2);
@@ -56,19 +63,23 @@ export default function ResultatsPixFicheNkup({ historique }: { historique?: Pix
         <p className="text-xs text-[#404040]/50 font-medium">Aucun résultat Pix importé pour le moment.</p>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-[#F3F3F2] rounded-xl p-3 text-center">
-              <div className="text-xl font-black text-[#005259]">{dernier.palier !== null ? `${dernier.palier}/3` : "—"}</div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mt-0.5">Palier</div>
-            </div>
+          <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${nbTuiles}, minmax(0, 1fr))` }}>
+            {palierApplicable && (
+              <div className="bg-[#F3F3F2] rounded-xl p-3 text-center">
+                <div className="text-xl font-black text-[#005259]">{dernier.palier !== null ? `${dernier.palier}/3` : "—"}</div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mt-0.5">Palier</div>
+              </div>
+            )}
             <div className="bg-[#F3F3F2] rounded-xl p-3 text-center">
               <div className="text-xl font-black text-[#005259]">{formaterPct(dernier.maitriseGlobale)}</div>
               <div className="text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mt-0.5">Maîtrise globale</div>
             </div>
-            <div className="bg-[#F3F3F2] rounded-xl p-3 text-center">
-              <div className="text-xl font-black text-[#005259]">{dernier.partage ? `${nbBadgesObtenus}/${BADGES_NKUP.length}` : "—"}</div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mt-0.5">Badges obtenus</div>
-            </div>
+            {badgesApplicable && (
+              <div className="bg-[#F3F3F2] rounded-xl p-3 text-center">
+                <div className="text-xl font-black text-[#005259]">{dernier.partage ? `${nbBadgesObtenus}/${BADGES_NKUP.length}` : "—"}</div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#404040]/50 mt-0.5">Badges obtenus</div>
+              </div>
+            )}
           </div>
 
           <p className="text-[10px] text-[#404040]/50 font-medium">
@@ -86,7 +97,7 @@ export default function ResultatsPixFicheNkup({ historique }: { historique?: Pix
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#404040]/5">
-                {BADGES_NKUP.map((b) => (
+                {badgesApplicable && BADGES_NKUP.map((b) => (
                   <tr key={b}>
                     <td className="px-2 py-1.5 text-[#404040]">{b}</td>
                     {trie.map((r) => {

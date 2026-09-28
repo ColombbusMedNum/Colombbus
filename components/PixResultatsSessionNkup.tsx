@@ -189,6 +189,13 @@ export default function PixResultatsSessionNkup({ collectionInscriptions, basePa
     }
   };
 
+  // Certaines campagnes (ex. "Entrée en parcours") n'ont ni palier ni badges
+  // dans leur export — on masque ces colonnes pour toute la session plutôt
+  // que d'afficher des "—" partout, dès qu'aucun résultat importé n'en a.
+  const palierApplicable = apprenantsSession.some((a) => (a.PixResultatsNkup || []).some((r) => r.palier !== null));
+  const badgesApplicable = apprenantsSession.some((a) => (a.PixResultatsNkup || []).some((r) => BADGES_NKUP.some((b) => r.badges[b] !== null && r.badges[b] !== undefined)));
+  const colSpanDetail = 8 - (palierApplicable ? 0 : 1) - (badgesApplicable ? 0 : 1);
+
   const toggleDetail = (id: string) => {
     setOuverts((prev) => {
       const suivant = new Set(prev);
@@ -343,9 +350,9 @@ export default function PixResultatsSessionNkup({ collectionInscriptions, basePa
                       <th className="px-3 py-3">Nom</th>
                       <th className="px-3 py-3 text-center">Dernier import</th>
                       <th className="px-3 py-3 text-center">Progression</th>
-                      <th className="px-3 py-3 text-center">Palier</th>
+                      {palierApplicable && <th className="px-3 py-3 text-center">Palier</th>}
                       <th className="px-3 py-3 text-center">Maîtrise globale</th>
-                      <th className="px-3 py-3 text-center">Badges</th>
+                      {badgesApplicable && <th className="px-3 py-3 text-center">Badges</th>}
                       <th className="px-3 py-3 text-center">Détail</th>
                     </tr>
                   </thead>
@@ -373,17 +380,21 @@ export default function PixResultatsSessionNkup({ collectionInscriptions, basePa
                             </td>
                             <td className="px-3 py-2.5 text-center">{dernier ? formaterDateFr(dernier.date) : "—"}</td>
                             <td className="px-3 py-2.5 text-center font-bold">{dernier ? formaterPct(dernier.progression) : "—"}</td>
-                            <td className="px-3 py-2.5 text-center">
-                              {dernier && dernier.palier !== null ? (
-                                <span className="inline-block px-2 py-0.5 rounded-lg bg-[#005259]/10 text-[#005259] border border-[#005259]/20 text-[10px] font-bold">
-                                  {dernier.palier}/3
-                                </span>
-                              ) : (
-                                "—"
-                              )}
-                            </td>
+                            {palierApplicable && (
+                              <td className="px-3 py-2.5 text-center">
+                                {dernier && dernier.palier !== null ? (
+                                  <span className="inline-block px-2 py-0.5 rounded-lg bg-[#005259]/10 text-[#005259] border border-[#005259]/20 text-[10px] font-bold">
+                                    {dernier.palier}/3
+                                  </span>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                            )}
                             <td className="px-3 py-2.5 text-center font-bold">{dernier ? formaterPct(dernier.maitriseGlobale) : "—"}</td>
-                            <td className="px-3 py-2.5 text-center">{dernier && dernier.partage ? `${nbBadgesObtenus}/${BADGES_NKUP.length}` : "—"}</td>
+                            {badgesApplicable && (
+                              <td className="px-3 py-2.5 text-center">{dernier && dernier.partage ? `${nbBadgesObtenus}/${BADGES_NKUP.length}` : "—"}</td>
+                            )}
                             <td className="px-3 py-2.5 text-center">
                               {historique.length > 0 && (
                                 <button type="button" onClick={() => toggleDetail(a.id)} className="p-1 hover:bg-[#F3F3F2] rounded-lg cursor-pointer">
@@ -394,7 +405,7 @@ export default function PixResultatsSessionNkup({ collectionInscriptions, basePa
                           </tr>
                           {estOuvert && historique.length > 0 && (
                             <tr>
-                              <td colSpan={8} className="bg-[#F3F3F2]/60 px-4 py-4">
+                              <td colSpan={colSpanDetail} className="bg-[#F3F3F2]/60 px-4 py-4">
                                 <div className="overflow-x-auto">
                                   <table className="border-collapse text-[11px] w-full">
                                     <thead>
@@ -412,19 +423,21 @@ export default function PixResultatsSessionNkup({ collectionInscriptions, basePa
                                           <td key={r.date} className="px-2 py-1.5 text-center border-l border-[#404040]/10">{formaterPct(r.progression)}</td>
                                         ))}
                                       </tr>
-                                      <tr className="font-bold text-[#005259]">
-                                        <td className="px-2 py-1.5">Palier</td>
-                                        {historique.map((r) => (
-                                          <td key={r.date} className="px-2 py-1.5 text-center border-l border-[#404040]/10">{r.palier !== null ? `${r.palier}/3` : "—"}</td>
-                                        ))}
-                                      </tr>
+                                      {palierApplicable && (
+                                        <tr className="font-bold text-[#005259]">
+                                          <td className="px-2 py-1.5">Palier</td>
+                                          {historique.map((r) => (
+                                            <td key={r.date} className="px-2 py-1.5 text-center border-l border-[#404040]/10">{r.palier !== null ? `${r.palier}/3` : "—"}</td>
+                                          ))}
+                                        </tr>
+                                      )}
                                       <tr className="font-bold text-[#EA601F]">
                                         <td className="px-2 py-1.5">Maîtrise globale</td>
                                         {historique.map((r) => (
                                           <td key={r.date} className="px-2 py-1.5 text-center border-l border-[#404040]/10">{formaterPct(r.maitriseGlobale)}</td>
                                         ))}
                                       </tr>
-                                      {BADGES_NKUP.map((b) => (
+                                      {badgesApplicable && BADGES_NKUP.map((b) => (
                                         <tr key={b}>
                                           <td className="px-2 py-1.5 text-[#404040]">{b}</td>
                                           {historique.map((r) => {
