@@ -80,7 +80,7 @@ const NAV_TREE: NavNode[] = [
   },
   {
     id: "inclusion-numerique", kind: "folder", accent: "teal", icon: GlobeAltIcon,
-    title: "Inclusion Numérique", subtitle: "Rencontres numériques et programme Digital'UP",
+    title: "Inclusion Numérique", subtitle: "Rencontres numériques, Digital'UP et Digital'UP 96H",
     actionId: "home_folder_inclusion_numerique",
     children: [
       {
