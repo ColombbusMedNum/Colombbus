@@ -16,11 +16,11 @@ import {
   where, 
   onSnapshot 
 } from "firebase/firestore";
-import { 
-  PrinterIcon, 
-  DocumentCheckIcon, 
-  UserIcon, 
-  MapPinIcon, 
+import {
+  PrinterIcon,
+  DocumentCheckIcon,
+  UserIcon,
+  MapPinIcon,
   CalendarIcon,
   AcademicCapIcon,
   ClipboardDocumentCheckIcon,
@@ -34,11 +34,15 @@ import {
   XMarkIcon,
   FolderOpenIcon,
   HomeIcon,
-  ArrowLeftIcon
+  ArrowLeftIcon,
+  ArrowUpTrayIcon,
+  DocumentArrowUpIcon
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { useToast } from "@/components/ToastProvider";
 import { useConfirm } from "@/components/ConfirmProvider";
+import { normaliser } from "@/lib/pixImport";
+import { parserCsvPixNkup, trouverApprenantParNomPrenom, LignePixNkupCsv } from "@/lib/pixImportNkup";
 
 interface CompetencePix {
   id: string;
@@ -74,6 +78,17 @@ const DEFAULT_COMPETENCES: CompetencePix[] = [
   { id: "10", label: "Résoudre des problèmes techniques", score: 0, categorie: "Environnement numérique" },
   { id: "11", label: "Construire un environnement numérique", score: 0, categorie: "Environnement numérique" },
 ];
+
+// Retrouve le % de maîtrise d'une compétence DEFAULT_COMPETENCES dans le
+// détail par compétence d'une ligne Pix importée (lib/pixImportNkup.ts) —
+// comparaison normalisée (accents/apostrophes/casse ignorés) car les deux
+// listes n'utilisent pas la même apostrophe typographique pour le même
+// libellé ("d'information" ici vs "d’information" côté import Pix).
+function pctPourCompetence(competences: LignePixNkupCsv["resultat"]["competences"], label: string): number | null {
+  const cible = normaliser(label);
+  const trouvee = Object.entries(competences).find(([nom]) => normaliser(nom) === cible);
+  return trouvee ? trouvee[1].pct : null;
+}
 
 function RapportDiagnosticPixContent() {
   const { showToast } = useToast();
@@ -117,6 +132,14 @@ function RapportDiagnosticPixContent() {
   });
 
   const [competences, setCompetences] = useState<CompetencePix[]>(DEFAULT_COMPETENCES);
+
+  // IMPORT CSV PIX — remplit directement les barres ABC PIX ci-dessous
+  // plutôt que de les ressaisir à la main (voir lib/pixImportNkup.ts, même
+  // format que le diagnostic de préinscription NKUP/Collecte Tech).
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [texteColleImport, setTexteColleImport] = useState("");
+  const [lignesImportees, setLignesImportees] = useState<LignePixNkupCsv[]>([]);
+  const [ligneChoisieIndex, setLigneChoisieIndex] = useState<number | null>(null);
 
   // Auto-ajustement de la hauteur du texte
   useEffect(() => {
@@ -381,6 +404,50 @@ function RapportDiagnosticPixContent() {
     );
   };
 
+  // Choisit automatiquement, parmi les lignes du CSV importé, celle dont le
+  // nom/prénom correspond au bénéficiaire actuellement sélectionné — un même
+  // export Pix couvre souvent tout un groupe, une seule ligne concerne cette
+  // fiche.
+  const selectionnerMeilleureLigneImport = (lignes: LignePixNkupCsv[]) => {
+    if (lignes.length === 0) { setLigneChoisieIndex(null); return; }
+    const trouvee = trouverApprenantParNomPrenom(
+      { nom: formData.nom, prenom: formData.prenom },
+      lignes.map((l, i) => ({ id: String(i), Nom: l.nom, Prénom: l.prenom }))
+    );
+    setLigneChoisieIndex(trouvee ? Number(trouvee.id) : null);
+  };
+
+  const analyserTexteImport = (texte: string) => {
+    const { lignes } = parserCsvPixNkup(texte);
+    setLignesImportees(lignes);
+    selectionnerMeilleureLigneImport(lignes);
+  };
+
+  const surChoixFichierImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fichier = e.target.files?.[0];
+    if (!fichier) return;
+    analyserTexteImport(await fichier.text());
+    e.target.value = "";
+  };
+
+  const appliquerImportPix = () => {
+    if (ligneChoisieIndex === null) return;
+    const ligne = lignesImportees[ligneChoisieIndex];
+    if (!ligne) return;
+    setCompetences(prev =>
+      prev.map(c => {
+        const pct = pctPourCompetence(ligne.resultat.competences, c.label);
+        return pct === null ? c : { ...c, score: Math.round(pct * 100) };
+      })
+    );
+    setFormData(prev => ({ ...prev, dateAbcPix: ligne.resultat.date || prev.dateAbcPix }));
+    setShowImportModal(false);
+    setLignesImportees([]);
+    setTexteColleImport("");
+    setLigneChoisieIndex(null);
+    showToast("Résultats Pix appliqués aux compétences ABC PIX.", "success");
+  };
+
   // Le titre du document est repris par le navigateur comme nom de fichier
   // suggéré par défaut lors d'un "Imprimer > Enregistrer en PDF" — on le
   // change juste le temps de l'impression puis on le restaure (sinon l'onglet
@@ -461,6 +528,17 @@ function RapportDiagnosticPixContent() {
             >
               <ClockIcon className="w-4 h-4 text-[#EA601F]" />
               <span>Historique ({historiqueFiches.length})</span>
+            </button>
+          )}
+
+          {/* BOUTON IMPORT PIX (CSV) */}
+          {selectedBeneficiaireId && (
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="flex items-center gap-2 bg-[#F3F3F2] hover:bg-[#005259] hover:text-white border border-[#404040]/15 text-[#005259] px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer"
+            >
+              <ArrowUpTrayIcon className="w-4 h-4 text-[#EA601F]" />
+              <span>Importer Pix (CSV)</span>
             </button>
           )}
 
@@ -587,6 +665,89 @@ function RapportDiagnosticPixContent() {
                 className="bg-[#F3F3F2] hover:bg-[#005259] hover:text-white text-[#005259] text-xs font-bold px-4 py-2 rounded-xl transition-colors border border-[#404040]/10"
               >
                 Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODALE D'IMPORT PIX (CSV) */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-['Quicksand']">
+          <div className="bg-white border border-[#404040]/15 rounded-3xl p-6 max-w-lg w-full shadow-2xl relative space-y-4 text-[#404040]">
+            <div className="flex items-center justify-between border-b border-[#404040]/10 pb-3">
+              <h3 className="text-sm font-bold uppercase text-[#005259] flex items-center gap-2">
+                <ArrowUpTrayIcon className="w-5 h-5 text-[#EA601F]" />
+                Importer un export CSV Pix
+              </h3>
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="text-[#404040]/50 hover:text-[#404040] p-1 rounded-lg"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-[11px] text-[#404040]/60">
+              Export "Résultats" du parcours diagnostic tel quel depuis pix.org (une ligne par participant·e — un même fichier peut couvrir
+              tout un groupe). Choisis ensuite la ligne qui correspond à <strong className="text-[#005259]">{formData.prenom} {formData.nom}</strong>.
+            </p>
+
+            <label className="flex items-center justify-center gap-2 border-2 border-dashed border-[#404040]/20 hover:border-[#EA601F] rounded-xl p-5 cursor-pointer transition-colors text-[#005259]">
+              <DocumentArrowUpIcon className="w-5 h-5" />
+              <span className="text-xs font-bold uppercase tracking-wider">Choisir un fichier .csv</span>
+              <input type="file" accept=".csv,text/csv" onChange={surChoixFichierImport} className="hidden" />
+            </label>
+
+            <div className="flex gap-2">
+              <textarea
+                value={texteColleImport}
+                onChange={(e) => setTexteColleImport(e.target.value)}
+                placeholder="Ou colle directement le contenu CSV ici..."
+                rows={3}
+                className="flex-1 px-3 py-2 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-xl text-xs text-[#404040] outline-none font-mono transition-colors"
+              />
+              <button
+                type="button"
+                onClick={() => { analyserTexteImport(texteColleImport); setTexteColleImport(""); }}
+                className="shrink-0 self-start px-3 py-2 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-xl transition-colors cursor-pointer"
+                title="Analyser le texte collé"
+              >
+                <ArrowUpTrayIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            {lignesImportees.length > 0 && (
+              <div className="space-y-2">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#404040]/60">
+                  Ligne à appliquer ({lignesImportees.length} trouvée{lignesImportees.length > 1 ? "s" : ""})
+                </label>
+                <select
+                  value={ligneChoisieIndex ?? ""}
+                  onChange={(e) => setLigneChoisieIndex(e.target.value === "" ? null : Number(e.target.value))}
+                  className="w-full bg-[#F3F3F2] border border-[#404040]/15 rounded-xl px-3 py-2 text-xs font-bold text-[#005259] outline-none focus:border-[#005259]"
+                >
+                  <option value="">— Choisir —</option>
+                  {lignesImportees.map((l, i) => (
+                    <option key={i} value={i}>{l.prenom} {l.nom} — {l.resultat.date}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="pt-2 flex justify-end gap-2">
+              <button
+                onClick={() => setShowImportModal(false)}
+                className="bg-[#F3F3F2] hover:bg-[#404040]/10 text-[#404040] text-xs font-bold px-4 py-2 rounded-xl transition-colors border border-[#404040]/10"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={appliquerImportPix}
+                disabled={ligneChoisieIndex === null}
+                className="bg-[#EA601F] hover:bg-[#EF736A] disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors cursor-pointer"
+              >
+                Appliquer aux compétences ABC PIX
               </button>
             </div>
           </div>
