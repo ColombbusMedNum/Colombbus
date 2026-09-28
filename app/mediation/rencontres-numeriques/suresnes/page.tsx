@@ -1523,7 +1523,8 @@ export default function PlanningSuresnes() {
                                       disabled={!c.usager}
                                       value={c.thematique || ""}
                                       onChange={(e) => handleThematiqueChange(c.id, e.target.value)}
-                                      className="w-full bg-transparent border-none p-0 text-xs font-bold text-[#404040] outline-none focus:ring-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                      title={c.thematique || ""}
+                                      className="w-full bg-transparent border-none p-0 text-xs font-bold text-[#404040] outline-none focus:ring-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed truncate"
                                     >
                                       <option value="" className="text-[#404040]/40">-- Thématique --</option>
                                       <option value="Ordinateur">💻 Ordinateur</option>
