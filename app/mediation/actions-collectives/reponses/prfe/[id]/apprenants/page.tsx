@@ -496,7 +496,7 @@ export default function ApprenantsPrfeSessionPage() {
                         </td>
                         <td className="px-3 py-2 max-w-[160px] truncate" title={conseiller}>{conseiller || "—"}</td>
                         <td className="px-3 py-2 max-w-[160px] truncate">{i.Conseiller_Email || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Telephone || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{formatPhoneNumber(i.Conseiller_Telephone)}</td>
                         <td className="px-2 py-2 border-l border-[#404040]/10 text-center">
                           <input type="checkbox" checked={i.Planning_Formation || false} onChange={(e) => basculerChampBooleen(i.id, "Planning_Formation", e.target.checked)} className={checkboxClass} />
                         </td>

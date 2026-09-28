@@ -807,7 +807,7 @@ export default function ReponsesNumerikUpProPage() {
                         <td className="px-3 py-2 text-center">{i.Consentement_Partage_Simulation ? "Oui" : "Non"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Prenom || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Nom || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{i.Conseiller_Telephone || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{formatPhoneNumber(i.Conseiller_Telephone)}</td>
                         <td className="px-3 py-2 max-w-[160px] truncate">{i.Conseiller_Email || "—"}</td>
                       </tr>
                     );
