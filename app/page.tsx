@@ -116,6 +116,29 @@ const NAV_TREE: NavNode[] = [
           { id: "digitalup-parametres", kind: "leaf", accent: "orange", icon: Cog6ToothIcon, title: "Paramètres Digital'UP", subtitle: "Gérer les parcours, territoires et sessions", actionId: "home_nav_digitalup_parametres", href: "/mediation/actions-collectives/inscription/digital-up/parametres" },
         ],
       },
+      {
+        id: "duppro-tech", kind: "folder", accent: "orange", icon: RocketLaunchIcon,
+        title: "DIGITAL UP 96H", subtitle: "Préinscriptions, apprenant·e·s et suivi DIGITAL UP 96H",
+        actionId: "home_nav_duppro_tech",
+        children: [
+          {
+            id: "duppro-formulaires", kind: "folder", accent: "orange", icon: FolderOpenIcon,
+            title: "Formulaires", subtitle: "Inscription, test de langue et diagnostic Collecte Tech",
+            actionId: "home_nav_duppro_formulaires",
+            children: [
+              { id: "duppro-inscription", kind: "leaf", accent: "orange", icon: DocumentPlusIcon, title: "Formulaire d'inscription DIGITAL UP 96H", subtitle: "Inscription au programme DIGITAL UP 96H", actionId: "home_nav_duppro_inscription", href: "/mediation/actions-collectives/inscription/digital-up-pro" },
+              { id: "duppro-test-langue", kind: "leaf", accent: "teal", icon: LanguageIcon, title: "Test de langue DIGITAL UP 96H", subtitle: "Test B1 auto-corrigé, lien public et résultats", actionId: "home_nav_duppro_test_langue", href: "/mediation/actions-collectives/reponses/digital-up-pro/test-langue" },
+              { id: "duppro-collecte-tech", kind: "leaf", accent: "teal", icon: WrenchScrewdriverIcon, title: "Diagnostic Collecte Tech DIGITAL UP 96H", subtitle: "Diagnostic public auto-corrigé, lien public et résultats", actionId: "home_nav_duppro_collecte_tech", href: "/mediation/actions-collectives/reponses/digital-up-pro/collecte-tech" },
+            ],
+          },
+          { id: "duppro-reponses", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Réponses au formulaire DIGITAL UP 96H", subtitle: "Préinscriptions reçues au programme DIGITAL UP 96H", actionId: "home_nav_duppro_reponses", href: "/mediation/actions-collectives/reponses/digital-up-pro" },
+          { id: "duppro-suivi", kind: "leaf", accent: "teal", icon: UsersIcon, title: "Suivi de recrutement", subtitle: "Apprenant·e·s retenu·e·s, session par session", actionId: "home_nav_duppro_suivi", href: "/mediation/actions-collectives/reponses/digital-up-pro/suivi-recrutement" },
+          { id: "duppro-apprenants", kind: "leaf", accent: "teal", icon: UserGroupIcon, title: "Apprenant·e·s", subtitle: "Suivi pédagogique et administratif, session par session", actionId: "home_nav_duppro_apprenants", href: "/mediation/actions-collectives/reponses/digital-up-pro/apprenants" },
+          { id: "duppro-suivi-administratif", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Suivi administratif", subtitle: "Constitution du dossier, pièce par pièce, session par session", actionId: "home_nav_duppro_suivi_administratif", href: "/mediation/actions-collectives/reponses/digital-up-pro/suivi-administratif" },
+          { id: "duppro-stats", kind: "leaf", accent: "orange", icon: ChartPieIcon, title: "Statistiques DIGITAL UP 96H", subtitle: "Sexe, âge, diplôme et taux de présence par session", actionId: "home_nav_duppro_stats", href: "/mediation/actions-collectives/reponses/digital-up-pro/statistiques" },
+          { id: "duppro-parametres", kind: "leaf", accent: "orange", icon: Cog6ToothIcon, title: "Paramètres DIGITAL UP 96H", subtitle: "Gérer les parcours, territoires et sessions", actionId: "home_nav_duppro_parametres", href: "/mediation/actions-collectives/inscription/digital-up-pro/parametres" },
+        ],
+      },
     ],
   },
   {
@@ -154,29 +177,6 @@ const NAV_TREE: NavNode[] = [
           { id: "nkpro-apprenants", kind: "leaf", accent: "teal", icon: UserGroupIcon, title: "Apprenant·e·s", subtitle: "Suivi pédagogique et administratif, session par session", actionId: "home_nav_nkpro_apprenants", href: "/mediation/actions-collectives/reponses/numerik-up-pro/apprenants" },
           { id: "nkpro-stats", kind: "leaf", accent: "orange", icon: ChartPieIcon, title: "Statistiques NUMERIK PRO", subtitle: "Sexe, âge, diplôme et taux de présence par session", actionId: "home_nav_nkpro_stats", href: "/mediation/actions-collectives/reponses/numerik-up-pro/statistiques" },
           { id: "nkpro-parametres", kind: "leaf", accent: "orange", icon: Cog6ToothIcon, title: "Paramètres NUMERIK PRO", subtitle: "Gérer les parcours, territoires et sessions", actionId: "home_nav_nkpro_parametres", href: "/mediation/actions-collectives/inscription/numerik-up-pro/parametres" },
-        ],
-      },
-      {
-        id: "duppro-tech", kind: "folder", accent: "orange", icon: RocketLaunchIcon,
-        title: "DIGITAL UP 96H", subtitle: "Préinscriptions, apprenant·e·s et suivi DIGITAL UP 96H",
-        actionId: "home_nav_duppro_tech",
-        children: [
-          {
-            id: "duppro-formulaires", kind: "folder", accent: "orange", icon: FolderOpenIcon,
-            title: "Formulaires", subtitle: "Inscription, test de langue et diagnostic Collecte Tech",
-            actionId: "home_nav_duppro_formulaires",
-            children: [
-              { id: "duppro-inscription", kind: "leaf", accent: "orange", icon: DocumentPlusIcon, title: "Formulaire d'inscription DIGITAL UP 96H", subtitle: "Inscription au programme DIGITAL UP 96H", actionId: "home_nav_duppro_inscription", href: "/mediation/actions-collectives/inscription/digital-up-pro" },
-              { id: "duppro-test-langue", kind: "leaf", accent: "teal", icon: LanguageIcon, title: "Test de langue DIGITAL UP 96H", subtitle: "Test B1 auto-corrigé, lien public et résultats", actionId: "home_nav_duppro_test_langue", href: "/mediation/actions-collectives/reponses/digital-up-pro/test-langue" },
-              { id: "duppro-collecte-tech", kind: "leaf", accent: "teal", icon: WrenchScrewdriverIcon, title: "Diagnostic Collecte Tech DIGITAL UP 96H", subtitle: "Diagnostic public auto-corrigé, lien public et résultats", actionId: "home_nav_duppro_collecte_tech", href: "/mediation/actions-collectives/reponses/digital-up-pro/collecte-tech" },
-            ],
-          },
-          { id: "duppro-reponses", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Réponses au formulaire DIGITAL UP 96H", subtitle: "Préinscriptions reçues au programme DIGITAL UP 96H", actionId: "home_nav_duppro_reponses", href: "/mediation/actions-collectives/reponses/digital-up-pro" },
-          { id: "duppro-suivi", kind: "leaf", accent: "teal", icon: UsersIcon, title: "Suivi de recrutement", subtitle: "Apprenant·e·s retenu·e·s, session par session", actionId: "home_nav_duppro_suivi", href: "/mediation/actions-collectives/reponses/digital-up-pro/suivi-recrutement" },
-          { id: "duppro-apprenants", kind: "leaf", accent: "teal", icon: UserGroupIcon, title: "Apprenant·e·s", subtitle: "Suivi pédagogique et administratif, session par session", actionId: "home_nav_duppro_apprenants", href: "/mediation/actions-collectives/reponses/digital-up-pro/apprenants" },
-          { id: "duppro-suivi-administratif", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Suivi administratif", subtitle: "Constitution du dossier, pièce par pièce, session par session", actionId: "home_nav_duppro_suivi_administratif", href: "/mediation/actions-collectives/reponses/digital-up-pro/suivi-administratif" },
-          { id: "duppro-stats", kind: "leaf", accent: "orange", icon: ChartPieIcon, title: "Statistiques DIGITAL UP 96H", subtitle: "Sexe, âge, diplôme et taux de présence par session", actionId: "home_nav_duppro_stats", href: "/mediation/actions-collectives/reponses/digital-up-pro/statistiques" },
-          { id: "duppro-parametres", kind: "leaf", accent: "orange", icon: Cog6ToothIcon, title: "Paramètres DIGITAL UP 96H", subtitle: "Gérer les parcours, territoires et sessions", actionId: "home_nav_duppro_parametres", href: "/mediation/actions-collectives/inscription/digital-up-pro/parametres" },
         ],
       },
       {
