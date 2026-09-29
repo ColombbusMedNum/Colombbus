@@ -295,6 +295,26 @@ export default function ReponsesNumerikUpProPage() {
     return map;
   }, [groupesDoublons]);
 
+  // Masque par défaut (hors onglet "Doublons") toutes les fiches d'un groupe
+  // sauf une, pour ne pas polluer les autres onglets avec des resoumissions
+  // multiples du même formulaire — mais UNIQUEMENT quand le groupe ne couvre
+  // qu'une seule session (ou aucune) : s'il couvre plusieurs sessions
+  // distinctes, chaque fiche peut représenter une inscription légitime à une
+  // session différente pour la même personne, donc rien n'est masqué (tout
+  // reste visible, en plus de rester consultable via l'onglet "Doublons").
+  const idsMasquesParDefaut = useMemo(() => {
+    const masques = new Set<string>();
+    groupesDoublons.forEach((liste) => {
+      if (liste.length <= 1) return;
+      const sessionsDistinctes = new Set(liste.map((i) => i.Session || "").filter(Boolean));
+      if (sessionsDistinctes.size > 1) return;
+      // Déjà triées par createdAt desc (ordre de chargement) — on garde la
+      // plus récente et masque le reste.
+      liste.slice(1).forEach((i) => masques.add(i.id));
+    });
+    return masques;
+  }, [groupesDoublons]);
+
   const sexeDeCivilite = (civilite?: string) => (civilite === "Mme" ? "Femme" : civilite === "M." ? "Homme" : "—");
 
   // Valeur affichée pour une colonne donnée — sert à la fois au filtre et,
@@ -350,6 +370,7 @@ export default function ReponsesNumerikUpProPage() {
       if (onglet === "preinscrits" && i.Suivi_Recrutement) return false;
       if (onglet === "affectes" && !i.Suivi_Recrutement) return false;
       if (onglet === "doublons" && !infosDoublons.has(i.id)) return false;
+      if (onglet !== "doublons" && idsMasquesParDefaut.has(i.id)) return false;
       if (territoireFiltre === TERRITOIRE_NON_AFFECTE && i.Territoire) return false;
       else if (territoireFiltre && territoireFiltre !== TERRITOIRE_NON_AFFECTE && i.Territoire !== territoireFiltre) return false;
       if (terme && !`${i.Prénom || ""} ${i.Nom || ""}`.toLowerCase().includes(terme)) return false;
@@ -365,7 +386,7 @@ export default function ReponsesNumerikUpProPage() {
       return [...resultat].sort((a, b) => (infosDoublons.get(a.id)?.cle || "").localeCompare(infosDoublons.get(b.id)?.cle || ""));
     }
     return resultat;
-  }, [inscriptions, recherche, onglet, territoireFiltre, infosDoublons, tri]);
+  }, [inscriptions, recherche, onglet, territoireFiltre, infosDoublons, idsMasquesParDefaut, tri]);
 
   // Sessions définies sur la page de paramètres — sert uniquement à pointer
   // le bouton "Suivi recrutement" vers une première session valide (le choix
@@ -585,6 +606,12 @@ export default function ReponsesNumerikUpProPage() {
             </button>
           )}
         </div>
+
+        {onglet !== "doublons" && idsMasquesParDefaut.size > 0 && (
+          <p className="text-[11px] text-[#404040]/50 font-medium -mt-1">
+            {idsMasquesParDefaut.size} doublon(s) masqué(s) par défaut (même session ou aucune) — voir l'onglet "Doublons" pour les retrouver.
+          </p>
+        )}
 
         {/* RECHERCHE & FILTRE TERRITOIRE */}
         <div className="flex flex-col sm:flex-row gap-3">

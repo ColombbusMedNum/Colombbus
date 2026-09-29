@@ -135,6 +135,20 @@ export default function ReponsesActionDynamiquePage() {
     return map;
   }, [groupesDoublons]);
 
+  // Par défaut, on masque tous les doublons sauf le plus récent, sauf si les
+  // fiches en doublon couvrent plusieurs sessions différentes (dans ce cas on
+  // ne peut pas savoir laquelle garder automatiquement).
+  const idsMasquesParDefaut = useMemo(() => {
+    const masques = new Set<string>();
+    groupesDoublons.forEach((liste) => {
+      if (liste.length <= 1) return;
+      const sessionsDistinctes = new Set(liste.map((i) => i.Session || "").filter(Boolean));
+      if (sessionsDistinctes.size > 1) return;
+      liste.slice(1).forEach((i) => masques.add(i.id!));
+    });
+    return masques;
+  }, [groupesDoublons]);
+
   const sexeDeCivilite = (civilite?: string) => (civilite === "Mme" ? "Femme" : civilite === "M." ? "Homme" : "—");
 
   const questionsTriees = useMemo(() => (schema ? [...schema.questions].sort((a, b) => a.etape - b.etape) : []), [schema]);
@@ -183,6 +197,7 @@ export default function ReponsesActionDynamiquePage() {
       if (onglet === "preinscrits" && i.Suivi_Recrutement) return false;
       if (onglet === "affectes" && !i.Suivi_Recrutement) return false;
       if (onglet === "doublons" && !infosDoublons.has(i.id!)) return false;
+      if (onglet !== "doublons" && idsMasquesParDefaut.has(i.id!)) return false;
       if (territoireFiltre === TERRITOIRE_NON_AFFECTE && i.Territoire) return false;
       else if (territoireFiltre && territoireFiltre !== TERRITOIRE_NON_AFFECTE && i.Territoire !== territoireFiltre) return false;
       if (terme && !`${i.Prénom || ""} ${i.Nom || ""}`.toLowerCase().includes(terme)) return false;
@@ -194,7 +209,7 @@ export default function ReponsesActionDynamiquePage() {
     }
     if (onglet === "doublons") return [...resultat].sort((a, b) => (infosDoublons.get(a.id!)?.cle || "").localeCompare(infosDoublons.get(b.id!)?.cle || ""));
     return resultat;
-  }, [inscriptions, recherche, onglet, territoireFiltre, infosDoublons, tri]);
+  }, [inscriptions, recherche, onglet, territoireFiltre, infosDoublons, idsMasquesParDefaut, tri]);
 
   const sessionsDistinctes = useMemo(() => (config ? Array.from(new Set(Object.values(config.sessions).flatMap((p) => Object.values(p).flat()))).sort((a, b) => a.localeCompare(b, "fr")) : []), [config]);
 
@@ -336,6 +351,12 @@ export default function ReponsesActionDynamiquePage() {
             </button>
           )}
         </div>
+
+        {onglet !== "doublons" && idsMasquesParDefaut.size > 0 && (
+          <p className="text-[11px] text-[#404040]/50 font-medium -mt-1">
+            {idsMasquesParDefaut.size} doublon(s) masqué(s) par défaut (même session ou aucune) — voir l'onglet "Doublons" pour les retrouver.
+          </p>
+        )}
 
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative group max-w-md flex-1">
