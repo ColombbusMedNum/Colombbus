@@ -240,6 +240,7 @@ export interface Inscription {
   Diagnostic_ProblemesSpecifiques?: string;
   Diagnostic_ContraintesParticulieres?: string;
   Diagnostic_DateAttestation?: string;
+  DiagnosticReponsesCustom?: Record<string, string | boolean | string[]>;
 }
 
 interface EntreeJournal {

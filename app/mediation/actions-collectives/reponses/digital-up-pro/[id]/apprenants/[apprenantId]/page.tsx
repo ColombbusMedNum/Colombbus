@@ -243,6 +243,10 @@ export interface Inscription {
   Diagnostic_ProblemesSpecifiques?: string;
   Diagnostic_ContraintesParticulieres?: string;
   Diagnostic_DateAttestation?: string;
+  // Réponses des questions ajoutées depuis l'éditeur de la fiche diagnostic
+  // (voir lib/ficheDiagnostic.ts) — les questions du modèle par défaut
+  // continuent de lire/écrire leurs champs Diagnostic_* ci-dessus.
+  DiagnosticReponsesCustom?: Record<string, string | boolean | string[]>;
   // Fiche de diagnostic "Compétences numériques & équipement" (formulaire
   // papier séparé, plus court — voir FicheDiagnosticEquipement.tsx). Nom/
   // Prénom déjà présents plus haut sont réutilisés tels quels.

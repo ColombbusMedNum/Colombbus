@@ -7,7 +7,7 @@ import { PrinterIcon, ExclamationTriangleIcon, WrenchScrewdriverIcon, CheckCircl
 import type { Inscription } from "./page";
 import {
   ChampLigne, ZoneTexte, CocherChoixMultiple, SectionPDF, BoiteSignatureLocale, labelClass,
-} from "./FicheEntretienDiagnostic";
+} from "@/components/fichePapier/PrimitivesFiche";
 import { QUESTIONS_COLLECTE_TECH, SCORE_MAX_COLLECTE_TECH, profilCollecteTechDepuisScore } from "@/lib/collecteTechQuiz";
 
 // Reproduction éditable + imprimable de la "Fiche de diagnostic —

@@ -81,6 +81,9 @@ export interface ActionSchema {
   // (Firestore : positionnement/{slug}), câblé ici sur cette action via le
   // slug comme programmeId, même principe que sur PRFE.
   positionnementActif?: boolean;
+  // Questionnaire de satisfaction (voir lib/satisfaction.ts) — même principe
+  // que positionnementActif, Firestore satisfaction/{slug}.
+  satisfactionActif?: boolean;
   createdAt?: number;
   updatedAt?: number;
 }

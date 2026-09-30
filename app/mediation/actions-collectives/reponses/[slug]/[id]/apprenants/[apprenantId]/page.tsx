@@ -91,6 +91,7 @@ export interface Inscription extends InscriptionActionDynamique {
   Diagnostic_ProblemesSpecifiques?: string;
   Diagnostic_ContraintesParticulieres?: string;
   Diagnostic_DateAttestation?: string;
+  DiagnosticReponsesCustom?: Record<string, string | boolean | string[]>;
 }
 
 const HEURES_PAR_JOUR = 3;

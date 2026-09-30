@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase";
 import { addDoc, deleteDoc, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
-import { HomeIcon, MagnifyingGlassIcon, ClipboardDocumentCheckIcon, ChartBarIcon, TrashIcon, DocumentDuplicateIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, PencilSquareIcon, XMarkIcon, CheckIcon, Cog6ToothIcon, LanguageIcon, WrenchScrewdriverIcon, AcademicCapIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, MagnifyingGlassIcon, ClipboardDocumentCheckIcon, ChartBarIcon, TrashIcon, DocumentDuplicateIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, PencilSquareIcon, XMarkIcon, CheckIcon, Cog6ToothIcon, LanguageIcon, WrenchScrewdriverIcon, AcademicCapIcon, HeartIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import SessionSelect from "@/components/SessionSelect";
 import { usePermissions } from "@/lib/PermissionsProvider";
@@ -334,6 +334,11 @@ export default function ReponsesActionDynamiquePage() {
             {schema?.positionnementActif && (
               <Link href={`/mediation/actions-collectives/reponses/${slug}/positionnement`} className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm">
                 <AcademicCapIcon className="w-4 h-4 text-[#EA601F]" /><span>Test de positionnement</span>
+              </Link>
+            )}
+            {schema?.satisfactionActif && (
+              <Link href={`/mediation/actions-collectives/reponses/${slug}/satisfaction`} className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm">
+                <HeartIcon className="w-4 h-4 text-[#EA601F]" /><span>Satisfaction</span>
               </Link>
             )}
             <Link href={`/mediation/actions-collectives/reponses/${slug}/statistiques`} className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm">

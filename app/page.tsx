@@ -46,6 +46,9 @@ import {
   ExclamationTriangleIcon,
   PhotoIcon,
   SparklesIcon,
+  HeartIcon,
+  LinkIcon as LinkIconOutline,
+  PencilSquareIcon,
 } from "@heroicons/react/24/outline";
 
 type Accent = "teal" | "orange";
@@ -217,6 +220,25 @@ const NAV_TREE: NavNode[] = [
       { id: "participants", kind: "leaf", accent: "orange", icon: IdentificationIcon, title: "Participants & Prescripteurs", subtitle: "Vue transversale des 3 programmes d'actions collectives", actionId: "home_nav_participants", href: "/mediation/actions-collectives/participants" },
       { id: "bibliotheque-logos", kind: "leaf", accent: "teal", icon: PhotoIcon, title: "Bibliothèque Logos", subtitle: "Logos partenaires utilisés dans les émargements et formulaires publics", actionId: "home_nav_bibliotheque_logos", href: "/mediation/bibliotheque-logos" },
       {
+        // Regroupe les réponses aux questionnaires de satisfaction de tous
+        // les programmes en un seul endroit (plutôt qu'une tuile éclatée
+        // dans chaque dossier de programme) — les 3 tuiles historiques sont
+        // fixes, celles des actions personnalisées (satisfactionActif) sont
+        // injectées automatiquement, voir fusionnerSatisfactionActions.
+        id: "satisfaction", kind: "folder", accent: "orange", icon: HeartIcon,
+        title: "Satisfaction", subtitle: "Réponses aux questionnaires de satisfaction, par programme",
+        actionId: "home_folder_satisfaction",
+        children: [
+          { id: "satisfaction-digitalup", kind: "leaf", accent: "orange", icon: HeartIcon, title: "Digital'UP", subtitle: "Réponses au questionnaire de satisfaction", actionId: "home_nav_satisfaction_digitalup", href: "/mediation/actions-collectives/reponses/digital-up/satisfaction" },
+          { id: "satisfaction-duppro", kind: "leaf", accent: "orange", icon: HeartIcon, title: "DIGITAL UP 96H", subtitle: "Réponses au questionnaire de satisfaction", actionId: "home_nav_satisfaction_duppro", href: "/mediation/actions-collectives/reponses/digital-up-pro/satisfaction" },
+          { id: "satisfaction-numerikup", kind: "leaf", accent: "orange", icon: HeartIcon, title: "Numérik'UP", subtitle: "Réponses au questionnaire de satisfaction", actionId: "home_nav_satisfaction_numerikup", href: "/mediation/actions-collectives/reponses/numerik-up/satisfaction" },
+          { id: "satisfaction-nkpro", kind: "leaf", accent: "orange", icon: HeartIcon, title: "NUMERIK PRO", subtitle: "Réponses au questionnaire de satisfaction", actionId: "home_nav_satisfaction_nkpro", href: "/mediation/actions-collectives/reponses/numerik-up-pro/satisfaction" },
+          { id: "satisfaction-prfe", kind: "leaf", accent: "orange", icon: HeartIcon, title: "PRFE", subtitle: "Réponses au questionnaire de satisfaction", actionId: "home_nav_satisfaction_prfe", href: "/mediation/actions-collectives/reponses/prfe/satisfaction" },
+        ],
+      },
+      { id: "liens-publics", kind: "leaf", accent: "teal", icon: LinkIconOutline, title: "Liens publics", subtitle: "Tous les formulaires accessibles sans connexion, mis à jour automatiquement", actionId: "home_nav_liens_publics", href: "/mediation/liens-publics" },
+      { id: "contenus-modifiables", kind: "leaf", accent: "orange", icon: PencilSquareIcon, title: "Contenus modifiables", subtitle: "Toutes les pages d'édition (paramètres, fiches, questionnaires), réservé admin", actionId: "home_nav_contenus_modifiables", href: "/mediation/contenus-modifiables" },
+      {
         // Point d'entrée unique du moteur "actions personnalisées" (voir
         // lib/dynamicActions/) : la page elle-même liste les actions déjà
         // créées et permet d'en créer de nouvelles — aucune tuile
@@ -294,6 +316,33 @@ function fusionnerActionsDynamiques(tree: NavNode[], actions: ActionSchema[]): N
     // se mettent déjà à jour toutes seules, mais restent discrètes.
     const subtitle = `${node.subtitle}, ${pourCeDossier.map((a) => a.label).join(", ")}`;
     return { ...node, subtitle, children: [...node.children, ...pourCeDossier.map(tuileActionDynamique)] };
+  });
+}
+
+// Complète le dossier "Satisfaction" (voir NAV_TREE ci-dessus) avec une
+// tuile par action personnalisée active ayant le module satisfaction
+// activé — même principe que fusionnerActionsDynamiques, mais critère
+// satisfactionActif plutôt que categorieAccueil, et une tuile "feuille"
+// (lien direct vers les réponses) plutôt qu'un dossier complet.
+function fusionnerSatisfactionActions(tree: NavNode[], actions: ActionSchema[]): NavNode[] {
+  const actives = actions.filter((a) => a.actif && a.satisfactionActif);
+  if (actives.length === 0) return tree;
+  return tree.map((node) => {
+    if (node.kind !== "folder") return { ...node };
+    if (node.id === "satisfaction") {
+      return {
+        ...node,
+        children: [
+          ...node.children,
+          ...actives.map((a) => ({
+            id: `satisfaction-dyn-${a.slug}`, kind: "leaf" as const, accent: "teal" as const, icon: HeartIcon,
+            title: a.label, subtitle: "Réponses au questionnaire de satisfaction", actionId: "home_folder_satisfaction",
+            href: `/mediation/actions-collectives/reponses/${a.slug}/satisfaction`,
+          })),
+        ],
+      };
+    }
+    return { ...node, children: fusionnerSatisfactionActions(node.children, actions) };
   });
 }
 
@@ -448,7 +497,10 @@ export default function HomePage() {
     return () => unsub();
   }, []);
 
-  const navTree = useMemo(() => fusionnerActionsDynamiques(NAV_TREE, actionsDynamiques), [actionsDynamiques]);
+  const navTree = useMemo(
+    () => fusionnerSatisfactionActions(fusionnerActionsDynamiques(NAV_TREE, actionsDynamiques), actionsDynamiques),
+    [actionsDynamiques]
+  );
   const pagesIndexees = useMemo(() => aplatirNavTree(navTree), [navTree]);
 
   const resultatsRecherche = useMemo(() => {

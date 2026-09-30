@@ -342,6 +342,35 @@ service cloud.firestore {
       }
     }
 
+    // Questionnaire de satisfaction (voir lib/satisfaction.ts) — même
+    // politique que positionnement/{programmeId} ci-dessus (public en
+    // lecture, admin en écriture ; résultats staff avec anti-bot).
+    match /satisfaction/{programmeId} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /resultats/{docId} {
+        allow read: if isStaff();
+        allow create: if isStaff() || (
+          request.resource.data.keys().hasAll(['Email', 'RGPD']) &&
+          request.resource.data['Email'] is string && request.resource.data['Email'].size() > 0 &&
+          request.resource.data['RGPD'] == true &&
+          request.resource.data.get('_piege', '') == '' &&
+          request.resource.data.get('_dureeRemplissageMs', 0) > 3000
+        );
+        allow update, delete: if isCoordinateurOuPlus();
+      }
+    }
+
+    // Fiche entretien diagnostic (voir lib/ficheDiagnostic.ts) — questions
+    // éditables, mêmes conventions que positionnement/ ci-dessus, mais pas
+    // un formulaire public (utilisée uniquement par le staff sur la fiche
+    // apprenant·e), donc lecture réservée au staff plutôt qu'ouverte à tous.
+    match /fiches_diagnostic/{programmeId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
     // Moteur "actions personnalisées" (voir lib/dynamicActions/) : une seule
     // règle générique, valable pour TOUTE action créée depuis /mediation/
     // actions-collectives/creer-action, sans jamais redéployer ces règles à

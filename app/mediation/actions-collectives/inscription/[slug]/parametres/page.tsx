@@ -541,6 +541,10 @@ export default function ParametresActionDynamiquePage() {
               <input type="checkbox" checked={!!schema.positionnementActif} onChange={(e) => majSchema({ positionnementActif: e.target.checked })} className="w-4 h-4 accent-[#005259] cursor-pointer" />
               Test de positionnement (sections/questions éditables, QCM + réponses libres)
             </label>
+            <label className="flex items-center gap-2 text-xs font-bold text-[#404040] cursor-pointer">
+              <input type="checkbox" checked={!!schema.satisfactionActif} onChange={(e) => majSchema({ satisfactionActif: e.target.checked })} className="w-4 h-4 accent-[#005259] cursor-pointer" />
+              Questionnaire de satisfaction (sections/questions éditables, logos)
+            </label>
           </div>
 
           {schema.suiviAdministratifActif && schema.suiviAdministratifPiecesPersonnalisees && (
