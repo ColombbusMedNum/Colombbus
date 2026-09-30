@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { collection, doc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
+import { inscriptionsCollection, inscriptionDoc } from "@/lib/dynamicActions/store";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
 import {
@@ -28,9 +29,12 @@ interface ApprenantPix {
 }
 
 interface Props {
-  // Nom de la collection Firestore des inscriptions (varie selon le module :
-  // "inscriptions_digitaluppro" ou "inscriptions_numerikuppro").
-  collectionInscriptions: string;
+  // L'un ou l'autre : collectionInscriptions pour les 4 programmes
+  // historiques (collection Firestore top-level, ex.
+  // "inscriptions_digitaluppro"), slug pour une action dynamique (chemin
+  // imbriqué dynamic_actions/{slug}/inscriptions — voir lib/dynamicActions/store.ts).
+  collectionInscriptions?: string;
+  slug?: string;
   // Racine des routes du module, pour reconstruire les liens "Apprenant·e·s"
   // et "Évolution" de la session (ex. ".../reponses/digital-up-pro").
   basePath: string;
@@ -46,9 +50,11 @@ function formaterDateFr(iso: string): string {
   return `${j}/${m}/${a.slice(2)}`;
 }
 
-export default function PixResultatsSession({ collectionInscriptions, basePath }: Props) {
+export default function PixResultatsSession({ collectionInscriptions, slug, basePath }: Props) {
   const params = useParams();
   const sessionId = decodeURIComponent((params?.id as string) || "");
+  const refCollection = slug ? inscriptionsCollection(slug) : collection(db, collectionInscriptions!);
+  const refDoc = (id: string) => (slug ? inscriptionDoc(slug, id) : doc(db, collectionInscriptions!, id));
 
   const [apprenants, setApprenants] = useState<ApprenantPix[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +72,7 @@ export default function PixResultatsSession({ collectionInscriptions, basePath }
   useEffect(() => {
     const charger = async () => {
       try {
-        const snap = await getDocs(query(collection(db, collectionInscriptions), orderBy("createdAt", "desc")));
+        const snap = await getDocs(query(refCollection, orderBy("createdAt", "desc")));
         setApprenants(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ApprenantPix)));
       } catch (error) {
         console.error("Erreur lors du chargement des apprenant·e·s :", error);
@@ -75,14 +81,18 @@ export default function PixResultatsSession({ collectionInscriptions, basePath }
       }
     };
     charger();
-  }, [collectionInscriptions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collectionInscriptions, slug]);
 
+  // OK_NOK (décision d'admission) n'existe que sur les 4 programmes
+  // historiques — une action dynamique n'a que Suivi_Recrutement, sans
+  // distinction OK/NOK a posteriori.
   const apprenantsSession = useMemo(
     () =>
       apprenants
-        .filter((a) => a.Session === sessionId && a.Suivi_Recrutement && a.OK_NOK === "OK")
+        .filter((a) => a.Session === sessionId && a.Suivi_Recrutement && (slug || a.OK_NOK === "OK"))
         .sort((a, b) => (a.Nom || "").localeCompare(b.Nom || "", "fr")),
-    [apprenants, sessionId]
+    [apprenants, sessionId, slug]
   );
 
   // Rapprochement CSV -> apprenant·e : automatique (email puis nom/prénom),
@@ -149,7 +159,7 @@ export default function PixResultatsSession({ collectionInscriptions, basePath }
         Array.from(resultatsParApprenant.entries()).map(([id, nouveaux]) => {
           const apprenant = apprenantsSession.find((a) => a.id === id);
           const historique = fusionnerResultats(apprenant?.PixResultats, nouveaux);
-          return updateDoc(doc(db, collectionInscriptions, id), { PixResultats: historique });
+          return updateDoc(refDoc(id), { PixResultats: historique });
         })
       );
 
@@ -234,7 +244,7 @@ export default function PixResultatsSession({ collectionInscriptions, basePath }
               <div className="h-10 w-1 bg-[#005259] rounded-full shadow-[0_0_15px_rgba(0,82,89,0.3)]"></div>
               <div>
                 <h1 className="text-xl md:text-3xl font-bold uppercase text-[#005259] tracking-tight">
-                  Résultats <span className="text-[#EA601F] font-normal">Pix</span>
+                  Résultats <span className="text-[#EA601F] font-normal">Pix</span> (Profils)
                 </h1>
                 <p className="text-xs text-[#404040]/70 mt-0.5 font-medium">
                   Session : {sessionId || "—"} — {apprenantsSession.length} apprenant{apprenantsSession.length > 1 ? "s" : ""}

@@ -2,14 +2,38 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getDocs, orderBy, query, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { collection, getDocs, onSnapshot, orderBy, query, updateDoc } from "firebase/firestore";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
 import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, AcademicCapIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon } from "@heroicons/react/24/outline";
 import { formatPhoneNumber } from "@/lib/formatPhone";
 import PageGuard from "@/components/PageGuard";
+import { usePermissions } from "@/lib/PermissionsProvider";
 import { ActionSchema, InscriptionActionDynamique, QuestionDef } from "@/lib/dynamicActions/types";
 import { chargerSchema, chargerConfiguration, inscriptionsCollection, inscriptionDoc, ConfigurationChargee } from "@/lib/dynamicActions/store";
+
+// Rapprochement email -> nom+prénom, même principe que le rapprochement Pix
+// (voir lib/pixImport.ts) — normalise diacritiques/casse pour comparer.
+function normaliserTexte(s?: string): string {
+  return (s || "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+interface ResultatTestLangue {
+  Nom?: string;
+  Prénom?: string;
+  Email?: string;
+  Score?: number;
+  Niveau_B1_Francais?: string;
+}
+
+interface ResultatCollecteTech {
+  Nom?: string;
+  Prénom?: string;
+  Email?: string;
+  Score?: number;
+  Profil?: string;
+}
 
 // Une préinscription affectée au suivi de recrutement d'une session — les
 // champs CORE (voir lib/dynamicActions/types.ts) + les réponses CUSTOM
@@ -39,10 +63,13 @@ export default function SuiviRecrutementSessionPage() {
   const { slug, id } = useParams<{ slug: string; id: string }>();
   const router = useRouter();
   const sessionId = decodeURIComponent(id || "");
+  const { user } = usePermissions();
 
   const [schema, setSchema] = useState<ActionSchema | null>(null);
   const [config, setConfig] = useState<ConfigurationChargee | null>(null);
   const [inscriptions, setInscriptions] = useState<Inscription[]>([]);
+  const [resultatsTestLangue, setResultatsTestLangue] = useState<ResultatTestLangue[]>([]);
+  const [resultatsCollecteTech, setResultatsCollecteTech] = useState<ResultatCollecteTech[]>([]);
   const [loading, setLoading] = useState(true);
   const [recherche, setRecherche] = useState("");
   const [onglet, setOnglet] = useState<"en_attente" | "affectes">("en_attente");
@@ -124,6 +151,73 @@ export default function SuiviRecrutementSessionPage() {
     () => inscriptions.filter((i) => i.Session === sessionId && i.Suivi_Recrutement),
     [inscriptions, sessionId]
   );
+
+  // Résultats du test de langue B1 en direct (voir app/inscription/[slug]/
+  // test-langue) — même principe que digital-up-pro/[id]/page.tsx : attend
+  // que Firebase Auth ait restauré la session (user non nul) avant de
+  // s'abonner, pour éviter un "permission-denied" qui bloquerait l'écoute.
+  useEffect(() => {
+    if (!user || !schema?.testLangueActif) return;
+    const unsub = onSnapshot(
+      collection(db, "dynamic_actions", slug, "resultatsTestLangue"),
+      (snap) => setResultatsTestLangue(snap.docs.map((d) => d.data() as ResultatTestLangue)),
+      (error) => console.error("Erreur lors de l'écoute des résultats du test de langue :", error)
+    );
+    return () => unsub();
+  }, [user, slug, schema?.testLangueActif]);
+
+  // Diagnostic Collecte Tech (voir app/inscription/[slug]/collecte-tech) —
+  // affichage en direct dans le tableau, sans report automatique (aucun
+  // champ CORE générique n'équivaut à "Compétences numériques").
+  useEffect(() => {
+    if (!user || !schema?.collecteTechActif) return;
+    const unsub = onSnapshot(
+      collection(db, "dynamic_actions", slug, "resultatsCollecteTech"),
+      (snap) => setResultatsCollecteTech(snap.docs.map((d) => d.data() as ResultatCollecteTech)),
+      (error) => console.error("Erreur lors de l'écoute des résultats Collecte Tech :", error)
+    );
+    return () => unsub();
+  }, [user, slug, schema?.collecteTechActif]);
+
+  const trouverResultatCollecteTech = (i: Inscription): ResultatCollecteTech | undefined => {
+    const email = normaliserTexte(i.Email);
+    if (email) {
+      const parEmail = resultatsCollecteTech.find((r) => normaliserTexte(r.Email) === email);
+      if (parEmail) return parEmail;
+    }
+    const nom = normaliserTexte(i.Nom);
+    const prenom = normaliserTexte(i.Prénom);
+    return resultatsCollecteTech.find((r) => normaliserTexte(r.Nom) === nom && normaliserTexte(r.Prénom) === prenom);
+  };
+
+  const trouverResultatTestLangue = (i: Inscription): ResultatTestLangue | undefined => {
+    const email = normaliserTexte(i.Email);
+    if (email) {
+      const parEmail = resultatsTestLangue.find((r) => normaliserTexte(r.Email) === email);
+      if (parEmail) return parEmail;
+    }
+    const nom = normaliserTexte(i.Nom);
+    const prenom = normaliserTexte(i.Prénom);
+    return resultatsTestLangue.find((r) => normaliserTexte(r.Nom) === nom && normaliserTexte(r.Prénom) === prenom);
+  };
+
+  // Reporte automatiquement le résultat dans Notes_Tests_FR/Niveau_B1_Francais
+  // — seulement tant qu'ils sont vides, pour ne jamais écraser une saisie
+  // manuelle. Écriture silencieuse, une fois par inscription (dejaReportes).
+  const dejaReportes = useRef(new Set<string>());
+  useEffect(() => {
+    if (loading || resultatsTestLangue.length === 0) return;
+    inscriptionsSession.forEach((i) => {
+      if (i.Notes_Tests_FR || i.Niveau_B1_Francais || dejaReportes.current.has(i.id!)) return;
+      const resultat = trouverResultatTestLangue(i);
+      if (!resultat) return;
+      dejaReportes.current.add(i.id!);
+      const patch = { Notes_Tests_FR: `${resultat.Score ?? "—"}/10`, Niveau_B1_Francais: resultat.Niveau_B1_Francais || "" };
+      setInscriptions((prev) => prev.map((x) => (x.id === i.id ? { ...x, ...patch } : x)));
+      updateDoc(inscriptionDoc(slug, i.id!), patch).catch((error) => console.error("Erreur lors du report automatique du test de langue :", error));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, inscriptionsSession, resultatsTestLangue]);
 
   const territoireDeSession = useMemo(() => {
     if (!config) return "";
@@ -210,7 +304,7 @@ export default function SuiviRecrutementSessionPage() {
     );
   }
 
-  const nbColonnes = 5 + 10 + questionsTriees.length + 1;
+  const nbColonnes = 5 + 10 + questionsTriees.length + 1 + (schema?.collecteTechActif ? 1 : 0);
 
   return (
     <PageGuard pageId="page_access_action_dynamique">
@@ -304,6 +398,7 @@ export default function SuiviRecrutementSessionPage() {
                   <th className="px-3 py-3">Prescripteur</th>
                   <th className="px-3 py-3">Référent·e</th>
                   {questionsTriees.map((q) => <th key={q.id} className="px-3 py-3">{q.label}</th>)}
+                  {schema?.collecteTechActif && <th className="px-3 py-3 text-center">Collecte Tech</th>}
                   <th className="px-3 py-3 text-center">Décision</th>
                 </tr>
               </thead>
@@ -311,6 +406,7 @@ export default function SuiviRecrutementSessionPage() {
                 {inscriptionsFiltrees.length > 0 ? (
                   inscriptionsFiltrees.map((i, index) => {
                     const referent = `${i.Conseiller_Prenom || ""} ${i.Conseiller_Nom || ""}`.trim();
+                    const resultatCollecteTech = schema?.collecteTechActif ? trouverResultatCollecteTech(i) : undefined;
                     return (
                       <tr key={i.id} className="group hover:bg-[#F3F3F2]/60 transition-colors align-top">
                         <td className={`${classeFigee} px-3 py-2 text-center text-[#404040]/50 font-bold bg-white group-hover:bg-[#F3F3F2]/60`} style={{ left: decalages.num }}>{index + 1}</td>
@@ -333,6 +429,15 @@ export default function SuiviRecrutementSessionPage() {
                         {questionsTriees.map((q) => (
                           <td key={q.id} className="px-3 py-2 max-w-[180px] truncate" title={valeurCustom(i, q)}>{valeurCustom(i, q) || "—"}</td>
                         ))}
+                        {schema?.collecteTechActif && (
+                          <td className="px-3 py-2 text-center whitespace-nowrap">
+                            {resultatCollecteTech ? (
+                              <span className="inline-block px-2 py-0.5 rounded bg-[#005259]/10 text-[#005259] border border-[#005259]/20 text-[10px] font-bold" title={resultatCollecteTech.Profil}>
+                                {resultatCollecteTech.Score ?? "—"}/44
+                              </span>
+                            ) : "—"}
+                          </td>
+                        )}
                         <td className="px-3 py-2">
                           <select defaultValue={i.Decision_Recrutement || ""} onChange={(e) => mettreAJourChamp(i.id!, "Decision_Recrutement", e.target.value)} className={inputEditClass}>
                             <option value="">—</option>

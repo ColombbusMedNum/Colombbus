@@ -129,9 +129,15 @@ export function inscriptionDoc(slug: string, id: string) {
 const DOCS_CONFIGURATION_CONNUS = ["parcours", "territoires", "sessions", "logosFormulaire", "programmes", "niveauxEtudes", "evolutionCategories"];
 
 export async function supprimerActionDynamique(slug: string): Promise<void> {
-  const snapInscriptions = await getDocs(inscriptionsCollection(slug));
+  const [snapInscriptions, snapTestLangue, snapCollecteTech] = await Promise.all([
+    getDocs(inscriptionsCollection(slug)),
+    getDocs(collection(db, "dynamic_actions", slug, "resultatsTestLangue")),
+    getDocs(collection(db, "dynamic_actions", slug, "resultatsCollecteTech")),
+  ]);
   const refsASupprimer = [
     ...snapInscriptions.docs.map((d) => d.ref),
+    ...snapTestLangue.docs.map((d) => d.ref),
+    ...snapCollecteTech.docs.map((d) => d.ref),
     ...DOCS_CONFIGURATION_CONNUS.map((id) => refConfig(slug, id)),
   ];
   for (let i = 0; i < refsASupprimer.length; i += 500) {

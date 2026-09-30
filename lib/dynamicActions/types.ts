@@ -62,6 +62,25 @@ export interface ActionSchema {
   // dépendent (bascule "Suivi_Recrutement"/abandon en cascade, alimentation
   // du journal des absences, alerte sur absences répétées).
   categoriesEvolution?: CategorieEvolution[];
+  // Modules optionnels, repris des 4 programmes historiques (DIGITAL UP 96H,
+  // NUMERIK PRO...) où ils étaient codés en dur — absent ou false = module
+  // masqué partout (formulaire public, nav interne). Même convention que
+  // niveauEtudesActif (le "*Actif" vaut false uniquement s'il est écrit tel
+  // quel, jamais par défaut sur une action qui coche explicitement la case).
+  testLangueActif?: boolean;
+  collecteTechActif?: boolean;
+  pixPreinscriptionActif?: boolean;
+  pixSessionActif?: boolean;
+  suiviAdministratifActif?: boolean;
+  // Si false/absent : liste de pièces par défaut (DEFAULT_PIECES_SUIVI_ADMINISTRATIF).
+  // Si true : suiviAdministratifPieces définit la liste réelle pour cette action.
+  suiviAdministratifPiecesPersonnalisees?: boolean;
+  suiviAdministratifPieces?: PieceSuiviAdministratif[];
+  // Test de positionnement multi-sections à questions éditables (voir
+  // lib/positionnement.ts) — moteur générique non couplé à dynamic_actions
+  // (Firestore : positionnement/{slug}), câblé ici sur cette action via le
+  // slug comme programmeId, même principe que sur PRFE.
+  positionnementActif?: boolean;
   createdAt?: number;
   updatedAt?: number;
 }
@@ -79,6 +98,28 @@ export interface CategorieEvolution {
 
 export const CATEGORIE_EVOLUTION_DEFAUT: CategorieEvolution[] = [
   { code: "P", label: "Présent·e", bg: "#3B82F6", text: "#FFFFFF" },
+];
+
+// Une "pièce" du suivi administratif : un document/étape à cocher par
+// apprenant·e, regroupée sous un intitulé de groupe (même esprit que
+// GROUPES_SUIVI_ADMINISTRATIF, codé en dur sur digital-up-pro) — voir
+// suiviAdministratifPieces sur ActionSchema.
+export interface PieceSuiviAdministratif {
+  id: string;
+  groupe: string;
+  label: string;
+}
+
+// Liste par défaut utilisée quand suiviAdministratifPiecesPersonnalisees
+// n'est pas activé — un socle générique, sans hypothèse sur un financeur
+// particulier (contrairement à la liste FSE de digital-up-pro).
+export const DEFAULT_PIECES_SUIVI_ADMINISTRATIF: PieceSuiviAdministratif[] = [
+  { id: "piece_identite", groupe: "Pièces d'identité & situation", label: "Pièce d'identité / titre de séjour" },
+  { id: "justificatif_domicile", groupe: "Pièces d'identité & situation", label: "Justificatif de domicile" },
+  { id: "rib", groupe: "Pièces d'identité & situation", label: "RIB" },
+  { id: "charte_engagement", groupe: "Engagement & consentements", label: "Charte d'engagement" },
+  { id: "autorisation_droit_image", groupe: "Engagement & consentements", label: "Autorisation droit à l'image" },
+  { id: "attestation_participation", groupe: "Financement & fin de parcours", label: "Attestation de participation" },
 ];
 
 // Un enregistrement d'inscription générique : les champs CORE au premier
@@ -113,6 +154,15 @@ export interface InscriptionActionDynamique {
   Absences?: { date: string; motif?: string }[];
   Evolution_Actif?: boolean;
   Evolution_Retards?: Record<string, string>;
+  // Modules optionnels (voir ActionSchema.*Actif) — mêmes champs que les 4
+  // programmes historiques, pour rester cohérent si on doit les comparer un
+  // jour (voir components/PixResultatsSession(Nkup).tsx, lib/pixImport(Nkup).ts).
+  PixResultatsNkup?: import("../pixImportNkup").PixResultatNkup[];
+  PixResultats?: import("../pixImport").PixResultat[];
+  Notes_Tests_FR?: string;
+  Niveau_B1_Francais?: string;
+  SuiviAdministratif?: Record<string, boolean>;
+  SuiviAdministratifLienDrive?: string;
   createdAt?: any;
   _piege?: string;
   _dureeRemplissageMs?: number;

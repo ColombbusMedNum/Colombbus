@@ -23,7 +23,7 @@ import {
   sauvegarderProgrammes,
   Parcours,
 } from "@/lib/dynamicActions/store";
-import { ActionSchema, CATEGORIE_EVOLUTION_DEFAUT, CategorieAccueil, CategorieEvolution, QuestionDef, TypeQuestion, slugifier } from "@/lib/dynamicActions/types";
+import { ActionSchema, CATEGORIE_EVOLUTION_DEFAUT, CategorieAccueil, CategorieEvolution, DEFAULT_PIECES_SUIVI_ADMINISTRATIF, PieceSuiviAdministratif, QuestionDef, TypeQuestion, slugifier } from "@/lib/dynamicActions/types";
 import { MODELES_DUPLICATION } from "@/lib/dynamicActions/modelesDuplicationAction";
 
 const TYPES_QUESTION: { valeur: TypeQuestion; label: string }[] = [
@@ -335,6 +335,30 @@ export default function ParametresActionDynamiquePage() {
     majSchema({ categoriesEvolution: categoriesEvolution.filter((_, i) => i !== index) });
   };
 
+  // --- SUIVI ADMINISTRATIF (liste de pièces personnalisable) ---
+  const basculerPiecesPersonnalisees = (checked: boolean) => {
+    if (checked && (!schema?.suiviAdministratifPieces || schema.suiviAdministratifPieces.length === 0)) {
+      // On amorce l'éditeur avec la liste par défaut plutôt qu'une liste
+      // vide, pour éviter de repartir de zéro à chaque activation.
+      majSchema({ suiviAdministratifPiecesPersonnalisees: true, suiviAdministratifPieces: DEFAULT_PIECES_SUIVI_ADMINISTRATIF.map((p) => ({ ...p })) });
+      return;
+    }
+    majSchema({ suiviAdministratifPiecesPersonnalisees: checked });
+  };
+  const ajouterPieceSuiviAdministratif = () => {
+    const liste = schema?.suiviAdministratifPieces || [];
+    const nouvelle: PieceSuiviAdministratif = { id: `piece_${Date.now()}`, groupe: liste[liste.length - 1]?.groupe || "Pièces", label: "Nouvelle pièce" };
+    majSchema({ suiviAdministratifPieces: [...liste, nouvelle] });
+  };
+  const modifierPieceSuiviAdministratif = (index: number, patch: Partial<PieceSuiviAdministratif>) => {
+    const liste = schema?.suiviAdministratifPieces || [];
+    majSchema({ suiviAdministratifPieces: liste.map((p, i) => (i === index ? { ...p, ...patch } : p)) });
+  };
+  const supprimerPieceSuiviAdministratif = (index: number) => {
+    const liste = schema?.suiviAdministratifPieces || [];
+    majSchema({ suiviAdministratifPieces: liste.filter((_, i) => i !== index) });
+  };
+
   const dupliquerDepuisModele = async (modeleId: string) => {
     if (!schema) return;
     const modele = MODELES_DUPLICATION.find((m) => m.id === modeleId);
@@ -475,6 +499,84 @@ export default function ParametresActionDynamiquePage() {
               </label>
             </div>
           </div>
+        </div>
+
+        {/* MODULES OPTIONNELS — repris des 4 programmes historiques (DIGITAL
+            UP 96H, NUMERIK PRO...), où ils étaient codés en dur par
+            programme (voir composants/lib partagés : lib/testLangueB1.ts,
+            lib/collecteTechQuiz.ts, lib/pixImport(Nkup).ts). */}
+        <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm space-y-3">
+          <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Modules optionnels</h2>
+          <p className="text-[10px] text-[#404040]/50">
+            Fonctionnalités supplémentaires, désactivées par défaut — leur activation fait apparaître les onglets/liens correspondants dans les réponses de cette action.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="flex items-center gap-2 text-xs font-bold text-[#404040] cursor-pointer">
+              <input type="checkbox" checked={!!schema.testLangueActif} onChange={(e) => majSchema({ testLangueActif: e.target.checked })} className="w-4 h-4 accent-[#005259] cursor-pointer" />
+              Test de langue (diagnostic B1, auto-corrigé)
+            </label>
+            <label className="flex items-center gap-2 text-xs font-bold text-[#404040] cursor-pointer">
+              <input type="checkbox" checked={!!schema.collecteTechActif} onChange={(e) => majSchema({ collecteTechActif: e.target.checked })} className="w-4 h-4 accent-[#005259] cursor-pointer" />
+              Collecte Tech (diagnostic équipement/compétences numériques)
+            </label>
+            <label className="flex items-center gap-2 text-xs font-bold text-[#404040] cursor-pointer">
+              <input type="checkbox" checked={!!schema.pixPreinscriptionActif} onChange={(e) => majSchema({ pixPreinscriptionActif: e.target.checked })} className="w-4 h-4 accent-[#005259] cursor-pointer" />
+              Pix préinscription (import palier + badges)
+            </label>
+            <label className="flex items-center gap-2 text-xs font-bold text-[#404040] cursor-pointer">
+              <input type="checkbox" checked={!!schema.pixSessionActif} onChange={(e) => majSchema({ pixSessionActif: e.target.checked })} className="w-4 h-4 accent-[#005259] cursor-pointer" />
+              Suivi Pix session (import maîtrise par compétence) (Profils)
+            </label>
+            <label className="flex items-center gap-2 text-xs font-bold text-[#404040] cursor-pointer">
+              <input type="checkbox" checked={!!schema.suiviAdministratifActif} onChange={(e) => majSchema({ suiviAdministratifActif: e.target.checked })} className="w-4 h-4 accent-[#005259] cursor-pointer" />
+              Suivi administratif (pièces/documents par apprenant·e)
+            </label>
+            {schema.suiviAdministratifActif && (
+              <label className="flex items-center gap-2 text-xs font-bold text-[#404040] cursor-pointer">
+                <input type="checkbox" checked={!!schema.suiviAdministratifPiecesPersonnalisees} onChange={(e) => basculerPiecesPersonnalisees(e.target.checked)} className="w-4 h-4 accent-[#005259] cursor-pointer" />
+                Personnaliser la liste des pièces
+              </label>
+            )}
+            <label className="flex items-center gap-2 text-xs font-bold text-[#404040] cursor-pointer">
+              <input type="checkbox" checked={!!schema.positionnementActif} onChange={(e) => majSchema({ positionnementActif: e.target.checked })} className="w-4 h-4 accent-[#005259] cursor-pointer" />
+              Test de positionnement (sections/questions éditables, QCM + réponses libres)
+            </label>
+          </div>
+
+          {schema.suiviAdministratifActif && schema.suiviAdministratifPiecesPersonnalisees && (
+            <div className="pt-2 border-t border-[#404040]/10 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#404040]/70 uppercase tracking-wide">Pièces du suivi administratif</span>
+                <button type="button" onClick={ajouterPieceSuiviAdministratif} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#EA601F] hover:bg-[#EF736A] text-white rounded-xl text-[10px] font-bold uppercase tracking-wide transition-colors cursor-pointer">
+                  <PlusIcon className="w-3.5 h-3.5" /> Pièce
+                </button>
+              </div>
+              <div className="space-y-2">
+                {(schema.suiviAdministratifPieces || []).map((p, index) => (
+                  <div key={p.id} className="flex items-center gap-2 border border-[#404040]/10 rounded-xl p-2.5">
+                    <input
+                      type="text"
+                      defaultValue={p.groupe}
+                      onBlur={(e) => modifierPieceSuiviAdministratif(index, { groupe: e.target.value })}
+                      placeholder="Groupe"
+                      className="w-40 px-2 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-lg text-xs text-[#404040] outline-none transition-colors"
+                    />
+                    <input
+                      type="text"
+                      defaultValue={p.label}
+                      onBlur={(e) => modifierPieceSuiviAdministratif(index, { label: e.target.value })}
+                      placeholder="Intitulé de la pièce"
+                      className="flex-1 px-2 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 focus:border-[#005259] focus:bg-white rounded-lg text-xs text-[#404040] outline-none transition-colors"
+                    />
+                    <button type="button" onClick={() => supprimerPieceSuiviAdministratif(index)} className="p-1.5 bg-[#EF736A]/10 hover:bg-[#EF736A] text-[#EF736A] hover:text-white border border-[#EF736A]/30 rounded-lg transition-colors cursor-pointer shrink-0">
+                      <TrashIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+                {(schema.suiviAdministratifPieces || []).length === 0 && <p className="text-xs text-[#404040]/50 italic text-center py-4">Aucune pièce pour le moment.</p>}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* QUESTIONNAIRE */}

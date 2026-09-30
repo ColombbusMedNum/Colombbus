@@ -4,6 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { collection, doc, getDocs, orderBy, query, updateDoc } from "firebase/firestore";
+import { inscriptionsCollection, inscriptionDoc } from "@/lib/dynamicActions/store";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
 import {
@@ -28,7 +29,12 @@ interface ApprenantPixNkup {
 }
 
 interface Props {
-  collectionInscriptions: string;
+  // L'un ou l'autre : collectionInscriptions pour les 4 programmes
+  // historiques (collection Firestore top-level), slug pour une action
+  // dynamique (chemin imbriqué dynamic_actions/{slug}/inscriptions — voir
+  // lib/dynamicActions/store.ts).
+  collectionInscriptions?: string;
+  slug?: string;
   basePath: string;
   // Optionnel : complète automatiquement, à l'import, les cases "Campagne
   // Pix" ressaisies à la main sur la page de suivi de recrutement du module —
@@ -54,9 +60,11 @@ function formaterPct(v: number | null): string {
 // "PARKOUR NUMERIK'UP" (palier /3 + badges + détail par compétence/domaine en
 // %), trop différent du format Digital Up 96H / Numérik'UP Pro (pix/niveau
 // par compétence) pour partager le même composant — voir lib/pixImportNkup.ts.
-export default function PixResultatsSessionNkup({ collectionInscriptions, basePath, mapperVersSuiviRecrutement }: Props) {
+export default function PixResultatsSessionNkup({ collectionInscriptions, slug, basePath, mapperVersSuiviRecrutement }: Props) {
   const params = useParams();
   const sessionId = decodeURIComponent((params?.id as string) || "");
+  const refCollection = slug ? inscriptionsCollection(slug) : collection(db, collectionInscriptions!);
+  const refDoc = (id: string) => (slug ? inscriptionDoc(slug, id) : doc(db, collectionInscriptions!, id));
 
   const [apprenants, setApprenants] = useState<ApprenantPixNkup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,7 +82,7 @@ export default function PixResultatsSessionNkup({ collectionInscriptions, basePa
   useEffect(() => {
     const charger = async () => {
       try {
-        const snap = await getDocs(query(collection(db, collectionInscriptions), orderBy("createdAt", "desc")));
+        const snap = await getDocs(query(refCollection, orderBy("createdAt", "desc")));
         setApprenants(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ApprenantPixNkup)));
       } catch (error) {
         console.error("Erreur lors du chargement des apprenant·e·s :", error);
@@ -83,7 +91,8 @@ export default function PixResultatsSessionNkup({ collectionInscriptions, basePa
       }
     };
     charger();
-  }, [collectionInscriptions]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collectionInscriptions, slug]);
 
   // Toutes les PRÉINSCRIPTIONS affectées à la session (même pool que la page
   // Réponses) — pas seulement celles déjà promues "apprenant·e·s" (case
@@ -160,7 +169,7 @@ export default function PixResultatsSessionNkup({ collectionInscriptions, basePa
           const historique = fusionnerResultatsNkup(apprenant?.PixResultatsNkup, nouveaux);
           const dernier = historique[historique.length - 1];
           const nbBadgesObtenus = BADGES_NKUP.filter((b) => dernier.badges[b]).length;
-          return updateDoc(doc(db, collectionInscriptions, id), {
+          return updateDoc(refDoc(id), {
             PixResultatsNkup: historique,
             ...(mapperVersSuiviRecrutement ? mapperVersSuiviRecrutement(dernier, nbBadgesObtenus) : {}),
           });

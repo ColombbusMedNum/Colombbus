@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { getDocs, orderBy, query } from "firebase/firestore";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
-import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, ChartBarIcon, DocumentPlusIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ArrowLeftIcon, MagnifyingGlassIcon, ChartBarIcon, ChartPieIcon, ClipboardDocumentCheckIcon, DocumentPlusIcon } from "@heroicons/react/24/outline";
 import { formatPhoneNumber } from "@/lib/formatPhone";
 import PageGuard from "@/components/PageGuard";
 import { ActionSchema, InscriptionActionDynamique, QuestionDef } from "@/lib/dynamicActions/types";
@@ -189,6 +189,21 @@ export default function ApprenantsSessionPage() {
             <Link href={`/mediation/actions-collectives/reponses/${slug}/${encodeURIComponent(sessionId)}/evolution`} className="flex items-center gap-2 bg-[#EA601F] hover:bg-[#EF736A] text-white px-3.5 py-2 rounded-xl transition-colors text-xs font-bold uppercase tracking-wider shadow-sm">
               <ChartBarIcon className="w-4 h-4" /><span>Évolution</span>
             </Link>
+            {schema?.pixSessionActif && (
+              <Link href={`/mediation/actions-collectives/reponses/${slug}/${encodeURIComponent(sessionId)}/pix`} className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm">
+                <ChartPieIcon className="w-4 h-4 text-[#EA601F]" /><span>Résultats Pix (Profils)</span>
+              </Link>
+            )}
+            {schema?.pixPreinscriptionActif && (
+              <Link href={`/mediation/actions-collectives/reponses/${slug}/${encodeURIComponent(sessionId)}/pix-preinscription`} className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm">
+                <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#EA601F]" /><span>Pix Préinscription</span>
+              </Link>
+            )}
+            {schema?.suiviAdministratifActif && (
+              <Link href={`/mediation/actions-collectives/reponses/${slug}/${encodeURIComponent(sessionId)}/suivi-administratif`} className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm">
+                <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#EA601F]" /><span>Suivi administratif</span>
+              </Link>
+            )}
             <Link href={hrefEmargement} className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm">
               <DocumentPlusIcon className="w-4 h-4 text-[#EA601F]" /><span>Générateur d'émargement</span>
             </Link>

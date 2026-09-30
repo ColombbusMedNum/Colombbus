@@ -178,6 +178,7 @@ const NAV_TREE: NavNode[] = [
         actionId: "home_nav_prfe_tech",
         children: [
           { id: "prfe-inscription", kind: "leaf", accent: "teal", icon: DocumentPlusIcon, title: "Formulaire d'inscription", subtitle: "Inscription au parcours Préparation Parcours Métiers", actionId: "home_nav_prfe_inscription", href: "/mediation/actions-collectives/inscription/prfe" },
+          { id: "prfe-positionnement", kind: "leaf", accent: "teal", icon: AcademicCapIcon, title: "Test de positionnement PRFE", subtitle: "Français, anglais, maths — lien public et résultats", actionId: "home_nav_prfe_positionnement", href: "/mediation/actions-collectives/reponses/prfe/positionnement" },
           { id: "prfe-reponses", kind: "leaf", accent: "orange", icon: ClipboardDocumentCheckIcon, title: "Réponses au formulaire", subtitle: "Préinscriptions reçues", actionId: "home_nav_prfe_reponses", href: "/mediation/actions-collectives/reponses/prfe" },
           { id: "prfe-suivi", kind: "leaf", accent: "orange", icon: UsersIcon, title: "Suivi de recrutement", subtitle: "Apprenant·e·s retenu·e·s, session par session", actionId: "home_nav_prfe_suivi", href: "/mediation/actions-collectives/reponses/prfe/suivi-recrutement" },
           { id: "prfe-stats", kind: "leaf", accent: "teal", icon: ChartPieIcon, title: "Statistiques", subtitle: "Sexe, âge, diplôme et taux de présence par session", actionId: "home_nav_prfe_stats", href: "/mediation/actions-collectives/reponses/prfe/statistiques" },

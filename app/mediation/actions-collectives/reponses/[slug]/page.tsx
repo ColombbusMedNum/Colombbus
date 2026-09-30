@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase";
 import { addDoc, deleteDoc, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
-import { HomeIcon, MagnifyingGlassIcon, ClipboardDocumentCheckIcon, ChartBarIcon, TrashIcon, DocumentDuplicateIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, PencilSquareIcon, XMarkIcon, CheckIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, MagnifyingGlassIcon, ClipboardDocumentCheckIcon, ChartBarIcon, TrashIcon, DocumentDuplicateIcon, ChevronUpIcon, ChevronDownIcon, ChevronUpDownIcon, PencilSquareIcon, XMarkIcon, CheckIcon, Cog6ToothIcon, LanguageIcon, WrenchScrewdriverIcon, AcademicCapIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import SessionSelect from "@/components/SessionSelect";
 import { usePermissions } from "@/lib/PermissionsProvider";
@@ -320,6 +320,21 @@ export default function ReponsesActionDynamiquePage() {
               <button type="button" onClick={allerAuSuiviRecrutement} className="flex items-center gap-2 bg-[#EA601F] hover:bg-[#EF736A] text-white px-3.5 py-2 rounded-xl transition-colors text-xs font-bold uppercase tracking-wider cursor-pointer shadow-sm">
                 <ClipboardDocumentCheckIcon className="w-4 h-4" /><span>Suivi recrutement</span>
               </button>
+            )}
+            {schema?.testLangueActif && (
+              <Link href={`/mediation/actions-collectives/reponses/${slug}/test-langue`} className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm">
+                <LanguageIcon className="w-4 h-4 text-[#EA601F]" /><span>Test de langue</span>
+              </Link>
+            )}
+            {schema?.collecteTechActif && (
+              <Link href={`/mediation/actions-collectives/reponses/${slug}/collecte-tech`} className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm">
+                <WrenchScrewdriverIcon className="w-4 h-4 text-[#EA601F]" /><span>Collecte Tech</span>
+              </Link>
+            )}
+            {schema?.positionnementActif && (
+              <Link href={`/mediation/actions-collectives/reponses/${slug}/positionnement`} className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm">
+                <AcademicCapIcon className="w-4 h-4 text-[#EA601F]" /><span>Test de positionnement</span>
+              </Link>
             )}
             <Link href={`/mediation/actions-collectives/reponses/${slug}/statistiques`} className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm">
               <ChartBarIcon className="w-4 h-4 text-[#EA601F]" /><span>Statistiques</span>

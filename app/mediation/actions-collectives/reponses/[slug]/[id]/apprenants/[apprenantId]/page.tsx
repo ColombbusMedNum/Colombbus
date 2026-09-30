@@ -17,7 +17,9 @@ import {
 import PageGuard from "@/components/PageGuard";
 import { formatPhoneNumber } from "@/lib/formatPhone";
 import FicheEntretienDiagnostic from "./FicheEntretienDiagnostic";
-import { ActionSchema, CATEGORIE_EVOLUTION_DEFAUT, InscriptionActionDynamique, QuestionDef } from "@/lib/dynamicActions/types";
+import ResultatsPixFicheNkup from "@/components/ResultatsPixFicheNkup";
+import ResultatsPixFiche from "@/components/ResultatsPixFiche";
+import { ActionSchema, CATEGORIE_EVOLUTION_DEFAUT, DEFAULT_PIECES_SUIVI_ADMINISTRATIF, InscriptionActionDynamique, QuestionDef } from "@/lib/dynamicActions/types";
 import { chargerSchema, inscriptionDoc } from "@/lib/dynamicActions/store";
 
 // Forme du journal des absences CORE : date + motif libre — justifiée/non
@@ -205,6 +207,10 @@ export default function FicheApprenantPage() {
 
   const referent = `${inscription?.Conseiller_Prenom || ""} ${inscription?.Conseiller_Nom || ""}`.trim();
 
+  const piecesSuiviAdministratif = schema?.suiviAdministratifPiecesPersonnalisees
+    ? (schema.suiviAdministratifPieces || [])
+    : DEFAULT_PIECES_SUIVI_ADMINISTRATIF;
+
   if (loading) {
     return (
       <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex items-center justify-center text-[#005259] font-bold animate-pulse tracking-widest text-xs uppercase antialiased`}>
@@ -320,6 +326,32 @@ export default function FicheApprenantPage() {
               <Champ label="Affecté·e au suivi" valeur={i.Suivi_Recrutement ? "Oui" : "Non"} />
             </div>
           </Section>
+
+          {schema.pixPreinscriptionActif && <ResultatsPixFicheNkup historique={i.PixResultatsNkup} />}
+
+          {schema.pixSessionActif && <ResultatsPixFiche historique={i.PixResultats} />}
+
+          {schema.suiviAdministratifActif && (
+            <Section icon={ClipboardDocumentCheckIcon} titre="Suivi administratif">
+              {piecesSuiviAdministratif.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {piecesSuiviAdministratif.map((p) => (
+                    <span key={p.id} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold ${i.SuiviAdministratif?.[p.id] ? "bg-[#005259]/10 text-[#005259]" : "bg-[#404040]/5 text-[#404040]/50"}`}>
+                      {p.label}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-[#404040]/50 font-medium">Aucune pièce configurée.</p>
+              )}
+              <Link
+                href={`/mediation/actions-collectives/reponses/${slug}/${encodeURIComponent(sessionId)}/suivi-administratif`}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#005259] hover:text-[#EA601F] hover:underline transition-colors"
+              >
+                Modifier le suivi administratif
+              </Link>
+            </Section>
+          )}
 
           <Section icon={AcademicCapIcon} titre="Évolution & présence">
             <div className="grid grid-cols-3 gap-4">

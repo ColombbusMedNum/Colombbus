@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, updateDoc, setDoc, arrayUnion } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, updateDoc, setDoc, arrayUnion } from "firebase/firestore";
 import { useMediateurs } from "@/lib/MediateursProvider";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
@@ -32,6 +32,24 @@ import { formatPhoneNumber } from "@/lib/formatPhone";
 import ResultatsPixFicheNkup from "@/components/ResultatsPixFicheNkup";
 import type { PixResultatNkup } from "@/lib/pixImportNkup";
 import FicheEntretienDiagnostic from "./FicheEntretienDiagnostic";
+import { ConfigPositionnement, CorrectionsManuelles, ReponsesPositionnement, calculerScoreCombine, formaterPoints } from "@/lib/positionnement";
+
+// Rapprochement email -> nom+prénom, même principe que le rapprochement Pix/
+// Test de langue ailleurs dans l'app (normalise diacritiques/casse).
+function normaliserTexte(s?: string): string {
+  return (s || "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+interface ResultatPositionnement {
+  Nom?: string;
+  Prénom?: string;
+  Email?: string;
+  Réponses?: ReponsesPositionnement;
+  ScoreGlobal?: number;
+  TotalQcmGlobal?: number;
+  ScoreParSection?: Record<string, { score: number; total: number }>;
+  CorrectionsManuelles?: CorrectionsManuelles;
+}
 
 interface AbsenceRecord {
   date: string;
@@ -601,6 +619,8 @@ export default function FicheApprenantPrfePage() {
   const apprenantId = (params?.apprenantId as string) || "";
 
   const [inscription, setInscription] = useState<Inscription | null>(null);
+  const [resultatPositionnement, setResultatPositionnement] = useState<ResultatPositionnement | null>(null);
+  const [configPositionnement, setConfigPositionnement] = useState<ConfigPositionnement | null>(null);
   const [categoriesActivite, setCategoriesActivite] = useState<CategorieEvolution[]>(ACTIVITE_DEFAUT);
   const [loading, setLoading] = useState(true);
   const [introuvable, setIntrouvable] = useState(false);
@@ -610,12 +630,24 @@ export default function FicheApprenantPrfePage() {
   useEffect(() => {
     const charger = async () => {
       try {
-        const [snap, snapCategories] = await Promise.all([
+        const [snap, snapCategories, snapPositionnement, snapConfigPositionnement] = await Promise.all([
           getDoc(doc(db, "inscriptions_prfe", apprenantId)),
           getDoc(doc(db, "configuration_prfe", "evolutionCategories")),
+          getDocs(collection(db, "positionnement", "prfe", "resultats")),
+          getDoc(doc(db, "positionnement", "prfe")),
         ]);
+        if (snapConfigPositionnement.exists()) setConfigPositionnement(snapConfigPositionnement.data() as ConfigPositionnement);
         if (snap.exists()) {
-          setInscription({ id: snap.id, ...snap.data() } as Inscription);
+          const i = { id: snap.id, ...snap.data() } as Inscription;
+          setInscription(i);
+          // Rapprochement test de positionnement (voir lib/positionnement.ts)
+          // — par email d'abord, nom+prénom en repli.
+          const email = normaliserTexte(i.Email);
+          const nom = normaliserTexte(i.Nom);
+          const prenom = normaliserTexte(i.Prénom);
+          const resultats = snapPositionnement.docs.map((d) => d.data() as ResultatPositionnement);
+          const trouve = (email && resultats.find((r) => normaliserTexte(r.Email) === email)) || resultats.find((r) => normaliserTexte(r.Nom) === nom && normaliserTexte(r.Prénom) === prenom);
+          setResultatPositionnement(trouve || null);
         } else {
           setIntrouvable(true);
         }
@@ -980,6 +1012,39 @@ export default function FicheApprenantPrfePage() {
           </Section>
 
           <ResultatsPixFicheNkup historique={i.PixResultatsNkup} />
+
+          {resultatPositionnement && configPositionnement && (() => {
+            const combine = calculerScoreCombine(configPositionnement, resultatPositionnement.ScoreGlobal ?? 0, resultatPositionnement.TotalQcmGlobal ?? 0, resultatPositionnement.ScoreParSection, resultatPositionnement.CorrectionsManuelles);
+            return (
+            <Section icon={AcademicCapIcon} titre="Test de positionnement">
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-[#005259]">
+                  Score global : {formaterPoints(combine.global.score)}/{combine.global.total}
+                  <span className="text-[#404040]/50 font-medium"> ({resultatPositionnement.ScoreGlobal ?? 0}/{resultatPositionnement.TotalQcmGlobal ?? 0} QCM)</span>
+                </p>
+                {Object.keys(combine.parSection).length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {configPositionnement.sections.map((section) => {
+                      const s = combine.parSection[section.id];
+                      if (!s || s.total === 0) return null;
+                      return (
+                        <span key={section.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[#005259]/10 text-[#005259]" title={section.titre}>
+                          {formaterPoints(s.score)}/{s.total}
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+                <Link
+                  href="/mediation/actions-collectives/reponses/prfe/positionnement"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#005259] hover:text-[#EA601F] hover:underline transition-colors"
+                >
+                  Voir le détail des réponses
+                </Link>
+              </div>
+            </Section>
+            );
+          })()}
 
           <Section icon={CheckBadgeIcon} titre="Suivi pédagogique">
             <div className="space-y-3">

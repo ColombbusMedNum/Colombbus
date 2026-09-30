@@ -315,6 +315,33 @@ service cloud.firestore {
       allow update, delete: if isCoordinateurOuPlus();
     }
 
+    // Moteur générique "test de positionnement" (voir lib/positionnement.ts) —
+    // questions éditables depuis l'interface, contrairement à Test de langue/
+    // Collecte Tech dont les questions sont fixes. programmeId est une chaîne
+    // libre (ex. "prfe"), pas couplée à dynamic_actions, pour rester
+    // attachable à n'importe quel programme historique ou action dynamique.
+    match /positionnement/{programmeId} {
+      // Le formulaire public doit lire les questions sans être connecté ;
+      // l'édition des questions reste réservée à l'admin (même politique que
+      // dynamic_actions/{slug}, voir plus haut).
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /resultats/{docId} {
+        allow read: if isStaff();
+        allow create: if isStaff() || (
+          request.resource.data.keys().hasAll(['Nom', 'Prénom', 'Email', 'RGPD']) &&
+          request.resource.data['Nom'] is string && request.resource.data['Nom'].size() > 0 &&
+          request.resource.data['Prénom'] is string && request.resource.data['Prénom'].size() > 0 &&
+          request.resource.data['Email'] is string && request.resource.data['Email'].size() > 0 &&
+          request.resource.data['RGPD'] == true &&
+          request.resource.data.get('_piege', '') == '' &&
+          request.resource.data.get('_dureeRemplissageMs', 0) > 3000
+        );
+        allow update, delete: if isCoordinateurOuPlus();
+      }
+    }
+
     // Moteur "actions personnalisées" (voir lib/dynamicActions/) : une seule
     // règle générique, valable pour TOUTE action créée depuis /mediation/
     // actions-collectives/creer-action, sans jamais redéployer ces règles à
@@ -344,6 +371,39 @@ service cloud.firestore {
         allow read: if isStaff();
         allow create: if isStaff() || (
           request.resource.data.keys().hasAll(['Nom', 'Prénom', 'Téléphone', 'Email', 'Parcours', 'Territoire', 'Session', 'RGPD']) &&
+          request.resource.data['Nom'] is string && request.resource.data['Nom'].size() > 0 &&
+          request.resource.data['Prénom'] is string && request.resource.data['Prénom'].size() > 0 &&
+          request.resource.data['Email'] is string && request.resource.data['Email'].size() > 0 &&
+          request.resource.data['RGPD'] == true &&
+          request.resource.data.get('_piege', '') == '' &&
+          request.resource.data.get('_dureeRemplissageMs', 0) > 3000
+        );
+        allow update, delete: if isCoordinateurOuPlus();
+      }
+
+      // Modules optionnels "Test de langue" / "Collecte Tech" (voir
+      // ActionSchema.testLangueActif/collecteTechActif et app/inscription/
+      // [slug]/test-langue|collecte-tech) — même socle anti-bot que les
+      // collections top-level équivalentes des 4 programmes historiques
+      // (resultats_test_langue_digitaluppro etc.), mais imbriquées ici sous
+      // dynamic_actions/{slug} pour qu'une seule règle couvre toute action.
+      match /resultatsTestLangue/{docId} {
+        allow read: if isStaff();
+        allow create: if isStaff() || (
+          request.resource.data.keys().hasAll(['Nom', 'Prénom', 'Email', 'Score', 'Niveau_B1_Francais', 'RGPD']) &&
+          request.resource.data['Nom'] is string && request.resource.data['Nom'].size() > 0 &&
+          request.resource.data['Prénom'] is string && request.resource.data['Prénom'].size() > 0 &&
+          request.resource.data['Email'] is string && request.resource.data['Email'].size() > 0 &&
+          request.resource.data['RGPD'] == true &&
+          request.resource.data.get('_piege', '') == '' &&
+          request.resource.data.get('_dureeRemplissageMs', 0) > 3000
+        );
+        allow update, delete: if isCoordinateurOuPlus();
+      }
+      match /resultatsCollecteTech/{docId} {
+        allow read: if isStaff();
+        allow create: if isStaff() || (
+          request.resource.data.keys().hasAll(['Nom', 'Prénom', 'Email', 'Score', 'Profil', 'RGPD']) &&
           request.resource.data['Nom'] is string && request.resource.data['Nom'].size() > 0 &&
           request.resource.data['Prénom'] is string && request.resource.data['Prénom'].size() > 0 &&
           request.resource.data['Email'] is string && request.resource.data['Email'].size() > 0 &&
