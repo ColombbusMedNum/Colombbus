@@ -1390,13 +1390,16 @@ export default function PlanningSuresnes() {
                             const uniqueKey = `${c.id}_${c.date}`;
                             const currentStatutFiche = statutsVisitesRealtime[uniqueKey] || "Non suivi";
                             const totalPresentsUsager = bTrouve ? (totalVisitesPresents[bTrouve.id] || 0) : 0;
+                            // Bénéficiaire jamais venu (0 présence enregistrée à ce jour) —
+                            // repéré en orange pour que le médiateur prépare un accueil "1ère fois".
+                            const estNouveau = !!bTrouve && totalPresentsUsager === 0;
 
                             const thématiqueMatériel = c.thematique === "Ordinateur" || c.thematique === "Smartphone";
                             const aDejaFaitCetteThematique = bTrouve && thematiquesVisitees[bTrouve.id]?.includes(c.thematique);
                             const trendBesoinDiagnostic = bTrouve && thématiqueMatériel && !aDejaFaitCetteThematique;
 
                             return (
-                              <div key={c.id} className={`rounded-xl border p-3 transition-all ${currentStatutFiche === 'Absent' ? 'bg-[#EF736A]/15 border-[#EF736A]/50 hover:border-[#EF736A]' : isOrphan ? 'bg-[#EF736A]/10 border-[#EF736A]/30' : estDomicile ? 'bg-[#F9C44E]/[0.12] border-[#F9C44E]/40 hover:border-[#F9C44E]' : isRND ? 'bg-[#EA601F]/5 border-[#EA601F]/20 hover:border-[#EA601F]/40' : 'bg-[#F3F3F2]/50 border-[#404040]/10 hover:border-[#005259]/30 hover:bg-[#F3F3F2]'}`}>
+                              <div key={c.id} className={`rounded-xl border p-3 transition-all ${currentStatutFiche === 'Absent' ? 'bg-[#EF736A]/15 border-[#EF736A]/50 hover:border-[#EF736A]' : isOrphan ? 'bg-[#EF736A]/10 border-[#EF736A]/30' : estNouveau ? 'bg-[#EA601F]/10 border-[#EA601F]/40 hover:border-[#EA601F]' : estDomicile ? 'bg-[#F9C44E]/[0.12] border-[#F9C44E]/40 hover:border-[#F9C44E]' : isRND ? 'bg-[#EA601F]/5 border-[#EA601F]/20 hover:border-[#EA601F]/40' : 'bg-[#F3F3F2]/50 border-[#404040]/10 hover:border-[#005259]/30 hover:bg-[#F3F3F2]'}`}>
                               <div className="grid grid-cols-1 xl:grid-cols-12 items-center gap-4">
 
                                 <div className="xl:col-span-3 flex items-center gap-3 min-w-0">
@@ -1409,6 +1412,7 @@ export default function PlanningSuresnes() {
                                       <span className={`whitespace-nowrap ${isOrphan ? "text-[#EF736A]" : "text-[#005259]"}`}>{nomAffiche}</span>
                                       {isRND && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#EA601F]/10 border border-[#EA601F]/30 text-[#EA601F] shrink-0">RND</span>}
                                       {estDomicile && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#F9C44E]/20 border border-[#F9C44E] text-[#005259] shrink-0">Domicile</span>}
+                                      {estNouveau && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#EA601F]/15 border border-[#EA601F]/40 text-[#EA601F] shrink-0" title="Aucune présence enregistrée jusqu'ici">Nouveau</span>}
                                     </div>
                                     {creneauLibre && (
                                       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
