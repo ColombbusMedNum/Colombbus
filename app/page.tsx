@@ -50,6 +50,7 @@ import {
   LinkIcon as LinkIconOutline,
   PencilSquareIcon,
   ChatBubbleLeftRightIcon,
+  Squares2X2Icon,
 } from "@heroicons/react/24/outline";
 
 type Accent = "teal" | "orange";
@@ -303,6 +304,7 @@ const NAV_TREE: NavNode[] = [
           },
         ],
       },
+      { id: "recapitulatif", kind: "leaf", accent: "teal", icon: Squares2X2Icon, title: "Récapitulatif", subtitle: "Vue d'ensemble de toutes les tuiles de l'accueil", actionId: "home_nav_recapitulatif", href: "/mediation/recapitulatif" },
     ],
   },
   { id: "faq", kind: "leaf", accent: "teal", icon: QuestionMarkCircleIcon, title: "F.A.Q", subtitle: "Le guide de toutes les pages, page par page", actionId: "home_nav_guide", href: "/mediation/guide" },

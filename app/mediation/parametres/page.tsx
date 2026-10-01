@@ -15,6 +15,8 @@ import {
   CalendarDaysIcon,
   XMarkIcon,
   PlusIcon,
+  Squares2X2Icon,
+  ArrowRightIcon,
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { useToast } from "@/components/ToastProvider";
@@ -440,6 +442,18 @@ export default function ParametresPage() {
               })}
             </div>
           </div>
+
+          {/* LIEN VERS LE RÉCAPITULATIF DES TUILES */}
+          <Link href="/mediation/recapitulatif" className="flex items-center justify-between gap-3 bg-white hover:bg-[#005259]/5 border border-[#404040]/10 rounded-2xl p-5 shadow-sm transition-colors group">
+            <div className="flex items-center gap-3">
+              <Squares2X2Icon className="w-5 h-5 text-[#EA601F]" />
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-wide text-[#005259]">Récapitulatif des tuiles de l'accueil</h2>
+                <p className="text-[11px] text-[#404040]/60">Vue d'ensemble de ce que contient chaque dossier de la page d'accueil</p>
+              </div>
+            </div>
+            <ArrowRightIcon className="w-4 h-4 text-[#404040]/30 group-hover:text-[#EA601F] transition-colors shrink-0" />
+          </Link>
 
         </div>
       </main>

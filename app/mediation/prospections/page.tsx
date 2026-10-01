@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
-import { HomeIcon, ArrowUpTrayIcon, PlusIcon, MagnifyingGlassIcon, ChatBubbleLeftRightIcon, ChevronUpIcon, ChevronDownIcon, UsersIcon, CheckCircleIcon, ClockIcon, SparklesIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ArrowUpTrayIcon, PlusIcon, MagnifyingGlassIcon, ChatBubbleLeftRightIcon, ChevronUpIcon, ChevronDownIcon, UsersIcon, CheckCircleIcon, ClockIcon, SparklesIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
@@ -91,15 +91,23 @@ export default function ProspectionsPage() {
     return Array.from(compte.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "fr"));
   }, [prospects]);
 
+  // Filtre par ville distinct de la recherche texte libre : un match exact
+  // sur la colonne Ville, pas un sous-texte (sinon "Bagneux" remonte aussi
+  // les fiches d'autres villes dont l'adresse ou la zone de couverture
+  // mentionne juste "rue de Bagneux" ou "Antony, Bagneux, ..."). Les deux
+  // filtres se cumulent (ET logique).
+  const [villeFiltre, setVilleFiltre] = useState<string | null>(null);
+
   const filtres = useMemo(() => {
-    const q = normaliser(recherche.trim());
     if (!prospects) return [];
-    if (!q) return prospects;
+    const q = normaliser(recherche.trim());
     return prospects.filter((p) => {
+      if (villeFiltre && (p.champs?.["Ville (établissement)"] || "").trim() !== villeFiltre) return false;
+      if (!q) return true;
       const texte = normaliser([p.nom, ...Object.values(p.champs || {})].join(" "));
       return texte.includes(q);
     });
-  }, [prospects, recherche]);
+  }, [prospects, recherche, villeFiltre]);
 
   const [tri, setTri] = useState<{ colonne: string; direction: "asc" | "desc" }>({ colonne: "nom", direction: "asc" });
   const basculerTri = (colonne: string) => setTri((prev) => prev.colonne === colonne ? { colonne, direction: prev.direction === "asc" ? "desc" : "asc" } : { colonne, direction: "asc" });
@@ -225,8 +233,8 @@ export default function ProspectionsPage() {
                 {repartitionVilles.map(([ville, nb]) => (
                   <button
                     key={ville}
-                    onClick={() => setRecherche((r) => normaliser(r.trim()) === normaliser(ville) ? "" : ville)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${normaliser(recherche.trim()) === normaliser(ville) ? "bg-[#005259] text-white" : "bg-[#F3F3F2] text-[#404040]/80 hover:bg-[#005259]/10"}`}
+                    onClick={() => setVilleFiltre((v) => v === ville ? null : ville)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${villeFiltre === ville ? "bg-[#005259] text-white" : "bg-[#F3F3F2] text-[#404040]/80 hover:bg-[#005259]/10"}`}
                   >
                     {ville}
                     <span className={normaliser(recherche.trim()) === normaliser(ville) ? "text-white/70" : "text-[#EA601F]"}>{nb}</span>
@@ -236,14 +244,22 @@ export default function ProspectionsPage() {
             </div>
           )}
 
-          <div className="relative">
-            <MagnifyingGlassIcon className="w-4 h-4 text-[#404040]/40 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              value={recherche}
-              onChange={(e) => setRecherche(e.target.value)}
-              placeholder="Rechercher un prospect (nom, structure, email...)"
-              className="w-full pl-9 pr-3 py-2.5 bg-white border border-[#404040]/10 rounded-xl text-xs outline-none focus:border-[#005259]/40 shadow-sm"
-            />
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="relative flex-1 min-w-[200px]">
+              <MagnifyingGlassIcon className="w-4 h-4 text-[#404040]/40 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                value={recherche}
+                onChange={(e) => setRecherche(e.target.value)}
+                placeholder="Rechercher un prospect (nom, structure, email...)"
+                className="w-full pl-9 pr-3 py-2.5 bg-white border border-[#404040]/10 rounded-xl text-xs outline-none focus:border-[#005259]/40 shadow-sm"
+              />
+            </div>
+            {villeFiltre && (
+              <button onClick={() => setVilleFiltre(null)} className="flex items-center gap-1.5 px-3 py-2 bg-[#005259] text-white rounded-xl text-[11px] font-bold shadow-sm cursor-pointer">
+                Ville : {villeFiltre}
+                <XMarkIcon className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           {selection.size > 0 && (
