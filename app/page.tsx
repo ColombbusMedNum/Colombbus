@@ -51,6 +51,7 @@ import {
   PencilSquareIcon,
   ChatBubbleLeftRightIcon,
   Squares2X2Icon,
+  TagIcon,
 } from "@heroicons/react/24/outline";
 
 type Accent = "teal" | "orange";
@@ -212,6 +213,7 @@ const NAV_TREE: NavNode[] = [
               { id: "fiche-bilan", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Fiche Bilan", subtitle: "Accéder aux fiches de synthèses et bilans", actionId: "home_nav_fiche_bilan", href: "/mediation/rencontres-numeriques/fiches-bilans" },
               { id: "bilan-tech", kind: "leaf", accent: "orange", icon: WrenchScrewdriverIcon, title: "Bilan Tech", subtitle: "Effectuer et suivre les bilans techniques", actionId: "home_nav_bilan_tech", href: "/mediation/rencontres-numeriques/bilan_tech" },
               { id: "collectes", kind: "leaf", accent: "teal", icon: CpuChipIcon, title: "Suivi Collectes Tech", subtitle: "Tableau d'activité synchrone type Excel / IdF", actionId: "home_nav_collectes", href: "/mediation/rencontres-numeriques/suivi-collecte" },
+              { id: "actions-par-thematique", kind: "leaf", accent: "orange", icon: TagIcon, title: "Actions par Thématique", subtitle: "Toutes les actions individuelles, classées par thématique abordée", actionId: "home_nav_actions_par_thematique", href: "/mediation/rencontres-numeriques/actions-par-thematique" },
             ],
           },
           {

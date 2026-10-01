@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { quicksand } from "@/lib/fonts";
-import { HomeIcon, ArrowLeftIcon, TrashIcon, ChatBubbleLeftRightIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, ArrowLeftIcon, TrashIcon, ChatBubbleLeftRightIcon, MapPinIcon, PencilSquareIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
@@ -13,6 +13,23 @@ import { ecouterProspect, ajouterAnnotation, supprimerAnnotation, supprimerProsp
 function formaterDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }) + " à " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+}
+
+// Cherche une colonne par motif (ex. "adresse") en préférant une variante
+// "(établissement)" si elle existe — générique pour s'adapter à n'importe
+// quel fichier importé, pas seulement au fichier Hauts-de-Seine.
+function champPrefere(champs: Record<string, string>, motif: RegExp): string {
+  const entrees = Object.entries(champs || {});
+  const etab = entrees.find(([cle]) => motif.test(cle) && /étab/i.test(cle));
+  if (etab) return etab[1];
+  return entrees.find(([cle]) => motif.test(cle))?.[1] || "";
+}
+
+function adresseComplete(champs: Record<string, string>): string {
+  const adresse = champPrefere(champs, /adresse/i);
+  const codePostal = champPrefere(champs, /code postal/i);
+  const ville = champPrefere(champs, /ville/i);
+  return [adresse, [codePostal, ville].filter(Boolean).join(" ")].filter(Boolean).join(", ");
 }
 
 export default function FicheProspectPage() {
@@ -26,6 +43,9 @@ export default function FicheProspectPage() {
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [editionNom, setEditionNom] = useState(false);
   const [nomEdite, setNomEdite] = useState("");
+  const [editionChamps, setEditionChamps] = useState(false);
+  const [champsEdites, setChampsEdites] = useState<Record<string, string>>({});
+  const [enregistrementChampsEnCours, setEnregistrementChampsEnCours] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -52,6 +72,7 @@ export default function FicheProspectPage() {
   }
 
   const annotationsTriees = [...prospect.annotations].sort((a, b) => b.date.localeCompare(a.date));
+  const adresse = adresseComplete(prospect.champs);
 
   const envoyerAnnotation = async () => {
     const texte = texteAnnotation.trim();
@@ -77,6 +98,22 @@ export default function FicheProspectPage() {
     if (!nom) return;
     await mettreAJourChampsProspect(prospect.id, nom, prospect.champs);
     setEditionNom(false);
+  };
+
+  const commencerEditionChamps = () => {
+    setChampsEdites({ ...prospect.champs });
+    setEditionChamps(true);
+  };
+
+  const enregistrerChamps = async () => {
+    if (enregistrementChampsEnCours) return;
+    setEnregistrementChampsEnCours(true);
+    try {
+      await mettreAJourChampsProspect(prospect.id, prospect.nom, champsEdites);
+      setEditionChamps(false);
+    } finally {
+      setEnregistrementChampsEnCours(false);
+    }
   };
 
   return (
@@ -119,17 +156,74 @@ export default function FicheProspectPage() {
             </div>
           </div>
 
+          {adresse && (
+            <div className="bg-white border border-[#404040]/10 rounded-2xl shadow-sm overflow-hidden">
+              <iframe
+                title={`Carte — ${adresse}`}
+                src={`https://www.google.com/maps?q=${encodeURIComponent(adresse)}&output=embed`}
+                width="100%"
+                height="220"
+                style={{ border: 0 }}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(adresse)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-4 py-2.5 border-t border-[#404040]/10 text-[11px] font-bold text-[#005259] hover:text-[#EA601F] transition-colors"
+              >
+                <MapPinIcon className="w-3.5 h-3.5" />
+                {adresse} — Ouvrir dans Google Maps
+              </a>
+            </div>
+          )}
+
           {Object.keys(prospect.champs || {}).length > 0 && (
             <div className="bg-white border border-[#404040]/10 rounded-2xl p-5 shadow-sm">
-              <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259] mb-3">Informations</h2>
-              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5">
-                {Object.entries(prospect.champs).filter(([, v]) => v).map(([cle, valeur]) => (
-                  <div key={cle} className="min-w-0">
-                    <dt className="text-[10px] font-bold uppercase tracking-wide text-[#404040]/50">{cle}</dt>
-                    <dd className="text-xs text-[#404040] break-words">{valeur}</dd>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-xs font-extrabold uppercase tracking-wide text-[#005259]">Informations</h2>
+                {editionChamps ? (
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setEditionChamps(false)} className="flex items-center gap-1 px-2.5 py-1 bg-[#F3F3F2] text-[#404040]/70 rounded-lg text-[10px] font-bold uppercase tracking-wide hover:text-[#404040] transition-colors cursor-pointer">
+                      <XMarkIcon className="w-3.5 h-3.5" />
+                      Annuler
+                    </button>
+                    <button onClick={enregistrerChamps} disabled={enregistrementChampsEnCours} className="px-2.5 py-1 bg-[#005259] hover:bg-[#EA601F] disabled:opacity-40 text-white rounded-lg text-[10px] font-bold uppercase tracking-wide transition-colors cursor-pointer">
+                      {enregistrementChampsEnCours ? "..." : "Enregistrer"}
+                    </button>
                   </div>
-                ))}
-              </dl>
+                ) : (
+                  <button onClick={commencerEditionChamps} className="flex items-center gap-1 px-2.5 py-1 bg-[#F3F3F2] hover:bg-[#005259] hover:text-white text-[#005259] rounded-lg text-[10px] font-bold uppercase tracking-wide transition-colors cursor-pointer">
+                    <PencilSquareIcon className="w-3.5 h-3.5" />
+                    Éditer
+                  </button>
+                )}
+              </div>
+
+              {editionChamps ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                  {Object.keys(champsEdites).map((cle) => (
+                    <div key={cle} className="min-w-0">
+                      <label className="block text-[10px] font-bold uppercase tracking-wide text-[#404040]/50 mb-1">{cle}</label>
+                      <input
+                        value={champsEdites[cle]}
+                        onChange={(e) => setChampsEdites((prev) => ({ ...prev, [cle]: e.target.value }))}
+                        className="w-full px-2.5 py-1.5 bg-[#F3F3F2] border border-[#404040]/15 rounded-lg text-xs outline-none focus:border-[#005259]/40"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5">
+                  {Object.entries(prospect.champs).filter(([, v]) => v).map(([cle, valeur]) => (
+                    <div key={cle} className="min-w-0">
+                      <dt className="text-[10px] font-bold uppercase tracking-wide text-[#404040]/50">{cle}</dt>
+                      <dd className="text-xs text-[#404040] break-words">{valeur}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
             </div>
           )}
 

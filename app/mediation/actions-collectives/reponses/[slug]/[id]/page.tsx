@@ -407,13 +407,20 @@ export default function SuiviRecrutementSessionPage() {
                   inscriptionsFiltrees.map((i, index) => {
                     const referent = `${i.Conseiller_Prenom || ""} ${i.Conseiller_Nom || ""}`.trim();
                     const resultatCollecteTech = schema?.collecteTechActif ? trouverResultatCollecteTech(i) : undefined;
+                    // Ligne en rouge/vert dès que la décision OK/NOK est posée —
+                    // visible d'un coup d'œil sans avoir à rouvrir le menu déroulant.
+                    // Fond plus saturé sur les colonnes non figées (bg uni, pas de
+                    // superposition d'opacité avec le blanc de fond comme à gauche).
+                    const estNOK = i.Decision_Recrutement === "NOK";
+                    const estOK = i.Decision_Recrutement === "OK";
+                    const fondFigee = estNOK ? "bg-[#FBEAE8] group-hover:bg-[#EF736A]/15" : estOK ? "bg-[#EAF7F1] group-hover:bg-[#A9E0C9]/25" : "bg-white group-hover:bg-[#F3F3F2]/60";
                     return (
-                      <tr key={i.id} className="group hover:bg-[#F3F3F2]/60 transition-colors align-top">
-                        <td className={`${classeFigee} px-3 py-2 text-center text-[#404040]/50 font-bold bg-white group-hover:bg-[#F3F3F2]/60`} style={{ left: decalages.num }}>{index + 1}</td>
-                        <td className={`${classeFigee} px-3 py-2 whitespace-nowrap bg-white group-hover:bg-[#F3F3F2]/60`} style={{ left: decalages.civilite }}>{i.Civilité || "—"}</td>
-                        <td className={`${classeFigee} px-3 py-2 whitespace-nowrap font-bold text-[#005259] bg-white group-hover:bg-[#F3F3F2]/60`} style={{ left: decalages.prenom }}>{i.Prénom || "—"}</td>
-                        <td className={`${classeFigee} px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase bg-white group-hover:bg-[#F3F3F2]/60`} style={{ left: decalages.nom }}>{i.Nom || "—"}</td>
-                        <td className={`${classeFigee} ${ombreDerniereFigee} px-3 py-2 whitespace-nowrap bg-white group-hover:bg-[#F3F3F2]/60`} style={{ left: decalages.telephone }}>{formatPhoneNumber(i.Téléphone)}</td>
+                      <tr key={i.id} className={`group transition-colors align-top ${estNOK ? "bg-[#EF736A]/20 hover:bg-[#EF736A]/25" : estOK ? "bg-[#A9E0C9]/15 hover:bg-[#A9E0C9]/25" : "hover:bg-[#F3F3F2]/60"}`}>
+                        <td className={`${classeFigee} px-3 py-2 text-center text-[#404040]/50 font-bold ${fondFigee}`} style={{ left: decalages.num }}>{index + 1}</td>
+                        <td className={`${classeFigee} px-3 py-2 whitespace-nowrap ${fondFigee}`} style={{ left: decalages.civilite }}>{i.Civilité || "—"}</td>
+                        <td className={`${classeFigee} px-3 py-2 whitespace-nowrap font-bold text-[#005259] ${fondFigee}`} style={{ left: decalages.prenom }}>{i.Prénom || "—"}</td>
+                        <td className={`${classeFigee} px-3 py-2 whitespace-nowrap font-bold text-[#005259] uppercase ${fondFigee}`} style={{ left: decalages.nom }}>{i.Nom || "—"}</td>
+                        <td className={`${classeFigee} ${ombreDerniereFigee} px-3 py-2 whitespace-nowrap ${fondFigee}`} style={{ left: decalages.telephone }}>{formatPhoneNumber(i.Téléphone)}</td>
                         <td className="px-3 py-2 text-center whitespace-nowrap">
                           {i.Age !== "" && i.Age !== undefined ? (estMineur(i.Age) ? <span className="inline-block px-2 py-0.5 rounded bg-[#F9C44E]/20 text-[#005259] border border-[#F9C44E] text-[10px] font-bold">{i.Age}</span> : i.Age) : "—"}
                         </td>

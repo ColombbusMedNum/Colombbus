@@ -126,6 +126,7 @@ const RECAP_TUILES: TuileRecap[] = [
               { titre: "Fiche Bilan", description: "Accéder aux fiches de synthèses et bilans", href: "/mediation/rencontres-numeriques/fiches-bilans" },
               { titre: "Bilan Tech", description: "Effectuer et suivre les bilans techniques", href: "/mediation/rencontres-numeriques/bilan_tech" },
               { titre: "Suivi Collectes Tech", description: "Tableau d'activité synchrone type Excel / IdF", href: "/mediation/rencontres-numeriques/suivi-collecte" },
+              { titre: "Actions par Thématique", description: "Toutes les actions individuelles, classées par thématique abordée", href: "/mediation/rencontres-numeriques/actions-par-thematique" },
             ],
           },
           {

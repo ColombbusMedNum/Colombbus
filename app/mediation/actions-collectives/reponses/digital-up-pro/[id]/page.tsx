@@ -691,10 +691,16 @@ export default function ReponsesDigitalUpProSessionPage() {
                     const estE2C = prescripteur.toUpperCase().includes("E2C");
                     const resultatTestLangue = trouverResultatTestLangue(i);
                     const resultatCollecteTech = trouverResultatCollecteTech(i);
-                    const fondFigee = estE2C ? "bg-[#F5EEFF] group-hover:bg-[#7C1FD1]/10" : "bg-white group-hover:bg-[#F3F3F2]/60";
+                    // Ligne en rouge/vert dès que la décision OK/NOK est posée —
+                    // visible d'un coup d'œil sans avoir à rouvrir le menu déroulant.
+                    // La sélection (case à cocher) reste prioritaire visuellement,
+                    // c'est une action explicite et transitoire de l'utilisateur.
+                    const estNOK = i.OK_NOK === "NOK";
+                    const estOK = i.OK_NOK === "OK";
+                    const fondFigee = estNOK ? "bg-[#FBEAE8] group-hover:bg-[#EF736A]/15" : estOK ? "bg-[#EAF7F1] group-hover:bg-[#A9E0C9]/25" : estE2C ? "bg-[#F5EEFF] group-hover:bg-[#7C1FD1]/10" : "bg-white group-hover:bg-[#F3F3F2]/60";
                     const selectionnee = lignesSelectionnees.has(i.id);
                     return (
-                      <tr key={`${i.id}-v${versionParLigne[i.id] || 0}`} className={`group transition-colors align-top ${selectionnee ? "bg-[#005259]/5" : estE2C ? "bg-[#7C1FD1]/5 hover:bg-[#7C1FD1]/10" : "hover:bg-[#F3F3F2]/60"}`}>
+                      <tr key={`${i.id}-v${versionParLigne[i.id] || 0}`} className={`group transition-colors align-top ${selectionnee ? "bg-[#005259]/5" : estNOK ? "bg-[#EF736A]/20 hover:bg-[#EF736A]/25" : estOK ? "bg-[#A9E0C9]/15 hover:bg-[#A9E0C9]/25" : estE2C ? "bg-[#7C1FD1]/5 hover:bg-[#7C1FD1]/10" : "hover:bg-[#F3F3F2]/60"}`}>
                         <td className={`${classeFigee} px-3 py-2 text-center ${fondFigee}`} style={{ left: decalages.select }}>
                           <input
                             type="checkbox"

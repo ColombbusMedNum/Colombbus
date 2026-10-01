@@ -30,10 +30,14 @@ interface Apprenant {
   Session?: string;
   Suivi_Recrutement?: boolean;
   OK_NOK?: string;
-  // E2C (École de la 2e Chance) — pièces/démarches administratives.
+  // E2C (École de la 2e Chance) — pièces/démarches administratives,
+  // uniquement pour les apprenant·e·s orienté·e·s par l'E2C.
   E2C_CS?: boolean;
   E2C_FR?: boolean;
   E2C_CV?: boolean;
+  // Charte d'engagement — concerne tou·te·s les apprenant·e·s, pas
+  // seulement celleux de l'E2C malgré le préfixe du champ (conservé tel
+  // quel en base pour ne pas migrer les données déjà saisies).
   E2C_CE?: boolean;
   // DI — Droit à l'Image.
   DI_Accord?: string;
@@ -120,6 +124,16 @@ export default function ApprenantsSessionPage() {
         .sort((a, b) => (a.Nom || "").localeCompare(b.Nom || "", "fr")),
     [inscriptions, sessionId]
   );
+
+  // Les colonnes E2C (CS/FR/CV) ne concernent que les apprenant·e·s
+  // orienté·e·s par l'École de la 2e Chance — masquées entièrement si
+  // personne dans la session n'est concerné, pour ne pas polluer le tableau.
+  const aucunE2C = useMemo(() => {
+    return !apprenantsSession.some((a) => {
+      const prescripteur = [...(a.Structures_Accompagnement || []), a.Structure_Autre].filter(Boolean).join(", ");
+      return prescripteur.toUpperCase().includes("E2C");
+    });
+  }, [apprenantsSession]);
 
   // Transmet la liste des apprenant·e·s au générateur d'émargement pour que
   // les lignes NOM/Prénom soient pré-remplies automatiquement.
@@ -399,11 +413,12 @@ export default function ApprenantsSessionPage() {
               <thead>
                 <tr className="bg-[#F3F3F2] text-[#005259] text-[10px] uppercase tracking-widest font-bold">
                   <th className="px-3 py-2 border-b border-[#404040]/10" colSpan={11}>Apprenant·e·s</th>
-                  <th className="px-3 py-2 border-b border-l border-[#404040]/10" colSpan={7}>Administratif</th>
+                  <th className="px-3 py-2 border-b border-l border-[#404040]/10" colSpan={4 + (aucunE2C ? 0 : 3)}>Administratif</th>
                 </tr>
                 <tr className="bg-[#005259]/10 text-[#005259] text-[10px] uppercase tracking-widest font-bold">
                   <th className="px-3 py-1.5" colSpan={11}></th>
-                  <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={4}>E2C</th>
+                  {!aucunE2C && <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={3}>E2C</th>}
+                  <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={1}>CE</th>
                   <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={1}>DI</th>
                   <th className="px-3 py-1.5 border-l border-[#404040]/10 text-center" colSpan={2}>Productions</th>
                 </tr>
@@ -419,10 +434,14 @@ export default function ApprenantsSessionPage() {
                   <th className="px-3 py-3">Diplôme</th>
                   <th className="px-3 py-3">Prescripteur</th>
                   <th className="px-3 py-3">Téléphone</th>
-                  <th className="px-2 py-3 border-l border-[#404040]/10 text-center">CS</th>
-                  <th className="px-2 py-3 text-center">FR</th>
-                  <th className="px-2 py-3 text-center">CV</th>
-                  <th className="px-2 py-3 text-center">CE</th>
+                  {!aucunE2C && (
+                    <>
+                      <th className="px-2 py-3 border-l border-[#404040]/10 text-center">CS</th>
+                      <th className="px-2 py-3 text-center">FR</th>
+                      <th className="px-2 py-3 text-center">CV</th>
+                    </>
+                  )}
+                  <th className="px-2 py-3 border-l border-[#404040]/10 text-center">CE</th>
                   <th className="px-2 py-3 border-l border-[#404040]/10 text-center">Droit Image</th>
                   <th className="px-2 py-3 border-l border-[#404040]/10 text-center">Production 1</th>
                   <th className="px-2 py-3 text-center">Production 2</th>
@@ -460,17 +479,21 @@ export default function ApprenantsSessionPage() {
                         <td className="px-3 py-2 whitespace-nowrap">{i.Niveau_Etudes || "—"}</td>
                         <td className="px-3 py-2 max-w-[160px] truncate" title={prescripteur}>{prescripteur || "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{formatPhoneNumber(i.Téléphone)}</td>
+                        {!aucunE2C && (
+                          <>
+                            <td className="px-2 py-2 border-l border-[#404040]/10 text-center">
+                              <input type="checkbox" checked={i.E2C_CS || false} disabled={!estE2C} onChange={(e) => basculerChampBooleen(i.id, "E2C_CS", e.target.checked)} className={`${checkboxClass} ${!estE2C ? "opacity-30 cursor-not-allowed" : ""}`} />
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              <input type="checkbox" checked={i.E2C_FR || false} disabled={!estE2C} onChange={(e) => basculerChampBooleen(i.id, "E2C_FR", e.target.checked)} className={`${checkboxClass} ${!estE2C ? "opacity-30 cursor-not-allowed" : ""}`} />
+                            </td>
+                            <td className="px-2 py-2 text-center">
+                              <input type="checkbox" checked={i.E2C_CV || false} disabled={!estE2C} onChange={(e) => basculerChampBooleen(i.id, "E2C_CV", e.target.checked)} className={`${checkboxClass} ${!estE2C ? "opacity-30 cursor-not-allowed" : ""}`} />
+                            </td>
+                          </>
+                        )}
                         <td className="px-2 py-2 border-l border-[#404040]/10 text-center">
-                          <input type="checkbox" checked={i.E2C_CS || false} disabled={!estE2C} onChange={(e) => basculerChampBooleen(i.id, "E2C_CS", e.target.checked)} className={`${checkboxClass} ${!estE2C ? "opacity-30 cursor-not-allowed" : ""}`} />
-                        </td>
-                        <td className="px-2 py-2 text-center">
-                          <input type="checkbox" checked={i.E2C_FR || false} disabled={!estE2C} onChange={(e) => basculerChampBooleen(i.id, "E2C_FR", e.target.checked)} className={`${checkboxClass} ${!estE2C ? "opacity-30 cursor-not-allowed" : ""}`} />
-                        </td>
-                        <td className="px-2 py-2 text-center">
-                          <input type="checkbox" checked={i.E2C_CV || false} disabled={!estE2C} onChange={(e) => basculerChampBooleen(i.id, "E2C_CV", e.target.checked)} className={`${checkboxClass} ${!estE2C ? "opacity-30 cursor-not-allowed" : ""}`} />
-                        </td>
-                        <td className="px-2 py-2 text-center">
-                          <input type="checkbox" checked={i.E2C_CE || false} disabled={!estE2C} onChange={(e) => basculerChampBooleen(i.id, "E2C_CE", e.target.checked)} className={`${checkboxClass} ${!estE2C ? "opacity-30 cursor-not-allowed" : ""}`} />
+                          <input type="checkbox" checked={i.E2C_CE || false} onChange={(e) => basculerChampBooleen(i.id, "E2C_CE", e.target.checked)} className={checkboxClass} />
                         </td>
                         <td className="px-2 py-2 border-l border-[#404040]/10 text-center">
                           <select value={i.DI_Accord || ""} onChange={(e) => mettreAJourChampTexte(i.id, "DI_Accord", e.target.value)} className={inputEditClass}>
