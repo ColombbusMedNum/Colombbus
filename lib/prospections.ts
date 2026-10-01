@@ -24,6 +24,11 @@ export interface Prospect {
   nom: string;
   champs: Record<string, string>; // toutes les colonnes importées, clé = en-tête d'origine du fichier
   annotations: AnnotationProspect[];
+  // Statut de contact explicite, indépendant des annotations : une
+  // annotation peut exister sans qu'un contact ait eu lieu (ex. "Mise en
+  // annuaire"), donc on ne déduit jamais "contacté" du simple fait d'avoir
+  // une note — seul ce booléen, coché à la main, compte pour les stats.
+  contacte?: boolean;
   creeLe: string;
   majLe: string;
 }
@@ -79,6 +84,10 @@ export async function supprimerAnnotation(id: string, annotationId: string, pros
     annotations: prospect.annotations.filter((a) => a.id !== annotationId),
     majLe: new Date().toISOString(),
   });
+}
+
+export async function definirContacte(id: string, contacte: boolean) {
+  await updateDoc(doc(db, "prospections", id), { contacte, majLe: new Date().toISOString() });
 }
 
 export async function supprimerProspect(id: string) {

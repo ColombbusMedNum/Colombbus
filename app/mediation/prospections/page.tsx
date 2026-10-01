@@ -7,7 +7,7 @@ import { HomeIcon, ArrowUpTrayIcon, PlusIcon, MagnifyingGlassIcon, ChatBubbleLef
 import PageGuard from "@/components/PageGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { usePermissions } from "@/lib/PermissionsProvider";
-import { ecouterProspects, creerProspect, ajouterAnnotation, type Prospect } from "@/lib/prospections";
+import { ecouterProspects, creerProspect, ajouterAnnotation, definirContacte, type Prospect } from "@/lib/prospections";
 import { useRouter } from "next/navigation";
 
 function normaliser(s: string): string {
@@ -74,10 +74,21 @@ export default function ProspectionsPage() {
   const stats = useMemo(() => {
     const liste = prospects || [];
     const total = liste.length;
-    const contactees = liste.filter((p) => (p.annotations?.length || 0) > 0).length;
+    const contactees = liste.filter((p) => p.contacte).length;
     const ilYA7Jours = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const annotationsRecentes = liste.reduce((n, p) => n + (p.annotations || []).filter((a) => new Date(a.date).getTime() >= ilYA7Jours).length, 0);
     return { total, contactees, aProspecter: total - contactees, annotationsRecentes };
+  }, [prospects]);
+
+  // Répartition par ville — compte le nombre d'acteurs (structures) par
+  // ville d'implantation, triée du plus grand au plus petit nombre.
+  const repartitionVilles = useMemo(() => {
+    const compte = new Map<string, number>();
+    (prospects || []).forEach((p) => {
+      const ville = (p.champs?.["Ville (établissement)"] || "").trim() || "Ville inconnue";
+      compte.set(ville, (compte.get(ville) || 0) + 1);
+    });
+    return Array.from(compte.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "fr"));
   }, [prospects]);
 
   const filtres = useMemo(() => {
@@ -97,6 +108,7 @@ export default function ProspectionsPage() {
     const valeur = (p: Prospect): string | number => {
       if (tri.colonne === "nom") return p.nom;
       if (tri.colonne === "annotations") return p.annotations?.length || 0;
+      if (tri.colonne === "contacte") return p.contacte ? 1 : 0;
       return p.champs?.[tri.colonne] || "";
     };
     return [...filtres].sort((a, b) => {
@@ -124,6 +136,11 @@ export default function ProspectionsPage() {
     } finally {
       setCreationEnCours(false);
     }
+  };
+
+  const marquerSelectionContactee = async (contacte: boolean) => {
+    await Promise.all(Array.from(selection).map((id) => definirContacte(id, contacte)));
+    setSelection(new Set());
   };
 
   const envoyerAnnotationBulk = async () => {
@@ -194,10 +211,28 @@ export default function ProspectionsPage() {
 
           {prospects !== null && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatTile icon={UsersIcon} valeur={stats.total} label="Fiches au total" accent="teal" />
+              <StatTile icon={UsersIcon} valeur={stats.total} label="Référencés" accent="teal" />
               <StatTile icon={CheckCircleIcon} valeur={stats.contactees} label="Contactées" accent="teal" />
-              <StatTile icon={SparklesIcon} valeur={stats.aProspecter} label="À prospecter" accent="orange" />
+              <StatTile icon={SparklesIcon} valeur={stats.aProspecter} label="À contacter" accent="orange" />
               <StatTile icon={ClockIcon} valeur={stats.annotationsRecentes} label="Annotations (7 j.)" accent="orange" />
+            </div>
+          )}
+
+          {repartitionVilles.length > 0 && (
+            <div className="bg-white border border-[#404040]/10 rounded-2xl p-4 shadow-sm space-y-2.5">
+              <h2 className="text-[10px] font-extrabold uppercase tracking-wide text-[#404040]/50">Répartition par ville ({repartitionVilles.length})</h2>
+              <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+                {repartitionVilles.map(([ville, nb]) => (
+                  <button
+                    key={ville}
+                    onClick={() => setRecherche((r) => normaliser(r.trim()) === normaliser(ville) ? "" : ville)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${normaliser(recherche.trim()) === normaliser(ville) ? "bg-[#005259] text-white" : "bg-[#F3F3F2] text-[#404040]/80 hover:bg-[#005259]/10"}`}
+                  >
+                    {ville}
+                    <span className={normaliser(recherche.trim()) === normaliser(ville) ? "text-white/70" : "text-[#EA601F]"}>{nb}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -219,6 +254,17 @@ export default function ProspectionsPage() {
                   <button onClick={() => setPanelAnnotationOuvert((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#005259] hover:bg-[#EA601F] text-white rounded-lg text-[10px] font-bold uppercase tracking-wide transition-colors cursor-pointer">
                     <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
                     Annoter la sélection
+                  </button>
+                </PermissionGuard>
+                <PermissionGuard actionId="prosp_add_annotation">
+                  <button onClick={() => marquerSelectionContactee(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#404040]/15 text-[#005259] rounded-lg text-[10px] font-bold uppercase tracking-wide hover:border-[#005259]/40 transition-colors cursor-pointer">
+                    <CheckCircleIcon className="w-3.5 h-3.5" />
+                    Marquer contactée
+                  </button>
+                </PermissionGuard>
+                <PermissionGuard actionId="prosp_add_annotation">
+                  <button onClick={() => marquerSelectionContactee(false)} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#404040]/15 text-[#404040]/60 rounded-lg text-[10px] font-bold uppercase tracking-wide hover:border-[#404040]/30 transition-colors cursor-pointer">
+                    Marquer non contactée
                   </button>
                 </PermissionGuard>
                 <button onClick={() => setSelection(new Set())} className="px-3 py-1.5 bg-[#F3F3F2] text-[#404040]/70 rounded-lg text-[10px] font-bold uppercase tracking-wide hover:text-[#404040] transition-colors cursor-pointer">
@@ -267,6 +313,7 @@ export default function ProspectionsPage() {
                         <input type="checkbox" checked={toutesSelectionnees} onChange={basculerTout} className="w-3.5 h-3.5 cursor-pointer accent-[#005259]" />
                       </th>
                       <ThTriable label="Nom" colonne="nom" tri={tri} onClick={basculerTri} />
+                      <ThTriable label="Contacté" colonne="contacte" tri={tri} onClick={basculerTri} />
                       {colonnes.map((c) => (
                         <ThTriable key={c} label={c} colonne={c} tri={tri} onClick={basculerTri} />
                       ))}
@@ -280,6 +327,11 @@ export default function ProspectionsPage() {
                           <input type="checkbox" checked={selection.has(p.id)} onChange={() => basculerUn(p.id)} className="w-3.5 h-3.5 cursor-pointer accent-[#005259]" />
                         </td>
                         <td className="px-4 py-2.5 font-bold text-[#005259] whitespace-nowrap">{p.nom}</td>
+                        <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                          <PermissionGuard actionId="prosp_add_annotation" fallback={p.contacte ? <CheckCircleIcon className="w-4 h-4 text-[#005259]" /> : <span className="text-[#404040]/30">—</span>}>
+                            <input type="checkbox" checked={!!p.contacte} onChange={() => definirContacte(p.id, !p.contacte)} className="w-3.5 h-3.5 cursor-pointer accent-[#005259]" />
+                          </PermissionGuard>
+                        </td>
                         {colonnes.map((c) => (
                           <td key={c} className="px-4 py-2.5 text-[#404040]/80 whitespace-nowrap max-w-[200px] truncate">{p.champs?.[c] || "—"}</td>
                         ))}
