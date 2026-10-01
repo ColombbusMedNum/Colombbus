@@ -1412,7 +1412,6 @@ export default function PlanningSuresnes() {
                                       <span className={`whitespace-nowrap ${isOrphan ? "text-[#EF736A]" : "text-[#005259]"}`}>{nomAffiche}</span>
                                       {isRND && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#EA601F]/10 border border-[#EA601F]/30 text-[#EA601F] shrink-0">RND</span>}
                                       {estDomicile && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#F9C44E]/20 border border-[#F9C44E] text-[#005259] shrink-0">Domicile</span>}
-                                      {estNouveau && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#EA601F]/15 border border-[#EA601F]/40 text-[#EA601F] shrink-0" title="Aucune présence enregistrée jusqu'ici">Nouveau</span>}
                                     </div>
                                     {creneauLibre && (
                                       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
@@ -1505,7 +1504,15 @@ export default function PlanningSuresnes() {
                                   />
                                 </div>
 
-                                <div className="xl:col-span-2 flex justify-end">
+                                <div className="xl:col-span-2 flex items-center justify-end gap-2">
+                                  {estNouveau && (
+                                    <span
+                                      className="inline-flex items-center justify-center px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide bg-[#EA601F]/15 border border-[#EA601F]/40 text-[#EA601F] shrink-0"
+                                      title="Aucune présence enregistrée jusqu'ici"
+                                    >
+                                      1ère venue
+                                    </span>
+                                  )}
                                   {c.reserveParNom && (
                                     <span
                                       className="inline-flex items-center justify-center px-2.5 py-1.5 rounded-lg text-xs font-bold tracking-wider bg-white border border-[#404040]/10 text-[#404040]/70 shadow-sm cursor-default"

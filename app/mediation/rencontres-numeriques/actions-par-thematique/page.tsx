@@ -16,6 +16,7 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   ArrowsUpDownIcon,
+  ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 
@@ -162,6 +163,36 @@ export default function ActionsParThematiquePage() {
     return aNom.localeCompare(bNom, "fr");
   });
 
+  // Exporte les actions actuellement filtrées (recherche + thématique), une
+  // ligne par action — pas par groupe, pour ne pas dupliquer artificiellement
+  // les lignes des actions multi-thématiques dans l'export.
+  const exporterCSV = () => {
+    if (visitesFiltrees.length === 0) return;
+    const entetes = "Date;Moment;Thématique(s);Bénéficiaire;Lieu;Médiateur;Statut;Détails\n";
+    const lignes = visitesFiltrees.map((v) =>
+      [
+        v.date ? new Date(v.date).toLocaleDateString("fr-FR") : "",
+        v.moment || "",
+        v.thematique || "",
+        `${v.prenomBeneficiaire} ${v.nomBeneficiaire}`.trim(),
+        v.lieu || "",
+        v.mediateur || "",
+        v.statut || "",
+        v.details || "",
+      ]
+        .map((champ) => String(champ ?? "").replace(/;/g, ",").replace(/\n/g, " "))
+        .join(";")
+    );
+    const blob = new Blob([entetes + lignes.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const lien = document.createElement("a");
+    lien.href = url;
+    const suffixe = thematiqueFiltre !== "Toutes" ? `_${thematiqueFiltre.replace(/[^a-z0-9]+/gi, "-")}` : "";
+    lien.setAttribute("download", `actions${suffixe}.csv`);
+    lien.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
       <div className={`${quicksand.className} min-h-screen bg-[#F3F3F2] flex items-center justify-center text-[#005259] font-bold animate-pulse tracking-widest text-xs uppercase antialiased`}>
@@ -202,6 +233,14 @@ export default function ActionsParThematiquePage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={exporterCSV}
+                disabled={visitesFiltrees.length === 0}
+                className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <ArrowDownTrayIcon className="w-4 h-4 text-[#EA601F]" />
+                <span>Exporter CSV</span>
+              </button>
               <Link href="/" className="flex items-center gap-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/10 px-3.5 py-2 rounded-xl text-[#005259] transition-all text-xs font-bold uppercase tracking-wider shadow-sm">
                 <HomeIcon className="w-4 h-4 text-[#EA601F]" />
                 <span>Accueil</span>
