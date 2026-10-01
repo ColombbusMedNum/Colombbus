@@ -371,6 +371,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Module "Prospections" (voir lib/prospections.ts) : fiches + annotations
+    // internes, jamais exposées au public — accès complet pour tout le staff
+    // actif (import, édition, annotations), pas réservé à l'admin comme les
+    // modules ci-dessus qui touchent à la configuration de questionnaires.
+    match /prospections/{prospectId} {
+      allow read, write: if isStaff();
+    }
+
     // Moteur "actions personnalisées" (voir lib/dynamicActions/) : une seule
     // règle générique, valable pour TOUTE action créée depuis /mediation/
     // actions-collectives/creer-action, sans jamais redéployer ces règles à

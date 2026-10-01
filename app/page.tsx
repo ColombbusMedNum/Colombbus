@@ -49,6 +49,7 @@ import {
   HeartIcon,
   LinkIcon as LinkIconOutline,
   PencilSquareIcon,
+  ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/outline";
 
 type Accent = "teal" | "orange";
@@ -194,67 +195,88 @@ const NAV_TREE: NavNode[] = [
     // Réservée aux permanents (médiateurs + coordinateurs) — masquée pour les
     // ACI, cf. actionId non accordé à ce rôle dans permissionsCatalog.ts.
     id: "gestion-colombbus", kind: "folder", accent: "teal", icon: BuildingOfficeIcon,
-    title: "Gestion Colombbus", subtitle: "Bilans, lieux, équipe et statistiques",
+    title: "Gestion Colombbus", subtitle: "Terrain, programmes, contenus, pilotage et administration",
     actionId: "home_folder_gestion_colombbus",
     children: [
       {
-        id: "bilans", kind: "folder", accent: "teal", icon: ClipboardDocumentCheckIcon,
-        title: "Bilans", subtitle: "Fiches bilan, bilan tech et suivi collectes",
-        actionId: "home_folder_bilans",
+        id: "terrain", kind: "folder", accent: "teal", icon: MapPinIcon,
+        title: "Terrain", subtitle: "Bilans, lieux et suivi collectes",
+        actionId: "home_folder_terrain",
         children: [
-          { id: "fiche-bilan", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Fiche Bilan", subtitle: "Accéder aux fiches de synthèses et bilans", actionId: "home_nav_fiche_bilan", href: "/mediation/rencontres-numeriques/fiches-bilans" },
-          { id: "bilan-tech", kind: "leaf", accent: "orange", icon: WrenchScrewdriverIcon, title: "Bilan Tech", subtitle: "Effectuer et suivre les bilans techniques", actionId: "home_nav_bilan_tech", href: "/mediation/rencontres-numeriques/bilan_tech" },
-          { id: "collectes", kind: "leaf", accent: "teal", icon: CpuChipIcon, title: "Suivi Collectes Tech", subtitle: "Tableau d'activité synchrone type Excel / IdF", actionId: "home_nav_collectes", href: "/mediation/rencontres-numeriques/suivi-collecte" },
+          {
+            id: "bilans", kind: "folder", accent: "teal", icon: ClipboardDocumentCheckIcon,
+            title: "Bilans", subtitle: "Fiches bilan, bilan tech et suivi collectes",
+            actionId: "home_folder_bilans",
+            children: [
+              { id: "fiche-bilan", kind: "leaf", accent: "teal", icon: ClipboardDocumentCheckIcon, title: "Fiche Bilan", subtitle: "Accéder aux fiches de synthèses et bilans", actionId: "home_nav_fiche_bilan", href: "/mediation/rencontres-numeriques/fiches-bilans" },
+              { id: "bilan-tech", kind: "leaf", accent: "orange", icon: WrenchScrewdriverIcon, title: "Bilan Tech", subtitle: "Effectuer et suivre les bilans techniques", actionId: "home_nav_bilan_tech", href: "/mediation/rencontres-numeriques/bilan_tech" },
+              { id: "collectes", kind: "leaf", accent: "teal", icon: CpuChipIcon, title: "Suivi Collectes Tech", subtitle: "Tableau d'activité synchrone type Excel / IdF", actionId: "home_nav_collectes", href: "/mediation/rencontres-numeriques/suivi-collecte" },
+            ],
+          },
+          {
+            id: "lieux", kind: "folder", accent: "orange", icon: MapPinIcon,
+            title: "Lieux", subtitle: "Rendez-vous par lieu et gestion des adresses",
+            actionId: "home_folder_lieux",
+            children: [
+              { id: "rdv-par-lieu", kind: "leaf", accent: "orange", icon: MapPinIcon, title: "Rendez-vous par lieu", subtitle: "Consulter et planifier les rendez-vous selon les lieux", actionId: "home_nav_rdv_par_lieu", href: "/mediation/rencontres-numeriques/rendez-vous-par-lieu" },
+              { id: "ajouter-lieu", kind: "leaf", accent: "orange", icon: BuildingOffice2Icon, title: "Ajouter un lieu", subtitle: "Gérer les adresses et localisations prédéfinies", actionId: "home_nav_ajouter_lieu", href: "/mediation/localisations" },
+            ],
+          },
         ],
       },
       {
-        id: "lieux", kind: "folder", accent: "orange", icon: MapPinIcon,
-        title: "Lieux", subtitle: "Rendez-vous par lieu et gestion des adresses",
-        actionId: "home_folder_lieux",
+        id: "programmes", kind: "folder", accent: "orange", icon: UsersIcon,
+        title: "Programmes", subtitle: "Participants, satisfaction et actions personnalisées",
+        actionId: "home_folder_programmes",
         children: [
-          { id: "rdv-par-lieu", kind: "leaf", accent: "orange", icon: MapPinIcon, title: "Rendez-vous par lieu", subtitle: "Consulter et planifier les rendez-vous selon les lieux", actionId: "home_nav_rdv_par_lieu", href: "/mediation/rencontres-numeriques/rendez-vous-par-lieu" },
-          { id: "ajouter-lieu", kind: "leaf", accent: "orange", icon: BuildingOffice2Icon, title: "Ajouter un lieu", subtitle: "Gérer les adresses et localisations prédéfinies", actionId: "home_nav_ajouter_lieu", href: "/mediation/localisations" },
+          { id: "participants", kind: "leaf", accent: "orange", icon: IdentificationIcon, title: "Participants & Prescripteurs", subtitle: "Vue transversale des 3 programmes d'actions collectives", actionId: "home_nav_participants", href: "/mediation/actions-collectives/participants" },
+          { id: "prospections", kind: "leaf", accent: "teal", icon: ChatBubbleLeftRightIcon, title: "Prospections", subtitle: "Fiches, vue tableau et annotations de suivi des prospects", actionId: "home_nav_prospections", href: "/mediation/prospections" },
+          {
+            // Regroupe les réponses aux questionnaires de satisfaction de tous
+            // les programmes en un seul endroit (plutôt qu'une tuile éclatée
+            // dans chaque dossier de programme) — les 3 tuiles historiques sont
+            // fixes, celles des actions personnalisées (satisfactionActif) sont
+            // injectées automatiquement, voir fusionnerSatisfactionActions.
+            id: "satisfaction", kind: "folder", accent: "orange", icon: HeartIcon,
+            title: "Satisfaction", subtitle: "Réponses aux questionnaires de satisfaction, par programme",
+            actionId: "home_folder_satisfaction",
+            children: [
+              { id: "satisfaction-digitalup", kind: "leaf", accent: "orange", icon: HeartIcon, title: "Digital'UP", subtitle: "Réponses au questionnaire de satisfaction", actionId: "home_nav_satisfaction_digitalup", href: "/mediation/actions-collectives/reponses/digital-up/satisfaction" },
+              { id: "satisfaction-duppro", kind: "leaf", accent: "orange", icon: HeartIcon, title: "DIGITAL UP 96H", subtitle: "Réponses au questionnaire de satisfaction", actionId: "home_nav_satisfaction_duppro", href: "/mediation/actions-collectives/reponses/digital-up-pro/satisfaction" },
+              { id: "satisfaction-numerikup", kind: "leaf", accent: "orange", icon: HeartIcon, title: "Numérik'UP", subtitle: "Réponses au questionnaire de satisfaction", actionId: "home_nav_satisfaction_numerikup", href: "/mediation/actions-collectives/reponses/numerik-up/satisfaction" },
+              { id: "satisfaction-nkpro", kind: "leaf", accent: "orange", icon: HeartIcon, title: "NUMERIK PRO", subtitle: "Réponses au questionnaire de satisfaction", actionId: "home_nav_satisfaction_nkpro", href: "/mediation/actions-collectives/reponses/numerik-up-pro/satisfaction" },
+              { id: "satisfaction-prfe", kind: "leaf", accent: "orange", icon: HeartIcon, title: "PRFE", subtitle: "Réponses au questionnaire de satisfaction", actionId: "home_nav_satisfaction_prfe", href: "/mediation/actions-collectives/reponses/prfe/satisfaction" },
+            ],
+          },
+          {
+            // Point d'entrée unique du moteur "actions personnalisées" (voir
+            // lib/dynamicActions/) : la page elle-même liste les actions déjà
+            // créées et permet d'en créer de nouvelles — aucune tuile
+            // individuelle n'est ajoutée ici pour chaque action créée,
+            // contrairement aux programmes historiques ci-dessus, pour ne
+            // jamais avoir à retoucher ce fichier. La création elle-même reste
+            // réservée aux administrateurs (contrôle applicatif dans
+            // creer-action/page.tsx), même si ce lien est visible par tout le
+            // staff détenant page_access_action_dynamique.
+            id: "actions-personnalisees", kind: "leaf", accent: "orange", icon: SparklesIcon,
+            title: "Actions personnalisées", subtitle: "Créer et gérer de nouvelles actions collectives",
+            actionId: "home_folder_actions_personnalisees", href: "/mediation/actions-collectives/creer-action",
+          },
         ],
       },
-      { id: "equipe", kind: "leaf", accent: "teal", icon: UserGroupIcon, title: "Équipe", subtitle: "Gérer et créer les fiches du staff", actionId: "home_nav_equipe", fallbackLocked: true, href: "/mediation/equipe" },
-      { id: "participants", kind: "leaf", accent: "orange", icon: IdentificationIcon, title: "Participants & Prescripteurs", subtitle: "Vue transversale des 3 programmes d'actions collectives", actionId: "home_nav_participants", href: "/mediation/actions-collectives/participants" },
-      { id: "bibliotheque-logos", kind: "leaf", accent: "teal", icon: PhotoIcon, title: "Bibliothèque Logos", subtitle: "Logos partenaires utilisés dans les émargements et formulaires publics", actionId: "home_nav_bibliotheque_logos", href: "/mediation/bibliotheque-logos" },
       {
-        // Regroupe les réponses aux questionnaires de satisfaction de tous
-        // les programmes en un seul endroit (plutôt qu'une tuile éclatée
-        // dans chaque dossier de programme) — les 3 tuiles historiques sont
-        // fixes, celles des actions personnalisées (satisfactionActif) sont
-        // injectées automatiquement, voir fusionnerSatisfactionActions.
-        id: "satisfaction", kind: "folder", accent: "orange", icon: HeartIcon,
-        title: "Satisfaction", subtitle: "Réponses aux questionnaires de satisfaction, par programme",
-        actionId: "home_folder_satisfaction",
+        id: "contenus-formulaires", kind: "folder", accent: "teal", icon: DocumentDuplicateIcon,
+        title: "Contenus & Formulaires", subtitle: "Logos, liens publics et pages modifiables",
+        actionId: "home_folder_contenus",
         children: [
-          { id: "satisfaction-digitalup", kind: "leaf", accent: "orange", icon: HeartIcon, title: "Digital'UP", subtitle: "Réponses au questionnaire de satisfaction", actionId: "home_nav_satisfaction_digitalup", href: "/mediation/actions-collectives/reponses/digital-up/satisfaction" },
-          { id: "satisfaction-duppro", kind: "leaf", accent: "orange", icon: HeartIcon, title: "DIGITAL UP 96H", subtitle: "Réponses au questionnaire de satisfaction", actionId: "home_nav_satisfaction_duppro", href: "/mediation/actions-collectives/reponses/digital-up-pro/satisfaction" },
-          { id: "satisfaction-numerikup", kind: "leaf", accent: "orange", icon: HeartIcon, title: "Numérik'UP", subtitle: "Réponses au questionnaire de satisfaction", actionId: "home_nav_satisfaction_numerikup", href: "/mediation/actions-collectives/reponses/numerik-up/satisfaction" },
-          { id: "satisfaction-nkpro", kind: "leaf", accent: "orange", icon: HeartIcon, title: "NUMERIK PRO", subtitle: "Réponses au questionnaire de satisfaction", actionId: "home_nav_satisfaction_nkpro", href: "/mediation/actions-collectives/reponses/numerik-up-pro/satisfaction" },
-          { id: "satisfaction-prfe", kind: "leaf", accent: "orange", icon: HeartIcon, title: "PRFE", subtitle: "Réponses au questionnaire de satisfaction", actionId: "home_nav_satisfaction_prfe", href: "/mediation/actions-collectives/reponses/prfe/satisfaction" },
+          { id: "bibliotheque-logos", kind: "leaf", accent: "teal", icon: PhotoIcon, title: "Bibliothèque Logos", subtitle: "Logos partenaires utilisés dans les émargements et formulaires publics", actionId: "home_nav_bibliotheque_logos", href: "/mediation/bibliotheque-logos" },
+          { id: "liens-publics", kind: "leaf", accent: "teal", icon: LinkIconOutline, title: "Liens publics", subtitle: "Tous les formulaires accessibles sans connexion, mis à jour automatiquement", actionId: "home_nav_liens_publics", href: "/mediation/liens-publics" },
+          { id: "contenus-modifiables", kind: "leaf", accent: "orange", icon: PencilSquareIcon, title: "Contenus modifiables", subtitle: "Toutes les pages d'édition (paramètres, fiches, questionnaires), réservé admin", actionId: "home_nav_contenus_modifiables", href: "/mediation/contenus-modifiables" },
         ],
-      },
-      { id: "liens-publics", kind: "leaf", accent: "teal", icon: LinkIconOutline, title: "Liens publics", subtitle: "Tous les formulaires accessibles sans connexion, mis à jour automatiquement", actionId: "home_nav_liens_publics", href: "/mediation/liens-publics" },
-      { id: "contenus-modifiables", kind: "leaf", accent: "orange", icon: PencilSquareIcon, title: "Contenus modifiables", subtitle: "Toutes les pages d'édition (paramètres, fiches, questionnaires), réservé admin", actionId: "home_nav_contenus_modifiables", href: "/mediation/contenus-modifiables" },
-      {
-        // Point d'entrée unique du moteur "actions personnalisées" (voir
-        // lib/dynamicActions/) : la page elle-même liste les actions déjà
-        // créées et permet d'en créer de nouvelles — aucune tuile
-        // individuelle n'est ajoutée ici pour chaque action créée,
-        // contrairement aux programmes historiques ci-dessus, pour ne
-        // jamais avoir à retoucher ce fichier. La création elle-même reste
-        // réservée aux administrateurs (contrôle applicatif dans
-        // creer-action/page.tsx), même si ce lien est visible par tout le
-        // staff détenant page_access_action_dynamique.
-        id: "actions-personnalisees", kind: "leaf", accent: "orange", icon: SparklesIcon,
-        title: "Actions personnalisées", subtitle: "Créer et gérer de nouvelles actions collectives",
-        actionId: "home_folder_actions_personnalisees", href: "/mediation/actions-collectives/creer-action",
       },
       {
         id: "stats", kind: "folder", accent: "teal", icon: ChartBarIcon,
-        title: "Statistiques & Bilans", subtitle: "Rapports globaux et impact Suresnes",
+        title: "Pilotage", subtitle: "Rapports globaux, impact territorial et volume horaire",
         actionId: "home_folder_stats",
         children: [
           { id: "stats-glob", kind: "leaf", accent: "orange", icon: ChartBarIcon, title: "Bilan & Stats Globaux", subtitle: "Consulter les rapports et indicateurs transversaux de la plateforme", actionId: "home_nav_stats_glob", href: "/mediation/statistiques" },
@@ -263,14 +285,22 @@ const NAV_TREE: NavNode[] = [
         ],
       },
       {
-        id: "parametres-admin", kind: "folder", accent: "orange", icon: Cog6ToothIcon,
-        title: "Paramètres", subtitle: "Connexions, droits, signalements et réglages variables",
-        actionId: "home_folder_parametres",
+        id: "administration", kind: "folder", accent: "orange", icon: UserGroupIcon,
+        title: "Administration", subtitle: "Équipe, connexions, signalements et droits",
+        actionId: "home_folder_administration",
         children: [
-          { id: "journal-connexions", kind: "leaf", accent: "teal", icon: FingerPrintIcon, title: "Journal des Connexions", subtitle: "Qui s'est connecté, quand, et combien de temps", actionId: "home_nav_journal_connexions", href: "/mediation/journal-connexions" },
-          { id: "signalements", kind: "leaf", accent: "orange", icon: ExclamationTriangleIcon, title: "Signalements de Bugs", subtitle: "Problèmes remontés via le bouton \"B\" (admin)", actionId: "home_nav_signalements", href: "/mediation/signalements" },
-          { id: "admin-droits", kind: "leaf", accent: "teal", icon: CpuChipIcon, title: "Gérer les Droits", subtitle: "Matrice de sécurité et modification des rôles de l'équipe", actionId: "home_nav_admin_droits", href: "/mediation/analyse" },
-          { id: "parametres", kind: "leaf", accent: "orange", icon: Cog6ToothIcon, title: "Paramètres Généraux", subtitle: "Quotas, seuils d'alerte et autres réglages variables", actionId: "home_nav_parametres", href: "/mediation/parametres" },
+          { id: "equipe", kind: "leaf", accent: "teal", icon: UserGroupIcon, title: "Équipe", subtitle: "Gérer et créer les fiches du staff", actionId: "home_nav_equipe", fallbackLocked: true, href: "/mediation/equipe" },
+          {
+            id: "parametres-admin", kind: "folder", accent: "orange", icon: Cog6ToothIcon,
+            title: "Paramètres", subtitle: "Connexions, droits, signalements et réglages variables",
+            actionId: "home_folder_parametres",
+            children: [
+              { id: "journal-connexions", kind: "leaf", accent: "teal", icon: FingerPrintIcon, title: "Journal des Connexions", subtitle: "Qui s'est connecté, quand, et combien de temps", actionId: "home_nav_journal_connexions", href: "/mediation/journal-connexions" },
+              { id: "signalements", kind: "leaf", accent: "orange", icon: ExclamationTriangleIcon, title: "Signalements de Bugs", subtitle: "Problèmes remontés via le bouton \"B\" (admin)", actionId: "home_nav_signalements", href: "/mediation/signalements" },
+              { id: "admin-droits", kind: "leaf", accent: "teal", icon: CpuChipIcon, title: "Gérer les Droits", subtitle: "Matrice de sécurité et modification des rôles de l'équipe", actionId: "home_nav_admin_droits", href: "/mediation/analyse" },
+              { id: "parametres", kind: "leaf", accent: "orange", icon: Cog6ToothIcon, title: "Paramètres Généraux", subtitle: "Quotas, seuils d'alerte et autres réglages variables", actionId: "home_nav_parametres", href: "/mediation/parametres" },
+            ],
+          },
         ],
       },
     ],
