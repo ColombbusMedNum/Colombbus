@@ -2,15 +2,23 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { quicksand } from "@/lib/fonts";
 import { HomeIcon, ArrowLeftIcon, CalendarDaysIcon, ChevronDownIcon, ExclamationTriangleIcon, ClockIcon } from "@heroicons/react/24/outline";
 import PageGuard from "@/components/PageGuard";
 import { useMediateurs } from "@/lib/MediateursProvider";
+import { estActionDuMediateur, type ActionAvecMediateur } from "@/lib/matchMediateur";
 import {
   ecouterPointagesPeriode, ecouterGrillesHorairesACI, horairesNormauxDuJour,
   minutesRetard, minutesEnTrop, minutesReellementEnTrop, formaterMinutes,
   type PointageACI, type GrillesHorairesParSite,
 } from "@/lib/pointageAci";
+
+interface CreneauJour extends ActionAvecMediateur {
+  date: string;
+  lieu?: string;
+}
 
 function versISODate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -22,7 +30,7 @@ function parDefautDebut(): string {
   return versISODate(d);
 }
 
-interface DetailJour { date: string; arrivee?: string; depart?: string; retard: number; enTrop: number; netEnTrop: number }
+interface DetailJour { date: string; arrivee?: string; depart?: string; retard: number; enTrop: number; netEnTrop: number; mission: string }
 interface RecapAci { id: string; nom: string; prenom: string; joursPointes: number; totalRetard: number; totalEnTrop: number; totalNetEnTrop: number; details: DetailJour[] }
 
 export default function RecapitulatifPointageAciPage() {
@@ -31,10 +39,15 @@ export default function RecapitulatifPointageAciPage() {
   const [dateFin, setDateFin] = useState(versISODate(new Date()));
   const [pointages, setPointages] = useState<PointageACI[] | null>(null);
   const [grilles, setGrilles] = useState<GrillesHorairesParSite>({});
+  const [creneauxPeriode, setCreneauxPeriode] = useState<CreneauJour[]>([]);
   const [ouverts, setOuverts] = useState<Set<string>>(new Set());
 
   useEffect(() => ecouterPointagesPeriode(dateDebut, dateFin, setPointages), [dateDebut, dateFin]);
   useEffect(() => ecouterGrillesHorairesACI(setGrilles), []);
+  useEffect(() => {
+    const q = query(collection(db, "planning_mediateurs"), where("date", ">=", dateDebut), where("date", "<=", dateFin));
+    return onSnapshot(q, (snap) => setCreneauxPeriode(snap.docs.map((d) => d.data() as CreneauJour)));
+  }, [dateDebut, dateFin]);
 
   const aciActifs = useMemo(
     () => mediateurs.filter((m) => m.statut === "ACI").sort((a, b) => (a.nom || "").localeCompare(b.nom || "", "fr")),
@@ -54,6 +67,12 @@ export default function RecapitulatifPointageAciPage() {
           const normal = horairesNormauxDuJour(grilles, site, p.date);
           const retard = minutesRetard(normal, p.arrivee);
           const enTrop = minutesEnTrop(normal, p.depart);
+          const lieuxDuJour = Array.from(new Set(
+            creneauxPeriode
+              .filter((c) => c.date === p.date && estActionDuMediateur(c, aci))
+              .map((c) => c.lieu)
+              .filter(Boolean) as string[]
+          ));
           return {
             date: p.date,
             arrivee: p.arrivee,
@@ -61,6 +80,7 @@ export default function RecapitulatifPointageAciPage() {
             retard,
             enTrop,
             netEnTrop: minutesReellementEnTrop(retard, enTrop),
+            mission: lieuxDuJour.length > 0 ? lieuxDuJour.join(" / ") : "—",
           };
         });
         return {
@@ -76,7 +96,7 @@ export default function RecapitulatifPointageAciPage() {
       })
       .filter((r) => r.joursPointes > 0)
       .sort((a, b) => b.totalRetard - a.totalRetard || b.totalEnTrop - a.totalEnTrop);
-  }, [pointages, aciActifs, grilles]);
+  }, [pointages, aciActifs, grilles, creneauxPeriode]);
 
   const loading = loadingMediateurs || pointages === null;
 
@@ -166,7 +186,8 @@ export default function RecapitulatifPointageAciPage() {
                                   {r.details.map((d) => (
                                     <div key={d.date} className="flex items-center gap-3 text-[11px] bg-white rounded-lg px-3 py-1.5 border border-[#404040]/10">
                                       <span className="font-bold text-[#005259] w-24 shrink-0">{new Date(`${d.date}T00:00:00`).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })}</span>
-                                      <span className="text-[#404040]/60 font-mono">{d.arrivee || "—"} → {d.depart || "—"}</span>
+                                      <span className="text-[#404040]/60 font-mono shrink-0">{d.arrivee || "—"} → {d.depart || "—"}</span>
+                                      <span className="text-[#404040]/50 truncate" title={d.mission}>{d.mission}</span>
                                       {d.retard > 0 && <span className="flex items-center gap-1 text-[#EF736A] font-bold ml-auto"><ExclamationTriangleIcon className="w-3 h-3" />Retard {formaterMinutes(d.retard)}</span>}
                                       {d.enTrop > 0 && <span className="flex items-center gap-1 text-[#005259] font-bold"><ClockIcon className="w-3 h-3" />+{formaterMinutes(d.enTrop)}</span>}
                                       {d.netEnTrop > 0 && <span className="text-[#404040]/50 font-bold">(réel : {formaterMinutes(d.netEnTrop)})</span>}
