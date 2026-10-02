@@ -72,7 +72,11 @@ export default function SuiviRecrutementSessionPage() {
   const [resultatsCollecteTech, setResultatsCollecteTech] = useState<ResultatCollecteTech[]>([]);
   const [loading, setLoading] = useState(true);
   const [recherche, setRecherche] = useState("");
-  const [onglet, setOnglet] = useState<"en_attente" | "affectes">("en_attente");
+  // "positionne" = aucun filtre, tout le monde positionné sur cette session ;
+  // "affectes" = Decision_Recrutement === "OK" ; "refuses" = "NOK". Par
+  // défaut sur "Affectés" : c'est le vivier actif du quotidien, les 2 autres
+  // onglets servent à (re)situer une ligne.
+  const [onglet, setOnglet] = useState<"positionne" | "affectes" | "refuses">("affectes");
   const [triNom, setTriNom] = useState<"asc" | "desc" | null>(null);
   const basculerTriNom = () => setTriNom((prev) => (prev === "asc" ? "desc" : prev === "desc" ? null : "asc"));
   const [territoireSelectionne, setTerritoireSelectionne] = useState("");
@@ -266,8 +270,8 @@ export default function SuiviRecrutementSessionPage() {
   const inscriptionsFiltrees = useMemo(() => {
     const terme = recherche.trim().toLowerCase();
     const resultat = inscriptionsSession.filter((i) => {
-      if (onglet === "en_attente" && i.Decision_Recrutement) return false;
-      if (onglet === "affectes" && !i.Decision_Recrutement) return false;
+      if (onglet === "affectes" && i.Decision_Recrutement !== "OK") return false;
+      if (onglet === "refuses" && i.Decision_Recrutement !== "NOK") return false;
       if (terme && !`${i.Prénom || ""} ${i.Nom || ""}`.toLowerCase().includes(terme)) return false;
       return true;
     });
@@ -352,12 +356,15 @@ export default function SuiviRecrutementSessionPage() {
         </div>
 
         <div className="flex flex-col md:flex-row md:items-center gap-3">
-          <div className="inline-flex bg-white border border-[#404040]/10 rounded-2xl p-1.5 shadow-sm w-fit">
-            <button type="button" onClick={() => setOnglet("en_attente")} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${onglet === "en_attente" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/60 hover:text-[#005259]"}`}>
-              En attente ({inscriptionsSession.filter((i) => !i.Decision_Recrutement).length})
+          <div className="inline-flex bg-white border border-[#404040]/10 rounded-2xl p-1.5 shadow-sm w-fit flex-wrap">
+            <button type="button" onClick={() => setOnglet("positionne")} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${onglet === "positionne" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/60 hover:text-[#005259]"}`}>
+              Positionné·e·s ({inscriptionsSession.length})
             </button>
             <button type="button" onClick={() => setOnglet("affectes")} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${onglet === "affectes" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/60 hover:text-[#005259]"}`}>
-              Affecté·e·s ({inscriptionsSession.filter((i) => i.Decision_Recrutement).length})
+              Affecté·e·s ({inscriptionsSession.filter((i) => i.Decision_Recrutement === "OK").length})
+            </button>
+            <button type="button" onClick={() => setOnglet("refuses")} className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${onglet === "refuses" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/60 hover:text-[#005259]"}`}>
+              Refusé·e·s ({inscriptionsSession.filter((i) => i.Decision_Recrutement === "NOK").length})
             </button>
           </div>
           <div className="relative group flex-1 max-w-md">

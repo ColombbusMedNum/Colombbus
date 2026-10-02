@@ -84,10 +84,11 @@ export default function ReponsesDigitalUpSessionPage() {
   const [inscriptions, setInscriptions] = useState<Inscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [recherche, setRecherche] = useState("");
-  // "en_attente" = pas encore de décision (OK_NOK vide) ; "affectes" = décision
-  // déjà prise (OK ou NOK) — cliquer sur OK/NOK fait donc disparaître la ligne
-  // de l'onglet "en attente" sans avoir à la supprimer.
-  const [onglet, setOnglet] = useState<"en_attente" | "affectes">("en_attente");
+  // "positionne" = aucun filtre, tout le monde positionné sur cette session ;
+  // "affectes" = OK_NOK === "OK" ; "refuses" = OK_NOK === "NOK". Par défaut
+  // sur "Affectés" : c'est le vivier actif du quotidien, les 2 autres
+  // onglets servent à (re)situer une ligne.
+  const [onglet, setOnglet] = useState<"positionne" | "affectes" | "refuses">("affectes");
   // Tri sur la colonne Nom — asc -> desc -> retour à l'ordre par défaut.
   const [triNom, setTriNom] = useState<"asc" | "desc" | null>(null);
   const basculerTriNom = () => {
@@ -254,8 +255,8 @@ export default function ReponsesDigitalUpSessionPage() {
   const inscriptionsFiltrees = useMemo(() => {
     const terme = recherche.trim().toLowerCase();
     const resultat = inscriptionsSession.filter((i) => {
-      if (onglet === "en_attente" && i.OK_NOK) return false;
-      if (onglet === "affectes" && !i.OK_NOK) return false;
+      if (onglet === "affectes" && i.OK_NOK !== "OK") return false;
+      if (onglet === "refuses" && i.OK_NOK !== "NOK") return false;
       if (terme && !`${i.Prénom || ""} ${i.Nom || ""}`.toLowerCase().includes(terme)) return false;
       return true;
     });
@@ -372,22 +373,29 @@ export default function ReponsesDigitalUpSessionPage() {
           </div>
         </div>
 
-        {/* BASCULE EN ATTENTE / AFFECTÉ·E·S + RECHERCHE */}
+        {/* BASCULE POSITIONNÉ·E·S (= TOUS) / AFFECTÉ·E·S / REFUSÉ·E·S + RECHERCHE */}
         <div className="flex flex-col md:flex-row md:items-center gap-3">
-          <div className="inline-flex bg-white border border-[#404040]/10 rounded-2xl p-1.5 shadow-sm w-fit">
+          <div className="inline-flex bg-white border border-[#404040]/10 rounded-2xl p-1.5 shadow-sm w-fit flex-wrap">
             <button
               type="button"
-              onClick={() => setOnglet("en_attente")}
-              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${onglet === "en_attente" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/60 hover:text-[#005259]"}`}
+              onClick={() => setOnglet("positionne")}
+              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${onglet === "positionne" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/60 hover:text-[#005259]"}`}
             >
-              En attente ({inscriptionsSession.filter((i) => !i.OK_NOK).length})
+              Positionné·e·s ({inscriptionsSession.length})
             </button>
             <button
               type="button"
               onClick={() => setOnglet("affectes")}
               className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${onglet === "affectes" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/60 hover:text-[#005259]"}`}
             >
-              Affecté·e·s ({inscriptionsSession.filter((i) => i.OK_NOK).length})
+              Affecté·e·s ({inscriptionsSession.filter((i) => i.OK_NOK === "OK").length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setOnglet("refuses")}
+              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${onglet === "refuses" ? "bg-[#005259] text-white shadow-sm" : "text-[#404040]/60 hover:text-[#005259]"}`}
+            >
+              Refusé·e·s ({inscriptionsSession.filter((i) => i.OK_NOK === "NOK").length})
             </button>
           </div>
           <div className="relative group flex-1 max-w-md">
