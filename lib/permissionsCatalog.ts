@@ -46,6 +46,7 @@ const DETAILED_PAGES: PageEntry[] = [
       { id: "home_nav_liens_publics", nom: "Lien Liens publics", type: "Link", description: "Accède à l'annuaire de tous les formulaires publics de COSMOS" },
       { id: "home_nav_prospections", nom: "Lien Prospections", type: "Link", description: "Accède aux fiches et au tableau de suivi des prospects" },
       { id: "home_nav_recapitulatif", nom: "Lien Récapitulatif", type: "Link", description: "Accède à la vue d'ensemble de toutes les tuiles de l'accueil" },
+      { id: "home_nav_pointage_aci", nom: "Lien Pointage ACI", type: "Link", description: "Accède à la saisie des heures d'arrivée/départ des salariés en insertion" },
       { id: "home_nav_contenus_modifiables", nom: "Lien Contenus modifiables", type: "Link", description: "Accède à l'annuaire des pages d'édition réservées à l'administrateur" },
       { id: "home_nav_liste_benef", nom: "Lien Liste des Bénéficiaires", type: "Link", description: "Accède au répertoire principal des usagers" },
       { id: "home_nav_suivi_rnd", nom: "Lien Suivi Visites à Domicile (RND)", type: "Link", description: "Accède au suivi des bénéficiaires en visite à domicile" },
@@ -344,6 +345,7 @@ const PAGE_ONLY_ROUTES: Omit<PageEntry, "actions">[] = [
   { pageId: "page_access_bibliotheque_logos", pageName: "Bibliothèque de logos", route: "/mediation/bibliotheque-logos", filePath: "app/mediation/bibliotheque-logos/page.tsx" },
   { pageId: "page_access_guide", pageName: "Mode d'emploi", route: "/mediation/guide", filePath: "app/mediation/guide/page.tsx" },
   { pageId: "page_access_recapitulatif", pageName: "Récapitulatif des tuiles", route: "/mediation/recapitulatif", filePath: "app/mediation/recapitulatif/page.tsx" },
+  { pageId: "page_access_pointage_aci", pageName: "Pointage ACI", route: "/mediation/pointage-aci", filePath: "app/mediation/pointage-aci/page.tsx" },
   // Ne correspond pas à une page unique : réutilisé tel quel par ~46 routes
   // Digital'UP/Numérik'UP/NUMERIK PRO/PRFE (inscription, réponses, suivi,
   // statistiques, participants) via les composants partagés ci-dessous —
@@ -428,7 +430,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     home_folder_terrain: true, home_folder_programmes: true, home_folder_contenus: true, home_folder_administration: true,
     home_folder_satisfaction: true, home_nav_liens_publics: true,
     page_access_prospections: true, home_nav_prospections: true, prosp_import: true, prosp_add_annotation: true,
-    page_access_recapitulatif: true, home_nav_recapitulatif: true,
+    page_access_recapitulatif: true, home_nav_recapitulatif: true, page_access_pointage_aci: true, home_nav_pointage_aci: true,
     page_access_action_dynamique: true, home_folder_actions_personnalisees: true,
     benef_search: true, benef_nav_agenda_suresnes: true, benef_create_new: true, benef_filter_alphabet: true,
     benef_filter_today: true, benef_filter_suresnes: true, benef_filter_essonne: true, benef_filter_de: true, benef_action_open: true,
@@ -472,7 +474,7 @@ export const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     home_folder_terrain: true, home_folder_programmes: true, home_folder_contenus: true, home_folder_administration: true,
     home_folder_satisfaction: true, home_nav_liens_publics: true,
     page_access_prospections: true, home_nav_prospections: true, prosp_import: true, prosp_add_annotation: true, prosp_delete: true,
-    page_access_recapitulatif: true, home_nav_recapitulatif: true,
+    page_access_recapitulatif: true, home_nav_recapitulatif: true, page_access_pointage_aci: true, home_nav_pointage_aci: true,
     page_access_action_dynamique: true, home_folder_actions_personnalisees: true,
     benef_search: true, benef_nav_agenda_suresnes: true, benef_create_new: true, benef_filter_alphabet: true,
     benef_filter_today: true, benef_filter_suresnes: true, benef_filter_essonne: true, benef_filter_de: true, benef_filter_blacklist: true,

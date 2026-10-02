@@ -26,7 +26,9 @@ import {
   ChatBubbleBottomCenterTextIcon,
   BuildingOfficeIcon,
   CheckCircleIcon,
-  ExclamationCircleIcon
+  ExclamationCircleIcon,
+  PhotoIcon,
+  XMarkIcon
 } from "@heroicons/react/24/outline";
 
 interface RDVItem {
@@ -105,6 +107,17 @@ function FichesBilansContent() {
   const [tousLesRdvs, setTousLesRdvs] = useState<{ lieu: string; rdv: RDVItem }[]>([]);
   const [fichesEditees, setFichesEditees] = useState<Record<string, FicheBilanData>>({});
   const [statusSauvegarde, setStatusSauvegarde] = useState<Record<string, string>>({});
+  // Image de signature par lieu, en mémoire seulement (jamais enregistrée en
+  // base ni uploadée nulle part) — juste le temps d'imprimer/exporter en PDF
+  // cette session, voir SECTION 3 plus bas.
+  const [signatureParLieu, setSignatureParLieu] = useState<Record<string, string>>({});
+
+  const importerSignature = (lieu: string, fichier: File | undefined) => {
+    if (!fichier) return;
+    const lecteur = new FileReader();
+    lecteur.onload = () => setSignatureParLieu((prev) => ({ ...prev, [lieu]: String(lecteur.result || "") }));
+    lecteur.readAsDataURL(fichier);
+  };
   // Sexe par bénéficiaire (id -> "Homme"/"Femme"/...), pour compter les
   // hommes/femmes uniques à côté du total d'interventions (une même
   // personne peut avoir plusieurs RDV dans le mois).
@@ -515,6 +528,28 @@ function FichesBilansContent() {
                           {msgStatus}
                         </span>
                       )}
+                      {signatureParLieu[lieu] && (
+                        <div className="flex items-center gap-1.5 bg-white border border-[#404040]/15 rounded-lg px-1.5 py-1">
+                          <img src={signatureParLieu[lieu]} alt="Signature" className="h-6 object-contain" />
+                          <button
+                            onClick={() => setSignatureParLieu((prev) => { const s = { ...prev }; delete s[lieu]; return s; })}
+                            title="Retirer la signature"
+                            className="p-0.5 text-[#404040]/40 hover:text-[#EF736A] transition-colors cursor-pointer"
+                          >
+                            <XMarkIcon className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                      <label className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-[#005259] hover:text-white border border-[#404040]/15 text-[#005259] text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-sm cursor-pointer">
+                        <PhotoIcon className="w-4 h-4" />
+                        <span>{signatureParLieu[lieu] ? "Changer la signature" : "Importer une signature"}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => importerSignature(lieu, e.target.files?.[0])}
+                        />
+                      </label>
                       <button
                         onClick={() => handleSaveFiche(lieu)}
                         className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#005259] hover:bg-[#EA601F] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-sm cursor-pointer"
@@ -633,11 +668,15 @@ function FichesBilansContent() {
                         Document généré le {new Date().toLocaleDateString('fr-FR')}
                       </p>
                     </div>
-                    <div className="w-56 text-right space-y-8">
+                    <div className="w-56 text-right space-y-2">
                       <p className="text-xs font-bold text-slate-800">
                         Signature / Validation :
                       </p>
-                      <div className="border-b border-dashed border-slate-400 h-6" />
+                      {signatureParLieu[lieu] ? (
+                        <img src={signatureParLieu[lieu]} alt="Signature" className="h-16 ml-auto object-contain" />
+                      ) : (
+                        <div className="border-b border-dashed border-slate-400 h-6 mt-6" />
+                      )}
                     </div>
                   </div>
 

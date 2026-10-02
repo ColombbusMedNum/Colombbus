@@ -170,6 +170,7 @@ const RECAP_TUILES: TuileRecap[] = [
           { titre: "Bilan & Stats Globaux", description: "Rapports et indicateurs transversaux de la plateforme", href: "/mediation/statistiques" },
           { titre: "Analyse par Territoire", description: "Bilan d'impact annuel du Relais Numérique", href: "/mediation/bilan-suresnes" },
           { titre: "Volume Horaire", description: "Temps de travail et coûts RH", href: "/mediation/volume-horaire" },
+          { titre: "Pointage ACI", description: "Heures d'arrivée et de départ des salariés en insertion, saisies par un permanent", href: "/mediation/pointage-aci" },
         ],
       },
       {

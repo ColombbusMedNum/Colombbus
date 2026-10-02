@@ -285,6 +285,7 @@ const NAV_TREE: NavNode[] = [
           { id: "stats-glob", kind: "leaf", accent: "orange", icon: ChartBarIcon, title: "Bilan & Stats Globaux", subtitle: "Consulter les rapports et indicateurs transversaux de la plateforme", actionId: "home_nav_stats_glob", href: "/mediation/statistiques" },
           { id: "bilan-suresnes", kind: "leaf", accent: "teal", icon: BuildingOfficeIcon, title: "Analyse par Territoire", subtitle: "Édition et étude du bilan d'impact annuel du Relais Numérique", actionId: "home_nav_bilan_suresnes", href: "/mediation/bilan-suresnes" },
           { id: "volume-horaire", kind: "leaf", accent: "orange", icon: ClockIcon, title: "Volume Horaire", subtitle: "Analyser le temps de travail et coûts RH", actionId: "home_nav_volume_horaire", href: "/mediation/volume-horaire" },
+          { id: "pointage-aci", kind: "leaf", accent: "teal", icon: ClockIcon, title: "Pointage ACI", subtitle: "Heures d'arrivée et de départ, saisies par un permanent", actionId: "home_nav_pointage_aci", href: "/mediation/pointage-aci" },
         ],
       },
       {

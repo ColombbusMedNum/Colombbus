@@ -52,6 +52,14 @@ service cloud.firestore {
       return isAdmin() || (isStaff() && myRole() == "coordinateur");
     }
 
+    // "Permanent" = médiateur ou coordinateur (voir lib/permissionsCatalog.ts,
+    // commentaire "réservé aux permanents") — exclut explicitement les ACI,
+    // formateurs et CIP. Utilisé pour la saisie du pointage ACI : un ACI ne
+    // doit jamais pouvoir modifier son propre pointage.
+    function isPermanentOuPlus() {
+      return isAdmin() || (isStaff() && (myRole() == "coordinateur" || myRole() == "mediateur"));
+    }
+
     // Profil et rôle de chaque membre du staff. Écriture ouverte au
     // coordinateur (pas seulement l'admin) : equipe_add_member,
     // equipe_member_actions et agenda_staff_mask lui sont accordés côté UI
@@ -369,6 +377,15 @@ service cloud.firestore {
     match /fiches_diagnostic/{programmeId} {
       allow read: if isStaff();
       allow write: if isAdmin();
+    }
+
+    // Pointage ACI (voir lib/pointageAci.ts) : heures d'arrivée/départ des
+    // salariés en insertion, saisies par un permanent uniquement — jamais
+    // par l'ACI lui-même, qui garde néanmoins un accès en lecture (comme
+    // tout le staff) pour la transparence.
+    match /pointages_aci/{docId} {
+      allow read: if isStaff();
+      allow write: if isPermanentOuPlus();
     }
 
     // Module "Prospections" (voir lib/prospections.ts) : fiches + annotations
