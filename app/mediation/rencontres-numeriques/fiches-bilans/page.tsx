@@ -668,12 +668,15 @@ function FichesBilansContent() {
                         Document généré le {new Date().toLocaleDateString('fr-FR')}
                       </p>
                     </div>
-                    <div className="w-56 text-right space-y-2">
+                    <div className={`text-right space-y-2 ${signatureParLieu[lieu] ? "" : "w-56"}`}>
                       <p className="text-xs font-bold text-slate-800">
                         Signature / Validation :
                       </p>
                       {signatureParLieu[lieu] ? (
-                        <img src={signatureParLieu[lieu]} alt="Signature" className="h-16 ml-auto object-contain" />
+                        // Taille réelle (pas de largeur/hauteur imposée) : une
+                        // signature email avec du texte lisible devient illisible
+                        // si on la réduit à la taille d'un simple paraphe.
+                        <img src={signatureParLieu[lieu]} alt="Signature" className="max-w-full inline-block" />
                       ) : (
                         <div className="border-b border-dashed border-slate-400 h-6 mt-6" />
                       )}
